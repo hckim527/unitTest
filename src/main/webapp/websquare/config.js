@@ -682,6 +682,10 @@ export default {
         {
           "@name": "$c.hkey",
           "@src": "/cm/gcc/hkey.xml"
+        },
+        {
+          "@name": "$c.gcm",
+          "@src": "/cm/gcc/common.xml"
         }
       ]
     },
