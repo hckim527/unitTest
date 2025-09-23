@@ -11,5 +11,5 @@ WebSquare.WebSquareLang = {
 	"c_label_3_5" : "복숭아",
 	"c_label_3_6" : "딸기",
 	"c_label_4_1": " 툴팁 예시",
-	"escape_test" : "<tag> - a, li 등",
+	"escape_test" : "<tag> 입니다",
 };
