@@ -22,14 +22,17 @@
 
 // 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    "description" : "[common > P > mandatory]<br/>컴포넌트의 유효성 체크 시 입력값 유무 여부를 확인하도록 설정합니다.",
+    "description" : "[common > P > invalidMessageFunc]<br/>입력값에 대한 유효성 체크를 통과하지 못한 경우 메시지를 동적으로 생성하기 위한 사용자 정의 함수를 설정합니다.",
     "validation" : [
-        "validate(), validateObject() 메소드로 실행하여 유효성 체크를 수행합니다.",
-        "미설정 시 컴포넌트의 입력값 유무를 확인하지 않습니다.",
-        "true 설정 시 컴포넌트의 입력값 유무를 확인합니다.",
-        "true 설정 시 'w2input_mandatory' 형태와 같이 mandatory 클래스가 적용됩니다.",
-        "false 설정 시 컴포넌트의 컴포넌트의 입력값 유무를 확인하지 않습니다.",
-        "컴포넌트에 입력값이 없는 경우 유효성 체크는 실패로 처리되고 '필수 입력 항목입니다' 오류 메시지가 출력됩니다.",
+        "메시지를 생성할 사용자 정의 함수를 설정합니다.",
+        "사용자 정의 함수의 반환값이 새로운 메시지로 적용됩니다.",
+        "displaymessage=true 이고 validate() 메소드 실행결과가 실패일때 동작합니다.",
+        "displaymessage=true 이고 validateObject() 메소드 실행결과가 실패일때 동작합니다.",
+        "사용자 정의 함수에서 반환된 값은 alert() 메소드로 표시됩니다.",
+        "사용자 정의 함수에서 this 를 통해 입력값 유효성 체크가 실행된 컴포넌트의 렌더링 ID 를 갖는 callerId 속성을 사용할 수 있습니다.",
+        "사용자 정의 함수에서 this 를 통해 입력값 유효성 체크가 실행된 컴포넌트를 반환하는 getCaller() 메소드를 사용할 수 있습니다.",
+        "사용자 정의 함수에서 this 를 통해 입력값 유효성 체크가 실패한 항목을 문자열로 반환하는 getType() 메소드 ('mandatory' 값을 가짐) 메소드를 사용할 수 있습니다.",
+        "사용자 정의 함수에서 this 를 통해 입력값 유효성 체크가 실패한 항목의 속성값을 반환하는 getValue() 메소드를 사용할 수 있습니다.",
     ]
 }
 
@@ -52,23 +55,50 @@ scwin.comp_init = function () {
 
 
 
-scwin.btn_validate_onclick = function (e) {
+scwin.check_validate_onclick = function () {
     let rtn = objParent.target1.validate();
 
     if (rtn) 
         wf_body_bottom.getObj("scwin").setReturnValue("validate check : PASS");
     else
         wf_body_bottom.getObj("scwin").setReturnValue("validate check : FAIL");
-};
+}
 
 
 
-scwin.btn_btn_getClass_onclick = function (e) {
-    let rtn = objParent.target1.render.className;
-    
-    wf_body_bottom.getObj("scwin").setReturnValue("className : " + rtn);
-};
-]]></script>
+scwin.btn_validateObject_onclick = function (e) {
+    let rtnObj  = objParent.target1.validateObject();
+    wf_body_bottom.getObj("scwin").setReturnValue("validateObject : "+ rtnObj);
+
+    if (rtnObj) {
+        let callerId = rtnObj.callerId
+        let type = rtnObj.type
+        let value = rtnObj.value
+
+        wf_body_bottom.getObj("scwin").setReturnValue("callerId : "+ callerId);
+        wf_body_bottom.getObj("scwin").setReturnValue("type : "+ type);
+        wf_body_bottom.getObj("scwin").setReturnValue("value : "+ value);
+    }
+}
+
+
+
+// 사용자 정의 함수
+objParent.scwin.fn_msg = function() { 
+    let invalidCompId = this.callerId;  // invalid id 
+    let invalidCompObj = this.getCaller();  // invalid obj
+    let invalidType = this.getType();  // invalid type 
+    let invalidValue = this.getValue(); // invalid value
+
+    switch (invalidType) {
+        case "mandatory" :
+            msg = "You need to choose an item" + invalidValue;
+            break;
+    }
+
+    msg += "(id: " + invalidCompId + ", org_id: " + invalidCompObj.org_id + ", value: " + invalidValue + ")";
+    return msg;
+}]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
 		<xf:group class="tc_body_main" id="" style="display: flex;">
@@ -92,25 +122,32 @@ scwin.btn_btn_getClass_onclick = function (e) {
 							</xf:group>
 							<xf:group style="" tagname="tr">
 								<xf:group class="w2tb_th" style="" tagname="th">
-									<w2:textbox class="" id="" label="mandatory" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="invalidMessageFunc" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_mandatory" ref="" style=""
-										submenuSize="auto">
+									<xf:select1 id="con_invalidMessageFunc" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
 										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.fn_msg]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
 										</xf:choices>
 									</xf:select1>
 								</xf:group>
 								<xf:group class="w2tb_th " tagname="th">
 									<w2:attributes></w2:attributes>
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									
 								</xf:group>
 								<xf:group class="w2tb_td" tagname="td">
 									<w2:attributes></w2:attributes>
+									
 								</xf:group>
 							</xf:group>
 						</xf:group>
@@ -120,9 +157,11 @@ scwin.btn_btn_getClass_onclick = function (e) {
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
 						<w2:button class="tc_btn_basic" id="btn_validate" label="validate" style=""
-							ev:onclick="scwin.btn_validate_onclick">
+							ev:onclick="scwin.check_validate_onclick">
 						</w2:button>
-						<w2:button class="tc_btn_basic" id="btn_getClass" label='class 확인' style="" ev:onclick="scwin.btn_btn_getClass_onclick"></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_validateObject_onclick" id="btn_validateObject" label="validateObject"
+							style="">
+						</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
