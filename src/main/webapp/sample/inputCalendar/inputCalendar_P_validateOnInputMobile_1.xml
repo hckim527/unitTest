@@ -18,23 +18,23 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[inputCalendar &gt; P &gt; skipConfirm]&lt;br/&gt;팝업 달력에서 상단의 월을 선택 시 선택된 년/월이 컴포넌트에 반영되도록 설정합니다.&quot;,
+    &quot;description&quot; : &quot;[inputCalendar &gt; P &gt; validateOnInputMobile]&lt;br/&gt;입력되는 문자에 대한 검증이 처리되는 시점을 설정합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;pickerType=selectbox 이고 calendarValueType=yearMonth 인 경우에 동작합니다.&quot;,
-        &quot;skipConfirmOnly=true 인 경우 skipConfirm 속성은 무시됩니다.&quot;,
-        &quot;미설정 시 팝업 달력의 '확인' 버튼을 클릭하면 선택된 년/월이 컴포넌트에 반영됩니다.&quot;,
-        &quot;true 설정 시 팝업 달력에서 상단의 월 영역 SelectBox 를 선택 시 선택된 년/월이 컴포넌트에 반영됩니다.&quot;,
-        &quot;true 설정 시 pickerType, calendarValueType 속성값에 관계없이 모든 팝업 달력에 '확인' 버튼이 표시되지 않습니다.&quot;,
-        &quot;false 설정 시 팝업 달력의 '확인' 버튼을 클릭하면 선택된 년/월이 컴포넌트에 반영됩니다.&quot;,        
+        &quot;미설정 시 입력값으로 눌린 키가 떼어졌을때 문자에 대한 검증을 합니다.&quot;,
+        &quot;true 설정 시 입력값으로 키가 눌린 시점에 문자에 대한 검증을 합니다.&quot;,
+        &quot;true 설정 시 숫자 이외의 문자(다국어 포함)는 입력되지 않습니다.&quot;,
+        &quot;false 설정 시 입력값으로 눌린 키가 떼어졌을때 문자에 대한 검증을 합니다.&quot;,
+        &quot;미설정 또는 false 설정 시 숫자 이외의 문자(다국어 포함)는 컴포넌트에 표시되었다가 포커스 해제 시 제거됩니다.&quot;,        
     ]
 }
 
 
 
 scwin.onpageload = function () {
-    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);	
 
-    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
 
     // comp 초기 생성
     scwin.comp_init();
@@ -50,51 +50,33 @@ scwin.comp_init = async function () {
     }
 
     let properties = {
-        pickerType : &quot;selectbox&quot;,
-        calendarValueType : &quot;yearMonth&quot;,
-        skipConfirm : con_skipConfirm.getText(),
-        skipConfirmOnly : con_skipConfirmOnly.getText(),
+        validateOnInputMobile : con_validateOnInputMobile.getText(),        
     }
-   
-    let cList = $c.gcm.createCList(properties)    
-    
-    // comp 생성 함수 호출    
-    $c.gcm.createBasicInputCalendar(cList);
+
+    let cList = $c.gcm.createCList(properties);    
+    let eList = $c.gcm.createEList([&quot;onkeydown&quot;, &quot;onblur&quot;]);
+
+    $c.gcm.createEmptyInputCalendar(cList, eList); 
 }
 
 
 
-scwin.isConfirmButton = function () {
+scwin.target1_onkeydown = function (e) {
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_onkeydown=====&quot;);
+    let inputElement = document.querySelector('input[id*=target1_input]');
 
-    let targetElement = document.querySelector('div[id*=&quot;target1_calendar&quot;]');
-
-    if (targetElement) {
-        let confirmElement = document.querySelector('div[title*=&quot;확인&quot;]');
-
-        if (confirmElement) {
-            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue('확인 버튼 표시');
-        }
-        else {
-            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue('확인 버튼 미표시');
-        }
-    }
-    else {
-        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;팝업 달력을 한번 오픈해야 정보 가져올 수 있음&quot;);
-    }
+    if (inputElement)
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue('편집 상태 입력값 : ' + inputElement.value);   
 }
 
 
 
-
-scwin.btn_getValue_onclick = function (e) {
-	let rtn = ''
+scwin.target1_onblur = function (e) {
+    let rtn = ''
 
     rtn = target1.getValue();
-    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue('입력일 : ' + rtn);
-
-    scwin.isConfirmButton();
-};
-</script>
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue('입력값 : ' + rtn);
+}</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
 		<xf:group class="tc_body_main" id="" style="display: flex;">
@@ -119,12 +101,11 @@ scwin.btn_getValue_onclick = function (e) {
 							<xf:group tagname="tr" style="">
 								<xf:group tagname="th" style="" class="w2tb_th">
 									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
-									<w2:textbox class="" id="" label="skipConfirm" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="validateOnInputMobile" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group tagname="td" style="" class="w2tb_td">
-									<xf:select1 id="con_skipConfirm" chooseOption="" style="" submenuSize="auto" allOption=""
-										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref=""
-										ev:onchange="scwin.con_defaultDate_onchange">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_validateOnInputMobile" ref="" style=""
+										submenuSize="auto">
 										<xf:choices>
 											<xf:itemset nodeset="data:gdl_boolean">
 												<xf:label ref="label"></xf:label>
@@ -136,24 +117,10 @@ scwin.btn_getValue_onclick = function (e) {
 								<xf:group tagname="th" class="w2tb_th ">
 									<w2:attributes></w2:attributes>
 									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
-
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="skipConfirmOnly" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group tagname="td" class="w2tb_td">
 									<w2:attributes></w2:attributes>
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_defaultDate_onchange" id="con_skipConfirmOnly" ref="" style=""
-										submenuSize="auto">
-										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
-										</xf:choices>
-									</xf:select1>
 								</xf:group>
 							</xf:group>
 						</xf:group>
@@ -162,9 +129,6 @@ scwin.btn_getValue_onclick = function (e) {
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
-                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getValue_onclick" id="btn_getValue"
-							label="입력일 확인" style="">
-						</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
