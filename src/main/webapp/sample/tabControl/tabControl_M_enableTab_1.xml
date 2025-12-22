@@ -18,11 +18,10 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[tabControl &gt; P &gt; alwaysShowCloseBtn]&lt;br/&gt;closable 속성이 true 로 적용된 Tab 버튼에서 '닫기' 버튼을 항상 표시할지 설정합니다.&quot;,
+    &quot;description&quot; : &quot;[tabControl &gt; M &gt; enableTab]&lt;br/&gt;인덱스값을 사용하여 특정 Tab 페이지를 비활성화(disabled)를 해제합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;closable 속성이 false 로 적용된 Tab 버튼은 '닫기' 버튼이 표시되지 않습니다.&quot;,
-        &quot;미설정 또는 false 설정 시 closable 속성이 true 로 적용된 Tab 버튼 영역에 마우스 오버 시 '닫기' 버튼이 표시됩니다.&quot;,
-        &quot;true 설정 시 closable 속성이 true 로 적용된 Tab 버튼에서 '닫기' 버튼이 항상 표시됩니다.&quot;,
+        &quot;tabIndex(필수) 파라미터로 비활성화(disabled)를 해제 하려는 Tab 페이지의 인덱스값을 숫자로 설정합니다.&quot;,
+        &quot;Tab 페이지의 인덱스는 0 부터 시작합니다.&quot;,        
     ]
 }
 
@@ -50,12 +49,11 @@ scwin.comp_init = async function () {
 
     // 조건 설정   
     let properties = {
-        alwaysShowCloseBtn : con_alwaysShowCloseBtn.getText(),
-        closable: con_closable.getText(),
+        alwaysDraw : true,        
     };
 
     let cList = $c.gcm.createCList(properties);      
-    let eList = $c.gcm.createEList([&quot;onbeforetabclose&quot;]);
+    let eList = $c.gcm.createEList([&quot;onchange&quot;]);
    
     let grp_comp = $c.gcm.getTestGroup();    
     let strTarget = '';
@@ -66,48 +64,59 @@ scwin.comp_init = async function () {
     strTarget += '&lt;w2:tabs disabled=&quot;false&quot; style=&quot;height:40px&quot; id=&quot;tabs2&quot; label=&quot;Tabs2&quot;&gt;&lt;/w2:tabs&gt;';
     strTarget += '&lt;w2:tabs disabled=&quot;false&quot; style=&quot;height:40px&quot; id=&quot;tabs3&quot; label=&quot;Tabs3&quot;&gt;&lt;/w2:tabs&gt;';
     strTarget += '&lt;w2:content style=&quot;height:160px;&quot; id=&quot;content1&quot;&gt;';
-    strTarget += '&lt;w2:button style=&quot;width:80px; height:23px; &quot; id=&quot;&quot; label=&quot;tabs1&quot;&gt;&lt;/w2:button&gt;';
+    strTarget += '&lt;w2:button style=&quot;width:80px; width:130px; height:50px;&quot; id=&quot;content1_child&quot; label=&quot;content1_child&quot;&gt;&lt;/w2:button&gt;';
     strTarget += '&lt;/w2:content&gt;';
     strTarget += '&lt;w2:content style=&quot;height:160px&quot; id=&quot;content2&quot;&gt;';
-    strTarget += '&lt;xf:input id=&quot;&quot; style=&quot;width:144px; height:21px; &quot; initValue=&quot;tabs2&quot;&gt;&lt;/xf:input&gt;';
+    strTarget += '&lt;xf:input id=&quot;content2_child&quot; style=&quot;width:144px; height:21px; &quot; initValue=&quot;content2_child&quot;&gt;&lt;/xf:input&gt;';
     strTarget += '&lt;/w2:content&gt;';
     strTarget += '&lt;w2:content style=&quot;height:160px&quot; id=&quot;content3&quot;&gt;';    
+    strTarget += '&lt;w2:textbox id=&quot;content3_child&quot; label=&quot;content3_child&quot; style=&quot;width:200px; height:50px; background-color:var(--ws-gray-300);&quot;&gt;&lt;/w2:textbox&gt;';
     strTarget += '&lt;/w2:content&gt;';
     strTarget += '&lt;/w2:tabControl&gt;';
 
-    $c.gcm.createLabel('label=&quot;alwaysShowCloseBtn=false 인 경우는 닫기 버튼에 마우스 오버 후 클릭하여 확인&quot;', '', 'label1');
-
-    // target 생성    
+    // target 생성
     scwin.target1 = await $p.dynamicCreate(
         &quot;target1&quot;,
         &quot;tabControl&quot;,
         strTarget,
         grp_comp
-    );    
+    );
+
+    target1.disableTab(0);
+    target1.disableTab(1);
+    target1.disableTab(2);
 }
 
 
 
-scwin.btn_getCloseBtn_onclick = function (e) {
-    const closeButtons = [
-        'div[id*=target1_tab_tabs1_close]',
-        'div[id*=target1_tab_tabs2_close]',
-        'div[id*=target1_tab_tabs3_close]'
-    ];
+scwin.btn_getDisabled_onclick = function (e) {   
+    const tabIndexes = [0, 1, 2];
 
-    closeButtons.forEach((selector, index) =&gt; {
-        let closeButton = document.querySelector(selector);
-        let displayValue = closeButton ? getComputedStyle(closeButton).display : 'not found';
-        
-        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(`closeButton${index + 1} display: ${displayValue}`);
-    });
+    tabIndexes.forEach(index =&gt; {
+        let tab = document.querySelector(`li[id*=target1_tab_tabs${index + 1}]`);
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(`tabs${index + 1} className : ${tab.className}`);
+
+        let content = document.querySelector(`div[id*=target1_contents_content${index + 1}_body]`);        
+        let isDisabled = content.disabled;
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(`content${index + 1} disabled : ${isDisabled}`);
+    });    
+};
+
+
+
+
+scwin.btn_enableTab_onclick = function (e) {
+	target1.enableTab(par_tabIndex.getText());
+
+    scwin.btn_getDisabled_onclick();	
+};
+
+
+
+scwin.target1_onchange = function (tabId, index, userTabId) {
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_onchange=====&quot;)
 }
-
-
-
-scwin.target1_onbeforetabclose = function (tabId, index) {
-    scwin.btn_getCloseBtn_onclick();
-}</script>
+</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
 		<xf:group class="tc_body_main" id="" style="display: flex;">
@@ -117,57 +126,60 @@ scwin.target1_onbeforetabclose = function (tabId, index) {
 			<xf:group class="tc_body_right" id="body_right" style="">
 				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
 				<xf:group id="grp_condition">
-					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
-						meta_snippetName="5_02 2단테이블" style="">
-						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
 							<w2:attributes>
 								<w2:summary></w2:summary>
 							</w2:attributes>
 							<xf:group tagname="colgroup">
-								<xf:group style="width:150px;" tagname="col"></xf:group>
-								<xf:group style="" tagname="col"></xf:group>
-								<xf:group style="width:150px;" tagname="col"></xf:group>
-								<xf:group style="" tagname="col"></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
 							</xf:group>
-							<xf:group style="" tagname="tr">
-								<xf:group class="w2tb_th" style="" tagname="th">
-
-									<w2:textbox class="" id="" label="alwaysShowCloseBtn" ref="" style="" userData2=""></w2:textbox>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="tabIndex" class=""></w2:textbox>
 								</xf:group>
-								<xf:group class="w2tb_td" style="" tagname="td">
-
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_alwaysShowCloseBtn" ref="" style="">
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" appearance="minimal" chooseOption="" style="" allOption="" id="par_tabIndex">
 										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
 										</xf:choices>
 									</xf:select1>
 								</xf:group>
-								<xf:group class="w2tb_th " tagname="th">
+								<xf:group tagname="th" class="w2tb_th ">
 									<w2:attributes></w2:attributes>
-									<w2:textbox class="" id="" label="closable" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
-								<xf:group class="w2tb_td" tagname="td">
+								<xf:group tagname="td" class="w2tb_td">
 									<w2:attributes></w2:attributes>
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_closable" ref="" style="">
-										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
-										</xf:choices>
-									</xf:select1>
 								</xf:group>
 							</xf:group>
 						</xf:group>
 					</xf:group>
-				</xf:group>
-				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
-				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCloseBtn_onclick" id="btn_getCloseBtn" label="닫기 버튼 확인" style=""></w2:button>
+						<w2:button ev:onclick="scwin.btn_enableTab_onclick" style="" id="btn_enableTab" label="enableTab"
+							class="tc_btn_basic">
+						</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
