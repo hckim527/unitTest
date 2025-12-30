@@ -692,6 +692,13 @@ export default {
     },
     "disableDuplicateIdAlert": {
       "@value": "false"
+    },
+    "msaServer": {
+      "msa": {
+        "@baseURI": "/",
+        "@name": "msa_server",
+        "@origin": "http://192.168.100.250:8080"
+      }
     }
   }
 }
