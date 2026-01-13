@@ -18,14 +18,20 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; getOnlyDeletedData]&lt;br/&gt;Row 의 상태가 '삭제' 또는 '제거' 인 Row 데이터를 2차원 배열로 반환합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; getVoidXML]&lt;br/&gt;Row 의 상태가 '삽입 후 삭제' 또는 '제거' 인 Row 데이터를 XML 객체로 반환합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;필터와 정렬이 적용된 상태를 기준으로 Row 상태값이 'D', 'E' 인 Row 데이터가 반환되며, 'V' 상태의 Row 는 포함되지 않습니다.&quot;,
-        &quot;반환값으로 필터와 정렬이 적용된 상태를 기준으로 Row 상태가 '삭제' 또는 '제거' 인 데이터를 2차원 배열로 반환합니다.&quot;,         
-        &quot;Row 의 상태값이 'D', 'E' 인 Row 가 반환되며, '삽입 후 삭제' 된 'V' 상태의 Row 데이터는 포함되지 않습니다.&quot;,
-        &quot;반환되는 배열은 정렬이 적용된 순서대로 생성되며 'E' 상태인 Row 는 필터링/정렬 여부와 관계없이 마지막에 생성됩니다.&quot;,
+        &quot;필터와 정렬이 적용된 상태를 기준으로 Row 상태값이 'V', 'E' 인 Row 데이터가 반환됩니다.&quot;,
+        &quot;onlyVoid(선택) 파라미터로 Row 상태값이 'E' 인 '제거' Row 의 데이터를 포함할지 true/false 로 설정합니다.&quot;,
+        &quot;onlyVoid(선택) 파라미터로 true 설정 시 Row 상태값이 'E' 인 Row 데이터를 반환값에 포함하지 않습니다.&quot;,
+        &quot;onlyVoid(선택) 파라미터로 미설정 또는 false 설정 시 Row 상태값이 'E' 인 Row 데이터를 반환값에 포함합니다.&quot;,
+        &quot;반환값으로 필터와 정렬이 적용된 상태를 기준으로 Row 상태가 '삭제' 또는 '제거' 인 데이터를 XML 객체로 반환합니다.&quot;,
+        &quot;Row 의 상태값이 'V', 'E' 인 Row 가 반환되며, onlyVoid 파라미터값이 false 이면 'E' 상태의 Row 데이터는 포함되지 않습니다.&quot;,
+        &quot;XML 은 정렬이 적용된 순서대로 생성되며 'E' 상태인 Row 는 필터링/정렬 여부와 관계없이 마지막에 생성됩니다.&quot;,
         &quot;DataList 모듈에 필터가 적용되지 않은 경우 전체 Row 데이터를 기준으로 처리됩니다.&quot;,
-        &quot;신규로 추가된 Row 가 아닌 DataList 모듈에 로딩되어 있던 Row 가 삭제 또는 제거된 경우에 해당 Row 데이터를 반환합니다.&quot;,
+        &quot;반환된 객체의 xml 속성값은 baseNode 속성값이 최상위 태그명으로 적용되고, 반복되는 데이터 태그엔 repeatNode 속성값이 적용됩니다.&quot;,
+        &quot;데이터 태그는 index 속성으로 Row 의 인덱스값이 설정되며, 'E' 상태인 Row 는 'removed' 값이 설정됩니다.&quot;,
+        &quot;데이터 태그는 DataList 모듈의 Column ID 와 Column 값이 하위 태그로 반복됩니다.&quot;,
+        &quot;데이터 태그는 'rowStatus' 를 마지막 하위 태그로 Row 의 상태값이 설정되며 'statusValue' 속성으로 상태코드값이 설정됩니다.&quot;,        
     ]
 }
 
@@ -83,13 +89,18 @@ scwin.btn_insertRow_onclick = function (e) {
     let insertIndex = target1.insertRow();
     target1.setRowData(insertIndex,[&quot;insert1&quot;,&quot;insert2&quot;,&quot;insert3&quot;,&quot;insert4&quot;],true);
 
-    target1.deleteRow(4);
+    target1.deleteRow(insertIndex);
+
+    insertIndex = target1.insertRow();
+    target1.setRowData(insertIndex,[&quot;insert5&quot;,&quot;insert6&quot;,&quot;insert7&quot;,&quot;insert8&quot;],true);
+
+    target1.deleteRow(insertIndex);
 };
 
 
 
 scwin.btn_deleteRow_onclick = function (e) {
-    target1.deleteRow(0);
+    target1.deleteRow(1);
 };
 
 
@@ -108,7 +119,7 @@ scwin.btn_removeRow_onclick = function (e) {
 
 scwin.btn_setColumnFilter_onclick = function (e) {
 	target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_2&quot;, condition:'and'})
-    target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_4&quot;, condition:'or'})
+    target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;insert5&quot;, condition:'or'})
 };
 
 
@@ -119,12 +130,13 @@ scwin.btn_sort_onclick = function (e) {
 
 
 
-scwin.btn_getOnlyDeletedData_onclick = function (e) {
-    let rtn = target1.getOnlyDeletedData();  
+scwin.btn_getVoidXML_onclick = function (e) {
+    let rtn = target1.getVoidXML();
+    const serializer = new XMLSerializer();
+    let xmlString = serializer.serializeToString(rtn);
 
-    for (var i=0; i &lt; rtn.length; i++) {        
-        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(`row[${i}] : ${rtn[i]}`);
-    }    
+	wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result: &quot; + rtn);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result.xml: &quot; + xmlString); 
 };</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -139,8 +151,8 @@ scwin.btn_getOnlyDeletedData_onclick = function (e) {
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
-						<w2:button style="" id="btn_getOnlyDeletedData" label="getOnlyDeletedData" class="tc_btn_basic"
-							ev:onclick="scwin.btn_getOnlyDeletedData_onclick">
+						<w2:button style="" id="btn_getVoidXML" label="getVoidXML" class="tc_btn_basic"
+							ev:onclick="scwin.btn_getVoidXML_onclick">
 						</w2:button>
                         <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="setColumnFilter"
 							style="">
