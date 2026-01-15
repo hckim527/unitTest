@@ -16,11 +16,20 @@
 		</xf:model>
 		<w2:layoutInfo />
 		<w2:publicInfo method="" />
-		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+		<script lazy="false" type="text/javascript">let isFilter = false;
+let isSort = false;
+
+
+
+// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; getMatchedXML]&lt;br/&gt;지정한 Row 범위에서 파라미터 조건에 만족하는 Row 데이터를 XML 형태로 반환합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; getMatchedFromAllData]&lt;br/&gt;getMatched 계열의 메소드가 필터와 정렬이 적용되지 않은 상태를 기준으로 동작하게 설정합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;columnInfo(필수) 파라미터로 data 파라미터값과 비교하려는 Column 의 ID 값을 설정합니다.&quot;,
+        &quot;getMatchedXML 메소드가 필터와 정렬이 적용되지 않은 상태를 기준으로 동작하게 설정합니다.&quot;,
+		&quot;true 설정 시 DataList 모듈에 필터와 정렬이 적용되지 않은 전체 Row 데이터를 기준으로 메소드가 동작합니다.&quot;,
+        &quot;미설정 또는 false 설정 시 DataList 모듈에 필터와 정렬이 적용된 Row 데이터를 기준으로 메소드가 동작합니다.&quot;,
+		&quot;미설정 또는 false 설정 시 DataList 모듈에 필터가 적용되지 않은 경우 전체 Row 데이터를 기준으로 동작합니다.&quot;,
+		&quot;Row 의 상태값은 getMatched 계열의 메소드 동작에 영향을 미치지 않습니다.&quot;,
     ]
 }
 
@@ -50,18 +59,18 @@ scwin.comp_init = async function () {
         gridView1.remove();
     }    
     
-    // // 조건 설정       
-    // let properties = {
+    // 조건 설정       
+    let properties = {
+        getMatchedFromAllData : con_getMatchedFromAllData.getText(),
+    };
 
-    // };
-
-    // let cList = $c.gcm.createCList(properties);
+    let cList = $c.gcm.createCList(properties);
 
     // // 이벤트 설정
     // let eList = $c.gcm.createEList([&quot;&quot;]);       
    
     // target 생성
-    $c.gcm.createBasicDataList();
+    $c.gcm.createBasicDataList(cList);
 
     // gridView 생성
     $c.gcm.createBasicGridView('dataList=&quot;data:target1&quot; rowStatusVisible=&quot;true&quot;', '', 'gridView1');
@@ -70,6 +79,9 @@ scwin.comp_init = async function () {
     scwin.btn_deleteRow_onclick();
     scwin.btn_setCellData_onclick();
     scwin.btn_removeRow_onclick();
+
+    isFilter = false;
+    isSort = false;
 }   
 
 
@@ -100,14 +112,28 @@ scwin.btn_removeRow_onclick = function (e) {
 
 
 scwin.btn_setColumnFilter_onclick = function (e) {
-	target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_2&quot;, condition:'and'})    
-    target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;insert1&quot;, condition:'or'})
+    if (isFilter) {
+        target1.clearFilter();  
+        isFilter = false;  
+    }
+    else {
+        target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_2&quot;, condition:'and'})
+        target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;insert1&quot;, condition:'or'})        
+        isFilter = true;
+    }	
 };
 
 
 
 scwin.btn_sort_onclick = function (e) {
-    target1.sort(&quot;col1&quot;, 1);
+    if (isSort) {    
+        target1.clearSort();
+        isSort = false;
+    }
+    else {
+        target1.sort(&quot;col1&quot;, 1);
+        isSort = true;
+    }
 };
 
 
@@ -116,30 +142,14 @@ scwin.btn_getMatchedXML_onclick = function (e) {
     let rtn = '';
     let columnInfo = par_columnInfo.getText();
     let data = par_data.getValue();
-    let exactMatch = par_exactMatch.getText();
-    let startRowIndex = par_startRowIndex.getText();
-    let lastRowIndex = par_lastRowIndex.getText();
-    
-    if (exactMatch == &quot;true&quot;)
-        exactMatch = true;
-    else if (exactMatch == &quot;false&quot;)
-        exactMatch = false;
-    else
-        exactMatch = true;
 
-    if (startRowIndex == &quot;&quot; &amp;&amp; lastRowIndex == &quot;&quot;)
-        rtn = target1.getMatchedXML(columnInfo, data, exactMatch);
-    else if (lastRowIndex == &quot;&quot;)
-        rtn = target1.getMatchedXML(columnInfo, data, exactMatch, Number(startRowIndex));
-    else
-        rtn = target1.getMatchedXML(columnInfo, data, exactMatch, Number(startRowIndex), Number(lastRowIndex));
+    rtn = target1.getMatchedXML(Number(columnInfo), data);
 
-    
     const serializer = new XMLSerializer();
     let xmlString = serializer.serializeToString(rtn);
 
 	wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result: &quot; + rtn);
-    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result.xml: &quot; + xmlString);  
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result.xml: &quot; + xmlString);   
 };</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -150,6 +160,44 @@ scwin.btn_getMatchedXML_onclick = function (e) {
 			<xf:group class="tc_body_right" id="body_right" style="">
 				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
 				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="getMatchedFromAllData" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_getMatchedFromAllData" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
@@ -170,31 +218,31 @@ scwin.btn_getMatchedXML_onclick = function (e) {
 									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+									<xf:select1 id="par_columnInfo" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
 										<xf:choices>
 											<xf:item>
 												<xf:label><![CDATA[]]></xf:label>
 												<xf:value><![CDATA[1]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:label><![CDATA[0]]></xf:label>
 												<xf:value><![CDATA[2]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:label><![CDATA[1]]></xf:label>
 												<xf:value><![CDATA[3]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:label><![CDATA[2]]></xf:label>
 												<xf:value><![CDATA[4]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:label><![CDATA[3]]></xf:label>
 												<xf:value><![CDATA[5]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col100]]></xf:label>
+												<xf:label><![CDATA[-1]]></xf:label>
 												<xf:value><![CDATA[6]]></xf:value>
 											</xf:item>
 										</xf:choices>
@@ -210,122 +258,16 @@ scwin.btn_getMatchedXML_onclick = function (e) {
 									<xf:input id="par_data" style="" initValue="col1_1" inputMode=""></xf:input>
 								</xf:group>
 							</xf:group>
-							<xf:group style="" tagname="tr">
-								<xf:group class="w2tb_th" style="" tagname="th">
-									<w2:textbox class="" id="" label="exactMatch" ref="" style="" userData2=""></w2:textbox>
-								</xf:group>
-								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_exactMatch" ref="" style="" submenuSize="auto">
-										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
-										</xf:choices>
-									</xf:select1>
-								</xf:group>
-								<xf:group class="w2tb_th " tagname="th">
-									<w2:attributes></w2:attributes>
-									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="startRowIndex" ref="" style="" userData2=""></w2:textbox>
-								</xf:group>
-								<xf:group class="w2tb_td" tagname="td">
-									<w2:attributes></w2:attributes>
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_startRowIndex" ref="" style="" submenuSize="auto">
-										<xf:choices>
-											<xf:item>
-												<xf:label><![CDATA[]]></xf:label>
-												<xf:value><![CDATA[1]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[0]]></xf:label>
-												<xf:value><![CDATA[2]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[1]]></xf:label>
-												<xf:value><![CDATA[3]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[2]]></xf:label>
-												<xf:value><![CDATA[4]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[3]]></xf:label>
-												<xf:value><![CDATA[5]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[4]]></xf:label>
-												<xf:value><![CDATA[6]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[-1]]></xf:label>
-												<xf:value><![CDATA[7]]></xf:value>
-											</xf:item>
-										</xf:choices>
-									</xf:select1>
-								</xf:group>
-							</xf:group>
-							<xf:group style="" tagname="tr">
-								<xf:group class="w2tb_th" style="" tagname="th">
-									<w2:textbox class="" id="" label="lastRowIndex" ref="" style="" userData2=""></w2:textbox>
-								</xf:group>
-								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_lastRowIndex" ref="" style="" submenuSize="auto">
-										<xf:choices>
-											<xf:item>
-												<xf:label><![CDATA[]]></xf:label>
-												<xf:value><![CDATA[1]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[0]]></xf:label>
-												<xf:value><![CDATA[2]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[1]]></xf:label>
-												<xf:value><![CDATA[3]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[2]]></xf:label>
-												<xf:value><![CDATA[4]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[3]]></xf:label>
-												<xf:value><![CDATA[5]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[4]]></xf:label>
-												<xf:value><![CDATA[6]]></xf:value>
-											</xf:item>
-											<xf:item>
-												<xf:label><![CDATA[-1]]></xf:label>
-												<xf:value><![CDATA[7]]></xf:value>
-											</xf:item>
-										</xf:choices>
-									</xf:select1>
-								</xf:group>
-								<xf:group class="w2tb_th " tagname="th">
-									<w2:attributes></w2:attributes>
-									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-								</xf:group>
-								<xf:group class="w2tb_td" tagname="td">
-									<w2:attributes></w2:attributes>
-								</xf:group>
-							</xf:group>
 						</xf:group>
                     </xf:group>
                     <xf:group style="" id="grp_etc">
                     	<w2:button style="" id="btn_getMatchedXML" label="getMatchedXML" class="tc_btn_basic"
                     		ev:onclick="scwin.btn_getMatchedXML_onclick">
                     	</w2:button>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter"
-                    		label="setColumnFilter" style="">
-                    	</w2:button>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="sort"
+                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="필터 적용/해제"
+							style="">
+						</w2:button>
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="정렬 적용/해제"
                     		style="">
                     	</w2:button>
                     </xf:group>
