@@ -18,11 +18,13 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; initRowStatus]&lt;br/&gt;필터가 적용되지 않은 상태를 기준으로 전체 Row 의 상태값을 'R' 로 변경합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; modifyRowStatus]&lt;br/&gt;Row 의 인덱스값을 사용하여 특정 Row 의 상태값을 변경합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;initRowStatus() 메소드에 의해 Row 상태가 변경되어도 onrowstatuschange 이벤트가 발생하지 않습니다.&quot;,
-        &quot;ignoreStatus 속성값에 관계없이 initRowStatus() 메소드로 Row 의 상태값이 변경됩니다.&quot;,
-        &quot;initRowStatus() 메소드가 실행되어도 정렬 상태는 유지됩니다.&quot;,
+        &quot;rowIndex(필수) 파라미터로 상태값을 변경하려는 Row 의 인덱스값을 숫자로 설정합니다.&quot;,
+        &quot;Row 의 인덱스는 0 부터 시작하며 필터링/정렬 설정에 맞게 인덱스를 설정합니다.&quot;,
+        &quot;status(필수) 파라미터로 Row 상태값을 'R', 'U', 'C', 'D', 'V' 중 하나로 설정합니다.&quot;,   
+        &quot;ignoreStatus 속성값에 관계없이 modifyRowStatus() 메소드로 Row 의 상태값이 변경됩니다.&quot;,
+        &quot;modifyRowStatus() 메소드에 의해 Row 상태가 변경되면 onrowstatuschange 이벤트가 발생합니다.&quot;,
     ]
 }
 
@@ -60,7 +62,7 @@ scwin.comp_init = async function () {
     let cList = $c.gcm.createCList(properties);
 
     // // 이벤트 설정
-    // let eList = $c.gcm.createEList([&quot;&quot;]);
+    // let eList = $c.gcm.createEList([&quot;&quot;]);       
    
     // target 생성
     $c.gcm.createBasicDataList(cList);
@@ -82,11 +84,6 @@ scwin.comp_init = async function () {
 scwin.btn_insertRow_onclick = function (e) {
     let insertIndex = target1.insertRow();
     target1.setRowData(insertIndex,[&quot;insert1&quot;,&quot;insert2&quot;,&quot;insert3&quot;,&quot;insert4&quot;],true);
-
-    insertIndex = target1.insertRow();
-    target1.setRowData(insertIndex,[&quot;insert5&quot;,&quot;insert6&quot;,&quot;insert7&quot;,&quot;insert8&quot;],true);
-
-    target1.deleteRow(insertIndex);
 };
 
 
@@ -123,17 +120,23 @@ scwin.btn_sort_onclick = function (e) {
 
 
 scwin.btn_getRowStatus_onclick = function (e) {
-    let rtn = target1.getAllJSON();
-    let jsonString = JSON.stringify(rtn);
+    let rtn = '';
+    let rowCount = target1.getTotalRow();
 
-	wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result: &quot; + rtn);
-	wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result.json: &quot; + jsonString);
+    for (var i=0; i &lt; rowCount; i++) {
+        rtn = target1.getRowStatus(i);
+
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(`row[${i}] status : ${rtn}`);
+    }
 };
 
 
 
-scwin.btn_initRowStatus_onclick = function (e) {
-	target1.initRowStatus();
+scwin.btn_modifyRowStatus_onclick = function (e) {
+    let rowIndex = par_rowIndex.getText();
+    let status = par_status.getText();
+
+    target1.modifyRowStatus(Number(rowIndex), status);
 
     scwin.btn_getRowStatus_onclick();
 };
@@ -191,13 +194,102 @@ scwin.target1_onrowstatuschange = function (info) {
 						</xf:group>
                     </xf:group>
 				</xf:group>
-				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+                <w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
+                    <xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[-1]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="status" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_status" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[R]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[U]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[C]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[D]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[V]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+                    </xf:group>
                     <xf:group style="" id="grp_etc">
-                    	<w2:button style="" id="btn_initRowStatus" label="initRowStatus" class="tc_btn_basic"
-                    		ev:onclick="scwin.btn_initRowStatus_onclick">
+                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_modifyRowStatus_onclick" id="btn_modifyRowStatus" label="modifyRowStatus"
+                    		style="">
                     	</w2:button>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter"
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter"
                     		label="setColumnFilter" style="">
                     	</w2:button>
                     	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="sort"
