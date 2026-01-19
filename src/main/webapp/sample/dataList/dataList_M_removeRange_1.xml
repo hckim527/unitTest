@@ -11,6 +11,22 @@
 		<w2:MSA />
 		<xf:model>
 			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_func" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="label" name="name1"></w2:column>
+						<w2:column dataType="text" id="value" name="name2"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<label><![CDATA[사용자정의함수]]></label>
+							<value><![CDATA[1]]></value>
+						</w2:row>
+						<w2:row>
+							<value><![CDATA[2]]></value>
+							<label><![CDATA[익명함수]]></label>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
 			</w2:dataCollection>
 			<w2:workflowCollection />
 		</xf:model>
@@ -18,11 +34,16 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; deleteRow]&lt;br/&gt;Row 의 인덱스값을 사용하여 특정 Row 의 상태값을 '삭제'로 변경합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; removeRange]&lt;br/&gt;인덱스값의 범위를 사용하여 한 개 이상의 Row 를 제거한 후 제거된 Row 들의 데이터를 2차원 배열로 반환합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;Row 를 DataList 에서 제거하는 것이 아니라 Row 의 상태값을 'D' 또는 'V' 로 변경합니다.&quot;,
-        &quot;rowIndex(필수) 파라미터로 상태값을 변경할 Row 의 인덱스값을 숫자로 설정합니다.&quot;,        
-        &quot;rowIndex 파라미터를 설정하지 않으면 deleteRow() 메소드가 실행되지 않습니다.&quot;,
+        &quot;Row 들의 상태값을 '삭제'로 변경하는 것이 아니라 DataList 에서 제거합니다.&quot;,
+        &quot;startIndex(필수) 파라미터로 제거할 Row 들의 시작 인덱스값을 숫자로 설정합니다.&quot;,
+        &quot;endIndex(필수) 파라미터로 제거할 Row 들의 마지막 인덱스값을 숫자로 설정합니다.&quot;,
+        &quot;Row 의 인덱스는 0 부터 시작하며 필터링/정렬 설정에 맞게 인덱스를 설정합니다.&quot;,
+        &quot;반환값으로 제거된 Row 들의 데이터를 2차원 배열로 반환합니다.&quot;,
+        &quot;제거된 Row 가 한 개 일때도 데이터를 2차원 배열로 반환합니다.&quot;,
+        &quot;반환된 배열은 인덱스값이 큰 Row 부터 작은 Row 순서로 생성됩니다.&quot;,
+        &quot;없는 인덱스값을 파라미터에 설정 시 removeRange() 메소드가 실행되지 않습니다.&quot;,
     ]
 }
 
@@ -71,27 +92,40 @@ scwin.comp_init = async function () {
 
 
 
-scwin.btn_getRowStatus_onclick = function (e) {
-    let rowCount = target1.getRowCount();
-
-    for (var i=0; i &lt; rowCount; i++) {
-        let rtn = target1.getRowStatus(i);
-
-        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;row[&quot;+i+&quot;] status: &quot; + rtn);
-    }
+scwin.btn_setColumnFilter_onclick = function (e) {
+	target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_2&quot;, condition:'and'})    
+    target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_4&quot;, condition:'or'})
 };
 
 
 
-scwin.btn_deleteRow_onclick = function (e) {
-    let rowIndex = par_rowIndex.getText();
+scwin.btn_sort_onclick = function (e) {
+    target1.sort(&quot;col1&quot;, 1);
+};
 
-    if (rowIndex == &quot;&quot;)
-        target1.deleteRow();
-    else
-        target1.deleteRow(rowIndex);
-    
-    scwin.btn_getRowStatus_onclick();
+
+
+scwin.btn_getTotalRow_onclick = function (e) {
+    let rtn = '';  
+    rtn = target1.getTotalRow();
+
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getTotalRow: &quot; + rtn);
+};
+
+
+
+scwin.btn_removeRange_onclick = function (e) {
+    let startIndex = par_startIndex.getText();
+    let endIndex = par_endIndex.getText();
+    let rtn = ''
+
+    rtn = target1.removeRange(startIndex, endIndex);
+
+    for (var i=0; i &lt; rtn.length; i++) {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result[&quot;+i+&quot;]: &quot; + rtn[i]);
+    } 
+
+    scwin.btn_getTotalRow_onclick();
 };</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -119,11 +153,11 @@ scwin.btn_deleteRow_onclick = function (e) {
 							</xf:group>
 							<xf:group style="" tagname="tr">
 								<xf:group class="w2tb_th" style="" tagname="th">
-									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="startIndex" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 id="par_rowIndex" chooseOption="" style="" submenuSize="auto" allOption="" disabled="false"
-										direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+									<xf:select1 id="par_startIndex" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
 										<xf:choices>
 											<xf:item>
 												<xf:label><![CDATA[]]></xf:label>
@@ -146,7 +180,7 @@ scwin.btn_deleteRow_onclick = function (e) {
 												<xf:value><![CDATA[5]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[-1]]></xf:label>
+												<xf:label><![CDATA[100]]></xf:label>
 												<xf:value><![CDATA[6]]></xf:value>
 											</xf:item>
 										</xf:choices>
@@ -155,18 +189,53 @@ scwin.btn_deleteRow_onclick = function (e) {
 								<xf:group class="w2tb_th " tagname="th">
 									<w2:attributes></w2:attributes>
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="endIndex" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" tagname="td">
 									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_endIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1000]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
 								</xf:group>
 							</xf:group>
 						</xf:group>
 					</xf:group>
 					<xf:group style="" id="grp_etc">
-						<w2:button style="" id="btn_deleteRow" label="deleteRow(rowIndex)" class="tc_btn_basic"
-							ev:onclick="scwin.btn_deleteRow_onclick">
+						<w2:button style="" id="btn_removeRange" label="removeRange" class="tc_btn_basic"
+							ev:onclick="scwin.btn_removeRange_onclick">
 						</w2:button>
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRowStatus_onclick" id="btn_getRowStatus" label="getRowStatus(rowIndex)" style=""></w2:button>
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter"
+                    		label="setColumnFilter" style="">
+                    	</w2:button>
+                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="sort"
+                    		style="">
+                    	</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
