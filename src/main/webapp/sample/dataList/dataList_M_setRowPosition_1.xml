@@ -23,10 +23,16 @@ let isSort = false;
 
 // 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; getColData]&lt;br/&gt;Column 의 ID 또는 인덱스값을 사용하여 특정 Column 의 전체 데이터를 1차원 배열로 반환합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; setRowPosition]&lt;br/&gt;Row 의 인덱스값을 사용하여 DataList 모듈의 특정 Row 를 선택합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;columnInfo(필수) 파라미터로 데이터를 조회하려는 Column 의 ID 값을 설정합니다.&quot;,
-        &quot;파라미터에 해당하는 Column 이 없는 경우 ''(Empty String) 을 Row 갯수만큼 갖는 배열을 반환합니다.&quot;,
+        &quot;필터와 정렬이 적용된 상태를 기준으로 동작하며, 필터가 적용되지 않은 경우 전체 Row 데이터를 기준으로 동작합니다.&quot;,
+        &quot;rowIndex(선택) 파라미터로 선택하려는 Row 의 인덱스값을 숫자로 설정합니다.&quot;,
+        &quot;Row 의 인덱스는 0 부터 시작하며 필터링/정렬이 적용된 상태를 기준으로 인덱스를 설정합니다.&quot;,
+        &quot;rowIndex(선택) 파라미터를 설정하지 않으면 DataList 모듈에 선택된 Row 가 없는 상태로 처리됩니다.&quot;,
+        &quot;event(선택) 파라미터로 다른 Row 로 선택이 변경될때 onbeforerowpositionchange, onrowpositionchange 이벤트의 발생 여부를 true/false 로 설정합니다.&quot;,
+        &quot;event(선택) 파라미터로 true 설정 시 onbeforerowpositionchange, onrowpositionchange 이벤트가 발생하지 않습니다.&quot;,
+        &quot;event(선택) 파라미터로 false 설정 시 onbeforerowpositionchange, onrowpositionchange 이벤트가 발생합니다.&quot;,
+        &quot;DataList 모듈이 GridView 와 바인드 되었을때 setRowPosition() 메소드로 Row 선택 변경 시 GridView 의 syncRowPositionOption 속성값에 의해 변경된 Row 선택의 반영이 결정됩니다.&quot;,
     ]
 }
 
@@ -69,35 +75,16 @@ scwin.comp_init = async function () {
     // target 생성
     $c.gcm.createBasicDataList();
 
-    // gridView 생성
-    $c.gcm.createBasicGridView('dataList=&quot;data:target1&quot; rowStatusVisible=&quot;true&quot;', '', 'gridView1');
+    // event 바인딩
+    target1.bind(&quot;onbeforerowpositionchange&quot;, function(e){ wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_onbeforerowpositionchange=====&quot;);});
+    target1.bind(&quot;onrowpositionchange&quot;, function(e){ wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_onrowpositionchange=====&quot;);});
 
-    scwin.btn_insertRow_onclick();
-    scwin.btn_deleteRow_onclick();
-    scwin.btn_setCellData_onclick();
+    // gridView 생성
+    $c.gcm.createBasicGridView('dataList=&quot;data:target1&quot; rowStatusVisible=&quot;true&quot; focusMode=&quot;row&quot; syncRowPositionOption=&quot;style&quot;', '', 'gridView1');
 
     isFilter = false;
     isSort = false;
-}   
-
-
-
-scwin.btn_insertRow_onclick = function (e) {
-    let insertIndex = target1.insertRow();
-    target1.setRowData(insertIndex,[&quot;insert1&quot;,&quot;insert2&quot;,&quot;insert3&quot;,&quot;insert4&quot;],true);
-};
-
-
-
-scwin.btn_deleteRow_onclick = function (e) {
-    target1.deleteRow(0);
-};
-
-
-
-scwin.btn_setCellData_onclick = function (e) {
-    target1.setCellData(2, &quot;col1&quot;, &quot;change&quot;);
-};
+}
 
 
 
@@ -112,7 +99,7 @@ scwin.btn_setColumnFilter_onclick = function (e) {
         isFilter = true;
     }	
 
-    scwin.btn_getColData_onclick();
+    scwin.btn_getRowPosition_onclick();
 };
 
 
@@ -127,16 +114,39 @@ scwin.btn_sort_onclick = function (e) {
         isSort = true;
     }
 
-    scwin.btn_getColData_onclick();
+    scwin.btn_getRowPosition_onclick();
 };
 
 
 
-scwin.btn_getColData_onclick = function (e) {
-    let colID = par_columnInfo.getText();    
-    let rtn = target1.getColData(colID);
+
+scwin.btn_getRowPosition_onclick = function (e) {
+    let rtn = target1.getRowPosition();
+
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getRowPosition: &quot; + rtn);
+};
+
+
+
+scwin.btn_setRowPosition_onclick = function (e) {
+    let rowIndex = par_rowIndex.getText();
+    let event = par_event.getText();
+
+    if (event == &quot;true&quot;)
+        event = true;
+    else if (event == &quot;false&quot;)
+        event = false;
+    else
+        event = &quot;&quot;;
+
+    if (rowIndex == &quot;&quot; &amp;&amp; event == &quot;&quot;)
+        target1.setRowPosition();
+    else if (event == &quot;&quot;)
+        target1.setRowPosition(rowIndex);
+    else
+        target1.setRowPosition(rowIndex, event);
     
-    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;rtn: &quot; + rtn);
+    scwin.btn_getRowPosition_onclick();
 };</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -164,34 +174,34 @@ scwin.btn_getColData_onclick = function (e) {
 							</xf:group>
 							<xf:group style="" tagname="tr">
 								<xf:group class="w2tb_th" style="" tagname="th">
-									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 id="par_columnInfo" chooseOption="" style="" submenuSize="auto" allOption=""
-										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+									<xf:select1 id="par_rowIndex" chooseOption="" style="" submenuSize="auto" allOption="" disabled="false"
+										direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
 										<xf:choices>
 											<xf:item>
 												<xf:label><![CDATA[]]></xf:label>
 												<xf:value><![CDATA[1]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:label><![CDATA[0]]></xf:label>
 												<xf:value><![CDATA[2]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:label><![CDATA[1]]></xf:label>
 												<xf:value><![CDATA[3]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:label><![CDATA[2]]></xf:label>
 												<xf:value><![CDATA[4]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:label><![CDATA[3]]></xf:label>
 												<xf:value><![CDATA[5]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col100]]></xf:label>
+												<xf:label><![CDATA[-1]]></xf:label>
 												<xf:value><![CDATA[6]]></xf:value>
 											</xf:item>
 										</xf:choices>
@@ -200,20 +210,33 @@ scwin.btn_getColData_onclick = function (e) {
 								<xf:group class="w2tb_th " tagname="th">
 									<w2:attributes></w2:attributes>
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="event" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" tagname="td">
 									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_event" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
 								</xf:group>
 							</xf:group>
 						</xf:group>
 					</xf:group>
 					<xf:group style="" id="grp_etc">
-						<w2:button style="" id="btn_getColData" label="getColData" class="tc_btn_basic"
-							ev:onclick="scwin.btn_getColData_onclick">
+						<w2:button style="" id="btn_setRowPosition" label="setRowPosition(rowIndex)" class="tc_btn_basic"
+							ev:onclick="scwin.btn_setRowPosition_onclick">
 						</w2:button>
-                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="setColumnFilter"
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="필터 적용/해제"
 							style="">
 						</w2:button>
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="정렬 적용/해제"
+                    		style="">
+                    	</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
