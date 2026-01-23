@@ -16,21 +16,22 @@
 		</xf:model>
 		<w2:layoutInfo />
 		<w2:publicInfo method="" />
-		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+		<script lazy="false" type="text/javascript">let isFilter = false;
+let isSort = false;
+
+
+
+// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; setRowData]&lt;br/&gt;지정한 Row 인덱스 위치에 1차원 배열로 Row 데이터를 한 건 삽입하거나 덮어쓰기 합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; setCellData]&lt;br/&gt;Row 인덱스와 Column 정보를 사용하여 특정 Cell 의 값을 설정합니다.&quot;,
     &quot;validation&quot; : [        
-        &quot;rowIndex(필수) 파라미터로 Row 데이터가 삽입 또는 덮어쓰기 될 위치의 인덱스값을 숫자로 설정합니다.&quot;,
-        &quot;Row 의 인덱스는 0 부터 시작하며 필터링/정렬 설정에 맞게 인덱스를 설정합니다.&quot;,
-        &quot;rowData(필수) 파라미터로 DataList 모듈에 정의된 Column ID 와 삽입 또는 덮어쓰기 하려는 Row 데이터를 객체로 설정합니다.&quot;,
-        &quot;rowData.columnInfo(선택) 파라미터로 data 파라미터의 데이터와 매칭될 Column 의 ID 를 1차원 배열로 설정합니다.&quot;,
-        &quot;DataList 에 정의된 Column 순서에 맞게 첫번째 원소값부터 설정됩니다.&quot;,        
-        &quot;overwrite(선택) 파라미터로 rowData 파라미터의 Row 데이터를 덮어쓰기 할지 true/false 로 설정합니다.&quot;,
-        &quot;overwrite(선택) 파라미터로 true 설정 시 rowData 파라미터의 Row 데이터를 rowIndex 파라미터 위치에 덮어쓰기 합니다.&quot;,
-        &quot;overwrite(선택) 파라미터로 false 설정 시 rowData 파라미터의 Row 데이터를 rowIndex 파라미터 위치에 삽입합니다.&quot;,
-        &quot;덮어쓰기된 Row 의 상태값은 'U' 로 설정되고, 삽입된 Row 의 상태값은 'C' 로 설정됩니다.&quot;,
-        &quot;필터/정렬이 적용된 상태로 삽입된 데이터는 필터/정렬이 해제되면 마지막에 위치합니다.&quot;,
-        &quot;setRowData() 메소드에 의해 Row 데이터가 삽입되면 oninsertrow 이벤트가 발생합니다.&quot;
+        &quot;rowIndex(필수) 파라미터로 데이터를 설정하려는 Cell 의 Row 인덱스값을 숫자로 설정합니다.&quot;,
+        &quot;Row 의 인덱스는 0 부터 시작하며 필터링/정렬이 적용된 상태를 기준으로 인덱스를 설정합니다.&quot;,
+        &quot;columnInfo(필수) 파라미터로 데이터를 설정하려는 Cell 의 Column ID 또는 인덱스값을 설정합니다.&quot;,
+        &quot;Column 의 인덱스는 0 부터 시작합니다.&quot;,
+        &quot;data(필수) 파라미터로 Cell 에 적용하려는 데이터를 설정합니다.&quot;,
+        &quot;setCellData() 메소드로 Cell 의 데이터가 변경되면 onbeforecelldatachange, oncelldatachange 이벤트가 발생합니다.&quot;,
+        &quot;동일한 데이터를 Cell 에 설정 시 데이터가 재설정되지 않으며 관련 이벤트도 발생하지 않습니다.&quot;,
     ]
 }
 
@@ -74,10 +75,14 @@ scwin.comp_init = async function () {
     $c.gcm.createBasicDataList();
 
     // event 바인딩
-    target1.bind(&quot;oninsertrow&quot;, function(e){ wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_oninsertrow=====&quot;);});
+    target1.bind(&quot;onbeforecelldatachange&quot;, function(e){ wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_onbeforecelldatachange=====&quot;);});
+    target1.bind(&quot;oncelldatachange&quot;, function(e){ wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;=====target1_oncelldatachange=====&quot;);});
 
     // gridView 생성
     $c.gcm.createBasicGridView('dataList=&quot;data:target1&quot; rowStatusVisible=&quot;true&quot;', '', 'gridView1');
+
+    isFilter = false;
+    isSort = false;
 }
 
 
@@ -91,22 +96,43 @@ scwin.btn_getAllJSON_onclick = function (e) {
 
 
 
-scwin.btn_setRowData_onclick = function (e) {
+scwin.btn_setColumnFilter_onclick = function (e) {
+    if (isFilter) {
+        target1.clearFilter();  
+        isFilter = false;  
+    }
+    else {
+        target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_2&quot;, condition:'and'})
+        target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_4&quot;, condition:'or'})        
+        isFilter = true;
+    }	
+
+    scwin.btn_getAllJSON_onclick();
+};
+
+
+
+scwin.btn_sort_onclick = function (e) {
+    if (isSort) {    
+        target1.clearSort();
+        isSort = false;
+    }
+    else {
+        target1.sort(&quot;col1&quot;, 1);
+        isSort = true;
+    }
+
+    scwin.btn_getAllJSON_onclick();
+};
+
+
+
+scwin.btn_setCellData_onclick = function (e) {
     let rowIndex = par_rowIndex.getText();    
-    let rowData = eval('{' + par_rowData.getText() + '}');
-    let overwrite = par_overwrite.getText();
+    let colIndex = par_columnInfo.getText();
+    let data = par_data.getValue();
 
-    if (overwrite == &quot;true&quot;)
-        overwrite = true;
-    else if (overwrite == &quot;false&quot;)
-        overwrite = false;
-    else
-        overwrite = &quot;&quot;;
-
-    if (overwrite == &quot;&quot;)
-        target1.setRowData(rowIndex, rowData);
-    else
-        target1.setRowData(rowIndex, rowData, overwrite);
+    target1.setCellData(Number(rowIndex), Number(colIndex), data);
 
     scwin.btn_getAllJSON_onclick();
 };</script>
@@ -179,24 +205,40 @@ scwin.btn_setRowData_onclick = function (e) {
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="rowData" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" tagname="td">
 									<w2:attributes></w2:attributes>
 									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_rowData" ref="" style="" submenuSize="auto">
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
 										<xf:choices>
 											<xf:item>
 												<xf:label><![CDATA[]]></xf:label>
 												<xf:value><![CDATA[1]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[["setcol1","setcol2","setcol3","setcol4"]]]></xf:label>
+												<xf:label><![CDATA[0]]></xf:label>
 												<xf:value><![CDATA[2]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[["setcol5","setcol6","setcol7","setcol8"]]]></xf:label>
+												<xf:label><![CDATA[1]]></xf:label>
 												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[-1]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
 											</xf:item>
 										</xf:choices>
 									</xf:select1>
@@ -206,18 +248,10 @@ scwin.btn_setRowData_onclick = function (e) {
 								<xf:group class="w2tb_th" style="" tagname="th">
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
 									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
-									<w2:textbox class="" id="" label="overwrite" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="data" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_overwrite" ref="" style="" submenuSize="auto">
-										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
-										</xf:choices>
-									</xf:select1>
+									<xf:input id="par_data" style="" initValue="change"></xf:input>
 								</xf:group>
 								<xf:group class="w2tb_th " tagname="th">
 									<w2:attributes></w2:attributes>
@@ -233,9 +267,15 @@ scwin.btn_setRowData_onclick = function (e) {
 						</xf:group>
 					</xf:group>
 					<xf:group style="" id="grp_etc">
-						<w2:button style="" id="btn_setRowData" label="setRowData" class="tc_btn_basic"
-							ev:onclick="scwin.btn_setRowData_onclick">
+						<w2:button style="" id="btn_setCellData" label="setCellData" class="tc_btn_basic"
+							ev:onclick="scwin.btn_setCellData_onclick">
 						</w2:button>
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="필터 적용/해제"
+							style="">
+						</w2:button>
+                        <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="정렬 적용/해제"
+                    		style="">
+                    	</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
