@@ -18,17 +18,12 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[linkedDataList &gt; M &gt; getInsertedXML]&lt;br/&gt;Row 의 상태가 '삽입' 인 Row 데이터를 XML 객체로 반환합니다.&quot;,
+    &quot;description&quot; : &quot;[dataList &gt; M &gt; getModifiedData]&lt;br/&gt;Row 의 상태가 '갱신', '삽입', '삭제' 인 Row 데이터를 2차원 배열로 반환합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;필터/정렬이 적용된 상태를 기준으로 Row 상태값이 'C' 인 Row 데이터가 반환됩니다.&quot;,
-        &quot;반환값으로 필터/정렬이 적용된 상태를 기준으로 Row 상태가 '삽입' 인 데이터를 XML 객체로 반환합니다.&quot;,
-        &quot;setColumnFilter() 메소드로 필터링 되지 않은 경우 전체 Row 데이터를 XML 객체로 반환합니다.&quot;,
-        &quot;반환된 객체의 xml 속성값으로 원본 DataList 모듈의 baseNode 속성값이 Root 노드의 태그명으로, 반복되는 데이터 노드의 태그엔 repeatNode 속성값이 적용됩니다.&quot;,
-        &quot;Root 노드의 id 속성은 원본 DataList 모듈의 ID 가 설정됩니다.&quot;,
-        &quot;데이터 노드는 index 속성으로 필터가 적용되지 않은 원본 DataList 모듈의 Row 인덱스값이 설정됩니다.&quot;,
-        &quot;데이터 노드의 하위 노드로 원본 DataList 모듈의 Column ID 와 Column 값이 반복됩니다.&quot;,
-        &quot;데이터 노드는 'rowStatus' 를 마지막 하위 태그로 Row 의 상태값 'C' 가 설정되며 'statusValue' 속성으로 상태코드값 2 가 설정됩니다.&quot;,        
-        &quot;원본 DataLIst 모듈이 rowNumData=true 인 경우 반환값의 마지막 Key 로 'rowNum' 이 추가되고 Row 의 순번(인덱스+1)값을 갖습니다.&quot;,
+        &quot;필터와 정렬이 적용된 상태를 기준으로 Row 상태값이 'U', 'C', 'D' 인 Row 데이터가 반환됩니다.&quot;,
+        &quot;필터/정렬이 적용된 상태를 기준으로 Row 상태가 '갱신', '삽입', '삭제' 인 데이터를 2차원 배열로 반환합니다.&quot;,
+        &quot;반환되는 배열은 정렬이 적용된 순서대로 생성되며 Row 의 상태값이 'U', 'C', 'D' 인 Row 가 반환됩니다.&quot;,
+        &quot;setColumnFilter() 메소드로 필터링 되지 않은 경우 전체 Row 데이터를 기준으로 처리됩니다.&quot;,
     ]
 }
 
@@ -49,7 +44,7 @@ scwin.onpageload = function () {
 
 // comp 생성
 scwin.comp_init = async function () {   
-	// 기존 target 있으면 삭제
+	// 기존 target 있으면 삽입
     if (typeof gdl_org !== 'undefined') {
         $p.data.remove(&quot;gdl_org&quot;);
     }
@@ -84,6 +79,7 @@ scwin.comp_init = async function () {
     $c.gcm.createOriginalGridView();
     $c.gcm.createLinkedGridView();
 
+    // 상태 변경
     scwin.btn_insertRow_onclick();
     scwin.btn_deleteRow_onclick();
     scwin.btn_setCellData_onclick();
@@ -95,14 +91,6 @@ scwin.comp_init = async function () {
 scwin.btn_insertRow_onclick = function (e) {
     let insertIndex = gdl_org.insertRow();
     gdl_org.setRowData(insertIndex,[&quot;A&quot;,&quot;insert2&quot;,&quot;insert3&quot;,&quot;insert4&quot;],true);
-
-    insertIndex = gdl_org.insertRow();
-    gdl_org.setRowData(insertIndex,[&quot;A&quot;,&quot;insert6&quot;,&quot;insert7&quot;,&quot;insert8&quot;],true);
-
-    insertIndex = gdl_org.insertRow();
-    gdl_org.setRowData(insertIndex,[&quot;A&quot;,&quot;insert10&quot;,&quot;insert11&quot;,&quot;insert12&quot;],true);
-
-    gdl_org.deleteRow(insertIndex);
 };
 
 
@@ -127,6 +115,7 @@ scwin.btn_removeRow_onclick = function (e) {
 
 scwin.btn_setColumnFilter_onclick = function (e) {
 	target1.setColumnFilter({type:&quot;row&quot;, colIndex:&quot;cat2&quot;, key:&quot;A1&quot;, condition:&quot;and&quot;});
+    target1.setColumnFilter({type:&quot;row&quot;, colIndex:&quot;cat2&quot;, key:&quot;insert2&quot;, condition:&quot;or&quot;});
 };
 
 
@@ -137,13 +126,12 @@ scwin.btn_sort_onclick = function (e) {
 
 
 
-scwin.btn_getInsertedXML_onclick = function (e) {
-    let rtn = target1.getInsertedXML();
-    const serializer = new XMLSerializer();
-    let xmlString = serializer.serializeToString(rtn);
+scwin.btn_getModifiedData_onclick = function (e) {
+    let rtn = target1.getModifiedData();
 
-	wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result: &quot; + rtn);
-    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;result.xml: &quot; + xmlString);
+    for (var i=0; i &lt; rtn.length; i++) {        
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(`row[${i}] : ${rtn[i]}`);
+    }    
 };</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -158,7 +146,7 @@ scwin.btn_getInsertedXML_onclick = function (e) {
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getInsertedXML_onclick" id="btn_getInsertedXML" label="getInsertedXML"
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getModifiedData_onclick" id="btn_getModifiedData" label="getModifiedData"
 							style="">
 						</w2:button>
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter"

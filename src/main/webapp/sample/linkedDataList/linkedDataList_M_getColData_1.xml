@@ -23,10 +23,15 @@ let isSort = false;
 
 // 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[dataList &gt; M &gt; getColData]&lt;br/&gt;Column 의 ID 또는 인덱스값을 사용하여 특정 Column 의 전체 데이터를 1차원 배열로 반환합니다.&quot;,
+    &quot;description&quot; : &quot;[linkedDataList &gt; M &gt; getColData]&lt;br/&gt;Column 의 ID 또는 인덱스값을 사용하여 특정 Column 의 전체 데이터를 1차원 배열로 반환합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;columnInfo(필수) 파라미터로 데이터를 조회하려는 Column 의 ID 값을 설정합니다.&quot;,
-        &quot;파라미터에 해당하는 Column 이 없는 경우 ''(Empty String) 을 Row 갯수만큼 갖는 배열을 반환합니다.&quot;,
+        &quot;Row 상태값에 관계없이 필터링과 정렬이 적용되지 않은 상태를 기준으로 Column 의 데이터를 반환합니다.&quot;,
+        &quot;'Filter Condition' 은 적용된 상태를 기준으로 동작합니다.&quot;,
+        &quot;columnInfo(필수) 파라미터로 반환 받으려는 Column 의 인덱스값을 설정합니다.&quot;,
+        &quot;Column 의 인덱스는 0 부터 시작합니다.&quot;,
+        &quot;반환값으로 파라미터에 해당하는 Column 의 데이터를 1차원 배열로 반환합니다.&quot;,
+        &quot;Row 상태값에 관계없이 필터/정렬이 적용된 상태를 기준으로 Column 의 데이터를 반환합니다.&quot;,
+        &quot;LinkedDataList 모듈에 필터가 적용되지 않은 경우 Column 의 전체 데이터를 반환합니다.&quot;,
     ]
 }
 
@@ -47,14 +52,22 @@ scwin.onpageload = function () {
 
 // comp 생성
 scwin.comp_init = async function () {   
-    // 기존 target 있으면 삭제
+	// 기존 target 있으면 삭제
+    if (typeof gdl_org !== 'undefined') {
+        $p.data.remove(&quot;gdl_org&quot;);
+    }
+
     if (typeof target1 !== 'undefined') {
         $p.data.remove(&quot;target1&quot;);
     }
 
     if (typeof gridView1 !== 'undefined') {
         gridView1.remove();
-    }    
+    }   
+
+    if (typeof gridView2 !== 'undefined') {
+        gridView2.remove();
+    }     
     
     // // 조건 설정       
     // let properties = {
@@ -66,11 +79,13 @@ scwin.comp_init = async function () {
     // // 이벤트 설정
     // let eList = $c.gcm.createEList([&quot;&quot;]);       
    
-    // target 생성
-    $c.gcm.createBasicDataList();
+	// target 생성
+    $c.gcm.createOrginalDataList();
+    $c.gcm.createBasicLinkedDataList();
 
     // gridView 생성
-    $c.gcm.createBasicGridView('dataList=&quot;data:target1&quot; rowStatusVisible=&quot;true&quot;', '', 'gridView1');
+    $c.gcm.createOriginalGridView();
+    $c.gcm.createLinkedGridView();
 
     scwin.btn_insertRow_onclick();
     scwin.btn_deleteRow_onclick();
@@ -83,20 +98,20 @@ scwin.comp_init = async function () {
 
 
 scwin.btn_insertRow_onclick = function (e) {
-    let insertIndex = target1.insertRow();
-    target1.setRowData(insertIndex,[&quot;insert1&quot;,&quot;insert2&quot;,&quot;insert3&quot;,&quot;insert4&quot;],true);
+    let insertIndex = gdl_org.insertRow();
+    gdl_org.setRowData(insertIndex,[&quot;A&quot;,&quot;insert2&quot;,&quot;insert3&quot;,&quot;insert4&quot;],true);
 };
 
 
 
 scwin.btn_deleteRow_onclick = function (e) {
-    target1.deleteRow(0);
+    gdl_org.deleteRow(0);
 };
 
 
 
 scwin.btn_setCellData_onclick = function (e) {
-    target1.setCellData(2, &quot;col1&quot;, &quot;change&quot;);
+    gdl_org.setCellData(2, &quot;cat2&quot;, &quot;change&quot;);
 };
 
 
@@ -107,8 +122,8 @@ scwin.btn_setColumnFilter_onclick = function (e) {
         isFilter = false;  
     }
     else {
-        target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_2&quot;, condition:'and'})
-        target1.setColumnFilter( {type:'row', colIndex:'col1', key:&quot;col1_4&quot;, condition:'or'})        
+        target1.setColumnFilter({type:&quot;row&quot;, colIndex:&quot;value&quot;, key:&quot;AA11&quot;, condition:&quot;and&quot;});
+        target1.setColumnFilter({type:&quot;row&quot;, colIndex:&quot;value&quot;, key:&quot;AA21&quot;, condition:&quot;or&quot;});
         isFilter = true;
     }	
 
@@ -123,7 +138,7 @@ scwin.btn_sort_onclick = function (e) {
         isSort = false;
     }
     else {
-        target1.sort(&quot;col1&quot;, 1);
+        target1.sort(&quot;label&quot;, 1);
         isSort = true;
     }
 
@@ -133,8 +148,8 @@ scwin.btn_sort_onclick = function (e) {
 
 
 scwin.btn_getColData_onclick = function (e) {
-    let colID = par_columnInfo.getText();    
-    let rtn = target1.getColData(colID);
+    let colIndex = Number(par_columnInfo.getText());    
+    let rtn = target1.getColData(colIndex);
     
     wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;rtn: &quot; + rtn);
 };</script>
@@ -167,31 +182,31 @@ scwin.btn_getColData_onclick = function (e) {
 									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:select1 id="par_columnInfo" chooseOption="" style="" submenuSize="auto" allOption=""
-										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+									<xf:select1 id="par_columnInfo" chooseOption="" style="" submenuSize="auto" allOption="" disabled="false"
+										direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
 										<xf:choices>
 											<xf:item>
 												<xf:label><![CDATA[]]></xf:label>
 												<xf:value><![CDATA[1]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:label><![CDATA[0]]></xf:label>
 												<xf:value><![CDATA[2]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:label><![CDATA[1]]></xf:label>
 												<xf:value><![CDATA[3]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:label><![CDATA[2]]></xf:label>
 												<xf:value><![CDATA[4]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:label><![CDATA[3]]></xf:label>
 												<xf:value><![CDATA[5]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[col100]]></xf:label>
+												<xf:label><![CDATA[-1]]></xf:label>
 												<xf:value><![CDATA[6]]></xf:value>
 											</xf:item>
 										</xf:choices>
