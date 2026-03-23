@@ -524,7 +524,7 @@ export default {
       "focusCalcSize": {
         "@value": "false"
       },
-      "editFormatParticalMask": {
+      "editFormatPartialMask": {
         "@value": "true"
       }
     },
