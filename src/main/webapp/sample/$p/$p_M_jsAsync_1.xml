@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] jsAsync" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260417" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p > M > jsAsync]<br/>외부 JavaScript 파일을 비동기(async/await) 방식으로 로드합니다.<br/>",
+    "validation" : [
+        "$p.jsAsync() 메소드를 호출한 페이지의 Scope 가 적용되어 로드한 스크립트에서 scwin 이나 컴포넌트 객체에 직접 접근할 수 있습니다.",
+        "async 함수로 구현되어 있으므로 await $p.jsAsync() 또는 $p.jsAsync().then() 으로 로드 완료 후 처리를 할 수 있습니다.",
+        "외부 JavaScript 파일을 비동기(async/await) 방식으로 로드할 수 있어야 합니다.",
+        "pathArr(필수) 파라미터로 로드할 JavaScript 파일 URL 이 담긴 배열을 설정할 수 있어야 합니다.",
+        "pathArr(필수) 파라미터에 String 으로 전달하면 쉼표(',') 로 분리하여 배열로 변환되어야 합니다.",
+        "options(선택) 파라미터로 로딩 세부 옵션을 JSON 객체로 설정할 수 있어야 합니다.",
+        "options(선택) 파라미터 생략 시 기본값(undefined) 으로 동작해야 합니다.",
+        "options.noCache(선택) 파라미터가 true 이면 로드한 스크립트를 캐시에 저장하지 않아야 합니다.",
+        "options.noCache(선택) 파라미터가 false(기본값) 이면 한 번 로드한 스크립트를 함수 형태로 캐시하여 동일 URL 요청 시 네트워크 요청 없이 재사용해야 합니다.",
+        "options.scopeVariable(선택) 파라미터로 로드한 스크립트에서 사용할 Scope 변수명을 설정할 수 있어야 합니다.",
+        "options.scopeVariable(선택) 파라미터에 여러 객체를 지정하려면 쉼표(',') 구분자를 사용해야 합니다.",
+        "options.scopeVariable(선택) 파라미터에 지정한 이름의 변수가 Scope 에 존재하지 않으면 빈 객체로 초기화되어야 합니다.",
+        "options.scopeVariable(선택) 파라미터 생략 시 기본값 'scwin' 으로 동작해야 합니다.",
+        "로드한 스크립트에서 페이지 Scope 의 scwin 이나 컴포넌트 객체에 직접 접근할 수 있어야 합니다.",
+        "모든 스크립트 로드 완료를 나타내는 Promise 객체를 반환해야 합니다.",
+        "반환된 Promise 는 await 또는 .then() 으로 로드 완료 후 처리를 할 수 있어야 합니다.",
+    ]
+}
+
+
+
+scwin.URL_EXAM1_BASE = "/js/$p_jsAsync_exam1.js";
+scwin.URL_EXAM2_BASE = "/js/$p_jsAsync_exam2.js";
+scwin.URL_EXAM3_BASE = "/js/$p_jsAsync_exam3.js";
+
+// 각 버튼 클릭 시마다 유니크한 URL 을 생성하여 스크립트 캐시 영향을 받지 않도록 함
+// (noCache 캐시 검증 케이스만 고정 URL 사용)
+scwin.freshUrl = function (base) {
+    return base + "?v=" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+};
+
+// 상태 초기화 공통
+scwin.resetState = function () {
+    scwin.__jsAsync_order = [];
+    scwin.__jsAsync_exam1_value = undefined;
+    scwin.__jsAsync_exam2_value = undefined;
+    scwin.__jsAsync_exam3_value = undefined;
+    scwin.__jsAsync_exam3_loadCount = 0;
+    scwin.jsAsync_module1 = undefined;
+    window.__jsAsync_exam1_value = undefined;
+    window.__jsAsync_exam2_value = undefined;
+    window.__jsAsync_exam3_value = undefined;
+    window.__jsAsync_exam3_loadCount = 0;
+};
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+    scwin.resetState();
+};
+
+
+
+// case1 : 배열 + await (Promise 반환 / 페이지 Scope / scwin 접근)
+scwin.btn_jsAsync_array_await_onclick = async function () {
+    scwin.resetState();
+
+    var urls = [scwin.freshUrl(scwin.URL_EXAM1_BASE), scwin.freshUrl(scwin.URL_EXAM2_BASE), scwin.freshUrl(scwin.URL_EXAM3_BASE)];
+
+    await $p.jsAsync(urls);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("실행 순서 : " + JSON.stringify(scwin.__jsAsync_order));
+    wf_body_bottom.getObj("scwin").setReturnValue("scwin.jsAsync_module1() : " + scwin.jsAsync_module1());
+}
+
+
+
+// case2 : String(쉼표 구분) 전달 → 내부적으로 배열로 변환되어 동작
+scwin.btn_jsAsync_string_onclick = async function () {
+    scwin.resetState();
+
+    var pathStr = scwin.freshUrl(scwin.URL_EXAM1_BASE) + "," + scwin.freshUrl(scwin.URL_EXAM2_BASE);
+
+    await $p.jsAsync(pathStr);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("전달 String → 배열 변환 후 실행 순서 : " + JSON.stringify(scwin.__jsAsync_order));
+}
+
+
+
+// case3 : scopeVariable='scwin,scvar' → 로드된 스크립트에서 scvar 직접 접근 가능
+scwin.btn_jsAsync_scopeVariable_onclick = async function () {
+    scwin.resetState();
+    if (typeof scvar !== "undefined") {
+        try { delete window.scvar; } catch (e) {}
+    }
+
+    var scvarBefore = (typeof scvar !== "undefined");
+
+    await $p.jsAsync([scwin.freshUrl(scwin.URL_EXAM2_BASE)], {"scopeVariable": "scwin,scvar"});
+
+    wf_body_bottom.getObj("scwin").setReturnValue("호출 전 scvar 존재 : " + scvarBefore + " → 호출 후 scvar 존재 : " + (typeof scvar !== "undefined"));
+    wf_body_bottom.getObj("scwin").setReturnValue("scvar.jsAsync_module2() : " + scvar.jsAsync_module2());
+}
+
+
+
+// case4 : noCache=false(기본값) vs true → 고정 URL 2회 호출 후 HTTP 요청 수 비교
+scwin.btn_jsAsync_noCache_onclick = async function () {
+    var countRequests = function (url) {
+        return performance.getEntriesByName(location.origin + url).length;
+    };
+
+    // (1) noCache=false — 네트워크 요청 1회만 발생해야 함
+    scwin.resetState();
+    var urlCache = scwin.URL_EXAM3_BASE + "?case=cache_" + Date.now();
+    var c0 = countRequests(urlCache);
+    await $p.jsAsync([urlCache], {"noCache": false});
+    await $p.jsAsync([urlCache], {"noCache": false});
+    var cacheCount = countRequests(urlCache) - c0;
+
+    // (2) noCache=true — 매번 네트워크 요청 발생 (2회)
+    scwin.resetState();
+    var urlNoCache = scwin.URL_EXAM3_BASE + "?case=nocache_" + Date.now();
+    var n0 = countRequests(urlNoCache);
+    await $p.jsAsync([urlNoCache], {"noCache": true});
+    await $p.jsAsync([urlNoCache], {"noCache": true});
+    var noCacheCount = countRequests(urlNoCache) - n0;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[noCache=false] 2회 호출 후 HTTP 요청 수 : " + cacheCount + " (캐시 재사용)");
+    wf_body_bottom.getObj("scwin").setReturnValue("[noCache=true]  2회 호출 후 HTTP 요청 수 : " + noCacheCount + " (매번 새 요청)");
+}
+
+
+
+// case5 : Promise 반환 확인 (.then() 후속 처리)
+scwin.btn_jsAsync_promise_then_onclick = function () {
+    scwin.resetState();
+
+    var retVal = $p.jsAsync([scwin.freshUrl(scwin.URL_EXAM1_BASE), scwin.freshUrl(scwin.URL_EXAM3_BASE)]);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("retVal instanceof Promise : " + (retVal instanceof Promise));
+
+    retVal.then(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue(".then() 콜백 실행 완료 / 순서 : " + JSON.stringify(scwin.__jsAsync_order));
+    });
+}
+
+
+
+// case6 : options 생략 → 기본 Scope=scwin 동작
+scwin.btn_jsAsync_options_omitted_onclick = async function () {
+    scwin.resetState();
+
+    await $p.jsAsync([scwin.freshUrl(scwin.URL_EXAM1_BASE)]);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("options 생략 → 기본 Scope=scwin / scwin.jsAsync_module1() : " + scwin.jsAsync_module1());
+}
+
+
+
+// case7 : par_case selectbox 값에 따라 각 테스트 케이스를 실행
+scwin.btn_jsAsync_run_onclick = function () {
+    var caseId = par_case.getValue();
+    var handlers = {
+        "array_await"     : scwin.btn_jsAsync_array_await_onclick,
+        "string"          : scwin.btn_jsAsync_string_onclick,
+        "scopeVariable"   : scwin.btn_jsAsync_scopeVariable_onclick,
+        "noCache"         : scwin.btn_jsAsync_noCache_onclick,
+        "promise_then"    : scwin.btn_jsAsync_promise_then_onclick,
+        "options_omitted" : scwin.btn_jsAsync_options_omitted_onclick
+    };
+    var fn = handlers[caseId];
+    if (typeof fn === "function") {
+        fn();
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("케이스를 선택하세요.");
+    }
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="" id="lbl_ref" class="" escape="false" label="※ 참고&lt;br/&gt;- 외부 JS : /js/$p_jsAsync_exam1.js, $p_jsAsync_exam2.js, $p_jsAsync_exam3.js&lt;br/&gt;- 각 JS 는 페이지 Scope(scwin) 에 직접 접근하여 scwin.__jsAsync_order 배열에 자신의 이름을 push 합니다.&lt;br/&gt;- 캐시 영향을 피하기 위해 대부분의 버튼은 매 클릭마다 쿼리 파라미터(?v=timestamp) 를 추가한 유니크 URL 로 호출합니다.&lt;br/&gt;- noCache 옵션 검증은 고정 URL 2회 호출 시 performance.getEntriesByName() 으로 실제 HTTP 요청 수를 비교합니다."></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="테스트 케이스" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" colspan="3" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_case" ref="" style="width:400px;" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[배열 입력 + Promise await 대기 / scwin 접근]]></xf:label><xf:value><![CDATA[array_await]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[String 쉼표 구분 → 배열 변환]]></xf:label><xf:value><![CDATA[string]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[scopeVariable='scwin,scvar']]></xf:label><xf:value><![CDATA[scopeVariable]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[options.noCache true vs false]]></xf:label><xf:value><![CDATA[noCache]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[Promise 반환 / .then()]]></xf:label><xf:value><![CDATA[promise_then]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[options 생략 / 기본값]]></xf:label><xf:value><![CDATA[options_omitted]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_jsAsync_run_onclick" id="btn_jsAsync_run"
+							label="jsAsync 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

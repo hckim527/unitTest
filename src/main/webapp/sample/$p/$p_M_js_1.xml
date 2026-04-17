@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] js" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260417" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p > M > js]<br/>여러 개의 외부 JavaScript 파일을 병렬로 로딩하면서 실행은 인자 순서대로 순차 실행합니다.<br/>callback 파라미터에 설정한 함수는 모든 스크립트의 실행이 완료된 후 콜백으로 실행합니다.",
+    "validation" : [
+        "Url(필수) 파라미터로 로드할 JavaScript 파일의 URL 을 설정할 수 있어야 합니다.",
+        "Url(필수) 파라미터는 가변 인자이며, 로드할 스크립트 파일의 URL 을 스크립트 개수만큼 인자로 전달할 수 있어야 합니다.",
+        "여러 개의 외부 JavaScript 파일을 병렬로 로딩하면서 실행은 인자 순서대로 순차 실행되어야 합니다.",
+        "callback(선택) 파라미터로 모든 스크립트의 실행이 완료된 후 실행할 콜백 함수를 설정할 수 있어야 합니다.",
+        "callback(선택) 파라미터는 가변 인자의 마지막 인자가 Function 인 경우에만 콜백으로 동작해야 합니다.",
+        "callback(선택) 파라미터 생략 시 콜백 없이 스크립트 로드/실행만 수행해야 합니다.",
+        "SPA 환경에서 scriptCache 설정이 활성화되어 있으면 이미 로드된 스크립트의 중복 로딩을 방지해야 합니다.",
+        "로드한 스크립트는 전역 Scope 에서 실행되어야 합니다.",
+    ]
+}
+
+
+
+scwin.URL_EXAM1_BASE = "/js/$p_js_exam1.js";
+scwin.URL_EXAM2_BASE = "/js/$p_js_exam2.js";
+scwin.URL_EXAM3 = "/js/$p_js_exam3.js";
+
+// 각 버튼 클릭 시마다 유니크한 URL 을 생성하여 scriptCache 영향을 받지 않도록 함
+// (scriptCache 중복 방지 검증(Case E) 만 고정 URL 사용)
+scwin.freshUrl = function (base) {
+    return base + "?v=" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+};
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 매 페이지 로드 시 테스트 상태 초기화 (전역 Scope 검증 재사용)
+    window.__js_load_order = [];
+    window.__js_exam1_value = undefined;
+    window.__js_exam2_value = undefined;
+    window.__js_exam3_loadCount = 0;
+};
+
+
+
+// 버튼 A : 단일 스크립트 로드 (가변 인자 1개)
+scwin.btn_js_single_onclick = function () {
+    window.__js_load_order = [];
+    window.__js_exam1_value = undefined;
+
+    var url = scwin.freshUrl(scwin.URL_EXAM1_BASE);
+    $p.js(url);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("$p.js 호출 (단일 스크립트)");
+
+    // 비동기 로드이므로 잠시 후 전역 Scope 실행 결과 확인
+    $p.setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_load_order : " + JSON.stringify(window.__js_load_order));
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_exam1_value : " + window.__js_exam1_value);
+    }, {key: "js_single_check", delay: 800});
+}
+
+
+
+// 버튼 B : 다중 스크립트 + 콜백 (인자 순서대로 순차 실행 / 완료 후 콜백 / 전역 Scope)
+scwin.btn_js_multi_callback_onclick = function () {
+    window.__js_load_order = [];
+    window.__js_exam1_value = undefined;
+    window.__js_exam2_value = undefined;
+
+    var url1 = scwin.freshUrl(scwin.URL_EXAM1_BASE);
+    var url2 = scwin.freshUrl(scwin.URL_EXAM2_BASE);
+
+    $p.js(url1, url2, function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("callback 실행 / 실행 순서 : " + JSON.stringify(window.__js_load_order));
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_exam1_value : " + window.__js_exam1_value);
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_exam2_value : " + window.__js_exam2_value);
+    });
+
+    wf_body_bottom.getObj("scwin").setReturnValue("$p.js 호출 (다중 + 콜백)");
+}
+
+
+
+// 버튼 C : 콜백 없는 다중 로드 (마지막 인자가 Function 이 아니면 콜백 미동작)
+scwin.btn_js_multi_nocallback_onclick = function () {
+    window.__js_load_order = [];
+    window.__js_exam1_value = undefined;
+    window.__js_exam2_value = undefined;
+
+    var url1 = scwin.freshUrl(scwin.URL_EXAM1_BASE);
+    var url2 = scwin.freshUrl(scwin.URL_EXAM2_BASE);
+
+    $p.js(url1, url2);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("$p.js 호출 (다중, 콜백 생략)");
+
+    $p.setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_load_order : " + JSON.stringify(window.__js_load_order));
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_exam1_value : " + window.__js_exam1_value);
+        wf_body_bottom.getObj("scwin").setReturnValue("window.__js_exam2_value : " + window.__js_exam2_value);
+    }, {key: "js_multi_nocallback_check", delay: 800});
+}
+
+
+
+// 버튼 E : scriptCache 중복 로드 방지 검증
+// 동일 URL(exam3.js) 를 2회 호출 → 로드 카운터가 1회만 증가하면 중복 로드 방지 동작
+scwin.btn_js_scriptCache_onclick = function () {
+    window.__js_exam3_loadCount = 0;
+    window.__js_exam3_value = undefined;
+    window.__js_load_order = [];
+
+    // 1차 호출
+    $p.js(scwin.URL_EXAM3, function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("[1차 호출 콜백] __js_exam3_loadCount : " + window.__js_exam3_loadCount);
+
+        // 2차 호출 (동일 URL)
+        $p.js(scwin.URL_EXAM3, function () {
+            wf_body_bottom.getObj("scwin").setReturnValue("[2차 호출 콜백] __js_exam3_loadCount : " + window.__js_exam3_loadCount);
+            wf_body_bottom.getObj("scwin").setReturnValue("__js_load_order : " + JSON.stringify(window.__js_load_order));
+            wf_body_bottom.getObj("scwin").setReturnValue("window.__js_exam3_value : " + window.__js_exam3_value);
+            if (window.__js_exam3_loadCount === 1) {
+                wf_body_bottom.getObj("scwin").setReturnValue("→ 동일 URL 중복 로드 방지 확인 (loadCount == 1)");
+            } else {
+                wf_body_bottom.getObj("scwin").setReturnValue("→ 브라우저 로딩 전략 상 로드 카운트 : " + window.__js_exam3_loadCount);
+            }
+        });
+    });
+
+    wf_body_bottom.getObj("scwin").setReturnValue("$p.js 호출 (scriptCache 중복 방지 테스트)");
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="" id="lbl_ref" class="" escape="false" label="※ 참고&lt;br/&gt;- 외부 JS : /js/$p_js_exam1.js, $p_js_exam2.js, $p_js_exam3.js&lt;br/&gt;- 각 JS 는 window.__js_load_order 배열에 자신의 이름을 push 하여 로드/실행 순서를 기록합니다.&lt;br/&gt;- scriptCache 영향을 받지 않도록 단일/다중+콜백/다중 콜백생략 버튼은 매 클릭마다 쿼리 파라미터(?v=timestamp) 를 추가한 유니크 URL 로 호출합니다.&lt;br/&gt;- scriptCache 중복 방지 검증 버튼만 고정 URL 로 2회 호출합니다."></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_js_single_onclick" id="btn_js_single"
+							label="js (단일 스크립트)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_js_multi_callback_onclick" id="btn_js_multi_callback"
+							label="js (다중 + 콜백)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_js_multi_nocallback_onclick" id="btn_js_multi_nocallback"
+							label="js (다중, 콜백 생략)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_js_scriptCache_onclick" id="btn_js_scriptCache"
+							label="js (scriptCache 중복 방지)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
