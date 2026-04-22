@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] createSubmission" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260421" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList id="dlt_userList" baseNode="map" repeatNode="map" useClientTableInfo="true">
+					<w2:columnInfo>
+						<w2:column id="id" dataType="text"></w2:column>
+						<w2:column id="name" dataType="text"></w2:column>
+						<w2:column id="age" dataType="text"></w2:column>
+						<w2:column id="dept" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataMap id="dma_search" baseNode="map">
+					<w2:keyInfo>
+						<w2:key id="keyword" dataType="text"></w2:key>
+					</w2:keyInfo>
+				</w2:dataMap>
+				<w2:dataList id="dlt_requestLog" baseNode="map" repeatNode="map" useClientTableInfo="true">
+					<w2:columnInfo>
+						<w2:column id="id" dataType="text"></w2:column>
+						<w2:column id="name" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p > M > createSubmission]<br/>Submission 을 동적으로 생성합니다. 동일 ID 의 Submission 이 이미 존재하는 경우 기존 Submission 을 삭제 후 재생성합니다.",
+    "validation" : [
+        "submissionInfo(필수) 파라미터로 생성할 Submission 의 속성을 JSON 객체로 설정할 수 있어야 합니다.",
+        "submissionInfo.id(필수) 로 Submission 의 ID 를 설정할 수 있어야 합니다.",
+        "submissionInfo.ref(선택) 로 서버로 보낼 요청(Request) 데이터가 위치할 DataCollection 의 조건 표현식을 지정할 수 있어야 합니다.",
+        "submissionInfo.target(선택) 으로 서버로부터 받은 응답(Response) 데이터를 반영할 DataCollection 의 조건 표현식을 지정할 수 있어야 합니다.",
+        "submissionInfo.method / mediatype / encoding(선택) 으로 HTTP Method, 데이터 타입, 서버 인코딩 타입을 설정할 수 있어야 합니다.",
+        "submissionInfo.processMsg(선택) 와 hideProcessMsg(선택) 로 통신 중 표시할 프로세스 메시지를 설정할 수 있어야 합니다.",
+        "submissionInfo.submitDoneHandler(선택) 는 응답 Status 가 정상인 경우 호출되고, submitErrorHandler(선택) 는 오류 응답(200 미만 또는 300 이상) 인 경우 호출되어야 합니다.",
+        "submissionInfo.timeout(선택) 과 submitTimeoutHandler(선택) 를 설정하면 설정 시간 경과 시 submitTimeoutHandler 가 호출되어야 합니다.",
+        "submissionInfo.abortTrigger(선택) 를 true 로 설정하면 processMsg 에 취소 버튼이 노출되어야 하며, singleMode(선택) 를 true 로 설정하면 동일 Submission 이 실행 중일 때 중복 호출이 무시되어야 합니다.",
+        "동일 ID 의 Submission 이 이미 존재하면 기존 Submission 을 삭제 후 재생성해야 합니다.",
+        "submissionInfo.submitHandler(선택) 함수가 false 를 반환하면 Submission 요청이 취소되어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// submitHandler false 반환 여부 플래그 (시나리오 5 에서 사용)
+scwin.cancelRequest = false;
+
+// 공통 submitHandler
+scwin.exam_submitHandler = function (e) {
+    if (scwin.cancelRequest === true) {
+        return false;
+    }
+    return true;
+};
+
+// 공통 submitTimeoutHandler
+scwin.exam_submitTimeoutHandler = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("submitTimeoutHandler: Timeout 발생");
+    $p.hideProcessMessage();
+};
+
+
+
+scwin.btn_createSubmission_onclick = function () {
+    var scenario = par_scenario.getValue();
+    scwin.cancelRequest = false;
+
+    // 이전 시나리오에서 남아있을 수 있는 Process Message 정리
+    $p.hideProcessMessage();
+
+    // 매 시나리오 실행 시 이전 데이터 제거
+    dlt_userList.removeAll();
+
+    if (scenario === "1") {
+        // 시나리오 1 : 예시 1 기반 - 기본 동적 생성 (ref/target/method/mediatype/encoding/processMsg/handler)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 1 : 기본 동적 생성 (예시 1) ──");
+
+        // ref 로 전달할 요청 데이터 설정 (DataMap)
+        dma_search.set("keyword", "test");
+
+        // append 동작 확인용 초기 데이터 1건 (응답 7건 + 초기 1건 = 최종 8건)
+        dlt_userList.insertRow(0);
+        dlt_userList.setCellData(0, "id", "000");
+        dlt_userList.setCellData(0, "name", "초기데이터");
+        dlt_userList.setCellData(0, "age", "99");
+        dlt_userList.setCellData(0, "dept", "사전등록");
+
+        var submissionInfo = {
+            "id" : "submission_dynamic",
+            "ref" : 'data:json,[{"id":"dma_search"}]',
+            "target" : 'data:json,[{"id":"dlt_userList","action":"append"}]',
+            "action" : "/data/$p_createSubmission_userList.json",
+            "method" : "post",
+            "mediatype" : "application/json",
+            "encoding" : "UTF-8",
+            "processMsg" : "Loading...",
+            "hideProcessMsg" : false,
+            "submitDoneHandler" : function (e) {
+                console.log(e.responseStatusCode);
+                var rowCount = dlt_userList.getRowCount();
+                wf_body_bottom.getObj("scwin").setReturnValue("submitDoneHandler: responseStatusCode=" + e.responseStatusCode);
+                wf_body_bottom.getObj("scwin").setReturnValue("로드된 행 수 (append 후): " + rowCount);
+                $p.hideProcessMessage();
+            },
+            "submitErrorHandler" : function (e) {
+                console.log(e.errorType);
+                wf_body_bottom.getObj("scwin").setReturnValue("submitErrorHandler: errorType=" + e.errorType);
+                $p.hideProcessMessage();
+            }
+        };
+        $p.createSubmission(submissionInfo);
+        $p.executeSubmission("submission_dynamic");
+    } else if (scenario === "2") {
+        // 시나리오 2 : 동일 ID 재생성 (spec) - 재생성된 Submission 이 새 URL 로 실제 동작하는지 검증
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 2 : 동일 ID 재생성 ──");
+
+        // 1차 생성 : 존재하지 않는 URL 로 Submission 생성
+        var info1 = {
+            "id" : "sbm_dynamic",
+            "action" : "/data/$p_createSubmission_not_exist.json",
+            "method" : "post",
+            "mediatype" : "application/json"
+        };
+        $p.createSubmission(info1);
+        wf_body_bottom.getObj("scwin").setReturnValue("재생성 전 action : '" + $p.getSubmission("sbm_dynamic").action + "'");
+
+        // 2차 생성 : 같은 ID 로 재생성 (정상 URL + target 설정)
+        var info2 = {
+            "id" : "sbm_dynamic",
+            "action" : "/data/$p_createSubmission_userList.json",
+            "target" : 'data:json,[{"id":"dlt_userList"}]',
+            "method" : "post",
+            "mediatype" : "application/json",
+            "submitDoneHandler" : function (e) {
+                wf_body_bottom.getObj("scwin").setReturnValue("재생성된 Submission 실행 결과: 로드된 행 수 = " + dlt_userList.getRowCount());
+                $p.hideProcessMessage();
+            }
+        };
+        $p.createSubmission(info2);
+        wf_body_bottom.getObj("scwin").setReturnValue("재생성 후 action : '" + $p.getSubmission("sbm_dynamic").action + "'");
+
+        // 재생성된 Submission 실행 → 새 action URL 로 데이터 로드
+        $p.executeSubmission("sbm_dynamic");
+    } else if (scenario === "3") {
+        // 시나리오 3 : submitErrorHandler 호출 (서버 오류 - 404)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 3 : submitErrorHandler 호출 (서버 오류) ──");
+        var submissionInfo = {
+            "id" : "sbm_dynamic",
+            "action" : "/data/$p_createSubmission_not_exist.json",
+            "target" : 'data:json,[{"id":"dlt_userList"}]',
+            "method" : "post",
+            "mediatype" : "application/json",
+            "submitDoneHandler" : function (e) {
+                wf_body_bottom.getObj("scwin").setReturnValue("submitDoneHandler: responseStatusCode=" + e.responseStatusCode);
+                $p.hideProcessMessage();
+            },
+            "submitErrorHandler" : function (e) {
+                console.log(e.errorType);
+                wf_body_bottom.getObj("scwin").setReturnValue("submitErrorHandler: errorType=" + e.errorType + " (" + e.responseStatusCode + ")");
+                $p.hideProcessMessage();
+            }
+        };
+        $p.createSubmission(submissionInfo);
+        $p.executeSubmission("sbm_dynamic");
+    } else if (scenario === "4") {
+        // 시나리오 4 : 예시 2 기반 - Timeout + abortTrigger + singleMode
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 4 : Timeout + abortTrigger + singleMode (예시 2) ──");
+        var submissionInfo2 = {
+            "id" : "submission_timeout",
+            "action" : "http://10.255.255.1/timeout_test.json",
+            "method" : "post",
+            "mediatype" : "application/json",
+            "timeout" : 50,
+            "processMsg" : "Processing...",
+            "hideProcessMsg" : false,
+            "abortTrigger" : true,
+            "singleMode" : true,
+            "submitTimeoutHandler" : scwin.exam_submitTimeoutHandler
+        };
+        $p.createSubmission(submissionInfo2);
+
+        // singleMode 검증 : 연속 2회 호출 시 두번째 호출은 무시됨
+        var firstCall = $p.executeSubmission("submission_timeout");
+        var secondCall = $p.executeSubmission("submission_timeout");
+        wf_body_bottom.getObj("scwin").setReturnValue("singleMode: 1차 호출 결과=" + firstCall + ", 2차 호출 무시됨(결과=" + secondCall + ")");
+    } else if (scenario === "5") {
+        // 시나리오 5 : submitHandler false 반환으로 요청 취소
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 5 : submitHandler false 반환으로 요청 취소 ──");
+        scwin.cancelRequest = true;
+        var submissionInfo = {
+            "id" : "sbm_dynamic",
+            "action" : "/data/$p_createSubmission_userList.json",
+            "target" : 'data:json,[{"id":"dlt_userList"}]',
+            "method" : "post",
+            "mediatype" : "application/json",
+            "submitHandler" : scwin.exam_submitHandler,
+            "submitDoneHandler" : function (e) {
+                wf_body_bottom.getObj("scwin").setReturnValue("submitDoneHandler 호출됨 (취소 실패)");
+            }
+        };
+        $p.createSubmission(submissionInfo);
+        $p.executeSubmission("sbm_dynamic");
+
+        // 일정 시간 후 데이터 미로드 확인 (통신 취소 시 dlt_userList 그대로 유지)
+        $p.setTimeout(function () {
+            var rowCount = dlt_userList.getRowCount();
+            wf_body_bottom.getObj("scwin").setReturnValue("submitHandler false → 취소됨");
+            wf_body_bottom.getObj("scwin").setReturnValue("dlt_userList.getRowCount() : " + rowCount);
+        }, "chk_cancel", 500);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="응답 데이터 (dlt_userList 바인딩)" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:gridView id="grd_userList" style="width:100%;height:200px;" dataList="data:dlt_userList">
+							<w2:caption style="" id="cap_grd1" value=""></w2:caption>
+							<w2:header style="" id="hdr_grd1">
+								<w2:row style="" id="hrow_grd1">
+									<w2:column width="80" inputType="text" id="hcol_id" value="ID"></w2:column>
+									<w2:column width="120" inputType="text" id="hcol_name" value="이름"></w2:column>
+									<w2:column width="80" inputType="text" id="hcol_age" value="나이"></w2:column>
+									<w2:column width="*" inputType="text" id="hcol_dept" value="부서"></w2:column>
+								</w2:row>
+							</w2:header>
+							<w2:gBody style="" id="gbd_grd1">
+								<w2:row style="" id="brow_grd1">
+									<w2:column width="80" inputType="text" id="id" displayMode="label"></w2:column>
+									<w2:column width="120" inputType="text" id="name" displayMode="label"></w2:column>
+									<w2:column width="80" inputType="text" id="age" displayMode="label"></w2:column>
+									<w2:column width="*" inputType="text" id="dept" displayMode="label"></w2:column>
+								</w2:row>
+							</w2:gBody>
+						</w2:gridView>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : 기본 동적 생성 (예시 1)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : 동일 ID 재생성]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : submitErrorHandler 호출 (서버 오류)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 : Timeout + abortTrigger + singleMode (예시 2)]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5 : submitHandler false 반환 -> 요청 취소]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_createSubmission_onclick" id="btn_createSubmission"
+							label="createSubmission &amp; executeSubmission" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

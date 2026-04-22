@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] executeSerial" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260421" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<xf:submission id="sbm_s1" action="/data/$p_createSubmission_userList.json" method="post" mediatype="application/json"></xf:submission>
+			<xf:submission id="sbm_s2" action="/data/$p_createSubmission_userList.json" method="post" mediatype="application/json"></xf:submission>
+			<xf:submission id="sbm_s3" action="/data/$p_createSubmission_userList.json" method="post" mediatype="application/json"></xf:submission>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p > M > executeSerial]<br/>여러 submission 을 순차(Serial)로 하나씩 실행합니다.",
+    "validation" : [
+        "Workflow 를 별도로 생성하지 않고 submission ID 배열만으로 순차 실행을 수행합니다.",
+        "submissionId(필수) 파라미터로 실행할 submission ID 문자열 배열을 설정할 수 있어야 합니다.",
+        "processMsg(선택) 파라미터로 실행 중 표시할 프로세스 메시지를 설정할 수 있어야 합니다.",
+        "resolveCallback(선택) 파라미터로 모든 submission 이 성공적으로 완료된 후 호출되는 콜백 함수를 설정할 수 있어야 합니다.",
+        "rejectCallback(선택) 파라미터로 오류 발생 시 호출되는 콜백 함수를 설정할 수 있어야 합니다.",
+        "id(선택) 파라미터로 Workflow ID 를 설정할 수 있어야 합니다. (기본값 : 'serialTemp')"
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.btn_executeSerial_onclick = function () {
+    var scenario = par_scenario.getValue();
+
+    if (scenario === "1") {
+        // 시나리오 1 : 기본 순차 실행 - submissionId 배열 3개 모두 성공 (id 생략 → 기본값 'serialTemp' 확인)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 1 : 기본 순차 실행 (id 생략 시 기본값 'serialTemp') ──");
+        $p.executeSerial(
+            ["sbm_s1", "sbm_s2", "sbm_s3"],
+            "$blank",
+            function (workflowObj) {
+                var resultObj = (workflowObj && workflowObj.result) ? workflowObj.result : {};
+                var keys = (typeof resultObj === "object" && resultObj !== null) ? Object.keys(resultObj) : [];
+                var len = Array.isArray(resultObj) ? resultObj.length : keys.length;
+                var wfId = (workflowObj && workflowObj.id) ? workflowObj.id : "-";
+                wf_body_bottom.getObj("scwin").setReturnValue(
+                    "resolveCallback 호출됨 / 완료된 submission 수 = " + len + " / workflowObj.id = '" + wfId + "'"
+                );
+                wf_body_bottom.getObj("scwin").setReturnValue("result 키 : [" + keys.join(", ") + "]");
+                wf_body_bottom.getObj("scwin").setReturnValue(
+                    "[검증] id 생략 시 기본값 'serialTemp' 포함 여부 : " + (typeof wfId === "string" && wfId.indexOf("serialTemp") > -1)
+                );
+                $p.hideProcessMessage();
+            },
+            function (workflowObj) {
+                wf_body_bottom.getObj("scwin").setReturnValue("rejectCallback 호출됨 (예상 : resolveCallback)");
+                $p.hideProcessMessage();
+            }
+        );
+    } else if (scenario === "2") {
+        // 시나리오 2 : 선택 파라미터(processMsg / id / rejectCallback) 설정
+        // - 오류 유발용 동적 submission 을 포함시켜 rejectCallback 호출 유도
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 2 : 선택 파라미터(processMsg / id / rejectCallback) 설정 ──");
+
+        var customId = "serial_customId";
+
+        // 오류 유발용 동적 submission 생성 (존재하지 않는 URL)
+        $p.createSubmission({
+            id : "sbm_fail",
+            action : "/data/$p_serial_not_exist.json",
+            method : "post",
+            mediatype : "application/json"
+        });
+
+        $p.executeSerial(
+            ["sbm_s1", "sbm_fail", "sbm_s3"],
+            "Serial Processing...",
+            function (workflowObj) {
+                wf_body_bottom.getObj("scwin").setReturnValue("resolveCallback 호출됨 (예상 : rejectCallback)");
+                $p.hideProcessMessage();
+            },
+            function (workflowObj) {
+                var wfId = (workflowObj && workflowObj.id) ? workflowObj.id : "-";
+                wf_body_bottom.getObj("scwin").setReturnValue("rejectCallback 호출됨 (submit 오류 발생)");
+                wf_body_bottom.getObj("scwin").setReturnValue("workflowObj.id : '" + wfId + "' / customId 포함 여부 : " + (typeof wfId === "string" && wfId.indexOf(customId) > -1));
+                $p.hideProcessMessage();
+            },
+            customId
+        );
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="동작 흐름" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_1" escape="false"
+							label="1. sbm_s1 / sbm_s2 / sbm_s3 submission 정의 (/data/$p_createSubmission_userList.json 호출)"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_2" escape="false"
+							label="2. $p.executeSerial(submissionId[], processMsg, resolveCallback, rejectCallback, id, requestData[]) 호출"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_3" escape="false"
+							label="3. submission 배열에 포함된 모든 submission 을 순차로 하나씩 호출"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_4" escape="false"
+							label="4. 모든 응답이 완료되면 resolveCallback (workflowObj.result 에 결과 객체) / 오류 발생 시 rejectCallback 호출"></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="width:100%;" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : 기본 순차 실행 (submission 3개)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[2 : 선택 파라미터(processMsg / id / rejectCallback) 설정]]></xf:label>
+													<xf:value><![CDATA[2]]></xf:value>
+												</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_executeSerial_onclick" id="btn_executeSerial"
+							label="executeSerial" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

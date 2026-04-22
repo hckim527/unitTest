@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] dynamicCreate" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260421" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList id="dlt_code" baseNode="map" repeatNode="map" useClientTableInfo="true">
+					<w2:columnInfo>
+						<w2:column id="code" dataType="text"></w2:column>
+						<w2:column id="label" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p > M > dynamicCreate]<br/>동적으로 웹스퀘어 컴포넌트를 생성합니다.",
+    "validation" : [
+        "id(필수) 파라미터로 생성할 컴포넌트의 아이디를 설정할 수 있어야 하며, 동일 ID 의 컴포넌트가 이미 존재하면 에러 로그를 출력하고 생성하지 않아야 합니다.",
+        "componentName(필수) 파라미터로 컴포넌트의 이름(pluginName) 을 설정할 수 있어야 합니다.",
+        "options(필수) 파라미터로 style, className 등 컴포넌트 속성을 설정할 수 있어야 하며, XML 문자열 또는 DOM 노드로도 전달할 수 있어야 합니다.",
+        "parent(선택) 파라미터로 생성되는 컴포넌트가 추가될 대상 컴포넌트 객체를 설정할 수 있어야 하며, 생략 시 HTML body 에 추가되어야 합니다.",
+        "반환 객체는 생성된 컴포넌트 객체이며, 비동기 로딩이 필요한 컴포넌트(wframe, pageFrame 등) 의 경우 Promise 를 반환해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // dlt_code 초기 데이터 세팅 (Selectbox 바인딩용)
+    dlt_code.insertRow(0); dlt_code.setCellData(0, "code", "C01"); dlt_code.setCellData(0, "label", "옵션 A");
+    dlt_code.insertRow(1); dlt_code.setCellData(1, "code", "C02"); dlt_code.setCellData(1, "label", "옵션 B");
+    dlt_code.insertRow(2); dlt_code.setCellData(2, "code", "C03"); dlt_code.setCellData(2, "label", "옵션 C");
+};
+
+
+
+// 공통: 동일 ID 컴포넌트가 이미 있으면 제거
+scwin.safeRemove = function (id) {
+    var comp = $p.getComponentById(id);
+    if (comp && typeof comp.remove === "function") {
+        comp.remove();
+    }
+};
+
+// 동적 생성된 btn_dynamic 의 onclick 핸들러 (시나리오 3)
+scwin.btn_dynamic_onclick = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("btn_dynamic onclick handler 호출됨");
+    scwin.btn_dynamic_called = true;
+};
+
+
+
+// 시나리오 1 : Group 동적 생성 (parent = grp_target)
+scwin.scenario_group = function () {
+    scwin.safeRemove("grp_dynamic");
+
+    var cmpGroup = $p.dynamicCreate("grp_dynamic", "group", {
+        style : "padding:8px; margin-top:5px; border:1px dashed #3a8; background-color:#f0fff4;"
+    }, grp_target);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 타입 : " + typeof cmpGroup);
+    wf_body_bottom.getObj("scwin").setReturnValue("컴포넌트 ID : " + (cmpGroup ? cmpGroup.getID() : ""));
+
+    var domEl = document.querySelector("[id$='grp_dynamic']");
+    var targetEl = document.querySelector("[id$='grp_target']");
+    var contained = (domEl && targetEl) ? targetEl.contains(domEl) : false;
+    wf_body_bottom.getObj("scwin").setReturnValue("grp_target 내부 포함 여부 : " + contained);
+};
+
+
+
+// 시나리오 2 : InputBox 동적 생성 + setValue 호출
+scwin.scenario_input = function () {
+    scwin.safeRemove("ibx_dynamic");
+
+    var cmpInput = $p.dynamicCreate("ibx_dynamic", "input", {
+        style : "width:200px;",
+        placeholder : "Please enter your name.",
+        className : "cm_form"
+    }, grp_target);
+
+    cmpInput.setValue("WebSquare");
+    var getVal = cmpInput.getValue();
+
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 컴포넌트 ID : " + cmpInput.getID());
+    wf_body_bottom.getObj("scwin").setReturnValue("생성 후 setValue('WebSquare') → getValue() = '" + getVal + "'");
+};
+
+
+
+// 시나리오 3 : Trigger 동적 생성 + setValue + bind onclick
+scwin.scenario_trigger = function () {
+    scwin.safeRemove("btn_dynamic");
+    scwin.btn_dynamic_called = false;
+
+    var cmpTrigger = $p.dynamicCreate("btn_dynamic", "trigger", {
+        style : "margin-left:5px;",
+        className : "cm_form"
+    }, grp_target);
+
+    cmpTrigger.setValue("setValue");
+    cmpTrigger.bind("onclick", scwin.btn_dynamic_onclick);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 컴포넌트 ID : " + cmpTrigger.getID());
+    wf_body_bottom.getObj("scwin").setReturnValue("setValue('setValue') + bind('onclick', handler) 완료");
+
+    // 생성된 버튼을 프로그램적으로 클릭
+    setTimeout(function () {
+        var btnEl = document.querySelector("[id$='btn_dynamic']");
+        if (btnEl) {
+            btnEl.click();
+        }
+        setTimeout(function () {
+            wf_body_bottom.getObj("scwin").setReturnValue("bind('onclick', handler) 후 click 시뮬레이션 → handler 호출됨 : " + (scwin.btn_dynamic_called === true));
+        }, 100);
+    }, 100);
+};
+
+
+
+// 시나리오 4 : Selectbox 동적 생성 + addItem 으로 아이템 추가
+// ※ setNodeSet 은 itemset 이 이미 정의된 selectbox 에만 동작하므로, 동적 생성된 빈 selectbox 에는 addItem() 으로 아이템 추가
+scwin.scenario_selectbox = function () {
+    scwin.safeRemove("sbx_dynamic");
+
+    var cmpSelectBox = $p.dynamicCreate("sbx_dynamic", "selectbox", {
+        style : "width:200px;",
+        className : "cm_form",
+        chooseOption : "true"
+    }, grp_target);
+
+    // dlt_code 데이터 건수만큼 addItem 호출하여 아이템 추가
+    var rowCount = dlt_code.getRowCount();
+    for (var i = 0; i < rowCount; i++) {
+        var code = dlt_code.getCellData(i, "code");
+        var label = dlt_code.getCellData(i, "label");
+        cmpSelectBox.addItem(code, label);
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 컴포넌트 ID : " + cmpSelectBox.getID());
+    wf_body_bottom.getObj("scwin").setReturnValue("dlt_code 행 수 : " + rowCount + " 건");
+};
+
+
+
+// 시나리오 5 : parent 생략 → HTML body 에 추가
+scwin.scenario_no_parent = function () {
+    scwin.safeRemove("grp_dynamic_no_parent");
+
+    var cmpGroup = $p.dynamicCreate("grp_dynamic_no_parent", "group", {
+        style : "padding:8px; border:1px dashed #c36; background-color:#fff0f4;"
+    });
+
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 컴포넌트 ID : " + (cmpGroup ? cmpGroup.getID() : ""));
+
+    var domEl = document.querySelector("[id$='grp_dynamic_no_parent']");
+    var parentTag = (domEl && domEl.parentNode) ? domEl.parentNode.tagName : "";
+    wf_body_bottom.getObj("scwin").setReturnValue("parent 생략 → parentNode.tagName = " + parentTag);
+};
+
+
+
+// 단일 실행 버튼 : par_scenario 값에 따라 분기
+scwin.btn_dynamicCreate_onclick = function () {
+    var scenario = par_scenario.getValue();
+
+    if (scenario === "group") {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시나리오 1] Group 동적 생성 (parent = grp_target)");
+        scwin.scenario_group();
+    } else if (scenario === "input") {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시나리오 2] InputBox 동적 생성 + setValue");
+        scwin.scenario_input();
+    } else if (scenario === "trigger") {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시나리오 3] Trigger 동적 생성 + setValue + bind onclick");
+        scwin.scenario_trigger();
+    } else if (scenario === "selectbox") {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시나리오 4] Selectbox 동적 생성 + setNodeSet (data:dlt_code)");
+        scwin.scenario_selectbox();
+    } else if (scenario === "noParent") {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시나리오 5] parent 생략 → HTML body 에 추가");
+        scwin.scenario_no_parent();
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<xf:group id="grp_target" style="padding:10px; border:1px solid #ccc;">
+							<w2:textbox label="■ 동적 생성 대상 영역 (grp_target)" style="" class=""></w2:textbox>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="width:100%;" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1. Group 동적 생성 (parent=grp_target)]]></xf:label>
+												<xf:value><![CDATA[group]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2. InputBox 동적 생성 + setValue]]></xf:label>
+												<xf:value><![CDATA[input]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3. Trigger 동적 생성 + setValue + bind onclick]]></xf:label>
+												<xf:value><![CDATA[trigger]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4. Selectbox 동적 생성 + setNodeSet(data:dlt_code)]]></xf:label>
+												<xf:value><![CDATA[selectbox]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5. parent 생략 → HTML body 추가]]></xf:label>
+												<xf:value><![CDATA[noParent]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_dynamicCreate_onclick" id="btn_dynamicCreate"
+							label="dynamicCreate" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] URLEncoder" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260421" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p > M > URLEncoder]<br/>문자열을 EUC-KR 기반의 'application/x-www-form-urlencoded' MIME 형식으로 인코딩하여 반환합니다.",
+    "validation" : [
+        "문자열을 EUC-KR 기반의 'application/x-www-form-urlencoded' MIME 형식으로 인코딩하여 반환해야 합니다.",
+        "JavaScript 내장 함수인 encodeURIComponent() 와 달리 EUC-KR 인코딩을 사용해야 합니다.",
+        "str(필수) 파라미터로 인코딩할 문자열을 설정할 수 있어야 합니다.",
+        "str 파라미터가 Number 타입이면 Number 그대로 반환되어야 합니다.",
+        "str 파라미터가 null 이면 빈 문자열('')을 반환해야 합니다.",
+        "str 파라미터가 빈 문자열이면 빈 문자열('')을 반환해야 합니다.",
+        "공백 문자는 '+' 로 변환되어야 합니다.",
+        "영숫자와 @, ., -, *, _ 문자는 인코딩하지 않고 그대로 유지되어야 합니다.",
+        "한글은 EUC-KR 코드표를 참조하여 2바이트 %XX%XX 형태로 변환되어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 로딩 시 선택된 시나리오에 해당하는 str 값 설정
+    var initScenario = par_scenario.getValue();
+    if (Object.prototype.hasOwnProperty.call(scwin.scenarioStrMap, initScenario)) {
+        par_str.setValue(scwin.scenarioStrMap[initScenario]);
+    }
+};
+
+
+
+// 시나리오별 유효한 str 기본값 (par_str input 에 자동 반영)
+scwin.scenarioStrMap = {
+    "1" : "문자열",
+    "2" : "abcXYZ0123@.-*_",
+    "3" : "hello world",
+    "4" : "12345",
+    "5" : "",
+    "6" : "",
+    "7" : "문자열",
+    "8" : "한글 abc @.-*_",
+    "9" : "인스웨이브 WebSquare"
+};
+
+scwin.par_scenario_onviewchange = function (e) {
+    var val = par_scenario.getValue();
+    if (Object.prototype.hasOwnProperty.call(scwin.scenarioStrMap, val)) {
+        par_str.setValue(scwin.scenarioStrMap[val]);
+    }
+};
+
+
+
+// %XX%XX 형태(2바이트 한글 EUC-KR 인코딩) 포함 여부 확인
+scwin.isEucKrEncoded = function (encoded) {
+    // 한글 1글자당 EUC-KR 2바이트 → %XX%XX 패턴이 존재해야 함
+    return /(%[0-9a-fA-F]{2}){2}/.test(encoded);
+};
+
+// encodeURIComponent (UTF-8) 과 EUC-KR 결과가 다름을 확인
+scwin.compareWithEncodeURIComponent = function (src, encoded) {
+    var utf8 = encodeURIComponent(src);
+    return {
+        utf8 : utf8,
+        euckr : encoded,
+        isDifferent : (utf8 !== encoded)
+    };
+};
+
+
+
+scwin.btn_URLEncoder_onclick = function () {
+    var scenario = par_scenario.getValue();
+    var strInput = par_str.getValue();
+
+    if (scenario === "1") {
+        // 한글 문자열 인코딩 (EUC-KR)
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder('" + src + "') 결과 : '" + result + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 타입 : " + typeof result);
+        wf_body_bottom.getObj("scwin").setReturnValue("API 가이드 예시 (str='문자열') 기대값 : '%b9%ae%c0%da%bf%ad'");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] EUC-KR 2바이트 %XX%XX 패턴 포함 여부 : " + (scwin.isEucKrEncoded(result) ? "PASS" : "FAIL"));
+        if (src === "문자열") {
+            wf_body_bottom.getObj("scwin").setReturnValue("[검증] 가이드 예시 값과 일치 여부 : " + (result === "%b9%ae%c0%da%bf%ad" ? "PASS" : "확인필요 (실제: '" + result + "')"));
+        }
+    } else if (scenario === "2") {
+        // 영숫자 + 특수문자(@.-*_) 입력 - 인코딩 안 함
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder(...) 결과 : '" + result + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 영숫자와 @, ., -, *, _ 는 그대로 유지 : " + (result === src ? "PASS" : "FAIL (실제: '" + result + "')"));
+    } else if (scenario === "3") {
+        // 공백 포함 문자열 - + 로 변환
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder('" + src + "') 결과 : '" + result + "'");
+        var expected = src.replace(/ /g, "+");
+        wf_body_bottom.getObj("scwin").setReturnValue("기대값 (공백 → '+') : '" + expected + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 공백이 '+' 로 변환됨 : " + (result === expected ? "PASS" : "FAIL (실제: '" + result + "')"));
+    } else if (scenario === "4") {
+        // Number 타입 입력 - Number 그대로 반환 (par_str 문자열을 Number 로 변환 후 호출)
+        var src = Number(strInput);
+        if (isNaN(src)) {
+            wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + strInput + "' → Number 변환 실패(NaN). 숫자 문자열을 입력해 주세요.");
+            return;
+        }
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : " + src + " (typeof : " + typeof src + ")");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder(" + src + ") 결과 : " + result);
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 타입 : " + typeof result);
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] Number 타입이면 Number 그대로 반환 : " + ((typeof result === "number" && result === src) ? "PASS" : "FAIL"));
+    } else if (scenario === "5") {
+        // null 입력 - 빈 문자열 반환 (par_str 값과 무관하게 null 전달)
+        var result = $p.URLEncoder(null);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : null (par_str 값과 무관하게 null 전달)");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder(null) 결과 : '" + result + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 타입 : " + typeof result);
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] null 입력 시 빈 문자열('') 반환 : " + (result === "" ? "PASS" : "FAIL (실제: '" + result + "')"));
+    } else if (scenario === "6") {
+        // 빈 문자열 입력 - 빈 문자열 반환
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "' (빈 문자열)");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder('') 결과 : '" + result + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 타입 : " + typeof result);
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 빈 문자열 입력 시 빈 문자열('') 반환 : " + (result === "" ? "PASS" : "FAIL (실제: '" + result + "')"));
+    } else if (scenario === "7") {
+        // encodeURIComponent 와 결과 비교 (EUC-KR vs UTF-8)
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        var cmp = scwin.compareWithEncodeURIComponent(src, result);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("encodeURIComponent (UTF-8) 결과 : '" + cmp.utf8 + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder   (EUC-KR) 결과 : '" + cmp.euckr + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 두 결과가 서로 다름 (EUC-KR 인코딩 사용) : " + (cmp.isDifferent ? "PASS" : "FAIL"));
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] URLEncoder 결과가 2바이트 %XX%XX 패턴(EUC-KR) : " + (scwin.isEucKrEncoded(cmp.euckr) ? "PASS" : "FAIL"));
+    } else if (scenario === "8") {
+        // 혼합 문자열 (한글 + 영문 + 공백 + 허용 특수문자)
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder(...) 결과 : '" + result + "'");
+
+        var hasEncodedKorean = scwin.isEucKrEncoded(result);
+        var hasPlus = (result.indexOf("+") > -1);
+        var keepsAlnum = (result.indexOf("abc") > -1);
+        var keepsSymbols = (result.indexOf("@.-*_") > -1);
+
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 한글 → %XX%XX (EUC-KR 2바이트) 변환 : " + (hasEncodedKorean ? "PASS" : "FAIL"));
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 공백 → '+' 변환 : " + (hasPlus ? "PASS" : "FAIL"));
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 영숫자(abc) 유지 : " + (keepsAlnum ? "PASS" : "FAIL"));
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 허용 특수문자(@.-*_) 유지 : " + (keepsSymbols ? "PASS" : "FAIL"));
+    } else if (scenario === "9") {
+        // 직접 입력값 사용
+        var src = strInput;
+        var result = $p.URLEncoder(src);
+        wf_body_bottom.getObj("scwin").setReturnValue("입력(str) : '" + src + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.URLEncoder('" + src + "') 결과 : '" + result + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 타입 : " + typeof result);
+        wf_body_bottom.getObj("scwin").setReturnValue("참고) encodeURIComponent (UTF-8) 결과 : '" + encodeURIComponent(src) + "'");
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="" allOption="" id="par_scenario" direction="auto" ev:onviewchange="scwin.par_scenario_onviewchange">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[한글 문자열 인코딩 (EUC-KR)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[영숫자 + 허용 특수문자(@.-*_) 입력]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[공백 포함 문자열 - '+' 변환]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Number 타입 입력 - Number 그대로 반환]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[null 입력 - 빈 문자열 반환]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[빈 문자열 입력 - 빈 문자열 반환]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[encodeURIComponent 와 결과 비교 (EUC-KR vs UTF-8)]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[혼합 문자열 (한글+영문+공백+특수문자)]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[직접 입력값(par_str) 사용]]></xf:label>
+												<xf:value><![CDATA[9]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="str" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<xf:input id="par_str" style="width:250px;" value="인스웨이브 WebSquare"></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_URLEncoder_onclick" id="btn_URLEncoder"
+							label="URLEncoder" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
