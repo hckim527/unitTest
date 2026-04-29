@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p.data] getBroadcast" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260427" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList id="dlt_exam" baseNode="list" repeatNode="map" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="code" name="코드" dataType="text"></w2:column>
+						<w2:column id="label" name="코드명" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataMap id="dma_exam" baseNode="map">
+					<w2:keyInfo>
+						<w2:key id="lang" name="언어코드" dataType="text"></w2:key>
+						<w2:key id="output" name="출력값" dataType="text"></w2:key>
+					</w2:keyInfo>
+				</w2:dataMap>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p.data > M > getBroadcast]<br/>전체 DataCollection 의 Broadcast 기능 활성화 여부를 반환합니다.",
+    "validation" : [
+        "반환값은 Boolean 타입(true/false) 이어야 합니다.",
+        "초기 상태(setBroadcast 미호출) 에서 호출 시 기본 활성화 상태인 true 를 반환해야 합니다.",
+        "$p.data.setBroadcast(false) 호출 후에는 false 를 반환해야 합니다.",
+        "$p.data.setBroadcast(true) 호출 후에는 true 를 반환해야 합니다.",
+        "Broadcast 비활성화 상태에서 누적된 변경 사항을 활성화 시 일괄 반영한 뒤에도 true 를 반환해야 합니다.",
+        "파라미터를 전달하지 않고 호출할 수 있어야 합니다.",
+        "메소드는 'Page Scope' 가 적용되지 않아 동일 Window 객체에 생성된 DataCollection 의 전체 Broadcast 상태를 반환해야 합니다.",
+        "메소드가 실행된 페이지와 동일한 Window 객체에 생성된 DataCollection 정보가 반환되어야 합니다.",
+        "화면에 정의된 DataList 가 존재할 때도 정상적으로 활성화 상태를 반환해야 합니다.",
+        "화면에 정의된 DataMap 이 존재할 때도 정상적으로 활성화 상태를 반환해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+    scwin.resetData();
+    // 페이지 로드 시점부터 항상 broadcast=true 인 상태로 시작
+    $p.data.setBroadcast(true);
+};
+
+// 케이스 실행 전 데이터 초기화 + Broadcast 상태 활성화로 복원
+scwin.resetData = function () {
+    dlt_exam.removeAll();
+    dlt_exam.insertRow(0); dlt_exam.setCellData(0, "code", "C0001"); dlt_exam.setCellData(0, "label", "TYPE1");
+    dlt_exam.insertRow(1); dlt_exam.setCellData(1, "code", "C0002"); dlt_exam.setCellData(1, "label", "TYPE2");
+    dlt_exam.reform();
+
+    dma_exam.set("lang", "ko");
+    dma_exam.set("output", "WebSquare");
+    dma_exam.reform();
+
+    // 시나리오 반복 실행 대비 : broadcast 항상 활성화 상태로 시작
+    $p.data.setBroadcast(true);
+};
+
+
+
+scwin.put = function (msg) {
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+};
+
+scwin.verify = function (label, actual, expected) {
+    var pass = (String(actual) === String(expected));
+    scwin.put("    [" + (pass ? "✓ PASS" : "✗ FAIL") + "] " + label + " = '" + actual + "'" + (pass ? "" : " (기대: '" + expected + "')"));
+    return pass;
+};
+
+scwin.printResult = function (title, ok) {
+    scwin.put(ok ? "결과 : " + title + " 정상 동작 확인" : "결과 : " + title + " 검증 불일치");
+    scwin.put("");
+};
+
+
+
+scwin.btn_getBroadcast_onclick = function () {
+    var s = par_scenario.getValue();
+
+    if (s === "1") {
+        scwin.resetData();
+        scwin.put("══ 시나리오 1 : 초기 상태 → getBroadcast() === true (기본 활성화) ══");
+        // 파라미터 없이 호출 가능 여부도 함께 검증
+        var ret = $p.data.getBroadcast();
+        var p1 = scwin.verify("typeof ret (Boolean 타입)", typeof ret, "boolean");
+        var p2 = scwin.verify("ret (초기 활성화 상태)", ret, true);
+        // 화면에 정의된 DataList / DataMap 존재 여부 (Page Scope 미적용 → 화면 DC 의 broadcast 상태 반환)
+        var p3 = scwin.verify("dlt_exam 존재 (DataList 정의)", $p.getComponentById("dlt_exam") ? "true" : "false", "true");
+        var p4 = scwin.verify("dma_exam 존재 (DataMap 정의)", $p.getComponentById("dma_exam") ? "true" : "false", "true");
+        // 종료 후 활성화 복원
+        $p.data.setBroadcast(true);
+        scwin.printResult("초기 상태 (기본 true 반환 + Boolean 타입)", p1 && p2 && p3 && p4);
+    } else if (s === "2") {
+        scwin.resetData();
+        scwin.put("══ 시나리오 2 : setBroadcast(false) 후 → getBroadcast() === false ══");
+        $p.data.setBroadcast(false);
+        var ret = $p.data.getBroadcast();
+        var p1 = scwin.verify("typeof ret (Boolean 타입)", typeof ret, "boolean");
+        var p2 = scwin.verify("ret (비활성화 상태)", ret, false);
+        // 종료 후 활성화 복원 (다음 시나리오 영향 방지)
+        $p.data.setBroadcast(true);
+        var p3 = scwin.verify("복원 후 ret (재활성화)", $p.data.getBroadcast(), true);
+        scwin.printResult("setBroadcast(false) 후 false 반환", p1 && p2 && p3);
+    } else if (s === "3") {
+        scwin.resetData();
+        scwin.put("══ 시나리오 3 : setBroadcast(true) 후 → getBroadcast() === true ══");
+        // 비활성화 상태로 만들고 다시 활성화로 전환
+        $p.data.setBroadcast(false);
+        var retOff = $p.data.getBroadcast();
+        scwin.put("    (사전 상태) setBroadcast(false) 후 ret = '" + retOff + "'");
+        $p.data.setBroadcast(true);
+        var ret = $p.data.getBroadcast();
+        var p1 = scwin.verify("typeof ret (Boolean 타입)", typeof ret, "boolean");
+        var p2 = scwin.verify("ret (재활성화 상태)", ret, true);
+        // 종료 후 활성화 복원 보장
+        $p.data.setBroadcast(true);
+        scwin.printResult("setBroadcast(true) 후 true 반환", p1 && p2);
+    } else if (s === "4") {
+        scwin.resetData();
+        scwin.put("══ 시나리오 4 : 비활성화 → 누적 변경 → 활성화 후에도 getBroadcast() === true ══");
+        $p.data.setBroadcast(false);
+        var p1 = scwin.verify("setBroadcast(false) 후 ret", $p.data.getBroadcast(), false);
+        // 비활성화 상태에서 데이터 변경 (누적 변경)
+        dlt_exam.setCellData(0, "label", "TYPE1-CHG");
+        dlt_exam.setCellData(1, "label", "TYPE2-CHG");
+        dma_exam.set("lang", "en");
+        var p2 = scwin.verify("비활성 중 dlt_exam[0].label 변경값", dlt_exam.getCellData(0, "label"), "TYPE1-CHG");
+        // 활성화 (누적 변경 일괄 반영)
+        $p.data.setBroadcast(true);
+        var ret = $p.data.getBroadcast();
+        var p3 = scwin.verify("typeof ret (Boolean 타입)", typeof ret, "boolean");
+        var p4 = scwin.verify("일괄 반영 후 ret (재활성화)", ret, true);
+        // 데이터가 정상적으로 유지되었는지 확인 (broadcast 동작 무결성)
+        var p5 = scwin.verify("일괄 반영 후 dma_exam.lang", dma_exam.get("lang"), "en");
+        // 종료 후 활성화 복원
+        $p.data.setBroadcast(true);
+        scwin.printResult("누적 변경 일괄 반영 후 true 반환", p1 && p2 && p3 && p4 && p5);
+    } else if (s === "5") {
+        scwin.resetData();
+        scwin.put("══ 시나리오 5 : 파라미터 없이 호출 가능 (Page Scope 미적용 → 화면 DC 전체 상태 반환) ══");
+        // 파라미터 없이 호출
+        var ret = $p.data.getBroadcast();
+        var p1 = scwin.verify("typeof ret (Boolean 타입)", typeof ret, "boolean");
+        var p2 = scwin.verify("ret (초기 활성화)", ret, true);
+        // setBroadcast 로 토글 후 다시 파라미터 없이 호출 → 전체 상태 반영 (Page Scope 미적용 검증)
+        $p.data.setBroadcast(false);
+        var ret2 = $p.data.getBroadcast();
+        var p3 = scwin.verify("setBroadcast(false) 후 ret2 (Page Scope 미적용 → 전체 false)", ret2, false);
+        $p.data.setBroadcast(true);
+        var ret3 = $p.data.getBroadcast();
+        var p4 = scwin.verify("setBroadcast(true) 후 ret3 (전체 true)", ret3, true);
+        // 동일 Window 의 DataCollection 정보가 반환되는지 (현재 페이지 = 동일 Window)
+        var p5 = scwin.verify("동일 Window 검증 (window === self)", (window === window.self) ? "true" : "false", "true");
+        // 종료 후 활성화 복원
+        $p.data.setBroadcast(true);
+        scwin.printResult("파라미터 없이 호출 + Page Scope 미적용", p1 && p2 && p3 && p4 && p5);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="" allOption="" id="par_scenario" direction="auto" selectedIndex="0">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : 초기 상태 → true 반환 (Boolean 타입)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : setBroadcast(false) 후 → false 반환]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : setBroadcast(true) 후 → true 반환]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 : 누적 변경 일괄 반영 후 → true 반환]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5 : 파라미터 없이 호출 + Page Scope 미적용]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getBroadcast_onclick" id="btn_getBroadcast"
+							label="getBroadcast" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

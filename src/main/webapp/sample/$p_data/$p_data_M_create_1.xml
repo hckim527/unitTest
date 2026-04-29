@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p.data] create" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260423" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList id="dlt_base" baseNode="list" repeatNode="map" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="code" name="코드" dataType="text"></w2:column>
+						<w2:column id="label" name="코드명" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataMap id="dma_base" baseNode="map">
+					<w2:keyInfo>
+						<w2:key id="lang" name="언어코드" dataType="text"></w2:key>
+						<w2:key id="output" name="출력값" dataType="text"></w2:key>
+					</w2:keyInfo>
+				</w2:dataMap>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[$p.data > M > create]<br/>DataList 또는 DataMap 을 동적으로 생성합니다. 생성할 객체의 구조를 JSON 객체 또는 XML 형식의 문자열로 정의하여 전달합니다.",
+    "validation" : [
+        "dataCollectionInfo(필수) 파라미터로 DataCollection 의 구조를 JSON 객체 또는 XML 형식의 문자열로 설정할 수 있어야 합니다.",
+        "dataCollectionInfo.id(필수) 로 DataCollection 의 ID 를 설정할 수 있어야 합니다.",
+        "dataCollectionInfo.type(필수) 으로 DataCollection 의 유형을 설정할 수 있어야 합니다.",
+        "dataCollectionInfo.type 이 'dataList' 인 경우 DataList 가 생성되어야 합니다.",
+        "dataCollectionInfo.type 이 'dataMap' 인 경우 DataMap 이 생성되어야 합니다.",
+        "dataCollectionInfo.type 이 'linkedDataList' 인 경우 LinkedDataList 가 생성되어야 합니다.",
+        "dataCollectionInfo.type 이 'aliasDataList' 인 경우 AliasDataList 가 생성되어야 합니다.",
+        "dataCollectionInfo.type 이 'aliasDataMap' 인 경우 AliasDataMap 이 생성되어야 합니다.",
+        "dataCollectionInfo.type 이 'aliasLinkedDataList' 인 경우 AliasLinkedDataList 가 생성되어야 합니다.",
+        "dataCollectionInfo.option(선택) 으로 baseNode, repeatNode 등 DataCollection 의 속성을 JSON 객체로 설정할 수 있어야 합니다.",
+        "dataCollectionInfo.option(선택) 을 생략하면 기본값으로 DataCollection 이 생성되어야 합니다.",
+        "dataCollectionInfo.type 이 'dataList' 인 경우 dataCollectionInfo.columnInfo(필수) 로 Column 을 정의한 객체 배열을 설정할 수 있어야 합니다.",
+        "dataCollectionInfo.type 이 'dataMap' 인 경우 dataCollectionInfo.keyInfo(필수) 로 Key-Value 를 정의한 객체 배열을 설정할 수 있어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // base DataList 초기 데이터 (linkedDataList bind 검증용)
+    dlt_base.insertRow(0); dlt_base.setCellData(0, "code", "C0001"); dlt_base.setCellData(0, "label", "TYPE1");
+    dlt_base.insertRow(1); dlt_base.setCellData(1, "code", "C0002"); dlt_base.setCellData(1, "label", "TYPE2");
+
+    // base DataMap 초기 데이터
+    dma_base.set("lang", "ko");
+    dma_base.set("output", "WebSquare");
+};
+
+
+
+scwin.put = function (msg) {
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+};
+
+scwin.verify = function (label, actual, expected) {
+    var pass = (String(actual) === String(expected));
+    scwin.put("    [" + (pass ? "✓ PASS" : "✗ FAIL") + "] " + label + " = '" + actual + "'" + (pass ? "" : " (기대: '" + expected + "')"));
+    return pass;
+};
+
+scwin.printResult = function (id, typeName, ok) {
+    scwin.put(ok ? "결과 : '" + id + "' (" + typeName + ") 정상 생성 완료" : "결과 : '" + id + "' 생성 실패 또는 검증 불일치");
+    scwin.put("");
+};
+
+// safeRemove + create + getComponentById + 객체존재/유형 검증을 묶음
+scwin.createCheck = function (id, info, expectedType, typeLabel) {
+    if ($p.getComponentById(id)) { $p.data.remove(id); }
+    $p.data.create(info);
+    var c = $p.getComponentById(id);
+    var p1 = scwin.verify("$p.getComponentById('" + id + "')", c ? "객체 반환" : "null", "객체 반환");
+    var p2 = scwin.verify(typeLabel || "col.getObjectType()", c ? c.getObjectType() : "null", expectedType);
+    return { col : c, ok : p1 && p2 };
+};
+
+
+
+scwin.btn_create_onclick = function () {
+    var s = par_scenario.getValue();
+
+    if (s === "1") {
+        scwin.put("══ 시나리오 1 : JSON 객체 → DataList 생성 ══");
+        var r = scwin.createCheck("dlt_exam_json", {
+            "id" : "dlt_exam_json", "type" : "dataList",
+            "option" : { "baseNode" : "list", "repeatNode" : "map" },
+            "columnInfo" : [
+                { "id" : "code",  "name" : "코드",   "dataType" : "text" },
+                { "id" : "label", "name" : "코드명", "dataType" : "text" }
+            ]
+        }, "dataList");
+        r.col.insertRow(0); r.col.setCellData(0, "code", "C0001"); r.col.setCellData(0, "label", "TYPE1");
+        var p = scwin.verify("insertRow→setCellData→getCellData(0,'label')", r.col.getCellData(0, "label"), "TYPE1");
+        scwin.printResult("dlt_exam_json", "DataList", r.ok && p);
+    } else if (s === "2") {
+        scwin.put("══ 시나리오 2 : JSON 객체 → DataMap 생성 ══");
+        var r = scwin.createCheck("dma_exam_json", {
+            "id" : "dma_exam_json", "type" : "dataMap",
+            "option" : { "baseNode" : "map" },
+            "keyInfo" : [
+                { "id" : "code",  "name" : "코드",   "dataType" : "text" },
+                { "id" : "label", "name" : "코드명", "dataType" : "text" }
+            ]
+        }, "dataMap");
+        r.col.set("code", "C0001"); r.col.set("label", "TYPE1");
+        var p = scwin.verify("set→get('label')", r.col.get("label"), "TYPE1");
+        scwin.printResult("dma_exam_json", "DataMap", r.ok && p);
+    } else if (s === "3") {
+        scwin.put("══ 시나리오 3 : XML 문자열 → DataList 생성 ══");
+        var xml = '<w2:dataList id=\'dlt_exam_xml\' baseNode=\'list\' repeatNode=\'map\'>' +
+            '<w2:columnInfo>' +
+            '<w2:column id=\'code\' name=\'코드\' dataType=\'text\'></w2:column>' +
+            '<w2:column id=\'label\' name=\'코드명\' dataType=\'text\'></w2:column>' +
+            '</w2:columnInfo></w2:dataList>';
+        var r = scwin.createCheck("dlt_exam_xml", xml, "dataList");
+        r.col.insertRow(0); r.col.setCellData(0, "code", "X0001"); r.col.setCellData(0, "label", "XML_TYPE1");
+        var p = scwin.verify("insertRow→setCellData→getCellData(0,'label')", r.col.getCellData(0, "label"), "XML_TYPE1");
+        scwin.printResult("dlt_exam_xml", "DataList", r.ok && p);
+    } else if (s === "4") {
+        scwin.put("══ 시나리오 4 : XML 문자열 → DataMap 생성 ══");
+        var xml = '<w2:dataMap baseNode=\'map\' id=\'dma_exam_xml\'>' +
+            '<w2:keyInfo>' +
+            '<w2:key id=\'code\' name=\'코드\' dataType=\'text\'></w2:key>' +
+            '<w2:key id=\'label\' name=\'코드명\' dataType=\'text\'></w2:key>' +
+            '</w2:keyInfo></w2:dataMap>';
+        var r = scwin.createCheck("dma_exam_xml", xml, "dataMap");
+        r.col.set("code", "X0001"); r.col.set("label", "XML_TYPE1");
+        var p = scwin.verify("set→get('label')", r.col.get("label"), "XML_TYPE1");
+        scwin.printResult("dma_exam_xml", "DataMap", r.ok && p);
+    } else if (s === "5") {
+        scwin.put("══ 시나리오 5 : linkedDataList 생성 ══");
+        var r = scwin.createCheck("ldl_exam", {
+            "id" : "ldl_exam", "type" : "linkedDataList",
+            "option" : { "bind" : "dlt_base" }
+        }, "linkedDataList");
+        var p = scwin.verify("linkedDataList.getRowCount() (=base 행 수와 동일)", r.col.getRowCount(), dlt_base.getRowCount());
+        scwin.printResult("ldl_exam", "LinkedDataList", r.ok && p);
+    } else if (s === "6") {
+        // (실측) alias 타입은 기반 타입('dataList') 반환
+        scwin.put("══ 시나리오 6 : aliasDataList 생성 ══");
+        var r = scwin.createCheck("adl_exam", {
+            "id" : "adl_exam", "type" : "aliasDataList",
+            "option" : { "scope" : "parent", "bind" : "dlt_base", "baseNode" : "list", "repeatNode" : "map" }
+        }, "dataList", "col.getObjectType() (실측: alias→'dataList' 반환)");
+        scwin.printResult("adl_exam", "AliasDataList", r.ok);
+    } else if (s === "7") {
+        // (실측) alias 타입은 기반 타입('dataMap') 반환
+        scwin.put("══ 시나리오 7 : aliasDataMap 생성 ══");
+        var r = scwin.createCheck("adm_exam", {
+            "id" : "adm_exam", "type" : "aliasDataMap",
+            "option" : { "scope" : "parent", "bind" : "dma_base", "baseNode" : "map" }
+        }, "dataMap", "col.getObjectType() (실측: alias→'dataMap' 반환)");
+        scwin.printResult("adm_exam", "AliasDataMap", r.ok);
+    } else if (s === "8") {
+        // (실측) aliasLinkedDataList → 'dataList' 반환 (linkedDataList 가 아님)
+        scwin.put("══ 시나리오 8 : aliasLinkedDataList 생성 ══");
+        var r = scwin.createCheck("all_exam", {
+            "id" : "all_exam", "type" : "aliasLinkedDataList",
+            "option" : { "scope" : "parent", "bind" : "dlt_base" }
+        }, "dataList", "col.getObjectType() (실측: alias→'dataList' 반환)");
+        scwin.printResult("all_exam", "AliasLinkedDataList", r.ok);
+    } else if (s === "9") {
+        // option 생략 → userData1 빈 값 (기본값)
+        scwin.put("══ 시나리오 9 : option 생략 (기본값 동작) ══");
+        var r = scwin.createCheck("dlt_default", {
+            "id" : "dlt_default", "type" : "dataList",
+            "columnInfo" : [ { "id" : "code", "dataType" : "text" } ]
+        }, "dataList");
+        var p = scwin.verify("getUserData('userData1') (기본값: 빈 값)", r.col.getUserData("userData1") || "", "");
+        scwin.printResult("dlt_default", "DataList(option 생략)", r.ok && p);
+    } else if (s === "10") {
+        // option 지정 → userData1='OPTION_APPLIED'
+        scwin.put("══ 시나리오 10 : option 지정 ══");
+        var r = scwin.createCheck("dlt_with_option", {
+            "id" : "dlt_with_option", "type" : "dataList",
+            "option" : { "baseNode" : "list", "repeatNode" : "map", "userData1" : "OPTION_APPLIED" },
+            "columnInfo" : [ { "id" : "code", "dataType" : "text" } ]
+        }, "dataList");
+        var p = scwin.verify("getUserData('userData1')", r.col.getUserData("userData1"), "OPTION_APPLIED");
+        scwin.printResult("dlt_with_option", "DataList(option 지정)", r.ok && p);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="" allOption="" id="par_scenario" direction="auto" selectedIndex="0">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : JSON 객체 → DataList]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : JSON 객체 → DataMap]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : XML 문자열 → DataList]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 : XML 문자열 → DataMap]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5 : linkedDataList 생성]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6 : aliasDataList 생성]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[7 : aliasDataMap 생성]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[8 : aliasLinkedDataList 생성]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[9 : option 생략 (기본값 동작)]]></xf:label>
+												<xf:value><![CDATA[9]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10 : option 지정]]></xf:label>
+												<xf:value><![CDATA[10]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_create_onclick" id="btn_create"
+							label="create" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
