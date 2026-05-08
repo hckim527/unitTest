@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[multiselect] validateObject" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260506" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataMap baseNode="map" id="dm_ref" style="">
+					<w2:keyInfo>
+						<w2:key dataType="text" id="key1" name="name1"></w2:key>
+					</w2:keyInfo>
+					<w2:data use="true">
+						<label><![CDATA[ ]]></label>
+						<key1><![CDATA[dm_data]]></key1>
+					</w2:data>
+				</w2:dataMap>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[multiselect > M > validateObject]<br/>mandatory=true 일때 선택값에 대한 유효성 체크를 실행한 후 결과를 객체로 반환합니다.",
+    "validation" : [
+        "유효성 체크 결과를 객체로 반환합니다.",
+        "유효성 체크에 성공한 경우 빈 객체({})를 반환합니다.",
+        "유효성 체크에 실패한 경우 callerId, type, value 속성을 포함한 객체를 반환합니다.",
+        "result.callerId 는 유효성 체크 대상 컴포넌트의 렌더링 ID 값을 갖습니다.",
+        "result.type 은 'mandatory' 값을 갖습니다.",
+        "result.value 는 ''(Empty String) 값을 갖습니다.",
+        "mandatory 속성의 유효성 체크를 통과하지 못하면 체크가 중단됩니다.",
+        "displaymessage=true 인 경우 실패 메시지가 출력되며, invalidMessage, invalidMessageFunc 속성으로 실패 메시지를 변경할 수 있습니다.",
+        "실패 메시지가 출력된 후 결과 객체를 반환합니다.",
+        "유효성 체크를 통과하지 못한 컴포넌트가 포커스 됩니다.",
+        "유효성 체크에 대한 반환값을 Boolean 으로 받으려면 validate() 메소드를 사용하여야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성 (BindItemSet: gdl_multiselect 와 바인딩, mandatory/displaymessage/invalidMessage 속성 적용)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // gdl_multiselect 재생성 (idempotent: 기존 dataList 제거 후 재생성)
+    $c.gcm.createDataListMultiSelect();
+
+    // 조건 설정
+    let cMandatory = con_mandatory.getText();
+    let cDisplaymessage = con_displaymessage.getText();
+    let cInvalidMessage = par_invalidMessage.getValue();
+
+    let properties = {};
+    if (cMandatory !== "") {
+        properties.mandatory = cMandatory;
+    }
+    if (cDisplaymessage !== "") {
+        properties.displaymessage = cDisplaymessage;
+    }
+    if (cInvalidMessage !== "") {
+        properties.invalidMessage = cInvalidMessage;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 적용된 속성 정보 라벨 표시
+    let labelText = "target1 : mandatory=[" + (cMandatory === "" ? "미설정(기본 false)" : cMandatory) + "]"
+        + ", displaymessage=[" + (cDisplaymessage === "" ? "미설정(기본 false)" : cDisplaymessage) + "]"
+        + ", invalidMessage=[" + (cInvalidMessage === "" ? "미설정" : cInvalidMessage) + "]";
+    $c.gcm.createLabel('label="' + labelText + '"', '', 'label1');
+
+    // comp 생성 함수 호출
+    $c.gcm.createBasicMultiSelect(cList);
+}
+
+
+
+// validateObject() 호출 - Object 반환값 출력
+scwin.btn_validateObject_onclick = function (e) {
+    let rtnObj = target1.validateObject();
+    wf_body_bottom.getObj("scwin").setReturnValue("target1.validateObject() : " + JSON.stringify(rtnObj));
+    wf_body_bottom.getObj("scwin").setReturnValue("Object.keys(result).length : " + Object.keys(rtnObj).length);
+
+    if (Object.keys(rtnObj).length === 0) {
+        wf_body_bottom.getObj("scwin").setReturnValue("validateObject check : PASS (empty object)");
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("validateObject check : FAIL");
+        wf_body_bottom.getObj("scwin").setReturnValue("result.callerId : " + rtnObj.callerId);
+        wf_body_bottom.getObj("scwin").setReturnValue("result.type : " + rtnObj.type);
+        wf_body_bottom.getObj("scwin").setReturnValue("result.value : '" + rtnObj.value + "'");
+    }
+};
+
+
+
+// validate() 호출 - Boolean 반환값 출력 (Boolean vs Object 비교용)
+scwin.btn_validate_onclick = function (e) {
+    let rtn = target1.validate();
+    wf_body_bottom.getObj("scwin").setReturnValue("target1.validate() : " + rtn + " (typeof=" + typeof rtn + ")");
+};
+
+
+
+// 아이템 선택 (인덱스 0 선택) - validateObject 통과(빈 객체 반환) 검증용
+scwin.btn_selectItem_onclick = function (e) {
+    target1.setValue("");
+    target1.setSelectedIndexNM(0, true);
+    target1.setInstanceValue();
+    wf_body_bottom.getObj("scwin").setReturnValue("target1 : 인덱스 0 선택 완료 (getSelectedIndex='" + target1.getSelectedIndex() + "')");
+};
+
+
+
+// 전체 선택 해제 - validateObject 실패(callerId/type/value 객체 반환) 검증용
+scwin.btn_clearSelection_onclick = function (e) {
+    target1.setValue("");
+    target1.setInstanceValue();
+    wf_body_bottom.getObj("scwin").setReturnValue("target1 : 전체 선택 해제 완료");
+};
+
+
+
+// 포커스 확인 - validateObject 실패 시 컴포넌트 포커스 검증용
+scwin.btn_checkFocus_onclick = function (e) {
+    let activeId = (document.activeElement) ? document.activeElement.id : "";
+    let targetId = (target1.render) ? target1.render.id : "";
+    wf_body_bottom.getObj("scwin").setReturnValue("document.activeElement.id : " + activeId);
+    wf_body_bottom.getObj("scwin").setReturnValue("target1.render.id : " + targetId);
+    wf_body_bottom.getObj("scwin").setReturnValue("focus 일치 여부 : " + (activeId === targetId));
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="mandatory" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_mandatory" ref="" style=""
+										submenuSize="auto" ev:onviewchange="scwin.comp_init">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="displaymessage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_displaymessage" ref="" style=""
+										submenuSize="auto" ev:onviewchange="scwin.comp_init">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="invalidMessage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_invalidMessage" initValue="" style=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_validateObject_onclick" id="btn_validateObject" label="validateObject" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_validate_onclick" id="btn_validate" label="validate" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_selectItem_onclick" id="btn_selectItem" label="아이템 선택(0)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearSelection_onclick" id="btn_clearSelection" label="전체 선택 해제" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFocus_onclick" id="btn_checkFocus" label="focus 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.comp_init" id="btn_compInit" label="Target 재생성" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

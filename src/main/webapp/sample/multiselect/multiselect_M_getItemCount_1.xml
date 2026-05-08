@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[multiselect] getItemCount" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260506" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 샘플에 직접 유효성 설정
+scwin.tData = {
+    "description" : "[multiselect > M > getItemCount]<br/>Multiselect 컴포넌트에 정의된 전체 아이템의 개수를 반환합니다.",
+    "validation" : [
+        "Multiselect 컴포넌트에 정의된 전체 아이템의 개수를 Number 타입으로 반환합니다.",
+        "아이템이 존재하지 않으면 0 을 반환합니다.",
+        "선택된 아이템의 개수가 아닌 전체 아이템의 개수를 반환합니다.",
+        "addItem 으로 아이템을 추가하면 getItemCount 의 반환값이 1 증가합니다.",
+        "deleteItem 으로 아이템을 제거하면 getItemCount 의 반환값이 1 감소합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성 (BindItemSet: gdl_multiselect 와 바인딩, 기본 3개 아이템)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // gdl_multiselect 재생성 (idempotent: 기존 dataList 제거 후 재생성)
+    $c.gcm.createDataListMultiSelect();
+
+    // comp 생성 함수 호출 (기본 3개 아이템: multiselect1/2/3)
+    $c.gcm.createBasicMultiSelect();
+}
+
+
+
+// getItemCount 메소드 호출 (전체 아이템 개수 반환)
+scwin.btn_getItemCount_onclick = function (e) {
+    let cnt = target1.getItemCount();
+    wf_body_bottom.getObj("scwin").setReturnValue("getItemCount : " + cnt);
+    wf_body_bottom.getObj("scwin").setReturnValue("typeof : " + (typeof cnt));
+};
+
+
+
+// addItem 후 getItemCount 변화 확인 (1 증가)
+scwin.btn_addItem_onclick = function (e) {
+    let beforeCnt = target1.getItemCount();
+    let value = par_value.getValue();
+    let label = par_label.getValue();
+    target1.addItem(value, label);
+    let afterCnt = target1.getItemCount();
+
+    wf_body_bottom.getObj("scwin").setReturnValue("addItem 전 getItemCount : " + beforeCnt);
+    wf_body_bottom.getObj("scwin").setReturnValue("addItem 후 getItemCount : " + afterCnt);
+    wf_body_bottom.getObj("scwin").setReturnValue("증가량 : " + (afterCnt - beforeCnt));
+};
+
+
+
+// deleteItem 후 getItemCount 변화 확인 (1 감소)
+// BindItemSet 모드에서 deleteItem 은 1-based 인덱스 + refresh=true 명시 필수 (DataCollection 반영)
+scwin.btn_deleteItem_onclick = function (e) {
+    let beforeCnt = target1.getItemCount();
+    if (beforeCnt <= 0) {
+        wf_body_bottom.getObj("scwin").setReturnValue("아이템이 없어 삭제할 수 없습니다. getItemCount : " + beforeCnt);
+        return;
+    }
+    target1.deleteItem(1, true);
+    let afterCnt = target1.getItemCount();
+
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteItem 전 getItemCount : " + beforeCnt);
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteItem 후 getItemCount : " + afterCnt);
+    wf_body_bottom.getObj("scwin").setReturnValue("감소량 : " + (beforeCnt - afterCnt));
+};
+
+
+
+// 모든 아이템 제거 후 getItemCount 가 0 을 반환하는지 확인
+// BindItemSet 모드에서는 dataList 를 직접 비워야 정상 동작
+scwin.btn_deleteAll_onclick = function (e) {
+    gdl_multiselect.removeAll();
+    wf_body_bottom.getObj("scwin").setReturnValue("모든 아이템 제거 후 getItemCount : " + target1.getItemCount());
+};
+
+
+
+// 첫번째 아이템 선택 후, 선택된 개수와 전체 개수 비교
+// (선택 후에도 getItemCount 는 전체 개수를 반환함을 확인)
+scwin.btn_selectItem_onclick = function (e) {
+    let totalCnt = target1.getItemCount();
+    if (totalCnt <= 0) {
+        wf_body_bottom.getObj("scwin").setReturnValue("선택할 아이템이 없습니다. getItemCount : " + totalCnt);
+        return;
+    }
+    target1.setSelectedIndex([0], true);
+    let selectedArr = target1.getSelectedIndex();
+    let selectedCnt = (selectedArr || []).length;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("getItemCount (전체 개수) : " + target1.getItemCount());
+    wf_body_bottom.getObj("scwin").setReturnValue("getSelectedIndex.length (선택 개수) : " + selectedCnt);
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="addItem value" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_value" style="" initValue="9"></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="addItem label" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:input id="par_label" style="" initValue="add_item1"></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getItemCount_onclick" id="btn_getItemCount" label="getItemCount" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_addItem_onclick" id="btn_addItem" label="addItem" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteItem_onclick" id="btn_deleteItem" label="deleteItem(1, true)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteAll_onclick" id="btn_deleteAll" label="모든 아이템 제거" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

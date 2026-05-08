@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[multiselect] setValue" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260506" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_ref">
+					<w2:columnInfo>
+						<w2:column id="value" name="name1" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<value><![CDATA[]]></value>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[multiselect > M > setValue]<br/>구분자로 구분한 아이템의 Value 값을 사용하여 아이템들을 선택합니다.<br/>기존 선택은 모두 해제되고 새롭게 아이템들이 선택 처리됩니다.",
+    "validation" : [
+        "value(필수) 파라미터로 선택하려는 아이템들의 Value 값을 separator 속성값의 구분자로 구분한 문자열로 설정합니다.",
+        "value(필수) 파라미터로 설정한 아이템들이 모두 선택됩니다. (singleSelect 속성에 관계없이 모두 선택)",
+        "기존에 선택된 아이템은 모두 해제되고 새롭게 아이템들이 선택 처리됩니다.",
+        "Value 값은 대소문자를 구분하며 아이템의 Value 값과 정확히 일치해야 합니다.",
+        "value(필수) 파라미터에 빈 문자열('')을 설정하면 모든 아이템이 선택 해제됩니다.",
+        "아이템의 선택이 변경되면 onchange 이벤트가 발생합니다.",
+        "ref 속성으로 DataCollection 과 바인딩된 경우 바인딩된 데이터에도 변경된 값이 반영됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_multiselect, gdl_boolean 포함)
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// onchange 이벤트 핸들러 — multiselect onchange 는 파라미터 없음 (engine spec)
+// 변경된 값은 getValue() / getSelectedIndex() 메소드로 직접 조회
+scwin.target1_onchange = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====target1_onchange=====");
+    wf_body_bottom.getObj("scwin").setReturnValue("getValue() : [" + target1.getValue() + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("getSelectedIndex() : [" + target1.getSelectedIndex() + "]");
+};
+
+
+
+// comp 생성 (createBasicMultiSelect 로 동적 생성, separator/singleSelect/ref 적용 + onchange 핸들러)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // gdl_multiselect 재생성 (idempotent: 기존 dataList 제거 후 재생성)
+    $c.gcm.createDataListMultiSelect();
+
+    // dlt_ref 초기화 (ref 바인딩 검증용)
+    dlt_ref.set(0, "value", "");
+
+    // 옵션 값 수집
+    let cSeparator = con_separator.getText();
+    let cSingleSelect = con_singleSelect.getText();
+    let cRef = con_ref.getText();
+
+    let properties = {};
+    if (cSeparator !== "") {
+        properties.separator = cSeparator;
+    }
+    if (cSingleSelect !== "") {
+        properties.singleSelect = cSingleSelect;
+    }
+    if (cRef === "true") {
+        properties.ref = "data:dlt_ref.value";
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 적용된 옵션 정보 라벨 표시
+    let lblTxt = 'target1 : ';
+    lblTxt += 'separator=[' + (cSeparator === "" ? "미설정(기본 공백)" : cSeparator) + '], ';
+    lblTxt += 'singleSelect=[' + (cSingleSelect === "" ? "미설정(기본 false)" : cSingleSelect) + '], ';
+    lblTxt += 'ref=[' + (cRef === "true" ? "data:dlt_ref.value" : "미설정") + ']';
+    $c.gcm.createLabel('label="' + lblTxt + '"', '', 'label1');
+
+    // onchange 핸들러 부착 (createBasicMultiSelect 의 두번째 인자 eHandler)
+    let eHandler = 'ev:onchange="scwin.target1_onchange"';
+
+    // comp 생성 함수 호출
+    await $c.gcm.createBasicMultiSelect(cList, eHandler);
+}
+
+
+
+// setValue(value) - value 인자(separator 구분 Value 문자열)로 다중 선택
+//   예: separator=',' + par_value='1,3' → value=1, value=3 아이템(multiselect1, multiselect3) 선택
+scwin.btn_setValue_onclick = function (e) {
+    let inputVal = par_value.getValue();
+    target1.setValue(inputVal);
+    wf_body_bottom.getObj("scwin").setReturnValue("target1.setValue('" + inputVal + "') 호출");
+    wf_body_bottom.getObj("scwin").setReturnValue("getValue() : [" + target1.getValue() + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("getText() : [" + target1.getText() + "]");
+};
+
+
+
+// setValue('') - 빈 문자열 설정 시 모든 아이템 선택 해제
+scwin.btn_setValueEmpty_onclick = function (e) {
+    target1.setValue("");
+    wf_body_bottom.getObj("scwin").setReturnValue("target1.setValue('') 호출 - 모든 선택 해제");
+    wf_body_bottom.getObj("scwin").setReturnValue("getValue() : [" + target1.getValue() + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("getText() : [" + target1.getText() + "]");
+};
+
+
+
+// 사전 선택 - 기존 선택 해제 검증용 (인덱스 0 만 미리 선택)
+scwin.btn_preselect_onclick = function (e) {
+    target1.setValue("");
+    target1.setSelectedIndexNM(0, true);
+    target1.setInstanceValue();
+    wf_body_bottom.getObj("scwin").setReturnValue("target1 : 사전 선택 (인덱스 0) 완료");
+    wf_body_bottom.getObj("scwin").setReturnValue("getValue() : [" + target1.getValue() + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("getText() : [" + target1.getText() + "]");
+};
+
+
+
+// 결과 확인 - getValue / getText 호출 결과 출력
+scwin.btn_getResult_onclick = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("getValue() : [" + target1.getValue() + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("getText() : [" + target1.getText() + "]");
+};
+
+
+
+// dlt_ref 값 확인 - ref 바인딩 시 setValue 호출 결과 반영 검증용
+scwin.btn_getDataList_onclick = function (e) {
+    let v = dlt_ref.get(0, "value");
+    wf_body_bottom.getObj("scwin").setReturnValue("dlt_ref row 0 value : [" + v + "]");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="separator" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_separator" ref="" style="" submenuSize="auto"
+										ev:onviewchange="scwin.comp_init">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[,]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[/]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[-]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[|]]></xf:label><xf:value><![CDATA[5]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="singleSelect" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_singleSelect" ref="" style="" submenuSize="auto"
+										ev:onviewchange="scwin.comp_init">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ref 바인딩" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ref" ref="" style="" submenuSize="auto"
+										ev:onviewchange="scwin.comp_init">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="value" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:input class="" id="par_value" style="width:230px;" initValue="1,3"></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_preselect_onclick" id="btn_preselect" label="사전 선택(인덱스 0)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setValue_onclick" id="btn_setValue" label="setValue(value)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setValueEmpty_onclick" id="btn_setValueEmpty" label="setValue('') 빈 문자열" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult" label="결과 확인(getValue/getText)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDataList_onclick" id="btn_getDataList" label="dlt_ref 값 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

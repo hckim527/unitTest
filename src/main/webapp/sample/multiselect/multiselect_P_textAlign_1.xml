@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[multiselect] textAlign" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260506" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[multiselect > P > textAlign]<br/>MultiSelect 컴포넌트의 아이템 목록 텍스트 정렬 방식을 설정합니다.",
+    "validation" : [
+        "left 설정 시 아이템 텍스트가 왼쪽으로 정렬됩니다.",
+        "center 설정 시 아이템 텍스트가 가운데로 정렬됩니다.",
+        "right 설정 시 아이템 텍스트가 오른쪽으로 정렬됩니다.",
+        "속성값을 설정하지 않으면 text-align 스타일이 적용되지 않으며 브라우저 기본 정렬이 사용됩니다.",
+        "accessibility=true 인 경우 각 아이템의 button 태그 style 속성에 'text-align' 값이 설정됩니다.",
+        "accessibility=false 인 경우 각 아이템의 td 태그 style 속성에 'text-align' 값이 설정됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성 (4개 target 동적 생성: 미설정 / left / center / right)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') target1.remove();
+    if (typeof target2 !== 'undefined') target2.remove();
+    if (typeof target3 !== 'undefined') target3.remove();
+    if (typeof target4 !== 'undefined') target4.remove();
+
+    // 기존 label 있으면 삭제 (재호출 시 누적 방지)
+    if (typeof label1 !== 'undefined') label1.remove();
+    if (typeof label2 !== 'undefined') label2.remove();
+    if (typeof label3 !== 'undefined') label3.remove();
+    if (typeof label4 !== 'undefined') label4.remove();
+
+    // gdl_multiselect 재생성 (idempotent)
+    $c.gcm.createDataListMultiSelect();
+
+    let cAccessibility = con_accessibility.getText();
+
+    // accessibility 기본값(false) 처리: 미설정이면 속성 제외
+    let baseProps = {};
+    if (cAccessibility !== "") {
+        baseProps.accessibility = cAccessibility;
+    }
+
+    // target1: textAlign 미설정 (속성 자체를 빼서 기본 동작 확인)
+    let cList1 = $c.gcm.createCList(baseProps);
+    $c.gcm.createLabel('label="target1 : textAlign 미설정 (style 속성 미부여, 브라우저 기본 정렬)"', '', 'label1');
+    await $c.gcm.createBasicMultiSelect(cList1, '', 'target1');
+
+    // target2: textAlign=left
+    let cList2 = $c.gcm.createCList({ ...baseProps, textAlign : "left" });
+    $c.gcm.createLabel('label="target2 : textAlign=left"', '', 'label2');
+    await $c.gcm.createBasicMultiSelect(cList2, '', 'target2');
+
+    // target3: textAlign=center
+    let cList3 = $c.gcm.createCList({ ...baseProps, textAlign : "center" });
+    $c.gcm.createLabel('label="target3 : textAlign=center"', '', 'label3');
+    await $c.gcm.createBasicMultiSelect(cList3, '', 'target3');
+
+    // target4: textAlign=right
+    let cList4 = $c.gcm.createCList({ ...baseProps, textAlign : "right" });
+    $c.gcm.createLabel('label="target4 : textAlign=right"', '', 'label4');
+    await $c.gcm.createBasicMultiSelect(cList4, '', 'target4');
+};
+
+
+
+// 각 target 의 라벨 DOM(button 또는 td) 의 textAlign 출력
+scwin.btn_getTextAlign_onclick = function (e) {
+    let names = ['target1', 'target2', 'target3', 'target4'];
+    let cAccessibility = con_accessibility.getText();
+    // accessibility=true 면 button.w2multiselect_acc_link, 아니면 td.w2multiselect_td
+    let isAcc = (cAccessibility === "true");
+    let selector = isAcc ? '.w2multiselect_acc_link' : '.w2multiselect_td';
+
+    names.forEach((tid) => {
+        let comp;
+        try { comp = eval(tid); } catch (err) { comp = null; }
+
+        if (!comp || !comp.render) {
+            wf_body_bottom.getObj("scwin").setReturnValue(tid + " : 컴포넌트 미생성");
+            return;
+        }
+        let labelDoms = comp.render.querySelectorAll(selector);
+        if (labelDoms.length === 0) {
+            wf_body_bottom.getObj("scwin").setReturnValue(tid + " : 라벨 DOM(" + selector + ") 없음");
+            return;
+        }
+        // 첫 번째 아이템의 라벨 DOM 만 확인 (모든 아이템 동일하게 적용됨)
+        let firstDom = labelDoms[0];
+        let inlineAlign = firstDom.style.textAlign;
+        let computedAlign = window.getComputedStyle(firstDom).textAlign;
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            tid + " [" + firstDom.tagName + "] inline=[" + inlineAlign + "] computed=[" + computedAlign + "]"
+        );
+    });
+};
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_accessibility" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getTextAlign_onclick" id="btn_getTextAlign" label="textAlign 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
