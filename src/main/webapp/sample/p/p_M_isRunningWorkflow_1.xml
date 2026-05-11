@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] isRunningWorkflow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260421" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection>
+				<w2:workflow id="wf_exam1" resolveCallback="scwin.wf_resolveCallback" rejectCallback="scwin.wf_rejectCallback" description="XML 정의 workflow">
+					<w2:step type="submit" action="sbm_exam1" pre="scwin.sbm_exam1_pre"></w2:step>
+					<w2:step type="submitDone" action="sbm_exam1"></w2:step>
+					<w2:step type="function" action="scwin.wf_function_last"></w2:step>
+				</w2:workflow>
+			</w2:workflowCollection>
+			<xf:submission id="sbm_exam1" action="/sample/common_link/p_executeWorkflow_echo.json" method="post" mediatype="application/json" ref=""
+				target="" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+				processMsg="" ev:submit="" ev:submitdone="" ev:submiterror="" abortTrigger="">
+			</xf:submission>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > isRunningWorkflow]<br/>실행 중인 Workflow 가 있는지 여부를 반환합니다.",
+    "validation" : [
+        "workflowId(선택) 파라미터로 특정 Workflow 의 실행 여부를 확인할 수 있어야 합니다.",
+        "workflowId(선택) 파라미터 생략 시 전체 Workflow 중 실행 중인 것이 있는지 확인해야 합니다.",
+        "실행 중이면 true, 아니면 false 를 반환해야 합니다.",
+        "반환값은 Boolean 타입이어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// workflow step 의 마지막 function - 실행 진행 구간에서 isRunningWorkflow 호출 확인
+scwin.wf_function_last = function () {
+    var isRun = $p.isRunningWorkflow();
+    wf_body_bottom.getObj("scwin").setReturnValue("[step] function - $p.isRunningWorkflow() → 반환 타입 : " + (typeof isRun) + " / 값 : " + isRun);
+};
+
+// submission pre - 실행 진행 구간에서 $p.isRunningWorkflow() 호출 확인
+scwin.sbm_exam1_pre = function (submissionId, workflowObj) {
+    var scenario = par_scenario.getValue();
+
+    if (scenario === "1") {
+        // 시나리오 1 : workflowId 파라미터 생략 → 실행 중 workflow 유무 확인
+        var isRun = $p.isRunningWorkflow();
+        wf_body_bottom.getObj("scwin").setReturnValue("[pre] $p.isRunningWorkflow() (ID 생략) → 반환 타입 : " + (typeof isRun) + " / 값 : " + isRun);
+    } else if (scenario === "2") {
+        // 시나리오 2 : workflowId 파라미터 지정 → 해당 ID 의 workflow 실행 여부 확인
+        var isRun1 = $p.isRunningWorkflow("wf_exam1");
+        wf_body_bottom.getObj("scwin").setReturnValue("[pre] $p.isRunningWorkflow('wf_exam1') → 반환 타입 : " + (typeof isRun1) + " / 값 : " + isRun1);
+
+        // 존재하지 않는 workflow ID 조회 → false
+        var isRun2 = $p.isRunningWorkflow("wf_not_exists");
+        wf_body_bottom.getObj("scwin").setReturnValue("[pre] $p.isRunningWorkflow('wf_not_exists') → 반환 타입 : " + (typeof isRun2) + " / 값 : " + isRun2);
+    }
+
+    return true;
+};
+
+// workflow 전체 콜백
+scwin.wf_resolveCallback = function (wObj) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[resolveCallback] workflow 완료");
+};
+
+scwin.wf_rejectCallback = function (wObj) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[rejectCallback] workflow 오류");
+};
+
+
+
+scwin.btn_isRunningWorkflow_onclick = function () {
+    var scenario = par_scenario.getValue();
+
+    if (scenario === "1") {
+        // 시나리오 1 : workflowId 파라미터 생략 - 실행 중 workflow 유무 확인 (true)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 1 : $p.isRunningWorkflow() (ID 생략) - 실행 중 Workflow 있으면 true 반환 ──");
+        $p.executeWorkflow("wf_exam1");
+    } else if (scenario === "2") {
+        // 시나리오 2 : workflowId 파라미터 지정 - 특정 Workflow 실행 여부 확인
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 2 : $p.isRunningWorkflow('wf_exam1') / $p.isRunningWorkflow('wf_not_exists') - 특정 ID 실행 여부 확인 ──");
+        $p.executeWorkflow("wf_exam1");
+    } else if (scenario === "3") {
+        // 시나리오 3 : 실행 중 workflow 가 없을 때 → false 반환
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 3 : 실행 중 Workflow 가 없을 때 호출 - false 반환 ──");
+        var isRun = $p.isRunningWorkflow();
+        wf_body_bottom.getObj("scwin").setReturnValue("btn onclick 구간 $p.isRunningWorkflow() → 반환 타입 : " + (typeof isRun) + " / 값 : " + isRun + " (실행 중 workflow 없음)");
+
+        // 특정 ID 조회도 false
+        var isRunById = $p.isRunningWorkflow("wf_exam1");
+        wf_body_bottom.getObj("scwin").setReturnValue("btn onclick 구간 $p.isRunningWorkflow('wf_exam1') → 반환 타입 : " + (typeof isRunById) + " / 값 : " + isRunById);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="동작 흐름" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_1" escape="false"
+							label="1. 시나리오 1 (ID 생략) : $p.executeWorkflow('wf_exam1') 실행 중 pre 구간에서 $p.isRunningWorkflow() 호출 → 실행 중 workflow 존재 시 true 반환"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_2" escape="false"
+							label="2. 시나리오 2 (ID 지정) : workflow 실행 중 pre 구간에서 $p.isRunningWorkflow('wf_exam1') 호출 → true 반환, $p.isRunningWorkflow('wf_not_exists') → false 반환"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_3" escape="false"
+							label="3. 시나리오 3 (실행 중 아님) : 버튼 onclick 즉시 $p.isRunningWorkflow() 호출 → 실행 중 workflow 가 없으므로 false 반환"></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="width:100%;" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : ID 생략 - 실행 중 workflow 있으면 true]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : ID 지정 - 'wf_exam1' true / 'wf_not_exists' false]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : 실행 중 아님 - false 반환]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_isRunningWorkflow_onclick" id="btn_isRunningWorkflow"
+							label="isRunningWorkflow" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

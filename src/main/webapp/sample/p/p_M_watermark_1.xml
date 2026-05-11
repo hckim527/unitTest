@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] watermark" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260421" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > watermark]<br/>화면에 Canvas 기반의 워터마크를 표시합니다.",
+    "validation" : [
+        "화면에 Canvas 기반의 워터마크를 표시해야 합니다.",
+        "워터마크에는 label 파라미터에 설정한 문자열과 'yyyy-MM-dd HH:mm:ss' 형식의 현재 날짜 및 시간이 포함되어야 합니다.",
+        "label(필수) 파라미터로 워터마크로 표시할 문자열을 설정할 수 있어야 합니다.",
+        "options(선택) 파라미터로 워터마크 옵션을 JSON 객체로 설정할 수 있어야 합니다.",
+        "options.canvasId(선택) 파라미터로 Canvas 요소의 ID 를 설정할 수 있어야 합니다.",
+        "options.target(선택) 파라미터로 워터마크를 표시할 대상 컴포넌트를 설정할 수 있어야 합니다 (생략 시 document.body).",
+        "options.lineGap(선택) 파라미터로 워터마크 줄 간격(px)을 설정할 수 있어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 기존 워터마크 canvas 제거 (케이스 간 독립성 확보)
+scwin.removeWatermarkCanvas = function () {
+    var canvases = document.querySelectorAll("canvas[data-watermark_msg]");
+    for (var i = 0; i < canvases.length; i++) {
+        if (canvases[i].parentNode) {
+            canvases[i].parentNode.removeChild(canvases[i]);
+        }
+    }
+};
+
+
+
+// Canvas 상태 출력 (존재 / parent / 속성 / 렌더링 픽셀)
+scwin.printCanvasStatus = function (canvasId) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) {
+        wf_body_bottom.getObj("scwin").setReturnValue("canvas[id='" + canvasId + "'] : 없음");
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("canvas 생성됨 : id='" + canvas.id + "', size=" + canvas.width + "x" + canvas.height);
+    wf_body_bottom.getObj("scwin").setReturnValue("canvas parent : <" + canvas.parentNode.tagName + (canvas.parentNode.id ? " id='" + canvas.parentNode.id + "'" : "") + ">");
+    wf_body_bottom.getObj("scwin").setReturnValue("data-watermark_msg : " + canvas.getAttribute("data-watermark_msg"));
+    wf_body_bottom.getObj("scwin").setReturnValue("data-watermark_linegap : " + canvas.getAttribute("data-watermark_linegap"));
+
+    // 렌더링 확인 : 반투명 픽셀 존재 여부
+    try {
+        var ctx = canvas.getContext("2d");
+        var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var data = imgData.data;
+        var count = 0;
+        for (var i = 3; i < data.length; i += 16) {
+            if (data[i] > 0 && data[i] < 255) count++;
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue("반투명 픽셀(샘플) : " + count + " → " + (count > 0 ? "렌더링 확인됨" : "비어있음"));
+    } catch (e) {
+        wf_body_bottom.getObj("scwin").setReturnValue("getImageData 예외 : " + e.message);
+    }
+};
+
+
+
+scwin.btn_watermark_onclick = function () {
+    var scenario = par_scenario.getValue();
+    var label = par_label.getValue();
+    var canvasId = par_canvasId.getValue();
+    var lineGap = parseInt(par_lineGap.getValue(), 10);
+
+    scwin.removeWatermarkCanvas();
+
+    if (scenario === "1") {
+        // target 생략 → document.body 에 표시 (label + canvasId + lineGap 전체 설정)
+        var options = { canvasId : canvasId, lineGap : lineGap };
+        $p.watermark(label, options);
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.watermark('" + label + "', { canvasId:'" + canvasId + "', lineGap:" + lineGap + " }) 실행 (target 생략)");
+    } else if (scenario === "2") {
+        // target 지정 → grp_target 영역에 표시 (모든 options 설정)
+        var options = { canvasId : canvasId, target : grp_target, lineGap : lineGap };
+        $p.watermark(label, options);
+        wf_body_bottom.getObj("scwin").setReturnValue("$p.watermark('" + label + "', { canvasId:'" + canvasId + "', target:grp_target, lineGap:" + lineGap + " }) 실행");
+    }
+
+    setTimeout(function () {
+        scwin.printCanvasStatus(canvasId);
+    }, 300);
+};
+
+
+
+scwin.btn_removeCanvas_onclick = function () {
+    scwin.removeWatermarkCanvas();
+    wf_body_bottom.getObj("scwin").setReturnValue("워터마크 canvas 제거 실행");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<xf:group style="width:735px; height:375px; border:1px solid #999; padding:10px;" id="grp_target">
+							<w2:textbox id="" label="■ target 컴포넌트 영역 (grp_target)" style="" class=""></w2:textbox>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[target 생략 (document.body 에 표시)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[target=grp_target 지정 (영역 내 표시)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="label" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<xf:input id="par_label" style="width:100%;" initValue="EXAMPLE"></xf:input>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="options.canvasId" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:input id="par_canvasId" style="width:100%;" initValue="watermarkCanvas"></xf:input>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="options.lineGap" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<xf:input id="par_lineGap" style="width:100%;" initValue="300"></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_watermark_onclick" id="btn_watermark"
+							label="watermark" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_removeCanvas_onclick" id="btn_removeCanvas"
+							label="워터마크 canvas 제거" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

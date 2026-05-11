@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] showModal" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260420" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > showModal]<br/>모달 레이어를 표시하고, 지정된 컴포넌트를 제외한 모든 컴포넌트를 비활성화(disabled) 상태로 설정합니다.",
+    "validation" : [
+        "모달 레이어를 표시하고, 지정된 컴포넌트를 제외한 모든 컴포넌트를 비활성화(disabled) 상태로 설정해야 합니다.",
+        "이미 모달 레이어가 표시된 상태이면 중복 생성 없이 호출이 무시되어야 합니다.",
+        "popupComponents(선택) 파라미터로 비활성화(disabled) 상태에서 제외할 컴포넌트 ID 의 배열을 설정할 수 있어야 합니다.",
+        "popupComponents(선택) 파라미터에 포함된 컴포넌트는 모달 레이어 위에서 계속 상호작용이 가능해야 합니다.",
+        "popupComponents(선택) 파라미터를 전달하지 않으면 모든 컴포넌트가 비활성화(disabled) 상태로 설정되어야 합니다.",
+        "모달 레이어가 표시되면 Tab 키에 의한 포커스 이동도 차단되어야 합니다.",
+        "popupComponents 파라미터에 설정한 컴포넌트의 스타일 position 속성값을 'relative' 로 적용하면 레이어 상위에 표시할 수 있어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.target_input1_onfocus = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("target_input1 onfocus 발생");
+}
+
+scwin.target_input2_onfocus = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("target_input2 onfocus 발생");
+}
+
+scwin.target_btn1_onfocus = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("target_btn1 onfocus 발생");
+}
+
+scwin.checkDisabledStatus = function (prefix) {
+    var compIds = ["target_input1", "target_input2", "target_btn1"];
+    var states = [];
+    for (var i = 0; i < compIds.length; i++) {
+        var comp = $p.getComponentById(compIds[i]);
+        if (comp) {
+            states.push(compIds[i] + "=" + comp.getDisabled());
+        }
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(prefix + " disabled 상태 : " + states.join(", "));
+}
+
+
+
+// 시나리오별 실행 버튼 — showModal 상태에서도 항상 활성 유지
+scwin.getCtrlButtons = function () {
+    return [
+        btn_showModal.getID(),
+        btn_showModal_duplicate.getID(),
+        btn_showModal_relative.getID(),
+        btn_tabFocus.getID(),
+        btn_hideModal.getID()
+    ];
+}
+
+
+
+scwin.btn_showModal_onclick = function () {
+    $p.showModal(scwin.getCtrlButtons());
+
+    wf_body_bottom.getObj("scwin").setReturnValue("showModal([실행 버튼들]) 실행 (시나리오 버튼 활성 유지)");
+    wf_body_bottom.getObj("scwin").setReturnValue("disabledList.length : " + WebSquare.layer.disabledList.length);
+
+    setTimeout(function () {
+        scwin.checkDisabledStatus("[showModal 후]");
+    }, 500);
+}
+
+
+
+scwin.btn_showModal_duplicate_onclick = function () {
+    var beforeLen = WebSquare.layer.disabledList.length;
+    $p.showModal(scwin.getCtrlButtons());
+    var afterLen = WebSquare.layer.disabledList.length;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("showModal 중복 호출 실행");
+    wf_body_bottom.getObj("scwin").setReturnValue("disabledList.length : " + beforeLen + " → " + afterLen + (beforeLen === afterLen ? " (중복 생성 없이 무시됨)" : " (중복 생성됨)"));
+}
+
+
+
+scwin.btn_showModal_relative_onclick = function () {
+    var comp = $p.getComponentById("target_input1");
+    if (comp) {
+        comp.setStyle("position", "relative");
+    }
+    var popupComponents = scwin.getCtrlButtons().concat(["target_input1"]);
+    $p.showModal(popupComponents);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("target_input1 에 position:relative 적용 후 showModal([target_input1, 시나리오 버튼들]) 실행");
+
+    setTimeout(function () {
+        var inputEl = document.querySelector("input[id*='target_input1']");
+        if (inputEl) {
+            var computed = window.getComputedStyle(inputEl);
+            wf_body_bottom.getObj("scwin").setReturnValue("target_input1 position 스타일 : " + computed.position);
+
+            // 모달 레이어 위 표시 검증: elementFromPoint 로 input 중심 좌표의 최상위 element 확인
+            var rect = inputEl.getBoundingClientRect();
+            var x = rect.left + rect.width / 2;
+            var y = rect.top + rect.height / 2;
+            var topEl = document.elementFromPoint(x, y);
+            var topElId = topEl ? topEl.id : "";
+            var topElTag = topEl ? topEl.tagName : "";
+            wf_body_bottom.getObj("scwin").setReturnValue("input 중심 좌표(" + Math.round(x) + "," + Math.round(y) + ")의 최상위 element : <" + topElTag + " id='" + topElId + "'>");
+
+            // input 또는 input 내부 element 이면 모달 위에 표시됨
+            var isAboveModal = (topEl === inputEl) || (inputEl.contains(topEl));
+            wf_body_bottom.getObj("scwin").setReturnValue("target_input1 모달 레이어 위 표시 " + (isAboveModal ? "성공 (클릭 가능)" : "실패 (모달 레이어가 가림)"));
+        }
+        scwin.checkDisabledStatus("[showModal relative 후]");
+    }, 500);
+}
+
+
+
+scwin.btn_hideModal_onclick = function () {
+    var beforeLen = WebSquare.layer.disabledList.length;
+    $p.hideModal();
+    var afterLen = WebSquare.layer.disabledList.length;
+
+    var comp = $p.getComponentById("target_input1");
+    if (comp) {
+        comp.setStyle("position", "");
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("hideModal 실행");
+    wf_body_bottom.getObj("scwin").setReturnValue("disabledList.length : " + beforeLen + " → " + afterLen + (beforeLen > afterLen ? " (모달 해제됨)" : " (변화 없음)"));
+
+    setTimeout(function () {
+        scwin.checkDisabledStatus("[hideModal 후]");
+    }, 500);
+}
+
+
+
+scwin.btn_tabFocus_onclick = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("Tab 포커스 차단 테스트 : 모달 표시 상태에서 target_input1 에 포커스 시도");
+
+    var inputEl = document.querySelector("input[id*='target_input1']");
+    if (inputEl) {
+        inputEl.focus();
+        setTimeout(function () {
+            var activeId = document.activeElement ? document.activeElement.id : "";
+            wf_body_bottom.getObj("scwin").setReturnValue("focus 시도 후 document.activeElement.id : " + activeId);
+            wf_body_bottom.getObj("scwin").setReturnValue("target_input1 에 포커스 이동 " + (activeId.indexOf("target_input1") >= 0 ? "성공" : "차단됨"));
+        }, 300);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<xf:input ev:onfocus="scwin.target_input1_onfocus" id="target_input1" style="width:150px;" placeholder="target_input1"></xf:input>
+						<xf:input ev:onfocus="scwin.target_input2_onfocus" id="target_input2" style="width:150px;" placeholder="target_input2"></xf:input>
+						<w2:button class="tc_btn_basic" ev:onfocus="scwin.target_btn1_onfocus" id="target_btn1" label="target_btn1" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_showModal_onclick" id="btn_showModal"
+							label="showModal ()" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_showModal_duplicate_onclick" id="btn_showModal_duplicate"
+							label="showModal (중복 호출)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_showModal_relative_onclick" id="btn_showModal_relative"
+							label="showModal (position:relative)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_tabFocus_onclick" id="btn_tabFocus"
+							label="Tab 포커스 차단 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hideModal_onclick" id="btn_hideModal"
+							label="hideModal" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

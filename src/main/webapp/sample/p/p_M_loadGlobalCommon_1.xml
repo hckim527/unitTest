@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[$p] loadGlobalCommon" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260417" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > loadGlobalCommon]<br/>전역(Global) 공통 JavaScript 모듈을 비동기로 로드하여 프로젝트 공통 변수에 등록합니다.<br/>",
+    "validation" : [
+        "전역(Global) 공통 JavaScript 모듈을 비동기로 로드하여 프로젝트 공통 변수($c)에 등록할 수 있어야 합니다.",
+        "infoArray(필수) 파라미터로 로드할 모듈 정보 객체가 담긴 배열을 설정할 수 있어야 합니다.",
+        "infoArray(필수) 파라미터가 Array 가 아니면 모듈이 로드되지 않아야 합니다.",
+        "infoArray[i].src(필수) 파라미터로 로드할 JavaScript(XML) 파일의 경로를 설정할 수 있어야 합니다.",
+        "infoArray[i].name(필수) 파라미터로 프로젝트 공통 변수에 등록할 이름을 설정할 수 있어야 합니다.",
+        "모든 모듈 로드 완료를 나타내는 Promise 객체를 반환해야 합니다.",
+        "반환된 Promise 는 await 또는 .then() 으로 로드 완료 후 처리를 할 수 있어야 합니다.",
+    ]
+}
+
+
+
+scwin.COMMON_PATHS = {
+    "util" : "/cm/gcc/util.xml",
+    "str"  : "/cm/gcc/str.xml",
+    "num"  : "/cm/gcc/num.xml"
+};
+
+// 테스트 시작 전 특정 이름의 전역 슬롯을 초기화
+scwin.resetSlot = function (slotName) {
+    try {
+        if (window.$c && window.$c[slotName]) {
+            delete window.$c[slotName];
+        }
+    } catch (e) {}
+};
+
+// 고정 URL 의 HTTP 요청 수를 반환 (reload 동작 검증용)
+scwin.countRequests = function (url) {
+    return performance.getEntriesByName(location.origin + url).length;
+};
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// case1 : 배열 + await → $c.util, $c.num 로드 후 메소드 호출 확인
+scwin.btn_loadGlobalCommon_await_onclick = async function () {
+    scwin.resetSlot("tc_util");
+    scwin.resetSlot("tc_num");
+
+    var infoArr = [
+        {"src" : scwin.COMMON_PATHS.util, "name" : "tc_util"},
+        {"src" : scwin.COMMON_PATHS.num,  "name" : "tc_num"}
+    ];
+    await $p.loadGlobalCommon(infoArr);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("$c.tc_util.isEmpty($p, '') : " + $c.tc_util.isEmpty($p, ""));
+    wf_body_bottom.getObj("scwin").setReturnValue("$c.tc_num.round($p, 3.14159, 2) : " + $c.tc_num.round($p, 3.14159, 2));
+}
+
+
+
+// case2 : .then() 후속 처리 + Promise 반환 확인
+scwin.btn_loadGlobalCommon_then_onclick = function () {
+    scwin.resetSlot("tc_str");
+
+    var infoArr = [{"src" : scwin.COMMON_PATHS.str, "name" : "tc_str"}];
+    var retVal = $p.loadGlobalCommon(infoArr);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("retVal instanceof Promise : " + (retVal instanceof Promise));
+
+    retVal.then(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue(".then() 후 $c.tc_str.trim($p, ' a ') : '" + $c.tc_str.trim($p, " a ") + "'");
+    });
+}
+
+
+
+// case3 : infoArray 가 Array 가 아닌 경우 (String 전달) → 모듈 미로드
+scwin.btn_loadGlobalCommon_notArray_onclick = async function () {
+    scwin.resetSlot("tc_notArray");
+
+    await $p.loadGlobalCommon("not_an_array");
+
+    wf_body_bottom.getObj("scwin").setReturnValue("infoArray 가 Array 가 아닐 때 window.$c.tc_notArray : " + (typeof window.$c.tc_notArray));
+}
+
+
+
+// par_case selectbox 값에 따라 각 테스트 케이스 실행
+scwin.btn_loadGlobalCommon_run_onclick = function () {
+    var caseId = par_case.getValue();
+    var handlers = {
+        "await"    : scwin.btn_loadGlobalCommon_await_onclick,
+        "then"     : scwin.btn_loadGlobalCommon_then_onclick,
+        "notArray" : scwin.btn_loadGlobalCommon_notArray_onclick
+    };
+    var fn = handlers[caseId];
+    if (typeof fn === "function") {
+        fn();
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("케이스를 선택하세요.");
+    }
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="" id="lbl_ref" class="" escape="false" label="※ 참고&lt;br/&gt;- 테스트 대상 공통 모듈(XML) : /cm/gcc/util.xml, /cm/gcc/str.xml, /cm/gcc/num.xml&lt;br/&gt;- 프로젝트 공통 변수 네임스페이스 : $c (core.projectCommonVariable 기본값)&lt;br/&gt;- 로드 결과는 window.$c.{name} 에 등록되며, 각 모듈의 publicInfo 에 선언된 메소드를 호출하여 로드 성공 여부를 확인합니다.&lt;br/&gt;- 공통 모듈 메소드는 첫 인자로 $p(페이지 Scope)를 자동 주입받는 wrapper 로 감싸져 있으므로, JS 에서 직접 호출할 때는 첫 인자로 $p 를 명시해야 합니다. (예: $c.tc_util.isEmpty($p, ''))&lt;br/&gt;- 기존 $c.util, $c.str, $c.num 은 페이지 초기화 시 이미 로드되어 있으므로 테스트에서는 별도 이름(tc_util 등)으로 등록합니다."></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="테스트 케이스" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" colspan="3" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_case" ref="" style="width:400px;" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[배열 입력 + await → $c 등록 / 메소드 호출]]></xf:label><xf:value><![CDATA[await]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[Promise 반환 / .then() 후속 처리]]></xf:label><xf:value><![CDATA[then]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[infoArray 가 Array 가 아닌 경우]]></xf:label><xf:value><![CDATA[notArray]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_loadGlobalCommon_run_onclick" id="btn_loadGlobalCommon_run"
+							label="loadGlobalCommon 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
