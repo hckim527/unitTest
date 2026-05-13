@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260513" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[textarea > E > oneditenter]<br/>Textarea 컴포넌트에서 Tab 키 또는 Enter 키를 누를 때 발생합니다.<br/>Enter 키에 의한 포커스 이동은 nextTabByEnter 속성이 true 인 경우에만 동작합니다.",
+    "validation" : [
+        "Enter 키 입력 시 oneditenter 이벤트가 발생합니다. (Enter 키에 의한 포커스 이동은 nextTabByEnter 가 true 인 경우에만 동작합니다.)",
+        "반환값이 true(default), nextTabByEnter 가 true 인 경우 Enter 키 입력 시 nextTabID 속성에 맞게 포커스가 이동합니다.",
+        "반환값이 false 인 경우 Enter 키 입력 시 nextTabByEnter/nextTabID 속성이 무시되고 입력값이 개행 처리됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 startcomp 있으면 삭제
+    if (typeof startcomp !== 'undefined') {
+        startcomp.remove();
+    }
+
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 기존 button2 있으면 삭제
+    if (typeof button2 !== 'undefined') {
+        button2.remove();
+    }
+
+    // 기존 input2 있으면 삭제
+    if (typeof input2 !== 'undefined') {
+        input2.remove();
+    }
+
+    // 라벨 안내
+    $c.gcm.createLabel('label="con_nextTabByEnter=true 로 설정하고 Target 재생성 후 target1(textarea) 클릭 → Enter 키 입력 시 button2 로 포커스 이동 (input2 건너뜀)"', '', 'label1');
+
+    // 조건 설정 (target - textarea, nextTabID 로 button2 지정, 중간 input2 건너뜀)
+    let properties = {
+        tabIndex: 2,
+        nextTabID: "button2",
+        nextTabByEnter: con_nextTabByEnter.getText() === "true",
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 조건 설정 (input2 - tabIndex 순서상 중간 컴포넌트, nextTabID 우선/무시 동작 비교용)
+    let properties_input = {
+        tabIndex: 3,
+    };
+
+    let cList_input = $c.gcm.createCList(properties_input);
+
+    // 조건 설정 (button2 - nextTabID 대상, tabIndex 순서상 마지막)
+    let properties_button = {
+        tabIndex: 4,
+    };
+
+    let cList_button = $c.gcm.createCList(properties_button);
+
+    // startcomp input 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strStartComp = '<xf:input ' + strNameSpace + ' tabIndex="1" initValue="start" style="width:144px; height:21px;"></xf:input>';
+
+    scwin.startcomp = await $p.dynamicCreate(
+        "startcomp",
+        "input",
+        strStartComp,
+        grp_comp
+    );
+
+    // nextTabID 매칭을 위해 대상 컴포넌트(button2)를 target1 생성 전에 먼저 생성. input → button 순서
+
+    // input2 (tabIndex 중간 컴포넌트) 생성
+    $c.gcm.createBasicInput(cList_input, 'ev:onfocus="scwin.input2_onfocus"', "input2");
+
+    // button2 (nextTabID 대상) 생성
+    $c.gcm.createBasicButton(cList_button, 'ev:onfocus="scwin.button2_onfocus"', "button2");
+
+    // target1 (textarea) — nextTabID 대상(input2) 생성 후 마지막에 생성해야 nextTabID 매칭됨
+    $c.gcm.createBasicTextArea(cList, 'ev:onfocus="scwin.target1_onfocus" ev:onblur="scwin.target1_onblur" ev:oneditenter="scwin.target1_oneditenter"');
+
+    target1.setValue("target");
+    input2.setValue("input2");
+
+    // target1(textarea) display='block' 으로 노출 (nextTabID 샘플 패턴)
+    scwin.changeDisplay();
+}
+
+
+
+scwin.changeDisplay = function() {
+    let elements = document.querySelectorAll('[id*="target1"]');
+    elements.forEach(function(element) {
+        element.style.display = 'block';
+    });
+}
+
+
+
+scwin.target1_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====target1_onfocus 이벤트 발생=====");
+}
+
+
+
+scwin.target1_onblur = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====target1_onblur 이벤트 발생=====");
+}
+
+
+
+scwin.target1_oneditenter = function (e) {
+    let retVal = (con_return.getText() === "false") ? false : true;
+    wf_body_bottom.getObj("scwin").setReturnValue("=====target1_oneditenter 이벤트 발생 (return: " + (con_return.getText() || "true(default)") + ")=====");
+    wf_body_bottom.getObj("scwin").setReturnValue("e : " + e);
+    return retVal;
+}
+
+
+
+scwin.button2_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====button2_onfocus 이벤트 발생=====");
+}
+
+
+
+scwin.input2_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====input2_onfocus 이벤트 발생=====");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="nextTabByEnter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_nextTabByEnter" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_return" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
