@@ -1,32 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
 	xmlns:xf="http://www.w3.org/2002/xforms">
-	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+	<head meta_screenName="[input] displayFormatter" meta_author="InswaveSystems" meta_type="메인">
 		<w2:historyInfo>
 			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
 			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+			<w2:history meta_no="03" meta_desc="searchbox 패턴 기반 재작성 (target 4개, setDisplayFormatter 동적 변경)" meta_date="20260513" meta_user="InswaveSystems"></w2:history>
 		</w2:historyInfo>
 		<w2:type>COMPONENT</w2:type>
 		<w2:buildDate />
 		<w2:MSA />
 		<xf:model>
 			<w2:dataCollection baseNode="map">
-				<w2:dataMap baseNode="map" id="dm_ref_date">
-					<w2:keyInfo>
-						<w2:key id="key1" name="name1" dataType="text"></w2:key>
-					</w2:keyInfo>
-					<w2:data use="true">
-						<key1><![CDATA[01312008]]></key1>
-					</w2:data>
-				</w2:dataMap>
-				<w2:dataMap baseNode="map" id="dm_ref_time" style="">
-					<w2:keyInfo>
-						<w2:key dataType="text" id="key1" name="name1"></w2:key>
-					</w2:keyInfo>
-					<w2:data use="true">
-						<key1><![CDATA[085911]]></key1>
-					</w2:data>
-				</w2:dataMap>
 			</w2:dataCollection>
 			<w2:workflowCollection />
 		</xf:model>
@@ -36,9 +21,12 @@
 scwin.tData = {
     "description" : "[input > P > displayFormatter]<br/>컴포넌트에 포커스가 해제된 상태일때 표시될 입력값의 포맷을 변환하는 사용자 정의 함수를 설정합니다.",
     "validation" : [
-        "표시되는 입력값의 포맷을 변환할 사용자 정의 함수를 설정합니다.",
-        "사용자 정의 함수의 파라미터로 컴포넌트에 입력된 실제값이 전달됩니다.",
-        "사용자 정의 함수의 반환값이 컴포넌트에 표시되는 입력값으로 적용됩니다.",        
+        "사용자 정의 함수의 이름을 displayFormatter 속성으로 설정합니다.",
+        "사용자 정의 함수의 파라미터(val) 로 컴포넌트에 입력된 실제값이 전달됩니다.",
+        "사용자 정의 함수의 반환값이 컴포넌트에 표시되는 입력값으로 적용됩니다.",
+        "displayFormatter 의 반환값으로 표시되는 값과 실제 입력값(getValue 반환값)이 다릅니다.",
+        "displayFormatter 속성을 설정하면 displayFormat 속성은 무시됩니다.",
+        "setDisplayFormatter 메소드로 displayFormatter 속성값을 동적으로 변경할 수 있습니다.",
     ]
 }
 
@@ -53,79 +41,117 @@ scwin.onpageload = function () {
 
 
 
-scwin.get_text = function(target) {    
+// 표시값(input element 의 value)
+scwin.get_text_display = function(target) {
     let rtn = '';
-    let tagName = target.render.tagName
-    
-    if (tagName !== "INPUT") {
-        rtn = target.render.textContent
-        wf_body_bottom.getObj("scwin").setReturnValue("text : " + rtn);    
+    let inputElem = (target.render && target.render.tagName === "INPUT") ? target.render : (target.render ? target.render.querySelector("input") : null);
+
+    if (inputElem) {
+        rtn = inputElem.value;
+        wf_body_bottom.getObj("scwin").setReturnValue("text(display) : " + rtn);
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("input element not found");
     }
-    else {
-        rtn = target.render.value
-        wf_body_bottom.getObj("scwin").setReturnValue("text : " + rtn);   
-    }    
 }
 
-
-
-scwin.get_displayFormat = function(target) {   
-    let rtn = '';
-    rtn = target.getDisplayFormat();
-
-     wf_body_bottom.getObj("scwin").setReturnValue("getDisplayFormat : " + rtn);   
+// 실제 입력값
+scwin.get_value = function(target) {
+    wf_body_bottom.getObj("scwin").setReturnValue("getValue : " + target.getValue());
 }
 
+// 사용자 정의 displayFormatter 함수 정의
+scwin.fn_dear = function(val) {
+    return "Dear " + val;
+};
+
+scwin.fn_won = function(val) {
+    if (val === "" || val === null || val === undefined || isNaN(Number(val))) return val;
+    return "₩" + Number(val).toLocaleString() + "원";
+};
+
+scwin.fn_brackets = function(val) {
+    return "[" + val + "]";
+};
 
 
- // 사용자 정의 함수
- scwin.fn_dpformatter = function(val) {
-    return "language -> " + val;
- };
 
-
-
-// target1
-scwin.btn_setDisplayFormat1_onclick = function (e) {
-    target1.setValue("langkoKR");
-    // target1.focus();
+// target1 : displayFormatter=scwin.fn_dear (displayFormat 미설정)
+scwin.btn_setValue1_onclick = function (e) {
+    target1.setValue("John");
 };
 
 scwin.btn_getText1_onclick = function (e) {
-    scwin.get_text(target1);
+    scwin.get_text_display(target1);
 }
 
-scwin.btn_getDisplayFormat1_onclick = function (e) {
-    scwin.get_displayFormat(target1);
-};
+scwin.btn_getValue1_onclick = function (e) {
+    scwin.get_value(target1);
+}
 
-// target2
-scwin.btn_setDisplayFormat2_onclick = function (e) {    
-    target2.setValue("langkoKR");
-    // target1.focus();
+// target2 : displayFormatter=scwin.fn_dear + displayFormat=#:##-## (displayFormat 무시 검증)
+scwin.btn_setValue2_onclick = function (e) {
+    target2.setValue("John");
 };
 
 scwin.btn_getText2_onclick = function (e) {
-    scwin.get_text(target2);
+    scwin.get_text_display(target2);
 }
 
-scwin.btn_getDisplayFormat2_onclick = function (e) {
-    scwin.get_displayFormat(target2);
-};
+scwin.btn_getValue2_onclick = function (e) {
+    scwin.get_value(target2);
+}
 
-
-// target3
-scwin.btn_setDisplayFormat3_onclick = function (e) {    
-    target3.setValue("langkoKR");
-    // target1.focus();
+// target3 : dataType=number + displayFormatter=scwin.fn_won (displayFormat 으로 지원 안되는 포맷)
+scwin.btn_setValue3_onclick = function (e) {
+    target3.setValue("-1234.56");
 };
 
 scwin.btn_getText3_onclick = function (e) {
-    scwin.get_text(target3);
+    scwin.get_text_display(target3);
 }
 
-scwin.btn_getDisplayFormat3_onclick = function (e) {
-    scwin.get_displayFormat(target3);
+scwin.btn_getValue3_onclick = function (e) {
+    scwin.get_value(target3);
+}
+
+// target4 : displayFormatter=scwin.fn_dear -> setDisplayFormatter("scwin.fn_brackets") 동적 변경
+scwin.btn_setValue4_onclick = function (e) {
+    target4.setValue("John");
+};
+
+scwin.btn_getText4_onclick = function (e) {
+    scwin.get_text_display(target4);
+}
+
+scwin.btn_getValue4_onclick = function (e) {
+    scwin.get_value(target4);
+}
+
+scwin.btn_setDisplayFormatter4_onclick = function (e) {
+    target4.setDisplayFormatter("scwin.fn_brackets");
+    target4.setValue(target4.getValue());
+    wf_body_bottom.getObj("scwin").setReturnValue("setDisplayFormatter('scwin.fn_brackets') 호출 완료");
+};
+
+
+
+// 전체 일괄 실행
+scwin.btn_setAll_onclick = function (e) {
+    for (var i = 1; i < 5; i ++) {
+        eval("scwin.btn_setValue"+i+"_onclick()");
+    }
+}
+
+scwin.btn_getAllText_onclick = function (e) {
+    for (var i = 1; i < 5; i ++) {
+        eval("scwin.btn_getText"+i+"_onclick()");
+    }
+};
+
+scwin.btn_getAllValue_onclick = function (e) {
+    for (var i = 1; i < 5; i ++) {
+        eval("scwin.btn_getValue"+i+"_onclick()");
+    }
 };]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -140,34 +166,68 @@ scwin.btn_getDisplayFormat3_onclick = function (e) {
                 <xf:group style="" id="grp_sample">
                     <w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
                     <xf:group style="" id="grp_comp" class="tc_group_basic">
-                    	<w2:textbox id=""
-                    		label="dataType=text, displayFormatter=scwin.fn_dpformatter, displayFormat=미설정, 입력값=langkoKR, 기대값=language -&gt; langkoKR"
-                    		style="height: 23px;">
+                    	<w2:textbox id="" label="target1 : dataType=text, displayFormatter=scwin.fn_dear, displayFormat=미설정, 입력값=John, 기대값(display)=Dear John, getValue=John"
+                    		style="width: 100%; height: auto; min-height: 23px; white-space: normal;" escape="false">
                     	</w2:textbox>
-                    	<xf:input dataType="text" id="target1" style="width: 200px;height: 30px;" displayFormatter="scwin.fn_dpformatter"></xf:input>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setDisplayFormat1_onclick" id="btn_setDisplayFormat1"
-                    		label="setDisplayFormat" style="">
+                    	<xf:input id="target1" style="width: 200px;height: 30px;" dataType="text" displayFormatter="scwin.fn_dear"></xf:input>
+                    	<w2:button style="" id="btn_setValue1" label="setValue" ev:onclick="scwin.btn_setValue1_onclick"
+                    		class="tc_btn_basic">
                     	</w2:button>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getText1_onclick" id="btn_getText1" label="text 확인"
-                    		style="">
+                    	<w2:button style="" id="btn_getText1" label="text 확인" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getText1_onclick">
                     	</w2:button>
-                    	<w2:textbox id=""
-                    		label="dataType=text, displayFormatter=scwin.fn_dpformatter, displayFormat=#:##-##, 입력값=langkoKR, 기대값=language -&gt; langkoKR"
-                    		style="height: 23px;">
+                    	<w2:button style="" id="btn_getValue1" label="getValue" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getValue1_onclick">
+                    	</w2:button>
+                    	<w2:textbox id="" label="target2 : dataType=text, displayFormatter=scwin.fn_dear, displayFormat=#:##-## (무시됨), 입력값=John, 기대값(display)=Dear John, getValue=John"
+                    		style="width: 100%; height: auto; min-height: 23px; white-space: normal;" escape="false">
                     	</w2:textbox>
-                    	<xf:input dataType="text" id="target2" style="width: 200px;height: 30px;" displayFormatter="scwin.fn_dpformatter"
-                    		displayFormat="#:##-##">
-                    	</xf:input>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setDisplayFormat2_onclick" id="btn_setDisplayFormat2"
-                    		label="setDisplayFormat" style="">
+                    	<xf:input id="target2" style="width: 200px;height: 30px;" dataType="text" displayFormatter="scwin.fn_dear" displayFormat="#:##-##"></xf:input>
+                    	<w2:button style="" id="btn_setValue2" label="setValue" ev:onclick="scwin.btn_setValue2_onclick"
+                    		class="tc_btn_basic">
                     	</w2:button>
-                    	<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getText2_onclick" id="btn_getText2" label="text 확인"
-                    		style="">
+                    	<w2:button style="" id="btn_getText2" label="text 확인" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getText2_onclick">
+                    	</w2:button>
+                    	<w2:button style="" id="btn_getValue2" label="getValue" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getValue2_onclick">
+                    	</w2:button>
+                    	<w2:textbox id="" label="target3 : dataType=number, displayFormatter=scwin.fn_won, 입력값=-1234.56, 기대값(display)=₩-1,234.56원, getValue=-1234.56"
+                    		style="width: 100%; height: auto; min-height: 23px; white-space: normal;" escape="false">
+                    	</w2:textbox>
+                    	<xf:input id="target3" style="width: 200px;height: 30px;" dataType="number" displayFormatter="scwin.fn_won"></xf:input>
+                    	<w2:button style="" id="btn_setValue3" label="setValue" ev:onclick="scwin.btn_setValue3_onclick"
+                    		class="tc_btn_basic">
+                    	</w2:button>
+                    	<w2:button style="" id="btn_getText3" label="text 확인" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getText3_onclick">
+                    	</w2:button>
+                    	<w2:button style="" id="btn_getValue3" label="getValue" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getValue3_onclick">
+                    	</w2:button>
+                    	<w2:textbox id="" label="target4 : 초기 displayFormatter=scwin.fn_dear, setDisplayFormatter 호출 시 표시값 [John] 으로 변경"
+                    		style="width: 100%; height: auto; min-height: 23px; white-space: normal;" escape="false">
+                    	</w2:textbox>
+                    	<xf:input id="target4" style="width: 200px;height: 30px;" dataType="text" displayFormatter="scwin.fn_dear"></xf:input>
+                    	<w2:button style="" id="btn_setValue4" label="setValue" ev:onclick="scwin.btn_setValue4_onclick"
+                    		class="tc_btn_basic">
+                    	</w2:button>
+                    	<w2:button style="" id="btn_getText4" label="text 확인" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getText4_onclick">
+                    	</w2:button>
+                    	<w2:button style="" id="btn_getValue4" label="getValue" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_getValue4_onclick">
+                    	</w2:button>
+                    	<w2:button style="" id="btn_setDisplayFormatter4" label="setDisplayFormatter" class="tc_btn_basic"
+                    		ev:onclick="scwin.btn_setDisplayFormatter4_onclick">
                     	</w2:button>
                     </xf:group>
                 </xf:group>
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setAll_onclick" id="btn_setAll" label="setAll" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAllText_onclick" id="btn_getAllText" label="getAllText" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAllValue_onclick" id="btn_getAllValue" label="getAllValue" style=""></w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
