@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[calendar &gt; P &gt; caption]&lt;br/&gt;웹접근성 향상을 위해 컴포넌트의 caption 요소에 추가 정보를 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;caption 요소에 들어갈 추가 정보를 텍스트로 설정합니다.&quot;,
+        &quot;값을 설정하지 않으면 '달력' 으로 적용됩니다.&quot;,
+        &quot;팝업 달력의 가운데 요일/날짜 영역은 table 태그로 렌더링되며 caption 요소는 table 태그의 자식 요소로 추가됩니다.&quot;,
+        &quot;caption 요소에 설정한 추가 정보는 화면에 표시되지 않습니다.&quot;,
+        &quot;caption 요소에 'w2blind' CSS 클래스가 적용되어 시각적으로 숨겨지며, 스크린리더 전용으로 동작합니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        caption : con_caption.getValue()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList([&quot;onclick&quot;]);
+
+    await $c.gcm.createBasicCalendar(cList, eList);
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    let calendarRender = target1.render;
+    let captionElement = calendarRender.querySelector('caption');
+
+    if (!captionElement) {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[caption 요소] 미발견&quot;);
+        return;
+    }
+
+    // validation: caption 요소에 들어갈 추가 정보를 텍스트로 설정 / 값 미설정 시 '달력' 으로 적용
+    let captionText = captionElement.textContent;
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[caption 텍스트] 실제 caption 텍스트='&quot; + captionText + &quot;'&quot; + (captionText === '달력' ? &quot; (기본값 '달력' 적용)&quot; : &quot; (설정값 적용)&quot;));
+
+    // validation: caption 요소는 table 태그의 자식 요소로 추가됨
+    let parentTag = captionElement.parentElement ? captionElement.parentElement.tagName.toLowerCase() : '없음';
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[caption 위치(table 자식 여부)] 부모 태그=&quot; + parentTag + &quot; → &quot; + (parentTag === 'table' ? &quot;table 의 자식&quot; : &quot;table 의 자식 아님&quot;));
+
+    // validation: caption 요소에 'w2blind' CSS 클래스가 적용되어 시각적으로 숨겨지며, 스크린리더 전용으로 동작
+    let className = captionElement.className;
+    let hasW2blind = className.split(/\s+/).indexOf('w2blind') !== -1;
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[w2blind 클래스 적용 여부] &quot; + (hasW2blind ? &quot;적용됨&quot; : &quot;미적용&quot;) + &quot; (className='&quot; + className + &quot;')&quot;);
+
+    // validation: caption 요소에 설정한 추가 정보는 화면에 표시되지 않음 (visually hidden)
+    let cs = getComputedStyle(captionElement);
+    let offsetH = captionElement.offsetHeight;
+    let offsetW = captionElement.offsetWidth;
+    let isVisuallyHidden = (cs.position === 'absolute' &amp;&amp; (cs.clip === 'rect(0px, 0px, 0px, 0px)' || cs.clip === 'rect(0 0 0 0)' || cs.clipPath === 'inset(50%)') &amp;&amp; offsetW &lt;= 1 &amp;&amp; offsetH &lt;= 1);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[화면 표시 여부] &quot; + (isVisuallyHidden ? &quot;화면 미표시 (스크린리더 전용)&quot; : &quot;화면 표시됨&quot;) + &quot; (position=&quot; + cs.position + &quot;, clip=&quot; + cs.clip + &quot;, clipPath=&quot; + cs.clipPath + &quot;, offsetW=&quot; + offsetW + &quot;, offsetH=&quot; + offsetH + &quot;)&quot;);
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="caption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:input id="con_caption" style="" initValue="추가 정보 텍스트"></xf:input>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button ev:onclick="scwin.btn_getInfo_onclick" style="" id="btn_getInfo" label="속성/DOM 정보 조회" class="tc_btn_basic"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

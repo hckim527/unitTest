@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[calendar &gt; P &gt; calendarClass]&lt;br/&gt;displayDayType=image 일때 컴포넌트의 요일에 적용될 백그라운드 이미지를 설정합니다. displayDayType=text 이면 팝업 달력의 요일이 한자리 한글('일','월') 텍스트로 표시됩니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;displayDayType=image 일때 컴포넌트의 요일에 적용될 백그라운드 이미지를 설정합니다.&quot;,
+        &quot;displayDayType=text 이면 팝업 달력의 요일이 한자리 한글('일','월') 텍스트로 표시됩니다.&quot;,
+        &quot;class1 (기본값) 설정 시 팝업 달력의 요일이 세자리 영단어 대문자('SUN','MON')로 표시됩니다.&quot;,
+        &quot;class2 설정 시 팝업 달력의 요일이 한자리 한글('일','월')로 표시됩니다.&quot;,
+        &quot;class3 설정 시 팝업 달력의 요일이 두자리 영단어('Su','Mo')가 굵게 표시됩니다.&quot;,
+        &quot;class4 설정 시 팝업 달력의 요일이 두자리 영단어('Su','Mo')로 표시됩니다.&quot;,
+        &quot;class5 설정 시 팝업 달력의 요일이 배경색이 있는 한자리 한글('일','월')로 표시됩니다.&quot;,
+        &quot;calendarValueType=yearMonth 이면 'w2calendar_classYearMonth_{속성값}', calendarValueType=year 이면 'w2calendar_classYear_{속성값}', 그 외 값이면 'w2calendar_{속성값}' 클래스가 최상위 div 의 class 속성에 추가됩니다.&quot;,
+        &quot;displayDayType, calendarClass 속성값에 관계없이 토요일은 파란색, 일요일은 빨간색으로 표시됩니다.&quot;,
+        &quot;renderType=native 이면 컴포넌트의 '연도','월' 버튼이 select 태그로 렌더링됩니다.&quot;,
+        &quot;calendarValueType=year,yearMonth 일때 calendarClass=class1 이 아니면 컴포넌트의 각 버튼 간격이 넓어집니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        calendarClass : con_calendarClass.getText(),
+        displayDayType : con_displayDayType.getText(),
+        calendarValueType : con_calendarValueType.getText(),
+        renderType : con_renderType.getText()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList([&quot;onclick&quot;]);
+
+    await $c.gcm.createBasicCalendar(cList, eList);
+}
+
+
+
+// 최상위 div 의 class 속성 확인 (calendarValueType 별 클래스명 규칙)
+scwin.getRootClass = function () {
+    // validation: calendarValueType=yearMonth → 'w2calendar_classYearMonth_{값}', =year → 'w2calendar_classYear_{값}', 그 외 → 'w2calendar_{값}' 클래스 부여
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[최상위 div className] &quot; + target1.render.className);
+}
+
+
+
+// 요일 헤더 정보 확인 (영문/한글, 1/2/3 글자, 배경 이미지/색, 굵게)
+scwin.getDayHeaderInfo = function () {
+    let calendarRender = target1.render;
+    let dayCells = calendarRender.querySelectorAll('[class*=&quot;w2calendar_day&quot;]');
+    if (!dayCells || dayCells.length === 0) {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue('w2calendar_day 요소가 없습니다.');
+        return;
+    }
+
+    // validation: class1='SUN','MON' / class2,class5='일','월' / class3,class4='Su','Mo' / displayDayType=text → '일','월'
+    let texts = [];
+    dayCells.forEach((el, idx) =&gt; { if (idx &lt; 3) texts.push(el.textContent); });
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[요일 헤더 텍스트] &quot; + texts.map(t =&gt; &quot;'&quot; + t + &quot;'&quot;).join(', '));
+
+    // validation: displayDayType=image → 백그라운드 이미지 / class5 → 배경색 / class3 → 굵게
+    const style = getComputedStyle(dayCells[0]);
+    let imageFileName = '';
+    const urlMatch = style.backgroundImage.match(/url\([&quot;']?([^&quot;']*)[&quot;']?\)/);
+    if (urlMatch &amp;&amp; urlMatch[1]) imageFileName = urlMatch[1].split('/').pop();
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[요일 헤더 스타일(첫 셀)] bgImage=&quot; + (imageFileName || '없음') + &quot;, bgColor=&quot; + style.backgroundColor + &quot;, fontWeight=&quot; + style.fontWeight);
+}
+
+
+
+// 토요일(파란색)/일요일(빨간색) 색상 확인
+scwin.getWeekendColor = function () {
+    let calendarRender = target1.render;
+    let sunCell = calendarRender.querySelector('[class*=&quot;w2calendar_day_sun&quot;]');
+    let satCell = calendarRender.querySelector('[class*=&quot;w2calendar_day_sat&quot;]');
+
+    // validation: 토요일은 파란색, 일요일은 빨간색 (displayDayType, calendarClass 무관)
+    let sunColor = sunCell ? getComputedStyle(sunCell).color : 'cell 없음';
+    let satColor = satCell ? getComputedStyle(satCell).color : 'cell 없음';
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[주말 색상] 일요일 color=&quot; + sunColor + &quot;, 토요일 color=&quot; + satColor);
+}
+
+
+
+// renderType=native 일때 연도/월 select 태그 렌더링 여부 확인
+scwin.getYearMonthRender = function () {
+    let calendarRender = target1.render;
+    let selectYear = calendarRender.querySelector('select[class*=&quot;w2calendar_selectbox_year&quot;]');
+    let selectMonth = calendarRender.querySelector('select[class*=&quot;w2calendar_selectbox_month&quot;]');
+
+    // validation: renderType=native 이면 '연도','월' 버튼이 select 태그로 렌더링됨
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[연도/월 select 렌더링 여부] 연도=&quot; + (selectYear ? '렌더링됨' : '미렌더링') + &quot;, 월=&quot; + (selectMonth ? '렌더링됨' : '미렌더링'));
+}
+
+
+
+// calendarValueType=year/yearMonth + class1 외 일때 버튼 간격(셀 너비) 확인
+scwin.getButtonSpacing = function () {
+    let calendarRender = target1.render;
+    let bodyCell = calendarRender.querySelector('td[class*=&quot;w2calendar_body&quot;]');
+    let dateCell = calendarRender.querySelector('td[class*=&quot;w2calendar_col_date&quot;]');
+
+    // validation: calendarValueType=year/yearMonth + calendarClass≠class1 이면 버튼 간격이 넓어짐
+    let bodyW = bodyCell ? getComputedStyle(bodyCell).width : 'cell 없음';
+    let dateW = dateCell ? getComputedStyle(dateCell).width : 'cell 없음';
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[버튼 셀 너비(첫 셀)] body 셀=&quot; + bodyW + &quot;, date 셀=&quot; + dateW);
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    scwin.getRootClass();
+    scwin.getDayHeaderInfo();
+    scwin.getWeekendColor();
+    scwin.getYearMonthRender();
+    scwin.getButtonSpacing();
+}
+
+
+
+scwin.target1_onclick = function (e) {
+    setTimeout(() =&gt; {
+        scwin.getRootClass();
+    }, 100);
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="calendarClass" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_calendarClass" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[class1]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[class2]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[class3]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[class4]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[class5]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="displayDayType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 id="con_displayDayType" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[image]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_calendarValueType" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDate]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonth]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[year]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="renderType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 id="con_renderType" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[native]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[component]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_getInfo" label="속성/DOM 정보 조회" style=""
+							ev:onclick="scwin.btn_getInfo_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

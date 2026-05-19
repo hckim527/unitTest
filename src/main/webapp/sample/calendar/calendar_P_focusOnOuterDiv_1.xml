@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[calendar &gt; P &gt; focusOnOuterDiv]&lt;br/&gt;웹접근성 향상을 위해 컴포넌트의 최외곽 div 요소에 Tab 키로 포커스가 이동할 수 있도록 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;미설정(기본값 false) 시 최외곽 div 요소에 tabindex 가 설정되지 않아 Tab 키로 Calendar 컴포넌트 자체를 포커스할 수 없습니다.&quot;,
+        &quot;true 설정 시 최외곽 div 요소에 tabindex='0' 이 설정되어 Tab 키 이동 순서에 포함됩니다.&quot;,
+        &quot;false 설정 시 최외곽 div 요소에 tabindex 가 설정되지 않아 포커스는 Calendar 내부의 개별 인터랙티브 요소(날짜 셀, 버튼 등)로 이동합니다.&quot;,
+        &quot;accessibility=true 이면 focusOnOuterDiv 속성이 true 로 강제 설정됩니다.&quot;,
+        &quot;tabIndex 속성을 설정하면 focusOnOuterDiv 속성은 무시되고 tabIndex 값이 우선 적용됩니다.&quot;,
+        &quot;실제로 컴포넌트 자체에 Tab 키로 포커스를 이동하려면 accessibility 속성을 true 로 설정해야 합니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        focusOnOuterDiv : con_focusOnOuterDiv.getText(),
+        accessibility : con_accessibility.getText(),
+        tabIndex : con_tabIndex.getValue()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList([&quot;onfocus&quot;]);
+
+    await $c.gcm.createBasicCalendar(cList, eList);
+}
+
+
+
+// accessibility=true + focusOnOuterDiv=true 조합에서 최외곽 div 포커스 시 onfocus 이벤트 발생 확인
+scwin.target1_onfocus = function (e) {
+    // validation: 실제로 컴포넌트 자체에 Tab 키로 포커스를 이동하려면 accessibility=true 도 함께 설정 필요
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[onfocus 이벤트 발생] 최외곽 div 포커스됨 (accessibility=&quot; + target1.options.accessibility + &quot;, focusOnOuterDiv=&quot; + target1.options.focusOnOuterDiv + &quot;)&quot;);
+};
+
+
+
+// [공통] 최외곽 div 의 tabindex 속성 확인 + Tab 키 포커스 가능 여부
+scwin.getOuterDivTabIndex = function () {
+    let calendarRender = target1.render;
+    let outerTag = calendarRender.tagName.toLowerCase();
+    let outerTabIdx = calendarRender.getAttribute('tabindex');
+    let acc = target1.options.accessibility;
+
+    // validation: true 설정 시 최외곽 div 요소에 tabindex='0' 이 설정되어 Tab 키 이동 순서에 포함됨
+    // validation: 미설정(기본값 false)/false 설정 시 최외곽 div 요소에 tabindex 가 설정되지 않아 Tab 키로 Calendar 컴포넌트 자체를 포커스할 수 없음
+    let outerHasTabIdx = (outerTabIdx !== null);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[최외곽 div tabindex 속성] outerTag='&quot; + outerTag + &quot;', tabindex=&quot; + (outerHasTabIdx ? &quot;'&quot; + outerTabIdx + &quot;'&quot; : &quot;미설정&quot;));
+
+    // validation: 실제로 컴포넌트 자체에 Tab 키로 포커스를 이동하려면 accessibility 속성을 true 로 설정해야 함
+    // (accessibility=true 일 때만 외부 div 포커스 흐름이 실효성 있음)
+    let canFocusComp = (outerHasTabIdx &amp;&amp; acc === true);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[Tab 키로 컴포넌트 자체 포커스 실효성] &quot; + (canFocusComp ? &quot;가능 (accessibility=true + tabindex 설정)&quot; : &quot;불가 (accessibility=&quot; + acc + &quot;, tabindex=&quot; + (outerHasTabIdx ? &quot;'&quot; + outerTabIdx + &quot;'&quot; : &quot;미설정&quot;) + &quot;)&quot;));
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    scwin.getOuterDivTabIndex();
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="focusOnOuterDiv" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_focusOnOuterDiv" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 id="con_accessibility" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="tabIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:input id="con_tabIndex" style="" disabled="false" initValue=""></xf:input>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_getInfo" label="속성/DOM 정보 조회" style=""
+							ev:onclick="scwin.btn_getInfo_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

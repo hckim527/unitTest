@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[calendar &gt; P &gt; highlightSelectedWeek]&lt;br/&gt;Calendar 컴포넌트에서 선택된 날짜가 속한 주(Week)에 CSS 를 적용할지 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;미설정 시 기본값 'false' 로 동작하여 주(Week) 단위 CSS 클래스가 적용되지 않으며, 개별 날짜 셀의 선택 상태만 표시됩니다.&quot;,
+        &quot;true 설정 시 선택된 날짜가 속한 주(Week)의 7개 셀 전체에 'w2calendar_selected_week' CSS 클래스가 추가됩니다.&quot;,
+        &quot;true 설정 시 년/월을 탐색할 때도 주(Week) 단위로 CSS 클래스가 적용됩니다.&quot;,
+        &quot;false (기본값) 설정 시 주(Week) 단위 CSS 클래스가 적용되지 않으며, 개별 날짜 셀의 선택 상태만 표시됩니다.&quot;,
+        &quot;weekStartsOn 속성에 따라 주(Week)의 요일 매핑이 달라지므로 CSS 클래스가 적용되는 주간의 시작 요일이 변경됩니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        highlightSelectedWeek : con_highlightSelectedWeek.getText(),
+        weekStartsOn : con_weekStartsOn.getText()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList([&quot;onclick&quot;]);
+
+    await $c.gcm.createBasicCalendar(cList, eList);
+
+    // 초기 선택일을 2025-05-18 (일요일) 로 고정 — weekStartsOn 변경 시 같은 주 일자 범위 비교 용도
+    target1.gotoCalendar(&quot;20250518&quot;);
+}
+
+
+
+// 선택된 주(Week) 의 'w2calendar_selected_week' CSS 클래스 적용 셀 개수 / 날짜 목록 확인
+scwin.getSelectedWeekInfo = function () {
+    let calendarRender = target1.render;
+    let selectedWeekCells = calendarRender.querySelectorAll('.w2calendar_selected_week');
+
+    // validation: true 설정 시 7개 셀, false / 미설정 시 0개 셀
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[선택된 주 셀 개수] 'w2calendar_selected_week' 적용 셀 = &quot; + selectedWeekCells.length + &quot;개&quot;);
+
+    // validation: 7개 셀의 textContent (weekStartsOn 에 따라 표시 순서/범위 변경)
+    let dates = [];
+    selectedWeekCells.forEach((el) =&gt; { dates.push(el.textContent); });
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[선택된 주 셀 날짜 목록] [&quot; + dates.join(',') + &quot;]&quot;);
+}
+
+
+
+// 개별 선택 셀 (w2calendar_selected) 의 날짜 확인 — true/false 모두 표시되어야 함
+scwin.getSelectedCellInfo = function () {
+    let calendarRender = target1.render;
+    let selectedCells = calendarRender.querySelectorAll('.w2calendar_selected');
+
+    // validation: 개별 날짜 셀의 선택 상태는 highlightSelectedWeek 값에 관계없이 항상 표시됨
+    let dates = [];
+    selectedCells.forEach((el) =&gt; { dates.push(el.textContent); });
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[선택된 셀(개별)] 'w2calendar_selected' 셀 = &quot; + selectedCells.length + &quot;개, 날짜 = [&quot; + dates.join(',') + &quot;]&quot;);
+}
+
+
+
+// 년/월 탐색 후에도 선택된 주(Week) 단위 CSS 클래스가 적용되는지 확인
+scwin.btn_navigateNextMonth_onclick = function (e) {
+    let calendarRender = target1.render;
+    let nextMonthBtn = calendarRender.querySelector('.w2calendar_header_next_month');
+    if (nextMonthBtn) {
+        nextMonthBtn.click();
+        setTimeout(() =&gt; {
+            // validation: true 설정 시 년/월 탐색 후에도 주(Week) 단위 CSS 클래스가 적용됨
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;== 다음 달 탐색 후 ==&quot;);
+            scwin.getSelectedWeekInfo();
+            scwin.getSelectedCellInfo();
+        }, 100);
+    } else {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[다음 달 버튼] 'w2calendar_header_next_month' 셀 없음&quot;);
+    }
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    scwin.getSelectedWeekInfo();
+    scwin.getSelectedCellInfo();
+}
+
+
+
+scwin.target1_onclick = function (e) {
+    setTimeout(() =&gt; {
+        scwin.getSelectedWeekInfo();
+        scwin.getSelectedCellInfo();
+    }, 100);
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="highlightSelectedWeek" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_highlightSelectedWeek" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="weekStartsOn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 id="con_weekStartsOn" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_getInfo" label="속성/DOM 정보 조회" style=""
+							ev:onclick="scwin.btn_getInfo_onclick">
+						</w2:button>
+						<w2:button class="tc_btn_basic" id="btn_navigateNextMonth" label="다음 달 탐색 후 확인" style=""
+							ev:onclick="scwin.btn_navigateNextMonth_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

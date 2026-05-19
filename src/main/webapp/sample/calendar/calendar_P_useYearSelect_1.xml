@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260519" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[calendar > P > useYearSelect]<br/>Calendar 컴포넌트의 연도 SelectBox 활성화 여부를 설정합니다.",
+    "validation" : [
+        "미설정(기본값 true) 시 연도 SelectBox 가 활성화되어 사용자가 드롭다운에서 연도를 직접 선택할 수 있습니다.",
+        "true 설정 시 연도 SelectBox 가 활성화되어 사용자가 드롭다운에서 연도를 직접 선택할 수 있습니다.",
+        "true 설정 시 사용자가 연도를 변경하면 onyearselect 이벤트가 발생합니다.",
+        "true 설정 시 사용자가 연도를 변경하면 onviewchange 이벤트가 발생합니다.",
+        "false 설정 시 연도 SelectBox 가 읽기 전용으로 설정되어 사용자가 드롭다운에서 연도를 선택할 수 없습니다.",
+        "false 설정 시에도 gotoYear() 등의 메소드를 통한 연도 이동은 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        useYearSelect : con_useYearSelect.getText()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onyearselect", "onviewchange"]);
+
+    $c.gcm.createLabel('label="useYearSelect 설정 후 연도 SelectBox 활성/비활성 및 gotoYear() 동작 확인"', '', 'label1');
+    await $c.gcm.createBasicCalendar(cList, eList);
+}
+
+
+
+// [속성/DOM 정보 조회] 버튼
+// validation:
+//  - 연도 SelectBox 의 readOnly 상태 확인 (false 설정 시 readOnly=true)
+scwin.btn_getInfo_onclick = function (e) {
+    // 연도 SelectBox 자식 컴포넌트 조회
+    let yearSb = target1.getChild(target1.id + "_selectbox_year");
+
+    // validation: 연도 SelectBox 의 readOnly 상태 (true 면 활성화, false 면 읽기 전용)
+    //  - 엔진: readOnly: !this.options.useYearSelect → useYearSelect=false 시 readOnly=true
+    let yearReadOnly = yearSb ? yearSb.options.readOnly : '(없음)';
+    wf_body_bottom.getObj("scwin").setReturnValue("[연도 SelectBox readOnly] " + yearReadOnly
+        + " (useYearSelect=false 일 때 readOnly=true → 드롭다운 선택 불가)");
+
+    // validation: 현재 선택된 값 (gotoYear 호출 전후 비교 기준)
+    wf_body_bottom.getObj("scwin").setReturnValue("[현재 선택 값] target1.getValue() = '" + target1.getValue() + "'");
+}
+
+
+
+// [gotoYear(2030) 호출] 버튼
+// validation: false 설정 시에도 gotoYear() 등의 메소드를 통한 연도 이동은 동작
+scwin.btn_gotoYear_onclick = function (e) {
+    let beforeVal = target1.getValue();
+    target1.gotoYear(2030);
+    let afterVal = target1.getValue();
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[gotoYear(2030) 호출] 호출 전 값='" + beforeVal
+        + "' / 호출 후 값='" + afterVal + "' (useYearSelect=false 여도 메소드 호출에 의한 연도 이동은 동작)");
+}
+
+
+
+// onyearselect 이벤트 핸들러
+// validation:
+//  - true 설정 시 사용자가 연도 SelectBox 에서 연도 변경 → onyearselect 이벤트 발생
+//  - info 객체 (oldValue, newValue) 가 핸들러에 전달됨
+scwin.target1_onyearselect = function (e, info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onyearselect 이벤트 발생] 사용자 연도 변경 시 호출됨");
+    if (info) {
+        wf_body_bottom.getObj("scwin").setReturnValue("[onyearselect info.oldValue] " + info.oldValue);
+        wf_body_bottom.getObj("scwin").setReturnValue("[onyearselect info.newValue] " + info.newValue);
+    }
+};
+
+
+
+// onviewchange 이벤트 핸들러
+// validation: true 설정 시 사용자가 연도 SelectBox 에서 연도 변경 → onviewchange 이벤트 발생
+scwin.target1_onviewchange = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onviewchange 이벤트 발생] 사용자 액션으로 값이 변경되어 onviewchange 핸들러 호출됨");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="useYearSelect" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_useYearSelect" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_getInfo" label="속성/DOM 정보 조회" style=""
+							ev:onclick="scwin.btn_getInfo_onclick">
+						</w2:button>
+						<w2:button class="tc_btn_basic" id="btn_gotoYear" label="gotoYear(2030) 호출" style=""
+							ev:onclick="scwin.btn_gotoYear_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
