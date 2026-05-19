@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260519" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[calendar > M > gotoYear]<br/>Calendar 컴포넌트의 선택 연도를 설정하며 지정한 날짜로 이동합니다.",
+    "validation" : [
+        "year(필수) 파라미터로 이동할 연도를 Number 또는 String 으로 설정합니다.",
+        "'2025', 2025 모두 동일하게 2025년으로 이동합니다.",
+        "날짜 이동 후 getValue() 메소드의 반환값이 이동 전과 다르면 onchange 이벤트가 발생합니다.",
+        "현재 일자가 이동할 월의 최대 일수를 초과하는 경우 해당 월의 마지막 날짜로 설정됩니다.",
+        "gotoYear() 메소드는 minYear/maxYear 속성값의 영향을 받지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        minYear : con_minYear.getValue(),
+        maxYear : con_maxYear.getValue()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onchange"]);
+
+    await $c.gcm.createBasicCalendar(cList, eList);
+    // createBasicCalendar 내부에서 gotoCalendar('20251111') 호출 → 초기 선택일: 2025-11-11
+}
+
+
+
+// gotoYear 호출 (선택된 케이스에 따라 분기)
+// validation:
+//  - year 파라미터를 Number/String 모두 동일 처리
+//  - '2025', 2025 모두 동일하게 2025년으로 이동
+//  - 현재 일자가 이동할 월의 최대 일수 초과 시 해당 월의 마지막 날짜로 조정 (윤년 2/29 → 평년 2/28)
+//  - minYear/maxYear 속성값의 영향을 받지 않음
+scwin.btn_gotoYear_onclick = function (e) {
+    let caseId = con_gotoCase.getValue();
+    let arg, argDesc;
+
+    // 케이스 3: 일자 보정 검증 사전 셋업 (2024-02-29 윤년 → 2025년 이동 시 평년 2/28 보정)
+    if (caseId === '3') {
+        target1.gotoCalendar('20240229');
+    }
+
+    if (caseId === '1') {
+        arg = 2026;
+        argDesc = "2026 (Number)";
+    } else if (caseId === '2') {
+        arg = '2026';
+        argDesc = "'2026' (String)";
+    } else if (caseId === '3') {
+        arg = 2025;
+        argDesc = "2025 (Number) / 사전 2024-02-29 → 2025년 이동 시 일자 보정 검증";
+    } else if (caseId === '4') {
+        arg = 2010;
+        argDesc = "2010 (Number) / minYear=2020 미만, 영향 없음 검증";
+    } else if (caseId === '5') {
+        arg = 2040;
+        argDesc = "2040 (Number) / maxYear=2030 초과, 영향 없음 검증";
+    }
+
+    let beforeValue = target1.getValue();
+    target1.gotoYear(arg);
+    let afterValue = target1.getValue();
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[gotoYear 호출 전 getValue()] '" + beforeValue + "'"
+        + " / [gotoYear 인자] " + argDesc
+        + " / [gotoYear 호출 후 getValue()] '" + afterValue + "'"
+    );
+};
+
+
+
+// 날짜 이동 후 getValue() 반환값이 이동 전과 다르면 onchange 이벤트 발생
+// @spec validation
+scwin.target1_onchange = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onchange 발생] 선택일이 변경되어 onchange 핸들러 호출됨");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="minYear" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:input id="con_minYear" style="" initValue="2020"></xf:input>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="maxYear" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:input id="con_maxYear" style="" initValue="2030"></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="테스트 케이스" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 id="con_gotoCase" chooseOption="" style="" submenuSize="auto" allOption="" disabled="false"
+										direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[gotoYear(2026)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[gotoYear('2026')]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[gotoCalendar('20240229') 후 gotoYear(2025) - 일자 보정]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[gotoYear(2010) - minYear=2020 미만, 영향 없음]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[gotoYear(2040) - maxYear=2030 초과, 영향 없음]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_gotoYear" label="gotoYear 호출" style=""
+							ev:onclick="scwin.btn_gotoYear_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

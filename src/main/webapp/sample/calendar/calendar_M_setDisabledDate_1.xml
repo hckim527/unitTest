@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260519" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[calendar > M > setDisabledDate]<br/>Calendar 컴포넌트에서 특정 날짜를 선택 불가능하도록 비활성화합니다.",
+    "validation" : [
+        "date(필수) 파라미터로 비활성화할 날짜를 'yyyyMMdd' 8자리 포맷의 문자열로 설정합니다.",
+        "공백으로 구분하여 여러 날짜를 동시에 설정할 수 있습니다.",
+        "포맷이 다르거나 8자리 날짜가 아닌 경우 추가되지 않습니다.",
+        "'*' 를 설정하면 모든 날짜를 비활성화합니다. (단, setEnabledDate() 메소드로 추가한 날짜는 제외됩니다.)",
+        "비활성화된 날짜에는 'w2calendar_date_disable' CSS 클래스가 적용됩니다.",
+        "메소드를 여러 번 실행하면 기존 비활성화 날짜에 누적하여 추가됩니다.",
+        "setEnabledDate() 메소드와 setDisabledDate() 메소드는 반대로 동작합니다. 동일 날짜 또는 '*' 값을 각 메소드로 실행 시 나중에 실행된 메소드의 결과만 남습니다.",
+        "setDisabledDate() 로 설정된 날짜는 setEnabledDate() 메소드로 제거됩니다.",
+        "calendarValueType=yearMonth 일때 setDisabledDate() 메소드로 제한 날짜를 설정할 수 있지만 컴포넌트에서 해당 년/월의 선택을 제한하지 않습니다.",
+        "컴포넌트에 설정된 제한 날짜에 취소선이 표시되며 해당 날짜는 선택할 수 없습니다. 년/월 탐색은 제한하지 않습니다.",
+        "날짜 선택 제한과 관련된 메소드는 중복으로 적용됩니다.",
+        "enableAllDate() 메소드는 setDisableBeforeDate(), setDisableAfterDate() 메소드의 제한만 초기화하며, setDisabledDate() 메소드로 설정한 개별 날짜 비활성화는 초기화하지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        calendarValueType : con_calendarValueType.getText()
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // createBasicCalendar 내부에서 gotoCalendar('20251111') 호출 → 초기 표시 달: 2025-11
+    await $c.gcm.createBasicCalendar(cList);
+}
+
+
+
+// [공통] 비활성 날짜 셀(.w2calendar_date_disable) 정보 출력
+scwin.getDisableInfo = function (callLog) {
+    let disabledTds = target1.render.querySelectorAll('.w2calendar_date_disable');
+    let disabledDays = [];
+    for (var i = 0; i < disabledTds.length; i++) {
+        disabledDays.push(disabledTds[i].textContent);
+    }
+    let firstClassName = disabledTds.length > 0 ? disabledTds[0].className : '';
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[호출] " + callLog);
+    wf_body_bottom.getObj("scwin").setReturnValue("[비활성 날짜 일자] " + disabledDays.join(','));
+    wf_body_bottom.getObj("scwin").setReturnValue("[첫 비활성 셀 className] '" + firstClassName + "' (w2calendar_date_disable 포함 여부: " + (firstClassName.indexOf('w2calendar_date_disable') !== -1 ? "예" : "아니오") + ")");
+}
+
+
+
+// gotoCase 별 분기 호출
+// 1: setDisabledDate('20251115 20251120')                                          (validation 1, 2, 5, 10)
+// 2: setDisabledDate('20251115') + setDisabledDate('20251120')                     (validation 6)
+// 3: setDisabledDate('2025-11-15') + setDisabledDate('20251')                      (validation 3)
+// 4: setDisabledDate('*')                                                          (validation 4)
+// 5: setDisabledDate('*') + setEnabledDate('20251115')                             (validation 4 단서)
+// 6: setDisabledDate('20251115') + setEnabledDate('20251115')                      (validation 7, 8)
+// 7: (calendarValueType=yearMonth) setDisabledDate('20251115')                     (validation 9)
+// 8: setDisabledDate('20251115') + gotoNextMonth()                                 (validation 10 단서)
+// 9: setDisableBeforeDate('20251110') + setDisabledDate('20251120')                (validation 11)
+// 10: setDisabledDate('20251115') + enableAllDate()                                (validation 12)
+scwin.btn_call_onclick = function (e) {
+    let gotoCase = con_gotoCase.getValue();
+    let callLog = "";
+
+    if (gotoCase === "1") {
+        // validation 1, 2, 5, 10: 'yyyyMMdd' 8자리 문자열 + 공백 구분 + w2calendar_date_disable + 취소선/선택 불가
+        target1.setDisabledDate("20251115 20251120");
+        callLog = "target1.setDisabledDate('20251115 20251120')";
+    } else if (gotoCase === "2") {
+        // validation 6: 메소드를 여러 번 실행하면 누적
+        target1.setDisabledDate("20251115");
+        target1.setDisabledDate("20251120");
+        callLog = "target1.setDisabledDate('20251115'); target1.setDisabledDate('20251120');";
+    } else if (gotoCase === "3") {
+        // validation 3: 포맷이 다르거나 8자리 날짜가 아닌 경우 추가되지 않음
+        target1.setDisabledDate("2025-11-15");
+        target1.setDisabledDate("20251");
+        callLog = "target1.setDisabledDate('2025-11-15'); target1.setDisabledDate('20251');";
+    } else if (gotoCase === "4") {
+        // validation 4: '*' 를 설정하면 모든 날짜를 비활성화
+        target1.setDisabledDate("*");
+        callLog = "target1.setDisabledDate('*')";
+    } else if (gotoCase === "5") {
+        // validation 4 단서: setEnabledDate() 메소드로 추가한 날짜는 제외
+        target1.setDisabledDate("*");
+        target1.setEnabledDate("20251115");
+        callLog = "target1.setDisabledDate('*'); target1.setEnabledDate('20251115');";
+    } else if (gotoCase === "6") {
+        // validation 7, 8: 동일 날짜를 각 메소드로 실행 시 나중에 실행된 메소드 결과만 남음 (setDisabled → setEnabled 로 제거)
+        target1.setDisabledDate("20251115");
+        target1.setEnabledDate("20251115");
+        callLog = "target1.setDisabledDate('20251115'); target1.setEnabledDate('20251115');";
+    } else if (gotoCase === "7") {
+        // validation 9: calendarValueType=yearMonth 에서 setDisabledDate 호출 (UI 선택 제한 안 됨)
+        // — 사전 조건: con_calendarValueType 을 'yearMonth' 로 변경 후 Target 재생성 필요
+        target1.setDisabledDate("20251115");
+        callLog = "(calendarValueType=yearMonth) target1.setDisabledDate('20251115')";
+    } else if (gotoCase === "8") {
+        // validation 10 단서: setDisabledDate 설정 후에도 년/월 탐색은 제한되지 않음 (gotoNextMonth 정상 동작)
+        // 12/1 비활성 후 12월로 이동 → 12/1 비활성 셀 표시 확인
+        target1.setDisabledDate("20251201");
+        target1.gotoNextMonth();
+        callLog = "target1.setDisabledDate('20251201'); target1.gotoNextMonth();";
+    } else if (gotoCase === "9") {
+        // validation 11: 날짜 선택 제한 메소드 중복 적용 (setDisableBeforeDate + setDisabledDate)
+        target1.setDisableBeforeDate("20251110");
+        target1.setDisabledDate("20251120");
+        callLog = "target1.setDisableBeforeDate('20251110'); target1.setDisabledDate('20251120');";
+    } else if (gotoCase === "10") {
+        // validation 12: enableAllDate() 는 setDisableBeforeDate/AfterDate 제한만 초기화하며, setDisabledDate 개별 비활성화는 유지
+        target1.setDisabledDate("20251115");
+        target1.enableAllDate();
+        callLog = "target1.setDisabledDate('20251115'); target1.enableAllDate();";
+    }
+
+    scwin.getDisableInfo(callLog);
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_calendarValueType" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDate]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonth]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="테스트 케이스" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_gotoCase" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1. setDisabledDate('20251115 20251120')]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2. setDisabledDate 2회 호출 (누적)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3. 잘못된 포맷 ('2025-11-15', '20251')]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4. setDisabledDate('*')]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5. setDisabledDate('*') + setEnabledDate('20251115')]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6. setDisabledDate + setEnabledDate (동일 날짜)]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[7. calendarValueType=yearMonth + setDisabledDate]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[8. setDisabledDate + gotoNextMonth]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[9. setDisableBeforeDate + setDisabledDate (중복)]]></xf:label>
+												<xf:value><![CDATA[9]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10. setDisabledDate + enableAllDate]]></xf:label>
+												<xf:value><![CDATA[10]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_call" label="호출" style=""
+							ev:onclick="scwin.btn_call_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
