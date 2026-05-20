@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[datePicker &gt; P &gt; calendarValueType]&lt;br/&gt;DatePicker 컴포넌트의 UI 표시 포맷을 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;calendarValueType 속성값에 따라 표시되는 스핀 컬럼의 조합과 getValue()/setValue() 메소드의 값 포맷이 결정됩니다.&quot;,
+        &quot;DatePicker 컴포넌트의 UI 표시 포맷을 설정합니다. calendarValueType 속성값에 따라 표시되는 스핀 컬럼의 조합과 getValue()/setValue() 메소드의 값 포맷이 결정됩니다.&quot;,
+        &quot;'yearMonth' 설정 시 연, 월 컬럼을 표시합니다. 값 포맷은 'yyyyMM' (6자리) 입니다.&quot;,
+        &quot;'yearMonthDate' (default) 설정 시 연, 월, 일 컬럼을 표시합니다. 값 포맷은 'yyyyMMdd' (8자리) 입니다.&quot;,
+        &quot;'yearMonthDateTime' 설정 시 연, 월, 일, 오전/오후, 시, 분 컬럼을 표시합니다. 값 포맷은 'yyyyMMddHHmm' (12자리) 입니다.&quot;,
+        &quot;'hourMinute' 설정 시 오전/오후, 시, 분 컬럼을 표시합니다. 값 포맷은 'HHmm' (4자리) 입니다.&quot;,
+        &quot;'yearMonthDateTime' 과 'hourMinute' 는 오전/오후(ampm) 컬럼이 포함됩니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let calendarValueType = con_calendarValueType.getText();
+
+    let properties = {
+        calendarValueType : calendarValueType
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    await $c.gcm.createBasicDatePicker(cList);
+
+    // calendarValueType 별로 setValue 포맷 보정 (createBasicDatePicker 기본 '20250101' 8자리)
+    // yearMonth=6 / yearMonthDate=8 / yearMonthDateTime=12 / hourMinute=4
+    if (calendarValueType === &quot;yearMonth&quot;) {
+        target1.setValue(&quot;202501&quot;);
+    } else if (calendarValueType === &quot;yearMonthDateTime&quot;) {
+        target1.setValue(&quot;202501011030&quot;);
+    } else if (calendarValueType === &quot;hourMinute&quot;) {
+        target1.setValue(&quot;1030&quot;);
+    }
+}
+
+
+
+// 적용된 calendarValueType, 표시되는 스핀 컬럼 구성, getValue() 결과값 출력
+scwin.getValueTypeInfo = function () {
+    let valueType = target1.options.calendarValueType;
+    let inputValue = target1.getValue();
+
+    // validation: 미설정 시 기본값 'yearMonthDate' / 각 enum 값 설정 시 해당 값 적용
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[calendarValueType 적용값] '&quot; + valueType + &quot;'&quot;);
+    // validation: yearMonth=6자리, yearMonthDate=8자리, yearMonthDateTime=12자리, hourMinute=4자리
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[getValue() 결과값 / 길이] '&quot; + inputValue + &quot;' / &quot; + inputValue.length + &quot;자리&quot;);
+
+    // 스핀 컬럼 조합 (colTypeArr): 엔진의 makeColumns() 에서 구성됨
+    // yearMonth → [year, month] / yearMonthDate → [year, month, date] / yearMonthDateTime → [year, month, date, ampm, hour, minute] / hourMinute → [ampm, hour, minute]
+    let colTypeArr = target1.colTypeArr || [];
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[스핀 컬럼 수 / 컬럼 조합] &quot; + colTypeArr.length + &quot;개 / [&quot; + colTypeArr.join(', ') + &quot;]&quot;);
+
+    // 오전/오후(ampm) 컬럼 포함 여부: yearMonthDateTime, hourMinute 만 포함
+    let hasAmpm = !!(target1.colTypeObj &amp;&amp; target1.colTypeObj.hasOwnProperty('ampm'));
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[오전/오후(ampm) 컬럼 포함 여부] &quot; + (hasAmpm ? &quot;포함됨&quot; : &quot;포함되지 않음&quot;));
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    scwin.getValueTypeInfo();
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_calendarValueType" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonth]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDate]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDateTime]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[hourMinute]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button ev:onclick="scwin.btn_getInfo_onclick" style="" id="btn_getInfo" label="속성/스핀 컬럼 정보 조회" class="tc_btn_basic"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

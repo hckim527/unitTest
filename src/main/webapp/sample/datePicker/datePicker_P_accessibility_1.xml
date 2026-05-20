@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[datePicker &gt; P &gt; accessibility]&lt;br/&gt;DatePicker 컴포넌트의 키보드 접근성을 활성화 할지 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;true 설정 시 DatePicker 컴포넌트의 키보드 접근성을 활성화합니다.&quot;,
+        &quot;true 설정 시 각 스핀 컬럼에 WAI-ARIA 속성(role, aria-valuenow, aria-valuetext, aria-valuemin, aria-valuemax, aria-label)이 설정됩니다.&quot;,
+        &quot;true 설정 시 위/아래 방향키로 값을 변경할 수 있습니다.&quot;,
+        &quot;false (default) 설정 시 키보드 접근성을 비활성화합니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let properties = {
+        accessibility : con_accessibility.getText(),
+        calendarValueType : &quot;yearMonthDate&quot;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    await $c.gcm.createBasicDatePicker(cList);
+}
+
+
+
+scwin.getAccessibilityOption = function () {
+    let isOn = (target1.options.accessibility === true);
+
+    // validation: true 설정 시 DatePicker 컴포넌트의 키보드 접근성을 활성화 / false (default) 설정 시 비활성화
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[키보드 접근성 활성화 여부] &quot; + (isOn ? &quot;활성화됨&quot; : &quot;비활성화됨&quot;) + &quot; (accessibility=&quot; + target1.options.accessibility + &quot;)&quot;);
+}
+
+
+
+scwin.getAriaInfo = function () {
+    // validation: 각 스핀 컬럼에 WAI-ARIA 속성(role, aria-valuenow, aria-valuetext, aria-valuemin, aria-valuemax, aria-label) 설정
+    // childControlList: 각 스핀 컬럼 (연/월/일)
+    let columnLabels = ['연', '월', '일'];
+    let foundAny = false;
+
+    if (target1.childControlList &amp;&amp; target1.childControlList.length &gt; 0) {
+        for (let i = 0; i &lt; target1.childControlList.length; i++) {
+            let col = target1.childControlList[i];
+            if (!col || !col.dom || !col.dom.itembox) continue;
+
+            // ARIA 속성은 컬럼 내 한 셀(현재 포커스 대상)에만 부여되므로 role='spinbutton' 부여 셀을 탐색
+            let childNodes = col.dom.itembox.childNodes;
+            let ariaNode = null;
+            for (let j = 0; j &lt; childNodes.length; j++) {
+                if (childNodes[j].getAttribute &amp;&amp; childNodes[j].getAttribute('role') === 'spinbutton') {
+                    ariaNode = childNodes[j];
+                    break;
+                }
+            }
+
+            let label = columnLabels[i] || ('col' + i);
+
+            if (!ariaNode) {
+                wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[&quot; + label + &quot; 컬럼 WAI-ARIA 적용 여부] 미적용 (role='spinbutton' 셀 없음)&quot;);
+                foundAny = true;
+                continue;
+            }
+
+            let role = ariaNode.getAttribute('role');
+            let ariaValueNow = ariaNode.getAttribute('aria-valuenow');
+            let ariaValueText = ariaNode.getAttribute('aria-valuetext');
+            let ariaValueMin = ariaNode.getAttribute('aria-valuemin');
+            let ariaValueMax = ariaNode.getAttribute('aria-valuemax');
+            let ariaLabel = ariaNode.getAttribute('aria-label');
+
+            let allApplied = (role !== null &amp;&amp; ariaValueNow !== null &amp;&amp; ariaValueText !== null
+                &amp;&amp; ariaValueMin !== null &amp;&amp; ariaValueMax !== null &amp;&amp; ariaLabel !== null);
+
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[&quot; + label + &quot; 컬럼 WAI-ARIA 적용 여부] &quot; + (allApplied ? &quot;모두 적용됨&quot; : &quot;미적용 또는 누락&quot;)
+                + &quot; (role=&quot; + role + &quot;, aria-valuenow=&quot; + ariaValueNow + &quot;, aria-valuetext=&quot; + ariaValueText
+                + &quot;, aria-valuemin=&quot; + ariaValueMin + &quot;, aria-valuemax=&quot; + ariaValueMax + &quot;, aria-label=&quot; + ariaLabel + &quot;)&quot;);
+            foundAny = true;
+        }
+    }
+
+    if (!foundAny) {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[스핀 컬럼 WAI-ARIA 적용 여부] 스핀 컬럼 정보 없음&quot;);
+    }
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    scwin.getAccessibilityOption();
+    scwin.getAriaInfo();
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_accessibility" chooseOption="" style="" submenuSize="auto" allOption="" disabled="false"
+										direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button ev:onclick="scwin.btn_getInfo_onclick" style="" id="btn_getInfo" label="속성/ARIA 정보 조회" class="tc_btn_basic"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

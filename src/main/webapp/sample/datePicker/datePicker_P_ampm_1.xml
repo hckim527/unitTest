@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[datePicker &gt; P &gt; ampm]&lt;br/&gt;오전/오후 컬럼에 표시할 라벨을 콤마(',')로 구분하여 설정합니다.&lt;br/&gt;calendarValueType 속성이 'yearMonthDateTime' 또는 'hourMinute' 인 경우에만 동작합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;오전/오후 컬럼에 표시할 라벨을 콤마(',')로 구분하여 설정합니다.&quot;,
+        &quot;오전, 오후 순서로 2개의 라벨을 콤마(',')로 구분하여 설정합니다.&quot;,
+        &quot;값을 설정하지 않으면 '오전,오후'가 설정됩니다.&quot;,
+        &quot;calendarValueType 속성이 'yearMonthDateTime' 인 경우에 동작합니다.&quot;,
+        &quot;calendarValueType 속성이 'hourMinute' 인 경우에 동작합니다.&quot;,
+        &quot;calendarValueType 속성이 'yearMonthDate' 인 경우에는 동작하지 않습니다 (오전/오후 컬럼이 표시되지 않음).&quot;,
+        &quot;calendarValueType 속성이 'yearMonth' 인 경우에는 동작하지 않습니다 (오전/오후 컬럼이 표시되지 않음).&quot;
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let calendarValueType = con_calendarValueType.getText();
+    let ampmValue = par_ampm.getValue();
+
+    let properties = {
+        calendarValueType : calendarValueType,
+        ampm : ampmValue
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    await $c.gcm.createBasicDatePicker(cList);
+
+    // calendarValueType 별로 setValue 포맷 보정 (createBasicDatePicker 기본 '20250101' 8자리)
+    // yearMonth=6 / yearMonthDate=8 / yearMonthDateTime=12 / hourMinute=4
+    if (calendarValueType === &quot;yearMonth&quot;) {
+        target1.setValue(&quot;202501&quot;);
+    } else if (calendarValueType === &quot;yearMonthDateTime&quot;) {
+        target1.setValue(&quot;202501011030&quot;);
+    } else if (calendarValueType === &quot;hourMinute&quot;) {
+        target1.setValue(&quot;1030&quot;);
+    }
+}
+
+
+
+// ampm 컬럼이 존재할 때, 컬럼 itemArr[0]=AM, itemArr[1]=PM 의 label 텍스트 확인
+scwin.getAmpmLabels = function () {
+    if (!target1.colTypeObj || !target1.colTypeObj.hasOwnProperty('ampm')) {
+        // validation: yearMonthDate / yearMonth 등 ampm 미적용 케이스
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[오전/오후 컬럼 라벨] 오전/오후 컬럼이 존재하지 않아 ampm 라벨이 적용되지 않음&quot;);
+        return;
+    }
+
+    let ampmIdx = target1.colTypeObj['ampm'];
+    let ampmCol = target1.childControlList[ampmIdx];
+
+    if (!ampmCol || !ampmCol.itemArr || ampmCol.itemArr.length &lt; 2) {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[오전/오후 컬럼 라벨] 컬럼 정보 없음&quot;);
+        return;
+    }
+
+    let amLabel = ampmCol.itemArr[0].label;  // value='AM' 셀의 라벨 (오전 라벨)
+    let pmLabel = ampmCol.itemArr[1].label;  // value='PM' 셀의 라벨 (오후 라벨)
+
+    // validation: 오전, 오후 순서로 2개의 라벨을 콤마(',') 로 구분 설정 / 값 미설정 시 기본값 '오전,오후'
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[1번째 라벨(오전, itemArr[0].label)] '&quot; + amLabel + &quot;' / [2번째 라벨(오후, itemArr[1].label)] '&quot; + pmLabel + &quot;'&quot;);
+
+    // DOM 텍스트에서도 동일한 라벨이 출력되는지 확인
+    let itembox = ampmCol.dom &amp;&amp; ampmCol.dom.itembox;
+    if (itembox) {
+        let domTexts = [];
+        let nodes = itembox.childNodes;
+        for (let i = 0; i &lt; nodes.length; i++) {
+            let txt = (nodes[i].textContent || '').trim();
+            if (txt) domTexts.push(txt);
+        }
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[오전/오후 컬럼 DOM 텍스트 목록] [&quot; + domTexts.join(', ') + &quot;]&quot;);
+    }
+}
+
+
+
+scwin.btn_getInfo_onclick = function (e) {
+    scwin.getAmpmLabels();
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_calendarValueType" chooseOption="" style="" submenuSize="auto" allOption=""
+										disabled="false" direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDateTime]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[hourMinute]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDate]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonth]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+									<w2:textbox ref="" style="" userData2="" id="" label="" class=""></w2:textbox>
+									<w2:textbox class="" id="" label="ampm" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+									<xf:input id="par_ampm" style="" disabled="false" ref="" initValue="AM,PM"></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button ev:onclick="scwin.btn_getInfo_onclick" style="" id="btn_getInfo" label="ampm 라벨/적용 여부 조회" class="tc_btn_basic"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
