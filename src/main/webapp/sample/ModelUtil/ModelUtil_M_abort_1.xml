@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[ModelUtil] abort" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260526" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList id="dlt_userList" baseNode="map" repeatNode="map" useClientTableInfo="true">
+					<w2:columnInfo>
+						<w2:column id="id" dataType="text"></w2:column>
+						<w2:column id="name" dataType="text"></w2:column>
+						<w2:column id="age" dataType="text"></w2:column>
+						<w2:column id="dept" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<xf:submission id="sbm_basic" action="/data/p_createSubmission_userList.json" method="post" mediatype="application/json"
+				target='data:json,[{"id":"dlt_userList"}]' ev:submitdone="scwin.sbm_basic_submitdone" ev:submiterror="scwin.sbm_basic_submiterror"
+				processMsg="$blank">
+			</xf:submission>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[ModelUtil > M > abort]<br/>현재 진행 중인 Submission 을 중지합니다.",
+    "validation" : [
+        "submissionId(필수) 파라미터로 중지할 Submission 의 ID 를 설정할 수 있어야 합니다.",
+        "Submission 실행 중 비활성화(disabled) 된 컴포넌트들이 다시 활성화되어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 시나리오/상태 캡처
+scwin.currentScenario = null;
+scwin.disabledSnapshot = null;
+
+
+
+// submission 완료 콜백
+scwin.sbm_basic_submitdone = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[submitdone] sbm_basic 완료 (abort 호출되지 않음) / 로드된 행 수 = " + dlt_userList.getRowCount());
+};
+
+scwin.sbm_basic_submiterror = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[submiterror] errorType=" + e.errorType + " (abort 로 중지된 경우 발생 가능)");
+};
+
+
+
+scwin.btn_runAbort_onclick = function () {
+    var scenario = par_scenario.getValue();
+    scwin.currentScenario = scenario;
+    scwin.disabledSnapshot = null;
+
+    // 매 시나리오 실행 시 이전 데이터/상태 제거
+    dlt_userList.removeAll();
+    btn_target1.setDisabled(false);
+    btn_target2.setDisabled(false);
+    ibx_target1.setDisabled(false);
+
+    if (scenario === "1") {
+        // 시나리오 1 : submission 실행 → 즉시 abort - submissionId 만 전달
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 1 : executeSubmission 실행 → 즉시 WebSquare.ModelUtil.abort('sbm_basic') 호출 ──");
+        WebSquare.ModelUtil.executeSubmission("sbm_basic", null, [btn_target1, btn_target2, ibx_target1]);
+
+        // 호출 직후 disabled 캡처 (실행 중)
+        scwin.disabledSnapshot = {
+            before : [btn_target1.getDisabled(), btn_target2.getDisabled(), ibx_target1.getDisabled()]
+        };
+        wf_body_bottom.getObj("scwin").setReturnValue("실행 직후 disabled 상태 : [" + scwin.disabledSnapshot.before.join(",") + "]");
+
+        // abort 호출 → 가이드 @spec : 비활성화된 컴포넌트들이 다시 활성화됨
+        WebSquare.ModelUtil.abort("sbm_basic");
+
+        // abort 직후 disabled 상태
+        var afterAbort = [btn_target1.getDisabled(), btn_target2.getDisabled(), ibx_target1.getDisabled()];
+        wf_body_bottom.getObj("scwin").setReturnValue("abort 직후 disabled 상태 : [" + afterAbort.join(",") + "] (모두 false 면 재활성화 PASS)");
+    } else if (scenario === "2") {
+        // 시나리오 2 : 진행 중 submission 이 없을 때 abort - 에러 없이 처리되어야 함
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 2 : 진행 중 submission 없을 때 WebSquare.ModelUtil.abort('sbm_basic') 호출 ──");
+        try {
+            var ret = WebSquare.ModelUtil.abort("sbm_basic");
+            wf_body_bottom.getObj("scwin").setReturnValue("abort 호출 완료 (반환값 : " + ret + ") - 진행 중 submission 없음");
+        } catch (ex) {
+            wf_body_bottom.getObj("scwin").setReturnValue("abort 예외 발생 : " + ex.message);
+        }
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="비활성화 테스트 대상 컴포넌트 (executeSubmission 의 info 파라미터로 전달 → abort 시 재활성화 확인)" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<xf:group style="display:flex;gap:8px;align-items:center;margin-bottom:8px;" id="grp_targets">
+							<w2:button class="tc_btn_basic" id="btn_target1" label="btn_target1" style=""></w2:button>
+							<w2:button class="tc_btn_basic" id="btn_target2" label="btn_target2" style=""></w2:button>
+							<xf:input id="ibx_target1" style="width:200px;" initValue="disabled 대상 input"></xf:input>
+						</xf:group>
+						<w2:textbox style="width:100%;" id="" label="응답 데이터 (abort 로 중지되면 채워지지 않음)" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:gridView id="grd_userList" style="width:100%;height:160px;" dataList="data:dlt_userList">
+							<w2:caption style="" id="cap_grd1" value=""></w2:caption>
+							<w2:header style="" id="hdr_grd1">
+								<w2:row style="" id="hrow_grd1">
+									<w2:column width="80" inputType="text" id="hcol_id" value="ID"></w2:column>
+									<w2:column width="120" inputType="text" id="hcol_name" value="이름"></w2:column>
+									<w2:column width="80" inputType="text" id="hcol_age" value="나이"></w2:column>
+									<w2:column width="*" inputType="text" id="hcol_dept" value="부서"></w2:column>
+								</w2:row>
+							</w2:header>
+							<w2:gBody style="" id="gbd_grd1">
+								<w2:row style="" id="brow_grd1">
+									<w2:column width="80" inputType="text" id="id" displayMode="label"></w2:column>
+									<w2:column width="120" inputType="text" id="name" displayMode="label"></w2:column>
+									<w2:column width="80" inputType="text" id="age" displayMode="label"></w2:column>
+									<w2:column width="*" inputType="text" id="dept" displayMode="label"></w2:column>
+								</w2:row>
+							</w2:gBody>
+						</w2:gridView>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : executeSubmission(info=대상 컴포넌트) 후 abort → 재활성화 확인]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : 진행 중 submission 없을 때 abort 호출]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_runAbort_onclick" id="btn_runAbort"
+							label="executeSubmission &amp; abort" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

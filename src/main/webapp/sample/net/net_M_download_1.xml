@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[net] download" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260526" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[net > M > download]<br/>서버에서 파일을 다운로드합니다.",
+    "validation" : [
+        "action(필수) 파라미터로 파일 다운로드 기능이 구현된 서버 URL 을 설정할 수 있어야 합니다.",
+        "requestData(선택) 파라미터로 서버로 전송할 데이터 문자열을 설정할 수 있어야 합니다 (서버에서 'xmlValue' 이름으로 수신).",
+        "sendMethod(선택) 파라미터로 HTTP 전송 방식 'get' / 'post' 를 설정할 수 있어야 합니다.",
+        "isXhr(선택) 파라미터를 true 로 설정하면 XHR 방식(Content-Type=text/plain) 으로, false(기본값) 로 설정하면 IFrame+Form 방식으로 다운로드가 수행되어야 합니다.",
+        "sendMethod='get' 으로 설정하면 action URL 의 기존 Query 문자열은 무시되며 xmlValue 가 할당되어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// XHR 패치 관련 플래그
+scwin.xhrCaptured = null;
+scwin.originalXhrOpen = null;
+scwin.originalXhrSend = null;
+scwin.originalXhrSetRequestHeader = null;
+
+// XHR.open / send / setRequestHeader 패치로 호출 캡처
+scwin.patchXhr = function () {
+    scwin.xhrCaptured = {
+        "method" : null,
+        "url" : null,
+        "body" : null,
+        "headers" : []
+    };
+
+    if (scwin.originalXhrOpen === null) {
+        scwin.originalXhrOpen = XMLHttpRequest.prototype.open;
+    }
+    if (scwin.originalXhrSend === null) {
+        scwin.originalXhrSend = XMLHttpRequest.prototype.send;
+    }
+    if (scwin.originalXhrSetRequestHeader === null) {
+        scwin.originalXhrSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+    }
+
+    XMLHttpRequest.prototype.open = function (method, url) {
+        scwin.xhrCaptured.method = method;
+        scwin.xhrCaptured.url = url;
+        return scwin.originalXhrOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function (body) {
+        scwin.xhrCaptured.body = body;
+        return scwin.originalXhrSend.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+        scwin.xhrCaptured.headers.push({"name" : name, "value" : value});
+        return scwin.originalXhrSetRequestHeader.apply(this, arguments);
+    };
+};
+
+scwin.restoreXhr = function () {
+    if (scwin.originalXhrOpen !== null) {
+        XMLHttpRequest.prototype.open = scwin.originalXhrOpen;
+    }
+    if (scwin.originalXhrSend !== null) {
+        XMLHttpRequest.prototype.send = scwin.originalXhrSend;
+    }
+    if (scwin.originalXhrSetRequestHeader !== null) {
+        XMLHttpRequest.prototype.setRequestHeader = scwin.originalXhrSetRequestHeader;
+    }
+};
+
+
+
+// 엔진 내부에서 form 은 생성 즉시 submit 후 DOM 에서 제거되므로, HTMLFormElement.prototype.submit 을 패치하여 submit 시점에 form 상태를 캡처
+scwin.capturedForm = null;
+scwin.originalFormSubmit = null;
+
+scwin.patchFormSubmit = function () {
+    scwin.capturedForm = null;
+    if (scwin.originalFormSubmit === null) {
+        scwin.originalFormSubmit = HTMLFormElement.prototype.submit;
+    }
+    HTMLFormElement.prototype.submit = function () {
+        try {
+            var action = this.getAttribute("action") || "";
+            if (action.indexOf("p_download_sample") > -1) {
+                var xmlInput = this.querySelector("input[name='xmlValue']");
+                scwin.capturedForm = {
+                    action : action,
+                    method : (this.getAttribute("method") || "").toLowerCase(),
+                    target : this.getAttribute("target") || "",
+                    xmlValue : xmlInput ? xmlInput.value : null,
+                    hasXmlInput : (xmlInput !== null)
+                };
+            }
+        } catch (e) {}
+        // 실제 submit 은 호출하지 않음 (테스트 환경에서 iframe 로 실제 다운로드되는 부작용 방지)
+    };
+};
+
+scwin.restoreFormSubmit = function () {
+    if (scwin.originalFormSubmit !== null) {
+        HTMLFormElement.prototype.submit = scwin.originalFormSubmit;
+    }
+};
+
+
+
+scwin.btn_download_onclick = function () {
+    var scenario = par_scenario.getValue();
+
+    if (scenario === "1") {
+        // 시나리오 1 : 기본 호출 (action 만)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 1 : 기본 호출 (action 만) ──");
+        scwin.patchFormSubmit();
+        WebSquare.net.download("/data/p_download_sample.txt");
+
+        $p.setTimeout(function () {
+            scwin.restoreFormSubmit();
+            var cap = scwin.capturedForm;
+            if (cap) {
+                wf_body_bottom.getObj("scwin").setReturnValue("생성된 form action : '" + cap.action + "'");
+                wf_body_bottom.getObj("scwin").setReturnValue("생성된 form method : '" + cap.method + "'");
+            } else {
+                wf_body_bottom.getObj("scwin").setReturnValue("form submit 미캡처");
+            }
+        }, "chk_download_1", 100);
+    } else if (scenario === "2") {
+        // 시나리오 2 : requestData + POST (form 내 xmlValue hidden input 확인)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 2 : requestData + POST ──");
+        scwin.patchFormSubmit();
+        WebSquare.net.download("/data/p_download_sample.txt", "K00001");
+
+        $p.setTimeout(function () {
+            scwin.restoreFormSubmit();
+            var cap = scwin.capturedForm;
+            if (cap) {
+                wf_body_bottom.getObj("scwin").setReturnValue("form method : '" + cap.method + "' / xmlValue input.value : '" + cap.xmlValue + "'");
+                wf_body_bottom.getObj("scwin").setReturnValue("[검증] xmlValue=K00001 일치 여부 : " + (cap.xmlValue === "K00001"));
+            } else {
+                wf_body_bottom.getObj("scwin").setReturnValue("form submit 미캡처");
+            }
+        }, "chk_download_2", 100);
+    } else if (scenario === "3") {
+        // 시나리오 3 : sendMethod='get' (form method 및 xmlValue input 확인)
+        // ※ form method='get' 으로 submit 되면 브라우저가 xmlValue 를 URL query 로 변환하여 전송
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 3 : sendMethod='get' ──");
+        scwin.patchFormSubmit();
+        WebSquare.net.download("/data/p_download_sample.txt", "K00001", "get");
+
+        $p.setTimeout(function () {
+            scwin.restoreFormSubmit();
+            var cap = scwin.capturedForm;
+            if (cap) {
+                wf_body_bottom.getObj("scwin").setReturnValue("form action : '" + cap.action + "' / method : '" + cap.method + "'");
+                wf_body_bottom.getObj("scwin").setReturnValue("xmlValue input.value : '" + cap.xmlValue + "'");
+                wf_body_bottom.getObj("scwin").setReturnValue("[검증] method='get' + xmlValue=K00001 : " + (cap.method === "get" && cap.xmlValue === "K00001"));
+            } else {
+                wf_body_bottom.getObj("scwin").setReturnValue("form submit 미캡처");
+            }
+        }, "chk_download_3", 100);
+    } else if (scenario === "4") {
+        // 시나리오 4 : isXhr=true (XHR 방식)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 4 : isXhr=true (XHR 방식) ──");
+        scwin.patchXhr();
+        WebSquare.net.download("/data/p_download_sample.txt", "K00001", "post", true);
+
+        $p.setTimeout(function () {
+            var cap = scwin.xhrCaptured;
+            if (cap && cap.method !== null) {
+                wf_body_bottom.getObj("scwin").setReturnValue("XHR method : '" + String(cap.method).toUpperCase() + "' / url : '" + cap.url + "'");
+
+                var hasCT = false;
+                var ctVal = "";
+                for (var i = 0; i < cap.headers.length; i++) {
+                    var h = cap.headers[i];
+                    if (String(h.name).toLowerCase() === "content-type") {
+                        hasCT = true;
+                        ctVal = h.value;
+                        break;
+                    }
+                }
+                wf_body_bottom.getObj("scwin").setReturnValue("Content-Type 설정 여부 : " + (hasCT ? ctVal : "(미설정)"));
+
+                var bodyStr = "";
+                if (cap.body !== null && cap.body !== undefined) {
+                    bodyStr = String(cap.body);
+                }
+                wf_body_bottom.getObj("scwin").setReturnValue("body 에 K00001 포함 여부 : " + (bodyStr.indexOf("K00001") !== -1));
+            } else {
+                wf_body_bottom.getObj("scwin").setReturnValue("XHR 호출 미캡처");
+            }
+            scwin.restoreXhr();
+        }, "chk_download_4", 300);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="동작 흐름" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_1" escape="false"
+							label="1. WebSquare.net.download(action, requestData, sendMethod, isXhr) 호출 → 엔진이 isXhr 값에 따라 IFrame+Form 또는 XHR 방식으로 분기"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_2" escape="false"
+							label="2. isXhr=false (기본값) : 내부적으로 __iframe__ 을 생성하고 동적 form 을 만든 뒤 form.submit() 으로 전송 → 전송 후 form 은 즉시 DOM 에서 제거됨"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_3" escape="false"
+							label="3. isXhr=true : XMLHttpRequest 로 요청하며 Content-Type='text/plain' 고정 → 응답의 Content-Disposition 헤더에서 파일명 추출하여 Blob 으로 자동 저장"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_4" escape="false"
+							label="4. 본 샘플은 HTMLFormElement.prototype.submit / XMLHttpRequest 패치로 내부 동작을 캡처하여 실제 서버 다운로드 없이 동작을 검증 (실제 submit 호출하지 않음)"></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="width:100%;" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : 기본 호출 (action 만)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : requestData + POST]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : sendMethod='get' (xmlValue URL query)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 : isXhr=true (XHR 방식)]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_download_onclick" id="btn_download"
+							label="download" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

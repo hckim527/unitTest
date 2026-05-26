@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[ModelUtil] setInstanceValue" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260526" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<xf:instance>
+				<data xmlns="">
+					<bookstore>
+						<book idx="1">
+							<title lang="eng">Harry Potter</title>
+							<price>29.99</price>
+						</book>
+						<book idx="2">
+							<title lang="eng">Learning XML</title>
+							<price>39.95</price>
+						</book>
+					</bookstore>
+				</data>
+			</xf:instance>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[ModelUtil > M > setInstanceValue]<br/>Instance 내부에서 XPath 에 해당하는 노드의 값(nodeValue) 을 설정합니다.",
+    "validation" : [
+        "xpath(필수) 파라미터로 값을 설정할 Instance 노드의 XPath 경로를 설정할 수 있어야 합니다.",
+        "value(필수) 파라미터로 xpath 노드에 설정할 텍스트 값을 설정할 수 있어야 합니다.",
+        "Element 값을 설정할 수 있어야 합니다.",
+        "Attribute 값을 설정할 수 있어야 합니다.",
+        "값 설정 성공 시 true 를 반환해야 합니다.",
+        "노드가 존재하지 않거나 xpath 에 배열 인덱스가 포함된 경우 false 를 반환해야 합니다.",
+        "value 파라미터가 undefined 또는 null 이면 빈 문자열('') 로 변환되어 설정되어야 합니다.",
+        "xpath 파라미터에 해당하는 노드가 존재하지 않으면 자동으로 노드를 생성해야 합니다.",
+        "xpath 에 배열 인덱스([숫자])가 포함된 경우에는 노드를 생성하지 않고 false 를 반환해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 시나리오 실행 전 instance 원본 보존용 스냅샷
+    scwin._origBookstore = WebSquare.xml.serialize(WebSquare.ModelUtil.findInstanceNode("bookstore"));
+};
+
+
+
+// 특정 instance 노드를 원본 직렬화 문자열로 복원 (자식만 교체하여 wrap 중첩 방지)
+scwin._resetNodeFromOrigin = function (xpath, origSerialized) {
+    var instNode = WebSquare.ModelUtil.findInstanceNode(xpath);
+    if (!instNode) return;
+    while (instNode.firstChild) instNode.removeChild(instNode.firstChild);
+    var origNode = WebSquare.xml.parse(origSerialized).documentElement;
+    for (var i = 0; i < origNode.childNodes.length; i++) {
+        if (origNode.childNodes[i].nodeType === 1) {
+            instNode.appendChild(origNode.childNodes[i].cloneNode(true));
+        }
+    }
+    // bookstore 의 attribute 도 복원 (book idx 등)
+    // 원본 자식 노드들의 attribute 까지 cloneNode(true) 로 복사되었으므로 추가 처리 불필요
+};
+
+// 매 시나리오 실행 전 instance 데이터 원본으로 복구
+scwin.resetInstance = function () {
+    scwin._resetNodeFromOrigin("bookstore", scwin._origBookstore);
+
+    // 자동 생성된 newNode 정리
+    var newNode = WebSquare.ModelUtil.findInstanceNode("bookstore/newNode");
+    if (newNode && newNode.parentNode) {
+        newNode.parentNode.removeChild(newNode);
+    }
+};
+
+
+
+scwin.btn_setInstanceValue_onclick = function () {
+    var scenario = par_scenario.getValue();
+    scwin.resetInstance();
+
+    if (scenario === "1") {
+        // 시나리오 1 : Element 값 설정 - bookstore/book[1]/title = "해리포터"
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 1 : Element 값 설정 (xpath='bookstore/book[1]/title', value='해리포터') ──");
+
+        var before = WebSquare.ModelUtil.getInstanceValue("bookstore/book[1]/title");
+        var ret = WebSquare.ModelUtil.setInstanceValue("bookstore/book[1]/title", "해리포터");
+        var after = WebSquare.ModelUtil.getInstanceValue("bookstore/book[1]/title");
+
+        wf_body_bottom.getObj("scwin").setReturnValue("반환값 : " + ret + " (성공 시 true)");
+        wf_body_bottom.getObj("scwin").setReturnValue("설정 전 : '" + before + "' → 설정 후 : '" + after + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] Element 값 변경 : " + (ret === true && after === "해리포터"));
+    } else if (scenario === "2") {
+        // 시나리오 2 : Attribute 값 설정 - bookstore/book[1]/title/@lang = "kor"
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 2 : Attribute 값 설정 (xpath='bookstore/book[1]/title/@lang', value='kor') ──");
+
+        var before = WebSquare.ModelUtil.getInstanceValue("bookstore/book[1]/title/@lang");
+        var ret = WebSquare.ModelUtil.setInstanceValue("bookstore/book[1]/title/@lang", "kor");
+        var after = WebSquare.ModelUtil.getInstanceValue("bookstore/book[1]/title/@lang");
+
+        wf_body_bottom.getObj("scwin").setReturnValue("반환값 : " + ret + " (성공 시 true)");
+        wf_body_bottom.getObj("scwin").setReturnValue("설정 전 lang : '" + before + "' → 설정 후 lang : '" + after + "'");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] Attribute 값 변경 : " + (ret === true && after === "kor"));
+    } else if (scenario === "3") {
+        // 시나리오 3 : value 가 undefined / null → 빈 문자열("")
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 3 : value 가 undefined / null → 빈 문자열 변환 ──");
+
+        WebSquare.ModelUtil.setInstanceValue("bookstore/book[1]/title", undefined);
+        var afterUndefined = WebSquare.ModelUtil.getInstanceValue("bookstore/book[1]/title");
+        wf_body_bottom.getObj("scwin").setReturnValue("value=undefined → 설정 후 값 : '" + afterUndefined + "' (길이 : " + afterUndefined.length + ")");
+
+        WebSquare.ModelUtil.setInstanceValue("bookstore/book[1]/title", null);
+        var afterNull = WebSquare.ModelUtil.getInstanceValue("bookstore/book[1]/title");
+        wf_body_bottom.getObj("scwin").setReturnValue("value=null → 설정 후 값 : '" + afterNull + "' (길이 : " + afterNull.length + ")");
+
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] undefined / null → '' 변환 : " + (afterUndefined === "" && afterNull === ""));
+    } else if (scenario === "4") {
+        // 시나리오 4 : xpath 미존재 시 자동 노드 생성 (배열 인덱스 없음)
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 4 : xpath 미존재 시 자동 생성 (xpath='bookstore/newNode', value='test') ──");
+
+        var beforeNode = WebSquare.ModelUtil.findInstanceNode("bookstore/newNode");
+        wf_body_bottom.getObj("scwin").setReturnValue("설정 전 newNode 존재 여부 : " + (beforeNode !== null));
+
+        var ret = WebSquare.ModelUtil.setInstanceValue("bookstore/newNode", "test");
+        var after = WebSquare.ModelUtil.getInstanceValue("bookstore/newNode");
+        var afterNode = WebSquare.ModelUtil.findInstanceNode("bookstore/newNode");
+
+        wf_body_bottom.getObj("scwin").setReturnValue("반환값 : " + ret + " / 설정 후 newNode 값 : '" + after + "' / 노드 존재 : " + (afterNode !== null));
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 자동 생성 + 값 설정 + true 반환 : " + (ret === true && after === "test" && afterNode !== null));
+    } else if (scenario === "5") {
+        // 시나리오 5 : xpath 에 배열 인덱스 포함 시 자동 생성 안 함 + false 반환
+        wf_body_bottom.getObj("scwin").setReturnValue("── 시나리오 5 : 배열 인덱스 포함 xpath - 자동 생성 안 함 (xpath='bookstore/newNode[1]', value='test') ──");
+
+        var ret = WebSquare.ModelUtil.setInstanceValue("bookstore/newNode[1]", "test");
+        var afterNode = WebSquare.ModelUtil.findInstanceNode("bookstore/newNode[1]");
+
+        wf_body_bottom.getObj("scwin").setReturnValue("반환값 : " + ret + " (예상 : false) / 노드 존재 : " + (afterNode !== null) + " (예상 : false)");
+        wf_body_bottom.getObj("scwin").setReturnValue("[검증] 배열 인덱스 포함 시 false 반환 + 노드 미생성 : " + (ret === false && afterNode === null));
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플 (instance: bookstore)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_1" escape="false"
+							label="* 매 시나리오 실행 전 instance 데이터 원본으로 복구 (이전 시나리오 결과 누적 방지)"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_2" escape="false"
+							label="* getInstanceValue 로 설정 전/후 값 비교"></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 ref="" submenuSize="auto" appearance="minimal" disabledClass="w2selectbox_disabled"
+										chooseOption="" disabled="false" style="width:100%;" allOption="" id="par_scenario" direction="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1 : Element 값 설정]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : Attribute 값 설정 (/@lang)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : value=undefined / null → 빈 문자열]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 : xpath 미존재 시 자동 생성]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5 : 배열 인덱스 포함 - false 반환, 미생성]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setInstanceValue_onclick" id="btn_setInstanceValue"
+							label="setInstanceValue" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
