@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[accordion] accessibility" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260520" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[accordion > P > accessibility]<br/>Accordion 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시 Accordion 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용합니다.",
+        "true 설정 시 PanelTitle 영역이 'a' + 'span' 태그로 렌더링됩니다.",
+        "true 설정 시 PanelTitle 의 'a' 태그에 role='button', aria-expanded='false' 속성이 부여됩니다.",
+        "true 설정 시 titleDivTag 속성값과 관계없이 타이틀의 tagname 이 'strong' 으로 설정됩니다.",
+        "true 설정 시 키보드 이벤트(onkeydown)가 Panels 전체가 아닌 PanelTitle 요소('a' 태그)에 바인딩되어 PanelTitle 에 포커스가 있을 때만 Enter 키가 동작합니다.",
+        "false (default) 설정 시 Accordion 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용하지 않습니다.",
+        "false (default) 설정 시 PanelTitle 영역이 'div' 태그로 렌더링됩니다.",        
+        "값을 생략하면 기본값 false 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정
+    let properties = {
+        accessibility : con_accessibility.getText(),
+        titleDivTag : con_titleDivTag.getText(),
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    $c.gcm.createLabel('label="* 첫번째 패널 타이틀 클릭하여 펼친 후 render 확인 버튼을 통해 태그/속성 점검"', '', 'label1');
+    $c.gcm.createLabel('label="* accessibility=true 일 때는 panelTitle1 영역(a 태그) 에 포커스한 후 Enter 키로 패널 토글 확인"', '', 'label2');    
+
+    $c.gcm.createBasicAccordion(cList, 'ev:onclick="scwin.target1_onclick" ev:onpanelload="scwin.target1_onpanelload" ev:onpanelunload="scwin.target1_onpanelunload"');
+
+    // 첫 패널을 닫은 상태로 초기화 → aria-expanded='false' 등 닫힘 상태 검증 가능
+    setTimeout(function () {
+        let firstTitle = target1.render.querySelector("[id$='_panel_panels1_title']");
+        if (firstTitle && firstTitle.getAttribute("aria-expanded") === "true") {
+            firstTitle.click();
+        }
+    }, 500);
+}
+
+
+
+// PanelTitle 영역(panels1_title) 의 태그 / role / aria-expanded / 자식 태그 / 라벨 태그 출력
+scwin.btn_getRender_onclick = function (e) {
+    // 패널 헤더 영역 (accessibility=false: div / accessibility=true: a 태그가 들어있는 영역)
+    let titleEl = target1.render.querySelector("[id$='_panel_panels1_title']");
+    // 패널 타이틀 라벨 (텍스트, titleDivTag/accessibility 영향)
+    let labelEl = target1.render.querySelector("[id$='_panel_panels1_panelTitle_panelTitle1']");
+
+    if (titleEl) {
+        // 가이드 validation 2: "PanelTitle 영역이 'a' + 'span' 태그로 렌더링" → 헤더 태그 + 내부 라벨 태그 조합으로 검증
+        let combo = titleEl.tagName + " + " + (labelEl ? labelEl.tagName : "null");
+        wf_body_bottom.getObj("scwin").setReturnValue("타이틀 구조 (헤더 + 라벨) : " + combo);
+        wf_body_bottom.getObj("scwin").setReturnValue("role : " + titleEl.getAttribute("role"));
+        wf_body_bottom.getObj("scwin").setReturnValue("aria-expanded : " + titleEl.getAttribute("aria-expanded"));
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("panelTitle 영역 element : null");
+    }
+};
+
+
+
+// 첫번째 패널 타이틀에 포커스만 부여 (출력 없음). 사용자가 Enter 키 입력 시 onclick 핸들러가 패널 토글 결과를 출력함
+scwin.btn_focusTitle_onclick = function (e) {
+    let titleEl = target1.render.querySelector("[id$='_panel_panels1_title']");
+    let aTag = titleEl ? titleEl.querySelector("a") : null;
+    let focusEl = aTag || titleEl;
+    if (focusEl) focusEl.focus();
+};
+
+
+
+// onclick 이벤트 — Enter 키로 panelTitle 토글 시 발생 (collapsible=false 환경에선 open 항상 true)
+scwin.target1_onclick = function (panel, open) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onclick] panel.id : " + (panel ? panel.id : "null"));
+};
+
+
+
+// onpanelload 이벤트 — 패널 열림 후 발생 (애니메이션 완료 시)
+scwin.target1_onpanelload = function (panelID, userID) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onpanelload] panelID : " + panelID + " (패널 열림)");
+};
+
+
+
+// onpanelunload 이벤트 — 패널 닫힘 후 발생 (애니메이션 완료 시)
+scwin.target1_onpanelunload = function (panelID, userID) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onpanelunload] panelID : " + panelID + " (패널 닫힘)");
+};
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_accessibility" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:textbox class="" id="" label="titleDivTag" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<xf:select1 id="con_titleDivTag" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRender_onclick" id="btn_getRender" label="render 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_focusTitle_onclick" id="btn_focusTitle" label="panelTitle 포커스" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
