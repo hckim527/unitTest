@@ -43,7 +43,11 @@ scwin.onpageload = function () {
 
 // comp 생성
 scwin.comp_init = async function () {
-    // 기존 target 있으면 삭제
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
     if (typeof target1 !== 'undefined') {
         target1.remove();
     }
@@ -52,6 +56,7 @@ scwin.comp_init = async function () {
     //  - con_useHeaderContextMenu / con_contextMenu 가 미설정('') 이면
     //    createCList 가 빈 문자열 value 를 자동 제외하므로 properties 키 자체가 빠짐 (기본값 동작)
     let properties = {
+        dataList: "data:dlt_bind",
         useHeaderContextMenu: con_useHeaderContextMenu.getValue(),
         contextMenu: con_contextMenu.getValue(),
     };
@@ -60,6 +65,9 @@ scwin.comp_init = async function () {
 
     // oncontextopen / oncontextclick 이벤트 핸들러 부착
     let eList = $c.gcm.createEList(["oncontextopen", "oncontextclick"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
 
     // target 생성
     await $c.gcm.createBasicGridView(cList, eList);
@@ -75,6 +83,19 @@ scwin.target1_oncontextopen = function (rowIndex, columnIndex, focusedCellInfo, 
     wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen columnIndex : " + columnIndex);
     wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen info.isHeader : " + info.isHeader);
     wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen info.headerId : " + info.headerId);
+
+    // 컨텍스트 메뉴는 oncontextopen 이후 생성되므로 setTimeout 으로 생성 후 DOM 검증
+    //  - 클래스(.w2grid_contextMenu)로 찾으면 순환 검증이 되므로 list 컴포넌트 id(_contextMenu_list)로 탐색한 뒤 클래스 설정 여부를 검증
+    setTimeout(function () {
+        let menu = document.querySelector("[id$='_contextMenu_list']");
+        if (!menu) {
+            wf_body_bottom.getObj("scwin").setReturnValue("컨텍스트 메뉴 미생성");
+            return;
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue("'w2grid_contextMenu' 클래스 설정 여부 : " + menu.classList.contains("w2grid_contextMenu"));
+        let rows = menu.querySelectorAll(".w2grid_contextMenu_row");
+        wf_body_bottom.getObj("scwin").setReturnValue("표시된 메뉴 항목 수 : " + rows.length);
+    }, 0);
 };
 
 
@@ -87,21 +108,7 @@ scwin.target1_oncontextclick = function (rowIndex, columnIndex, userMenuId, syst
 
 
 
-// 표시된 컨텍스트 메뉴 DOM 확인
-//  - 'w2grid_contextMenu' CSS 클래스 설정 여부
-//  - 표시된 메뉴 항목(row) 개수 (현재 상태에 맞는 메뉴만 표시되므로 12 개 이하)
-scwin.btn_checkContextMenu_onclick = function (e) {
-    let menu = document.querySelector(".w2grid_contextMenu");
-
-    wf_body_bottom.getObj("scwin").setReturnValue("컨텍스트 메뉴 표시 여부 : " + (menu !== null));
-
-    if (menu) {
-        wf_body_bottom.getObj("scwin").setReturnValue("'w2grid_contextMenu' 클래스 설정 여부 : " + menu.classList.contains("w2grid_contextMenu"));
-
-        let rows = menu.querySelectorAll(".w2grid_contextMenu_row");
-        wf_body_bottom.getObj("scwin").setReturnValue("표시된 메뉴 항목 수 : " + rows.length);
-    }
-};]]></script>
+]]></script>
 		<style type="text/css"><![CDATA[]]></style>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -176,9 +183,6 @@ scwin.btn_checkContextMenu_onclick = function (e) {
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkContextMenu_onclick" id="btn_checkContextMenu"
-							label="컨텍스트 메뉴 DOM 확인" style="">
-						</w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
