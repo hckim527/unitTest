@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260527" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > checkAllType]<br/>inputType='checkbox' 인 Header Column 에서 전체선택을 판단할 때 disabled/readOnly 상태인 Cell 을 포함할 지 설정합니다.",
+    "validation" : [
+        "Header Column 의 inputType='checkbox' 이고, Body Column 의 inputType='checkbox','radio','custom' 일때 동작합니다.",
+        "'include'(기본값) 설정 시 전체선택을 판단할 때 disabled 또는 readonly 상태인 Body Cell 을 포함합니다.",
+        "'exclude' 설정 시 전체선택을 판단할 때 disabled 또는 readonly 상태인 Body Cell 을 포함하지 않습니다.",
+        "'exclude' 설정 시 disabled 또는 readonly 상태인 Body Cell 의 선택 여부가 전체선택 판단에 영향을 미치지 않습니다.",
+        "미설정 시 기본값 'include' 로 동작합니다.",
+        "Header Column 의 체크 이미지는 전체선택/일부선택/전체해제 세가지 경우를 구분해서 표시됩니다.",
+        "하나의 Column 에 inputType 이 서로 다른 Cell 이 있는 경우 inputType='checkbox','radio' 인 Cell 만 전체선택 판단 대상으로 처리합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 라벨 생성
+    $c.gcm.createLabel('label="Row 0: 일반 / Row 1: disabled / Row 2: readOnly / Row 3: 일반 (chk Column / mix Column)"', '', 'label1');
+    $c.gcm.createLabel('label="mix Column 은 inputType 혼합 (Row 0=checkbox, Row 1=radio, Row 2=text, Row 3=checkbox) → checkbox/radio 인 Row 0,1,3 만 전체선택 판단 대상"', '', 'label2');
+
+    // dataList 생성 (4 row, 컬럼: chk, mix)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    let strDataList = '<w2:dataList ' + strNameSpace + ' baseNode="list" id="dlt_bind" repeatNode="map" useStatusValue="true">';
+    strDataList += '<w2:columnInfo>';
+    strDataList += '<w2:column dataType="text" id="chk" inputType="text" name="chk"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="mix" inputType="text" name="mix"></w2:column>';
+    strDataList += '</w2:columnInfo>';
+    strDataList += '<w2:data use="true">';
+    strDataList += '<w2:row><chk>F</chk><mix>F</mix></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><mix>F</mix></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><mix>F</mix></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><mix>F</mix></w2:row>';
+    strDataList += '</w2:data>';
+    strDataList += '</w2:dataList>';
+    // dataList 는 dynamicCreate 미지원 → $p.data.create(strXml) 로 생성
+    $p.data.create(strDataList);
+
+    // 조건 설정 - checkAllType
+    let checkAllTypeText = con_checkAllType.getText();
+    let checkAllTypeAttr = checkAllTypeText === '' ? '' : 'checkAllType="' + checkAllTypeText + '" ';
+
+    // target 생성 (사용자 정의 gridView: chk Column = 모두 checkbox, mix Column = 행별로 inputType 혼합)
+    // usePartialCheck=true : 일부선택 시 indeterminate=true 로 시각 구분 (전체선택/일부선택/전체해제 3 case 구분)
+    let strTarget = '';
+    // setCellInputTypeCustom=true → setCellInputType API 로 row별 inputType 변경 가능
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + checkAllTypeAttr + 'setCellInputTypeCustom="true" dataList="data:dlt_bind" id="" style="width:600px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="checkAllType 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" inputType="checkbox" id="chk" usePartialCheck="true" value="chk"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="checkbox" id="mix" usePartialCheck="true" value="mix"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" inputType="checkbox" id="chk"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="custom" id="mix"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // mix Column 의 row 별 inputType 설정 (custom column 에 대해 row 별로 inputType 변경)
+    target1.setCellInputType(0, "mix", {inputType: "checkbox"});
+    target1.setCellInputType(1, "mix", {inputType: "radio"});
+    target1.setCellInputType(2, "mix", {inputType: "text"});
+    target1.setCellInputType(3, "mix", {inputType: "checkbox"});
+
+    // Row 1 disabled, Row 2 readOnly 설정 (chk, mix Column 모두)
+    target1.setCellDisabled(1, "chk", true);
+    target1.setCellDisabled(1, "mix", true);
+    target1.setCellReadOnly(2, "chk", true);
+    target1.setCellReadOnly(2, "mix", true);
+
+    // Header checkbox 클릭 시 체크 이미지 상태 출력
+    //  - 전체선택   : background-image = url(ico_check_on.svg)
+    //  - 일부선택   : indeterminate=true (native indeterminate 표시, background-image=none)
+    //  - 전체해제   : background-image=none, indeterminate=false
+    let bindHeaderCheckImage = function (colId) {
+        let headerInput = document.querySelector("#" + target1.id + "_" + colId + " input[type='checkbox']");
+        if (!headerInput) return;
+        headerInput.addEventListener('click', function () {
+            setTimeout(function () {
+                let bgImage = window.getComputedStyle(headerInput).backgroundImage;
+                let imgState;
+                if (headerInput.indeterminate) {
+                    imgState = "일부선택 이미지 (indeterminate)";
+                } else if (bgImage !== "none") {
+                    // url("http://.../ico_check_on.svg") → 파일명만 추출
+                    let fileName = bgImage.replace(/.*\/([^\/")]+)["')].*/, "$1");
+                    imgState = "전체선택 이미지 (" + fileName + ")";
+                } else {
+                    imgState = "전체해제 이미지 (background-image none)";
+                }
+                wf_body_bottom.getObj("scwin").setReturnValue(colId + " Header : " + imgState);
+            }, 50);
+        });
+    };
+    bindHeaderCheckImage("chk");
+    bindHeaderCheckImage("mix");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkAllType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkAllType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[include]]></xf:label>
+												<xf:value><![CDATA[include]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[exclude]]></xf:label>
+												<xf:value><![CDATA[exclude]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

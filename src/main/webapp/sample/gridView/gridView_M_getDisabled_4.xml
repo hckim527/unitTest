@@ -3,7 +3,7 @@
 	xmlns:xf="http://www.w3.org/2002/xforms">
 	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
 		<w2:historyInfo>
-			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260311" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260528" meta_user="InswaveSystems"></w2:history>
 		</w2:historyInfo>
 		<w2:type>COMPONENT</w2:type>
 		<w2:buildDate />
@@ -16,11 +16,9 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    &quot;description&quot; : &quot;[gridView &gt; M &gt; setRowNumVisible]&lt;br/&gt;GridView 컴포넌트의 rowNumVisible 속성을 설정합니다.&quot;,
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; getDisabled]&lt;br/&gt;파라미터에 맞게 특정 단위의 비활성화(disabled) 상태를 true/false 로 반환합니다.&quot;,
     &quot;validation&quot; : [
-        &quot;visible 파라미터를 true 로 설정 시 Row 의 번호를 나타내는 Column 을 왼쪽 첫번째에 표시하여야 합니다.&quot;,
-        &quot;visible 파라미터를 false 로 설정 시 Row 의 번호를 나타내는 Column 을 표시하지 않아야 합니다.&quot;,
-        &quot;DrillDown 기능이나 필터로 화면에 표시되지 않는 Row 는 번호를 갖지 않아야 합니다.&quot;,
+        &quot;colInfo(필수) 파라미터로 type 파라미터값이 'column' 일때 비활성화(disabled) 상태를 조회할 Column 과 Cell 의 ID 를 설정할 수 있어야 합니다.&quot;,
     ]
 }
 
@@ -50,11 +48,13 @@ scwin.comp_init = async function () {
         target1.remove();
     }
 
-    // 조건 설정
+    $c.gcm.createLabel('label=&quot;Column col1 → setColumnDisabled(true) / Column col3 → setColumnDisabled(false) / 그 외 Column 은 미설정&quot;', '', 'label1');
+
+    // 조건 설정 (disabled/readonly Cell 을 배경색으로 구분: disabled=회색, readonly=연노랑)
     let properties = {
-        rowNumVisible: true,
-        rowNumHeaderValue: &quot;No.&quot;,   
         dataList: &quot;data:dlt_bind&quot;,
+        disabledBackgroundColor: &quot;#D3D3D3&quot;,
+        readOnlyBackgroundColor: &quot;#FFF8DC&quot;,
     };
 
     let cList = $c.gcm.createCList(properties);
@@ -63,23 +63,21 @@ scwin.comp_init = async function () {
     $c.gcm.createBasicDataList('', '', 'dlt_bind');
 
     // target 생성
-    $c.gcm.createBasicGridView(cList);
+    await $c.gcm.createBasicGridView(cList);
+
+    // Column(column) 단위 disabled 설정 (type='column' 검증, colInfo=ID)
+    target1.setColumnDisabled(&quot;col1&quot;, true);   // Column col1 단위 true (ID)
+    target1.setColumnDisabled(&quot;col3&quot;, false);  // Column col3 단위 false (ID)
 }
 
 
 
-scwin.btn_setRowNumVisible_onclick = function () {
-    let visible = par_visible.getText() === &quot;true&quot;;
+scwin.btn_getDisabled_onclick = function () {
+    let colInfo = par_colInfo.getValue();
 
-    target1.setRowNumVisible(visible);
-    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setRowNumVisible(&quot; + visible + &quot;)&quot;);
-
-    // RowNum 헤더 표시 여부 (offsetWidth 기반, 레이아웃 반영 대기 후 측정)
-    setTimeout(function () {
-        let rowNumHeader = target1.render.querySelector(&quot;[id$='__headerRowNumber']&quot;);
-        let isVisible = rowNumHeader &amp;&amp; rowNumHeader.offsetWidth &gt; 0;
-        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;RowNum 컬럼 표시 (offsetWidth) : &quot; + isVisible);
-    }, 500);
+    // column 단위는 type, colInfo(ID) 전달
+    let rtn = target1.getDisabled(&quot;column&quot;, colInfo);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getDisabled('column', '&quot; + colInfo + &quot;') : &quot; + rtn);
 }</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -107,30 +105,47 @@ scwin.btn_setRowNumVisible_onclick = function () {
 							</xf:group>
 							<xf:group style="" tagname="tr">
 								<xf:group class="w2tb_th" style="" tagname="th">
-									<w2:textbox class="" id="" label="visible" ref="" style="" userData2=""></w2:textbox>
+									<w2:textbox class="" id="" label="colInfo" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
 									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
-										disabledClass="w2selectbox_disabled" id="par_visible" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto"
-										value="value">
+										disabledClass="w2selectbox_disabled" id="par_colInfo" ref="" style="" submenuSize="auto">
 										<xf:choices>
-											<xf:itemset nodeset="data:gdl_boolean">
-												<xf:label ref="label"></xf:label>
-												<xf:value ref="value"></xf:value>
-											</xf:itemset>
+											<xf:item>
+												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:value><![CDATA[col1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:value><![CDATA[col2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:value><![CDATA[col3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:value><![CDATA[col4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[noExistCol (잘못된 ID)]]></xf:label>
+												<xf:value><![CDATA[noExistCol]]></xf:value>
+											</xf:item>
 										</xf:choices>
 									</xf:select1>
 								</xf:group>
 								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 							</xf:group>
 						</xf:group>
 					</xf:group>
 					<xf:group style="" id="grp_etc">
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setRowNumVisible_onclick" id="btn_setRowNumVisible"
-							label="setRowNumVisible" style="">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDisabled_onclick" id="btn_getDisabled"
+							label="getDisabled('column', colInfo)" style="">
 						</w2:button>
 					</xf:group>
 				</xf:group>

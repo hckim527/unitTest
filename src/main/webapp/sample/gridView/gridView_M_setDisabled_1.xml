@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260528" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; setDisabled]&lt;br/&gt;파라미터에 맞게 특정 단위의 disabled 속성값을 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;type 파라미터값이 'grid' 이면 GridView 의 disabled 속성값을 설정해야 합니다.&quot;,
+        &quot;type 파라미터값이 'row' 이면 Row 단위의 disabled 속성값을 설정하며 setRowDisabled() 메소드와 동일하게 동작해야 합니다.&quot;,
+        &quot;type 파라미터값이 'column' 이면 Column 단위의 disabled 속성값을 설정하며 setColumnDisabled() 메소드와 동일하게 동작해야 합니다.&quot;,
+        &quot;type 파라미터값이 'cell' 이면 Cell 단위의 disabled 속성값을 설정하며 setCellDisabled() 메소드와 동일하게 동작해야 합니다.&quot;,
+        &quot;rowIndex(필수) 파라미터로 type 파라미터값이 'row','cell' 일때 disabled 속성을 설정할 Row 의 인덱스를 설정할 수 있어야 합니다. (Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.)&quot;,
+        &quot;colInfo(필수) 파라미터로 type 파라미터값이 'column','cell' 일때 disabled 속성을 설정할 Column 과 Cell 의 인덱스를 설정할 수 있어야 합니다. (Column 의 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.)&quot;,
+        &quot;disabled 파라미터를 true 로 설정 시 type 파라미터값에 해당하는 단위를 비활성화(disabled) 상태로 설정해야 합니다.&quot;,
+        &quot;disabled 파라미터를 false 로 설정 시 type 파라미터값에 해당하는 단위의 비활성화(disabled) 상태를 해제해야 합니다.&quot;,
+        &quot;disabled 파라미터를 '' 로 설정 시 상위 모듈의 비활성화(disabled) 상태가 적용되어야 합니다. (type 파라미터값이 'grid' 인 경우 설정할 수 없습니다.)&quot;,
+        &quot;disabled(선택) 파라미터 생략 시 기본값 false 로 동작해야 합니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label=&quot;type(grid/row/column/cell) 별 setDisabled 후 getDisabled 로 결과 확인 / 우선순위 : GridView, [Row 또는 Column], Cell 순 (Cell 최우선) / Column 1 → 숨김 (숨겨진 Column 도 인덱스 포함)&quot;', '', 'label1');
+
+    // 조건 설정 (disabled Cell 을 배경색으로 구분: disabled=회색, readonly=연노랑)
+    let properties = {
+        dataList: &quot;data:dlt_bind&quot;,
+        disabledBackgroundColor: &quot;#D3D3D3&quot;,
+        readOnlyBackgroundColor: &quot;#FFF8DC&quot;,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // dataList 생성
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList);
+
+    // 두번째 컬럼 숨김 (숨겨진 Column 도 인덱스에 포함됨을 검증)
+    target1.setColumnVisible(1, false);
+}
+
+
+
+scwin.btn_setDisabled_onclick = function () {
+    let type = par_type.getValue();
+    let rowIndex = Number(par_rowIndex.getText());
+    let colInfo = Number(par_colInfo.getText());
+    let disabledText = par_disabled.getValue();
+
+    // disabled 파라미터 값 결정 (true / false / '' / 생략)
+    if (disabledText === 'omit') {
+        // 파라미터 생략 → 기본값 false
+        if (type === 'grid') {
+            target1.setDisabled(type);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('grid')&quot;);
+        } else if (type === 'row') {
+            target1.setDisabled(type, rowIndex);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('row', &quot; + rowIndex + &quot;)&quot;);
+        } else if (type === 'column') {
+            target1.setDisabled(type, colInfo);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('column', &quot; + colInfo + &quot;)&quot;);
+        } else {
+            target1.setDisabled(type, rowIndex, colInfo);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('cell', &quot; + rowIndex + &quot;, &quot; + colInfo + &quot;)&quot;);
+        }
+    } else {
+        // true / false / '' (빈 문자열) 설정
+        let disabled = (disabledText === 'true') ? true : (disabledText === 'false') ? false : &quot;&quot;;
+
+        if (type === 'grid') {
+            // grid 는 '' 설정 불가 → 가이드 명시
+            if (disabled === &quot;&quot;) {
+                wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;type 'grid' 인 경우 disabled '' 설정 불가&quot;);
+                return;
+            }
+            target1.setDisabled(type, disabled);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('grid', &quot; + disabled + &quot;)&quot;);
+        } else if (type === 'row') {
+            target1.setDisabled(type, rowIndex, disabled);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('row', &quot; + rowIndex + &quot;, &quot; + JSON.stringify(disabled) + &quot;)&quot;);
+        } else if (type === 'column') {
+            target1.setDisabled(type, colInfo, disabled);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('column', &quot; + colInfo + &quot;, &quot; + JSON.stringify(disabled) + &quot;)&quot;);
+        } else {
+            target1.setDisabled(type, rowIndex, colInfo, disabled);
+            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setDisabled('cell', &quot; + rowIndex + &quot;, &quot; + colInfo + &quot;, &quot; + JSON.stringify(disabled) + &quot;)&quot;);
+        }
+    }
+
+    scwin.btn_getDisabled_onclick();
+}
+
+
+
+scwin.btn_getDisabled_onclick = function () {
+    let type = par_type.getValue();
+    let rowIndex = Number(par_rowIndex.getText());
+    let colInfo = Number(par_colInfo.getText());
+
+    // 설정한 단위(type) 의 disabled 상태 조회
+    if (type === 'grid') {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getDisabled('grid') : &quot; + target1.getDisabled(&quot;grid&quot;));
+    } else if (type === 'row') {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getDisabled('row', &quot; + rowIndex + &quot;) : &quot; + target1.getDisabled(&quot;row&quot;, rowIndex));
+    } else if (type === 'column') {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getDisabled('column', &quot; + colInfo + &quot;) : &quot; + target1.getDisabled(&quot;column&quot;, colInfo));
+    } else {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getDisabled('cell', &quot; + rowIndex + &quot;, &quot; + colInfo + &quot;) : &quot; + target1.getDisabled(&quot;cell&quot;, rowIndex, colInfo));
+    }
+
+    // 전체 셀의 실제 적용 disabled 상태 격자 출력 (getDisabled('all', r, c))
+    let rowCount = dlt_bind.getRowCount();
+    let colCount = target1.getColumnCount();
+    for (let r = 0; r &lt; rowCount; r++) {
+        let states = [];
+        for (let c = 0; c &lt; colCount; c++) {
+            states.push(&quot;c&quot; + c + &quot;=&quot; + target1.getDisabled(&quot;all&quot;, r, c));
+        }
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;Row&quot; + r + &quot; : &quot; + states.join(&quot;, &quot;));
+    }
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="type" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[grid]]></xf:label>
+												<xf:value><![CDATA[grid]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[row]]></xf:label>
+												<xf:value><![CDATA[row]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[column]]></xf:label>
+												<xf:value><![CDATA[column]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cell]]></xf:label>
+												<xf:value><![CDATA[cell]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_colInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (숨김)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[99 (없는 인덱스)]]></xf:label>
+												<xf:value><![CDATA[99]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="disabled" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_disabled" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[""(Empty String)]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[생략]]></xf:label>
+												<xf:value><![CDATA[omit]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setDisabled_onclick" id="btn_setDisabled"
+							label="setDisabled" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDisabled_onclick" id="btn_getDisabled"
+							label="getDisabled" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

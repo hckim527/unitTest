@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260528" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > checkOnCellClick]<br/>inputType='checkbox','radio' 일때 CheckBox/Radio 영역이 아닌 Cell 영역 클릭으로 선택 상태를 변경할지 설정합니다.",
+    "validation" : [
+        "true 설정 시 CheckBox/Radio 영역이 아닌 Cell 영역(td 요소)을 클릭했을때도 Cell 의 상태값을 변경하고 oncellclick 이벤트가 발생합니다.",
+        "false (default) 설정 시 CheckBox/Radio 영역을 클릭한 경우만 Cell 의 상태값을 변경하고 oncellclick 이벤트가 발생합니다.",
+        "Body Cell 의 inputType='checkbox' 이면 Cell 의 체크 상태값이 토글됩니다.",
+        "Body Cell 의 inputType='radio' 이면 클릭된 Cell 만 선택 상태로 설정되고 동일 Column 의 다른 Cell 의 선택 상태는 해제됩니다.",
+        "비활성화(disabled) 상태이거나 읽기전용(readonly) 상태인 Body Cell 엔 적용되지 않습니다. 단, 읽기전용(readonly) 상태인 Body Cell 은 checkboxRadioOnCellClick 속성에 의해 oncellclick 이벤트가 발생할 수 있습니다.",        
+        "미설정 시 기본값 false 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등 공통 데이터리스트 생성)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼이 호출)
+//  - con_ 옵션값으로 properties 구성 → gridView 1개(target1) 동적 재생성
+//  - Row 0 : disabled (chk, rdo Cell 모두) → Cell 영역 클릭 미적용
+//  - Row 1 : readonly (chk, rdo Cell 모두) → Cell 영역 클릭으로 상태 변경 미적용
+//            단, readonly Cell 은 checkboxRadioOnCellClick='true' 에 의해 oncellclick 발생 가능
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof lbl_info !== 'undefined') {
+        lbl_info.remove();
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 안내 라벨 동적 생성 (Row 0 disabled / Row 1 readOnly 정보)
+    let lblCList = $c.gcm.createCList({ label: "Row 0 = disabled / Row 1 = readOnly / Row 2~3 = enable (chk, rdo Cell 모두)" });
+    await $c.gcm.createLabel(lblCList, '', 'lbl_info');
+
+    // dataList 생성 (3 row, 컬럼: chk, rdo) - 정적 유지
+    // dataList 는 dynamicCreate 미지원 → $p.data.create(strXml) 로 생성
+    let strDataList = '<w2:dataList ' + strNameSpace + ' baseNode="list" id="dlt_bind" repeatNode="map" useStatusValue="true">';
+    strDataList += '<w2:columnInfo>';
+    strDataList += '<w2:column dataType="text" id="chk" inputType="text" name="chk"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="rdo" inputType="text" name="rdo"></w2:column>';
+    strDataList += '</w2:columnInfo>';
+    strDataList += '<w2:data use="true">';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo></w2:row>';
+    strDataList += '</w2:data>';
+    strDataList += '</w2:dataList>';
+    $p.data.create(strDataList);
+
+    // 조건 설정 - con_ selectbox 는 gdl_boolean itemset → getText() 로 "true"/"false"/"" 읽기
+    //  (getValue 는 1/2/3 enum 을 반환하므로 사용 불가)
+    //  미설정(getText()="") 시 해당 속성 미부여 → 기본값 동작
+    let properties = {};
+
+    let checkOnCellClickText = con_checkOnCellClick.getText();
+    if (checkOnCellClickText !== "") properties.checkOnCellClick = checkOnCellClickText;
+
+    let checkboxRadioOnCellClickText = con_checkboxRadioOnCellClick.getText();
+    if (checkboxRadioOnCellClickText !== "") properties.checkboxRadioOnCellClick = checkboxRadioOnCellClickText;
+
+    // properties → cList ('key="value"' 문자열), eList → ev:oncellclick 핸들러
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["oncellclick"]);
+
+    // target 생성 (chk Column = checkbox, rdo Column = radio)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' checkAllType="false" dataList="data:dlt_bind" id="" style="width:500px;height:200px;" disabledBackgroundColor="#D3D3D3" readOnlyBackgroundColor="#F0F0F0">';
+    strTarget += '<w2:caption style="" id="caption1" value="checkOnCellClick 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" inputType="text" id="column1" value="chk (checkbox)"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="text" id="column2" value="rdo (radio)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" inputType="checkbox" id="chk"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="radio" id="rdo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // Row 0 disabled, Row 1 readOnly 설정 (chk, rdo Column 모두) - disabled/readonly 검증용
+    target1.setCellDisabled(0, "chk", true);
+    target1.setCellDisabled(0, "rdo", true);
+    target1.setCellReadOnly(1, "chk", true);
+    target1.setCellReadOnly(1, "rdo", true);
+}
+
+
+
+// oncellclick 이벤트 핸들러
+//  - 클릭된 Cell 의 row/column 정보와 클릭 후 체크 상태값(getCellChecked)을 출력
+//  - checkbox 토글 / radio 단일 선택 / disabled,readonly 미적용 검증
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====target1_oncellclick=====");
+    wf_body_bottom.getObj("scwin").setReturnValue("rowIndex : " + rowIndex + ", columnIndex : " + columnIndex + ", columnId : " + columnId);    
+    wf_body_bottom.getObj("scwin").setReturnValue("getCellChecked (변경된 상태값) : " + target1.getCellChecked(rowIndex, columnId));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkOnCellClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkOnCellClick" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkboxRadioOnCellClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkboxRadioOnCellClick" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
