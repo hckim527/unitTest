@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] focusMode" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > focusMode]<br/>GridView 컴포넌트의 Body 또는 Footer 영역 선택 시 포커스 되는 형식을 설정합니다.",
+    "validation" : [
+        "focusMode='none' 이면 선택 영역에 포커스 처리가 되지 않으며, GridView 최상위 div 요소에 tabIndex='0' 을 설정하지 않습니다. ('none' 이외(cell/row/both)이면 최상위 div 에 tabIndex='0' 이 설정됩니다.)",
+        "focusMode='none' 이면 inputType='checkbox','radio' 인 Cell 에 tabIndex='-1' 을 설정하지 않습니다.",
+        "focusMode='none' 이고 senseReader=true 이면 inputType='text','secret','textImage' 인 Cell 은 readOnly=true 로 설정됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - con_focusMode(none/cell) 와 con_senseReader(true/false) 선택값으로 GridView 동적 생성
+//  - 컬럼: checkbox / radio / text / secret / textImage (각 inputType 의 tabIndex/readOnly 확인용)
+//  - focusMode='none' → 최상위 div tabIndex 미설정, checkbox/radio Cell input tabIndex 미설정,
+//    senseReader=true 면 text/secret/textImage Cell readOnly=true
+//  - 비교용으로 con 에서 focusMode='cell' 또는 senseReader=false 선택 후 Target 재생성 시 차이 확인
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 조건값 읽기 (focusMode, senseReader)
+    let focusModeText = con_focusMode.getText();
+    let senseReaderText = con_senseReader.getText();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="focusMode=' + focusModeText + ' / senseReader=' + senseReaderText + ' 로 GridView 생성 (컬럼: checkbox / radio / text / secret / textImage)"', '', 'label1');
+
+    // dataList 생성 (senseReader 시 text/secret/textImage 가 embeddedInput 으로 그려지도록 컬럼 구성)
+    let strDataList = '<w2:dataList ' + strNameSpace + ' baseNode="list" id="dlt_bind" repeatNode="map" useStatusValue="true">';
+    strDataList += '<w2:columnInfo>';
+    strDataList += '<w2:column dataType="text" id="chk" inputType="text" name="chk"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="rdo" inputType="text" name="rdo"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="txt" inputType="text" name="txt"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="sec" inputType="text" name="sec"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="timg" inputType="text" name="timg"></w2:column>';
+    strDataList += '</w2:columnInfo>';
+    strDataList += '<w2:data use="true">';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo><txt>aaa</txt><sec>bbb</sec><timg>ccc</timg></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo><txt>ddd</txt><sec>eee</sec><timg>fff</timg></w2:row>';
+    strDataList += '</w2:data>';
+    strDataList += '</w2:dataList>';
+    // dataList 는 dynamicCreate 미지원 → $p.data.create(strXml) 로 생성
+    $p.data.create(strDataList);
+
+    // 조건 설정 - focusMode, senseReader
+    let focusModeAttr = focusModeText === '' ? '' : 'focusMode="' + focusModeText + '" ';
+    let senseReaderAttr = senseReaderText === '' ? '' : 'senseReader="' + senseReaderText + '" ';
+
+    // target 생성 (checkbox / radio / text / secret / textImage 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + focusModeAttr + senseReaderAttr + 'checkAllType="false" dataList="data:dlt_bind" id="" style="width:640px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="focusMode 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" inputType="text" id="chk" value="checkbox"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="rdo" value="radio"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="txt" value="text"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="sec" value="secret"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="timg" value="textImage"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" inputType="checkbox" id="chk"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="radio" id="rdo"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="txt"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="secret" id="sec"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="textImage" id="timg" imageSrc="/cmm/images/btn/btn_search.png"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 검증 확인 : 현재 GridView 의 focusMode/senseReader 에 따른
+//  1) 최상위 div(target1.render) 의 tabIndex 속성값 (none → 미설정, cell → 0)
+//  2) checkbox/radio Cell input 의 tabIndex 속성값 (none → 미설정)
+//  3) text/secret/textImage Cell 의 readOnly 상태 (none + senseReader=true → true)
+scwin.btn_checkFocusMode_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let mode = target1.options.focusMode;
+    let senseReader = target1.options.senseReader;
+    bottom.setReturnValue("[현재 설정] focusMode=" + mode + " / senseReader=" + senseReader);
+
+    // 1) 최상위 div tabIndex
+    let topDiv = target1.render;
+    let topTabIndex = topDiv.hasAttribute("tabIndex") ? topDiv.getAttribute("tabIndex") : "(미설정)";
+    bottom.setReturnValue("[최상위 div tabIndex] " + topTabIndex);
+
+    // 2) checkbox / radio Cell input tabIndex
+    let chkInput = document.querySelector("td[id*='" + topDiv.id + "_cell_0_0'] input[type='checkbox']");
+    let rdoInput = document.querySelector("td[id*='" + topDiv.id + "_cell_0_1'] input[type='radio']");
+    let chkTab = chkInput ? (chkInput.hasAttribute("tabIndex") ? chkInput.getAttribute("tabIndex") : "(미설정)") : "(input 없음)";
+    let rdoTab = rdoInput ? (rdoInput.hasAttribute("tabIndex") ? rdoInput.getAttribute("tabIndex") : "(미설정)") : "(input 없음)";
+    bottom.setReturnValue("[checkbox Cell input tabIndex] " + chkTab);
+    bottom.setReturnValue("[radio Cell input tabIndex] " + rdoTab);
+
+    // 3) text / secret / textImage Cell 의 readOnly 상태
+    //    senseReader=true + focusMode='none' 이면 엔진이 해당 Cell 에 readOnly=true 를 적용 →
+    //    td 에 'w2grid_default_readonly' 클래스가 부여되므로 이를 readOnly 적용 여부로 확인
+    let isCellReadOnly = function (colIndex) {
+        let td = document.querySelector("td[id*='" + topDiv.id + "_cell_0_" + colIndex + "']");
+        return td ? (td.className.indexOf("w2grid_default_readonly") >= 0) : "(cell 없음)";
+    };
+    bottom.setReturnValue("[text Cell readOnly] " + isCellReadOnly(2));
+    bottom.setReturnValue("[secret Cell readOnly] " + isCellReadOnly(3));
+    bottom.setReturnValue("[textImage Cell readOnly] " + isCellReadOnly(4));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMode" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>cell</xf:label>
+												<xf:value>cell</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="senseReader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFocusMode_onclick" id="btn_checkFocusMode"
+							label="검증 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

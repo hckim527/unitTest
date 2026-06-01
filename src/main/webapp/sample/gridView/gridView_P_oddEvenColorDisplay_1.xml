@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oddEvenColorDisplay" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > oddEvenColorDisplay]<br/>GridView 컴포넌트의 홀수/짝수 Row 에 서로 다른 배경색을 적용할지 설정합니다.",
+    "validation" : [
+        "GridView 컴포넌트의 홀수/짝수 Row 에 서로 다른 배경색을 적용할지 설정합니다.",
+        "true 일때 oddRowBackgroundColor 가 (Row 인덱스 % 2)==0 인 Row 에, evenRowBackgroundColor 가 (Row 인덱스 % 2)==1 인 Row 에 적용됩니다.",
+        "false(기본값) 일때 홀수/짝수 Row 에 배경색을 적용하지 않으며, oddRowBackgroundColor / evenRowBackgroundColor 가 설정되어 있어도 적용되지 않습니다.",
+        "일반적으로 config.xml 의 'gridView' 항목에 관련 속성이 미리 설정되며, config.xml 에 값이 설정된 경우 스튜디오에서 값을 생략해도 기본값이 아니라 config.xml 값이 적용됩니다.",
+        "oddRowBackgroundColor, evenRowBackgroundColor 속성값은 tr 요소의 style 속성에 background-color 로 적용되므로, td 요소나 td.gridBodyDefault CSS 클래스에 background-color 로 배경색이 정의된 경우 tr 요소의 background-color 값을 덮어써 홀수/짝수 Row 의 배경색이 적용되지 않은 것처럼 보일 수 있으니 주의해야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정
+    //  - oddRowBackgroundColor(#e0f7fa) / evenRowBackgroundColor(#ffe0b2) 는 본 샘플 관찰을 위해 둘 다 하드코딩
+    //  - oddEvenColorDisplay 는 con 콤보(미설정/true/false)로 선택, true 일때만 홀짝 색 적용
+    //  - [실측/결함] 엔진은 if(options.oddEvenColorDisplay) 로 truthy 판정(layoutController.setInitialCSS,
+    //    drawController.setEvenOddBackground)하여 색을 렌더 시점에 1회 적용한다. 따라서 속성 문자열 'false'
+    //    도 truthy 라 false 가 미적용되지 않는다([[project_focusimage_false_string_defect]] 동류).
+    //    또한 config.xml 의 gridView > oddEvenColorDisplay 기본값이 'true' 이므로(@spec1), 속성을 생략(미설정)하면
+    //    config 의 true 가 우선 적용되어 색이 표시된다.
+    //  - 본 샘플은 con 값을 boolean 으로 변환하여 true 일 때만 속성을 부여하고,
+    //    false 선택 시에는 생성 후 options 를 boolean false 로 보정 + 렌더된 색을 제거하여 '미적용'을 실측 확인한다.
+    let dispText = con_oddEvenColorDisplay.getText();          // '', 'true', 'false'
+    let dispBool = (dispText === 'true');
+
+    let properties = {
+        dataList               : "data:dlt_bind",
+        oddRowBackgroundColor  : "#e0f7fa",
+        evenRowBackgroundColor : "#ffe0b2"
+    };
+    //  - true 일 때만 properties 에 'true' 부여 (false / 미설정은 미부여)
+    if (dispBool) {
+        properties.oddEvenColorDisplay = "true";
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblDisp = (dispText === '') ? '미설정(config.xml 기본값 true 적용)' : dispText;
+    $c.gcm.createLabel('label="oddRowBackgroundColor=#e0f7fa / evenRowBackgroundColor=#ffe0b2 고정, oddEvenColorDisplay=' + lblDisp + ' 로 생성 (true → idx%2==0 Row=odd 색 / idx%2==1 Row=even 색)"', '', 'label1');
+
+    // dataList 생성 (4 Row, col1~col4 컬럼 구성)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList);
+
+    // boolean 보정: con 값이 'false' 인 경우, 문자열 'false' truthy 결함 + config 기본값 'true' 때문에
+    //  색이 표시되므로, options 를 boolean false 로 보정하고 렌더된 odd/even 색(tr inline style + .oddTd/.evenTd
+    //  CSS rule)을 제거하여 '미적용' 상태를 만든다. (true / 미설정은 보정하지 않음)
+    if (dispText === 'false') {
+        target1.options.oddEvenColorDisplay = false;
+        scwin.clearOddEvenColor(target1.id);
+    }
+
+    // 그리드 생성 직후, 각 Row 의 tr background-color 를 자동 출력하여 적용 여부 / 인덱스 규칙 확인
+    scwin.showRowBgColors();
+}
+
+
+
+// oddEvenColorDisplay=false 보정 시 렌더된 odd/even 색을 제거
+//  - 엔진이 layoutController.setInitialCSS 에서 추가한 '#gridId .oddTd' / '#gridId .evenTd' CSS rule 과
+//    drawController.setEvenOddBackground 가 부여한 tr inline backgroundColor 를 모두 제거
+scwin.clearOddEvenColor = function (gridId) {
+    // tr inline backgroundColor 제거
+    for (let r = 0; r < 4; r++) {
+        let td = document.querySelector("td[id*='" + gridId + "_cell_" + r + "_0']");
+        if (td && td.parentNode) td.parentNode.style.backgroundColor = '';
+    }
+    // .oddTd / .evenTd CSS rule 제거
+    for (let s = 0; s < document.styleSheets.length; s++) {
+        let sheet = document.styleSheets[s];
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        if (!rules) continue;
+        for (let i = rules.length - 1; i >= 0; i--) {
+            let sel = rules[i].selectorText || '';
+            if (sel.indexOf('#' + gridId) >= 0 && (sel.indexOf('.oddTd') >= 0 || sel.indexOf('.evenTd') >= 0)) {
+                sheet.deleteRule(i);
+            }
+        }
+    }
+}
+
+
+
+// 각 Body Row 의 tr 요소 computed background-color 를 자동 출력
+//  - @spec2: 색상은 tr style 에 적용되므로 tr 요소에서 읽음
+//  - true → row0,2(idx%2==0)=oddRowBackgroundColor(#e0f7fa), row1,3(idx%2==1)=evenRowBackgroundColor(#ffe0b2)
+//  - false → boolean 보정으로 색 제거 → 미적용 (tr 기본색/투명)
+//  - 미설정 → @spec1: config.xml 기본값 true 가 적용되어 odd/even 색이 표시됨
+scwin.showRowBgColors = function () {
+    // 출력 전 clear
+    wf_body_bottom.getObj("scwin").btn_clear_onclick();
+
+    let dispText = con_oddEvenColorDisplay.getText();
+    wf_body_bottom.getObj("scwin").setReturnValue("oddEvenColorDisplay=" + (dispText || '미설정') + " / oddRowBackgroundColor=#e0f7fa / evenRowBackgroundColor=#ffe0b2");
+
+    // tr background-color 는 렌더 직후 반영되므로 다음 tick 에서 read (tr 은 첫 셀 td 의 parentNode)
+    setTimeout(function () {
+        let out = [];
+        for (let r = 0; r < 4; r++) {
+            let td = document.querySelector("td[id*='mf_target1_cell_" + r + "_0']");
+            let tr = td ? td.parentNode : null;
+            let bg = tr ? window.getComputedStyle(tr).backgroundColor : "(tr 없음)";
+            out.push("Row" + r + "(" + ((r % 2 == 1) ? "even" : "odd") + ")=" + bg);
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue(out.join(" / "));
+    }, 0);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* odd/even Row 색이 시각적으로 보이도록 Body 데이터 td 배경을 투명 처리 */
+/*  - odd/even 색은 tr style 에 적용되나 td(gridBodyDefault) 흰 배경이 가려(@spec2) 안 보이므로, */
+/*    데이터 td 를 transparent 로 두어 tr 의 odd/even 색이 비쳐 보이게 함 */
+td.gridBodyDefault { background-color: transparent !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="oddEvenColorDisplay" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_oddEvenColorDisplay" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

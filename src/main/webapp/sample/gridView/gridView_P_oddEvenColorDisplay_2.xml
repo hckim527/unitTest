@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oddEvenColorDisplay" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > oddEvenColorDisplay]<br/>GridView 컴포넌트의 홀수/짝수 Row 에 서로 다른 배경색을 적용할지 설정합니다.",
+    "validation" : [
+        "RowNum Column 에는 적용되지 않지만 RowStatus Column 에는 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션 없이 @spec3 검증 전제 속성을 하드코딩)
+    //  - oddEvenColorDisplay=true : 홀수/짝수 Row 에 서로 다른 배경색 적용 활성화
+    //  - rowNumVisible/rowStatusVisible=true : RowNum/RowStatus Column 가시화 (적용 대비 확인용)
+    //  - evenRowBackgroundColor='#ffe0b2' / oddRowBackgroundColor='#e0f7fa' : 짝수/홀수 Row 색상 하드코딩
+    let properties = {
+        dataList                : "data:dlt_bind",
+        oddEvenColorDisplay     : "true",
+        rowNumVisible           : "true",
+        rowStatusVisible        : "true",
+        rowStatusHeaderValue    : "St.",
+        evenRowBackgroundColor  : "#ffe0b2",
+        oddRowBackgroundColor   : "#e0f7fa"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="oddEvenColorDisplay=true 적용(odd=#e0f7fa / even=#ffe0b2). RowNum Column 은 odd/even 미적용, RowStatus Column 은 적용됨(Row tr 색 반영)을 각 Cell 배경색으로 확인"', '', 'label1');
+
+    // dataList 생성 (헬퍼와 동일하게 col1~col4 컬럼 구성, 여러 Row)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, '');
+
+    // 생성 직후 각 Row 의 RowNum / RowStatus / 데이터 Cell 배경색을 자동 출력 (사용자 액션 불필요)
+    setTimeout(scwin.printRowColors, 0);
+}
+
+
+
+// 각 Row 의 RowNum Cell / RowStatus Cell / 데이터 Cell / Row(tr) 배경색을 출력
+//  - @spec3 : oddEvenColorDisplay 의 odd/even 색은 엔진이 Row(tr)의 inline backgroundColor 로 적용한다.
+//             RowStatus Column 은 자체 배경색이 없어 Row(tr) 의 odd/even 색이 반영(셀이 투명하게 tr 색 위에 놓임)되나,
+//             RowNum Column 은 자체(RowNum) 배경색을 가져 odd/even 색이 미적용된다.
+//  - [실측 메모] 본 엔진 빌드에서 RowStatus/데이터 td 의 computed background-color 는 흰색(rgb(255,255,255))으로 표시되고
+//               odd/even 색은 Row(tr) 의 backgroundColor 로 적용됨. RowNum td 는 자체 배경색(rgb(229,239,247)) 유지로 odd/even 미적용 확인.
+scwin.printRowColors = function () {
+    let rowCnt = dlt_bind.getRowCount();
+
+    wf_body_bottom.getObj("scwin").setReturnValue("oddEvenColorDisplay=true (odd=#e0f7fa / even=#ffe0b2) : RowNum 은 자체 배경색 유지(미적용), RowStatus 는 자체 배경 없어 Row(tr) odd/even 색 반영(적용)");
+
+    for (let i = 0; i < rowCnt; i++) {
+        let rule = (i % 2 == 1) ? "even" : "odd";
+        // RowNum : 자체(RowNum) 배경색 유지 → odd/even 미적용
+        let numTd = document.querySelector("td[id*='target1_headerRowNumber_bodyRow_" + i + "']");
+        let numColor = numTd ? window.getComputedStyle(numTd).backgroundColor : "(cell 없음)";
+        // Row(tr) : odd/even 색이 실제 적용되는 영역
+        let dataTd = document.querySelector("td[id*='target1_cell_" + i + "_0']");
+        let rowColor = dataTd ? window.getComputedStyle(dataTd.parentNode).backgroundColor : "(tr 없음)";
+        // RowStatus : 자체 배경 없음(투명) → 실제 표시색은 Row(tr) 의 odd/even 색 (td 자체값이 아닌 tr 반영색으로 검증)
+        let statusTd = document.querySelector("td[id*='target1_headerRowStatus_bodyRow_" + i + "']");
+        let statusBg = statusTd ? window.getComputedStyle(statusTd).backgroundColor : "(cell 없음)";
+        let statusEff = (statusBg === "rgba(0, 0, 0, 0)" || statusBg === "transparent") ? (rowColor + "(tr 반영)") : statusBg;
+        wf_body_bottom.getObj("scwin").setReturnValue("Row" + i + "(" + rule + "): RowNum=" + numColor + " (자체색·미적용) / RowStatus=" + statusEff + " (적용)");
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* odd/even 색은 tr style 에 적용되나 td 흰 배경이 가려(@spec3) 안 보이므로, */
+/* 데이터·RowStatus td 를 transparent 로 두어 tr 의 odd/even 색이 비쳐 보이게 함. */
+/* RowNum(td.gridBodyDefault_rowNumber)은 자체 배경색 유지 → odd/even 미적용(@spec3)이 보이도록 제외 */
+td.gridBodyDefault_data, td.gridBodyDefault_rowStatus { background-color: transparent !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

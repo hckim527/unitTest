@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] rowMouseOverSkipColoredCells" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > rowMouseOverSkipColoredCells]<br/>마우스 포인터가 Body Row 에 오버될때 배경색이 정의된 Cell 에 대해 rowMouseOverColor 속성 적용을 제외할지 설정합니다. rowMouseOver='true' 인 경우에 동작합니다.",
+    "validation" : [
+        "마우스 포인터가 Body Row 에 오버될때 배경색이 정의된 Cell 에 대해 rowMouseOverColor 속성 적용을 제외할지 설정합니다.",
+        "rowMouseOver='true' 인 경우에 동작합니다.",
+        "true 설정 시, 오버 시 원본 배경색(inline/style 로 정의)이 정의된 Cell 엔 rowMouseOverColor 가 미적용됩니다. 단, CSS 클래스에 의해 배경색이 정의된 Cell 엔 rowMouseOverColor 가 적용됩니다.",
+        "false(default) 설정 시, 오버 시 전체 Cell 에 rowMouseOverColor 가 적용됩니다.",
+        "rowMouseOverClass 속성은 rowMouseOverSkipColoredCells 값에 관계없이 적용됩니다.",
+        "RowNum Column 은 rowMouseOverColor 가 적용되지 않으므로 rowMouseOverSkipColoredCells 도 적용되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    //  - rowMouseOver 는 본 속성(rowMouseOverSkipColoredCells) 동작 전제이므로 "true" 하드코딩
+    //  - rowMouseOverColor 는 오버 색상 식별을 위해 skyblue 하드코딩
+    //  - rowNumVisible 는 RowNum Column(@spec2) 확인을 위해 true 하드코딩
+    //  - rowMouseOverSkipColoredCells : con 콤보(gdl_boolean)로 미설정/true/false 선택 → getText() 로 "" / "true" / "false"
+    let properties = {
+        dataList                    : "data:dlt_bind",
+        rowMouseOver                : "true",
+        rowMouseOverColor           : "skyblue",
+        rowNumVisible               : "true",
+        rowMouseOverSkipColoredCells: con_rowMouseOverSkipColoredCells.getText()
+    };
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onbodymouseover"]);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblSkip = (properties.rowMouseOverSkipColoredCells === '') ? '미설정(default false)' : properties.rowMouseOverSkipColoredCells;
+    $c.gcm.createLabel('label="rowMouseOver=true / rowMouseOverColor=skyblue / rowNumVisible=true (고정) / rowMouseOverSkipColoredCells=' + lblSkip + ' 로 GridView 생성. col1=inline style 배경색(#ffd700) / col2=CSS 클래스 배경색(.bgClassCell #90ee90) / col3=배경색 없음 / RowNum Column 구성. Body Row 에 마우스를 오버하면 각 Cell 의 실제 배경색을 출력합니다. → true 시 inline 배경 Cell(col1) 엔 rowMouseOverColor 미적용(원본색 유지), CSS 클래스 배경 Cell(col2) 엔 적용, 배경 없는 Cell(col3) 엔 적용. RowNum 은 항상 미적용."', '', 'label1');
+
+    // dataList 생성 (헬퍼와 동일하게 col1~col4 컬럼 구성)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+
+    // 셀 배경색 3종 케이스 구성
+    //  - (A) col1 : inline style 로 배경색 정의 → td.style.backgroundColor 에 반영되어 or_bgColor 채워짐 → skip 대상
+    //  - (B) col2 : CSS 클래스(.bgClassCell)로 배경색 정의 → inline 미반영(or_bgColor 빈값) → skip 비대상(rowMouseOverColor 적용)
+    //  - (C) col3 : 배경색 미설정 → 항상 rowMouseOverColor 적용
+    target1.setColumnStyle("col1", "background-color", "#ffd700");
+    target1.setColumnClass("col2", "bgClassCell");
+}
+
+
+
+// 마우스가 Body Row 에 오버되면 자동 출력 (onbodymouseover)
+//  - @description/@propval/@spec2 검증: 오버된 Row 의 col1(A,inline) / col2(B,CSS클래스) / col3(C,배경없음) / RowNum(D) Cell 의
+//    실제 적용 배경색(computed background-color)을 출력
+//  - rowMouseOverColor=skyblue 의 computed 값은 rgb(135, 206, 235)
+//  - skip=true : A=원본색(rgb(255,215,0)) 유지 / B,C=skyblue 적용 / RowNum=미적용
+//  - skip=false: A,B,C=skyblue 적용 / RowNum=미적용
+scwin.target1_onbodymouseover = function (info) {
+    let r = info.rowIndex;
+    let skip = con_rowMouseOverSkipColoredCells.getText() || '미설정(default false)';
+
+    let tdA = document.querySelector("td[id*='mf_target1_cell_" + r + "_0']");
+    let tdB = document.querySelector("td[id*='mf_target1_cell_" + r + "_1']");
+    let tdC = document.querySelector("td[id*='mf_target1_cell_" + r + "_2']");
+    let tdNum = document.querySelector("td[id*='mf_target1_headerRowNumber_bodyRow_" + r + "']");
+
+    if (!tdA) {
+        wf_body_bottom.getObj("scwin").setReturnValue("[안내] Row(" + r + ") 의 cell 을 찾을 수 없습니다.");
+        return;
+    }
+
+    let bgA = window.getComputedStyle(tdA).backgroundColor;
+    let bgB = window.getComputedStyle(tdB).backgroundColor;
+    let bgC = window.getComputedStyle(tdC).backgroundColor;
+    let bgNum = tdNum ? window.getComputedStyle(tdNum).backgroundColor : "(RowNum cell 없음)";
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[오버 Row " + r + " / skip=" + skip + "] A(inline #ffd700)=" + bgA + " / B(CSS클래스)=" + bgB + " / C(배경없음)=" + bgC + " / RowNum=" + bgNum);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* (B) CSS 클래스로 배경색이 정의된 Cell - rowMouseOverSkipColoredCells=true 여도 rowMouseOverColor 가 적용되어야 함 */
+td.bgClassCell {
+    background-color: #90ee90;
+}
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowMouseOverSkipColoredCells" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_rowMouseOverSkipColoredCells" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

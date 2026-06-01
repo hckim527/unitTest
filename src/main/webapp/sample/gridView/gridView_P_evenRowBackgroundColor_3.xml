@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] evenRowBackgroundColor" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > evenRowBackgroundColor]<br/>oddEvenColorDisplay=true 일때 GridView 컴포넌트의 짝수 Row 에 배경색으로 적용될 색상을 설정합니다.",
+    "validation" : [
+        "readOnlyBackgroundColor, disabledBackgroundColor, rowMouseOverColor, selectedCellColor, selectedRowColor 등의 속성값이 배경색으로 적용된 경우 evenRowBackgroundColor, oddRowBackgroundColor 속성은 적용되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (다른 배경색 속성 우선순위 입증을 위해 모두 하드코딩)
+    //  - oddEvenColorDisplay=true : even/odd 색상 적용 전제
+    //  - evenRowBackgroundColor / oddRowBackgroundColor : 일반 Row 에 적용될 짝/홀 색 (우선 속성이 없을 때만 보임)
+    //  - readOnlyBackgroundColor / disabledBackgroundColor : 해당 상태 Row 에 우선 적용될 배경색
+    //  - rowMouseOver=true / rowMouseOverColor : 마우스 오버 Row 에 우선 적용될 배경색
+    //  - selectedRowColor / selectedCellColor / focusMode=both : 포커스(선택)된 Row/Cell 에 우선 적용될 배경색
+    let properties = {
+        dataList                : "data:dlt_bind",
+        oddEvenColorDisplay     : "true",
+        evenRowBackgroundColor  : "#ffe0b2",
+        oddRowBackgroundColor   : "#e0f7fa",
+        readOnlyBackgroundColor : "#d9d9d9",
+        disabledBackgroundColor : "#bdbdbd",
+        rowMouseOver            : "true",
+        rowMouseOverColor       : "skyblue",
+        selectedRowColor        : "lightgreen",
+        selectedCellColor       : "red",
+        focusMode               : "both"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 마우스 오버 우선순위 확인용 이벤트(onbodymouseover) 바인딩 (오버는 사용자 액션)
+    let eList = $c.gcm.createEList(["onbodymouseover"]);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="even=#ffe0b2 / odd=#e0f7fa 에 readOnly/disabled/over/select 색을 함께 설정. Row(1)=readOnly, Row(3)=disabled. readOnly·disabled·마우스오버·선택 색이 우선 적용되어 해당 Row 는 even/odd 가 적용되지 않습니다."', '', 'label1');
+
+    // dataList 생성 (4 Row, col1~col4 컬럼 구성)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+
+    // @spec5 우선순위 사전상태 : Row(1)=readOnly, Row(3)=disabled
+    target1.setRowReadOnly(1, true);
+    target1.setRowDisabled(3, true);
+
+    // 그리드 생성 직후, 일반 Row(0,2) 와 readOnly Row(1) / disabled Row(3) 의 배경색을 자동 출력
+    //  - 일반 Row : tr 배경색에 odd/even 색 적용
+    //  - readOnly/disabled Row : 셀(td) 배경에 해당 속성색이 적용되어 even/odd 미적용
+    scwin.showBaseRowColors();
+}
+
+
+
+// 지정 Row 의 첫 셀(td) computed 배경색 반환
+scwin.getCellBg = function (rowIndex, colIndex) {
+    let td = document.querySelector("td[id*='mf_target1_cell_" + rowIndex + "_" + colIndex + "']");
+    return td ? window.getComputedStyle(td).backgroundColor : "(셀 없음)";
+}
+
+// 지정 Row 의 tr computed 배경색 반환 (even/odd 색은 tr style 에 적용 → tr 기준 확인)
+scwin.getRowTrBg = function (rowIndex) {
+    let td = document.querySelector("td[id*='mf_target1_cell_" + rowIndex + "_0']");
+    let tr = td ? td.parentNode : null;
+    return tr ? window.getComputedStyle(tr).backgroundColor : "(tr 없음)";
+}
+
+
+
+// Target 재생성 직후 기준 상태 자동 출력
+//  - 일반 Row(0=홀,2=홀? → idx0,2=odd / idx1,3=even) : tr 에 even/odd 색 적용
+//  - readOnly Row(1) : 셀 배경이 readOnlyBackgroundColor(#d9d9d9) → even 색(#ffe0b2) 미적용
+//  - disabled Row(3) : 셀 배경이 disabledBackgroundColor(#bdbdbd) → even 색(#ffe0b2) 미적용
+scwin.showBaseRowColors = function () {
+    wf_body_bottom.getObj("scwin").btn_clear_onclick();
+
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("일반Row0(odd)=" + scwin.getRowTrBg(0) + " / 일반Row2(odd)=" + scwin.getRowTrBg(2) + " / readOnlyRow1=" + scwin.getCellBg(1, 0) + " / disabledRow3=" + scwin.getCellBg(3, 0));
+    }, 0);
+}
+
+
+
+// 셀 클릭(oncellclick) → 선택된 Cell/Row 에 selectedCellColor/selectedRowColor 우선 적용 (even/odd 미적용)
+//  - focusMode=both : 포커스 Cell 은 selectedCellColor(red), 동일 Row 다른 Cell 은 selectedRowColor(lightgreen)
+//  - 일반 Row(0,2) 를 클릭하면 원래 even/odd 색 대신 select 색이 적용됨을 확인
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("셀클릭 rowIndex=" + rowIndex + " / columnIndex=" + columnIndex);
+
+    setTimeout(function () {
+        let otherCol = (columnIndex === 0) ? 1 : 0;
+        wf_body_bottom.getObj("scwin").setReturnValue("선택Cell(selectedCellColor)=" + scwin.getCellBg(rowIndex, columnIndex) + " / 같은Row 다른Cell(selectedRowColor)=" + scwin.getCellBg(rowIndex, otherCol) + " (even/odd 미적용)");
+    }, 0);
+}
+
+
+
+// 마우스 오버(onbodymouseover) → 오버된 Row 에 rowMouseOverColor 우선 적용 (even/odd 미적용)
+//  - 오버는 사용자 액션이므로 버튼 없이 자동 출력
+scwin.target1_onbodymouseover = function (info) {
+    let overRow = info.rowIndex;
+
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("오버Row(" + overRow + ")(rowMouseOverColor)=" + scwin.getCellBg(overRow, 0) + " (even/odd 미적용)");
+    }, 0);
+}
+
+
+
+// "setFocusedCell (일반 Row 선택)" 버튼 : 일반 Row(2) 의 Cell 을 프로그래밍 방식으로 포커스
+//  - 클릭 없이 select 색(selectedCellColor/selectedRowColor)이 even/odd 색을 덮는지 확인
+scwin.btn_setFocusedCell_onclick = function () {
+    wf_body_bottom.getObj("scwin").btn_clear_onclick();
+
+    // DataList currentRow 정합성 유지
+    dlt_bind.setRowPosition(2);
+    target1.setFocusedCell(2, 0);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("setFocusedCell(2, 0) (focusMode=both)");
+
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("포커스Cell(2,0)(selectedCellColor)=" + scwin.getCellBg(2, 0) + " / 같은Row 다른Cell(2,1)(selectedRowColor)=" + scwin.getCellBg(2, 1) + " (even/odd 미적용)");
+    }, 0);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedCell_onclick" id="btn_setFocusedCell"
+							label="setFocusedCell (일반 Row 선택)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

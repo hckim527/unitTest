@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] selectedCellColor" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > selectedCellColor]<br/>현재 포커스된 Cell 의 배경색으로 적용될 색상을 설정합니다. focusMode='cell','both' 인 경우에 동작합니다.",
+    "validation" : [
+        "focusMode='row' 이면 selectedCellColor 무시되고 selectedRowColor 가 포커스된 Row 에 적용됩니다.",
+        "focusMode='both' 이면 포커스된 Cell 에 selectedCellColor, 동일 Row 의 다른 Cell 에 selectedRowColor 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    let properties = {
+        selectedCellColor: con_selectedCellColor.getValue(),
+        focusMode        : con_focusMode.getValue(),
+        selectedRowColor : con_selectedRowColor.getValue()
+    };
+    let cList = $c.gcm.createCList(properties);
+    // 셀 클릭으로 포커스 이동 시에도 배경색을 출력하기 위해 oncellclick 이벤트 등록
+    let eList = $c.gcm.createEList(["oncellclick"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblCell = (properties.selectedCellColor === '') ? '미설정' : properties.selectedCellColor;
+    let lblMode = (properties.focusMode === '') ? '미설정(기본값 cell)' : properties.focusMode;
+    let lblRow  = (properties.selectedRowColor === '') ? '미설정' : properties.selectedRowColor;
+    $c.gcm.createLabel('label="selectedCellColor=' + lblCell + ' / focusMode=' + lblMode + ' / selectedRowColor=' + lblRow + ' 로 GridView 생성"', '', 'label1');
+
+    // dataList 생성
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (4컬럼 Body 그리드)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="selectedCellColor 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column4" value="name4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 포커스된 위치의 배경색을 focusMode 에 맞춰 cell/row 단위로 출력하는 공통 함수
+//  - cell : 포커스된 Cell 1개의 배경색만 출력 (selectedCellColor)
+//  - row  : 포커스된 Row 단위(행의 셀들 = selectedRowColor)로 출력
+//  - both : 포커스 Cell(selectedCellColor) + 동일 Row 의 다른 Cell(selectedRowColor) 둘 다 출력
+scwin.printFocusColors = function (rowIndex, colIndex) {
+    let mode = con_focusMode.getValue();
+    let effectMode = (mode === '') ? 'cell' : mode;   // 미설정 시 기본값 cell
+
+    let getColor = function (r, c) {
+        let td = document.querySelector("td[id*='mf_target1_cell_" + r + "_" + c + "']");
+        return td ? window.getComputedStyle(td).backgroundColor : "(cell 없음)";
+    };
+
+    if (effectMode === 'row') {
+        // Row 단위: 포커스된 행의 모든 Cell 배경색 (selectedRowColor 적용)
+        for (let c = 0; c < 4; c++) {
+            wf_body_bottom.getObj("scwin").setReturnValue("[Row " + rowIndex + " Cell(" + rowIndex + "," + c + ") 배경색] " + getColor(rowIndex, c));
+        }
+    } else if (effectMode === 'both') {
+        // 포커스 Cell(selectedCellColor)
+        wf_body_bottom.getObj("scwin").setReturnValue("[포커스 Cell(" + rowIndex + "," + colIndex + ") 배경색] " + getColor(rowIndex, colIndex));
+        // 동일 Row 의 다른 Cell(selectedRowColor)
+        let otherCol = (colIndex === 0) ? 1 : 0;
+        wf_body_bottom.getObj("scwin").setReturnValue("[동일 Row 다른 Cell(" + rowIndex + "," + otherCol + ") 배경색] " + getColor(rowIndex, otherCol));
+    } else {
+        // cell : 포커스된 Cell 1개의 배경색만 (selectedCellColor)
+        wf_body_bottom.getObj("scwin").setReturnValue("[포커스 Cell(" + rowIndex + "," + colIndex + ") 배경색] " + getColor(rowIndex, colIndex));
+    }
+}
+
+
+
+// 지정한 Body Cell 을 포커스시킨 뒤(setFocusedCell), focusMode 분기에 따른 색상 적용 결과를 검증
+//  - rowIndex/colIndex 는 par_ 콤보에서 선택
+scwin.btn_setFocusedCell_onclick = function () {
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+    let colIndex = parseInt(par_colIndex.getValue(), 10);
+
+    // DataList currentRow 정합성 유지
+    dlt_bind.setRowPosition(rowIndex);
+    target1.setFocusedCell(rowIndex, colIndex);
+
+    // 출력 누적 방지 후 focusMode 규칙대로 cell/row 배경색 출력
+    wf_body_bottom.getObj("scwin").btn_clear_onclick();
+    scwin.printFocusColors(rowIndex, colIndex);
+}
+
+
+
+// 사용자가 Cell 을 클릭해 포커스를 이동한 경우에도 focusMode 규칙대로 cell/row 배경색 자동 출력
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    // 출력 누적 방지
+    wf_body_bottom.getObj("scwin").btn_clear_onclick();
+    scwin.printFocusColors(rowIndex, columnIndex);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMode" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>cell</xf:label>
+												<xf:value>cell</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>row</xf:label>
+												<xf:value>row</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>both</xf:label>
+												<xf:value>both</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="selectedCellColor" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_selectedCellColor" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>색상이름 red</xf:label>
+												<xf:value>red</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>색상코드 #00ff00</xf:label>
+												<xf:value>#00ff00</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="selectedRowColor" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_selectedRowColor" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>색상이름 blue</xf:label>
+												<xf:value>blue</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>색상코드 #ffff00</xf:label>
+												<xf:value>#ffff00</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_colIndex" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedCell_onclick" id="btn_setFocusedCell"
+							label="setFocusedCell 후 배경색 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

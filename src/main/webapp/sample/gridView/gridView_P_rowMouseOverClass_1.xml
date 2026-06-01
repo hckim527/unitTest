@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] rowMouseOverClass" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > rowMouseOverClass]<br/>마우스 포인터가 Body Row 에 오버될때 적용할 CSS 클래스를 설정합니다. rowMouseOver='true' 인 경우에 동작합니다.",
+    "validation" : [
+        "마우스 포인터가 Body Row 에 오버될때 적용할 CSS 클래스를 설정합니다. rowMouseOver='true' 인 경우에 동작합니다.",
+        "CSS 파일이나 style 블럭에 정의된 클래스 이름을 설정합니다.",
+        "rowMouseOverColor, selectedRowOverColor, selectedCellOverColor 속성값은 각 Cell 의 style 속성(inline)에 적용되므로, rowMouseOverClass 에 정의된 CSS 의 background-color 정의는 우선순위에 의해 일반적으로 가려집니다.",
+        "GridView 의 Body 영역을 마우스 포인터가 벗어나면 rowMouseOverClass 속성값이 제거됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    //  - rowMouseOver 는 본 샘플(rowMouseOverClass) 검증 전제이므로 "true" 하드코딩, 옵션으로 노출하지 않음
+    //  - rowMouseOverClass : con 콤보로 "미설정/rmoClass" 선택 → 미설정 시 클래스 미적용 확인
+    //  - rowMouseOverColor : con 콤보로 "미설정/색상" 선택 → @spec1(inline over color 가 클래스 background-color 보다 우선) 확인
+    let properties = {
+        dataList         : "data:dlt_bind",
+        rowMouseOver     : "true",
+        rowMouseOverClass: con_rowMouseOverClass.getValue(),
+        rowMouseOverColor: con_rowMouseOverColor.getValue()
+    };
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onbodymouseover", "onbodymouseout"]);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblClass = (properties.rowMouseOverClass === '') ? '미설정' : properties.rowMouseOverClass;
+    let lblColor = (properties.rowMouseOverColor === '') ? '미설정' : properties.rowMouseOverColor;
+    $c.gcm.createLabel('label="rowMouseOver=true (고정) / rowMouseOverClass=' + lblClass + ' / rowMouseOverColor=' + lblColor + ' 로 GridView 생성. Body Row 에 마우스를 오버하면 td 에 클래스가 추가되고, Body 영역을 벗어나면 제거됩니다. rowMouseOverColor 설정 시 클래스의 background-color 는 inline 색상에 가려집니다."', '', 'label1');
+
+    // dataList 생성 (헬퍼와 동일하게 col1~col4 컬럼 구성)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// 마우스가 Body Row 에 오버되면 자동 출력 (onbodymouseover)
+//  - @description/@propval : 오버된 Row 의 td 들에 rowMouseOverClass(클래스명)가 추가되는지 classList 로 확인
+//  - @spec1 : rowMouseOverColor 설정 시 td 의 inline background-color(over color)가 적용되어
+//             클래스의 background-color 는 우선순위로 가려짐 (클래스는 적용되나 bg 는 inline 우선)을 확인
+scwin.target1_onbodymouseover = function (info) {
+    let overRow = info.rowIndex;
+    let setClass = con_rowMouseOverClass.getValue();
+
+    let td = document.querySelector("td[id*='mf_target1_cell_" + overRow + "_0']");
+    if (!td) {
+        wf_body_bottom.getObj("scwin").setReturnValue("[안내] Row(" + overRow + ") 의 cell 을 찾을 수 없습니다.");
+        return;
+    }
+
+    let hasClass = setClass !== '' ? td.classList.contains(setClass) : false;
+    let cs = window.getComputedStyle(td);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[오버 Row " + overRow + "] rmoClass('" + (setClass || '미설정') + "') 적용=" + hasClass + " / color=" + cs.color + " / font-weight=" + cs.fontWeight + " / background-color=" + cs.backgroundColor);
+}
+
+
+
+// 마우스가 Body 영역을 벗어나면 자동 출력 (onbodymouseout)
+//  - @spec2 : Body 영역을 벗어나면 rowMouseOverClass 가 제거됨 (classList 에서 사라짐)
+scwin.target1_onbodymouseout = function (info) {
+    let overRow = info.rowIndex;
+    let setClass = con_rowMouseOverClass.getValue();
+
+    let td = document.querySelector("td[id*='mf_target1_cell_" + overRow + "_0']");
+    if (!td) {
+        wf_body_bottom.getObj("scwin").setReturnValue("[안내] Row(" + overRow + ") 의 cell 을 찾을 수 없습니다.");
+        return;
+    }
+
+    let hasClass = setClass !== '' ? td.classList.contains(setClass) : false;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[아웃 Row " + overRow + "] rmoClass 제거 후 포함=" + hasClass + " (제거되어 false 이어야 함)");
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* rowMouseOverClass 적용 여부를 시각적으로 식별하기 위한 임시 스타일 */
+/*  - background-color 는 엔진이 각 Cell inline over color 로 적용하여 가려지므로(@spec1), */
+/*    클래스 적용 확인은 color(텍스트색) / font-weight / border 로 한다 (inline 미설정 속성이라 정상 반영) */
+td.rmoClass {
+    color: red !important;
+    font-weight: bold;
+    border: 2px solid red;
+}
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowMouseOverClass" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_rowMouseOverClass" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>미설정</xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>클래스 rmoClass</xf:label>
+												<xf:value>rmoClass</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowMouseOverColor" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_rowMouseOverColor" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>미설정</xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>색상이름 skyblue</xf:label>
+												<xf:value>skyblue</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

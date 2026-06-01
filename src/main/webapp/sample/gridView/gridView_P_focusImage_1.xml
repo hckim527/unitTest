@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] focusImage" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260601" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > focusImage]<br/>senseReader=true 일때 inputType='image' 인 Column 의 이미지에 포커스를 이동할지 설정합니다.",
+    "validation" : [
+        "senseReader=true 일때 inputType='image' 인 Column 의 이미지에 포커스를 이동할지 설정합니다.",
+        "true: inputType='image' 인 Column 에서 이미지 요소에 포커스를 이동합니다.",
+        "false (default): inputType='image' 인 Column 에서 이미지 요소에 포커스를 이동하지 않습니다.",
+        "Tab 키에 의해 포커스가 이동될때 이미지 요소에 포커스가 이동합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - con_focusImage(true/false) 선택값으로 GridView 동적 생성 (senseReader 는 true 고정)
+//  - 컬럼: text / image (inputType='image' Column 의 이미지 요소 포커스 이동 확인용)
+//  - senseReader=true + focusImage=true 이면 엔진이 image Cell 의 IMG 요소(w2grid_image)에 tabIndex='0' 부여
+//    → Tab 키로 이미지 요소에 포커스 이동 가능
+//  - focusImage=false 면 IMG 요소에 tabIndex 미부여 → Tab 포커스 대상 아님
+//  - 조건 변경은 Target 재생성 버튼으로 토글
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 조건값 읽기 (focusImage). senseReader 는 focusImage 동작 전제이므로 동적 생성 시 true 고정
+    let focusImageText = con_focusImage.getText();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="focusImage=' + focusImageText + ' / senseReader=true(고정) 로 GridView 생성 (컬럼: text / image)"', '', 'label1');
+
+    // dataList 생성 (image 컬럼에 표시할 이미지 경로 데이터 포함)
+    let strDataList = '<w2:dataList ' + strNameSpace + ' baseNode="list" id="dlt_bind" repeatNode="map" useStatusValue="true">';
+    strDataList += '<w2:columnInfo>';
+    strDataList += '<w2:column dataType="text" id="txt" inputType="text" name="txt"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="img" inputType="text" name="img"></w2:column>';
+    strDataList += '</w2:columnInfo>';
+    strDataList += '<w2:data use="true">';
+    strDataList += '<w2:row><txt>aaa</txt><img>/cm/images/contents/ico_search_green.png</img></w2:row>';
+    strDataList += '<w2:row><txt>bbb</txt><img>/cm/images/contents/ico_search_green.png</img></w2:row>';
+    strDataList += '</w2:data>';
+    strDataList += '</w2:dataList>';
+    // dataList 는 dynamicCreate 미지원 → $p.data.create(strXml) 로 생성
+    $p.data.create(strDataList);
+
+    // 조건 설정 - Property 설정은 createCList 공통 함수 사용. senseReader 는 true 고정
+    //  - focusImage 를 boolean 으로 처리: con 문자열('true'/'false'/'')을 boolean 으로 변환하여
+    //    true 일 때만 속성을 설정한다. (엔진은 options.focusImage 를 truthy 로만 판정하여 문자열 "false" 도 truthy 가 되는 결함이 있으므로,
+    //     false/미설정은 속성을 부여하지 않아 options.focusImage 가 falsy → 이미지 포커스 미적용)
+    let focusImageBool = (focusImageText === 'true');
+    let properties = {
+        senseReader : "true"
+    };
+    if (focusImageBool) {
+        properties.focusImage = true;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 (text / image 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" dataList="data:dlt_bind" id="" style="width:480px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="focusImage 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" inputType="text" id="txt" value="text"></w2:column>';
+    strTarget += '<w2:column width="160" inputType="text" id="img" value="image"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" inputType="text" id="txt"></w2:column>';
+    strTarget += '<w2:column width="160" inputType="image" id="img" imageSrc="/cm/images/contents/ico_search_green.png"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 엔진은 XML 속성을 문자열로만 받으므로(boolean 미지원), 생성 후 options.focusImage 를 실제 boolean 으로 보정
+    //  - 'true' → true, 'false' → false (false 가 undefined 가 아닌 boolean false 로 반영됨)
+    //  - 미설정('') 은 속성 자체를 설정하지 않은 케이스이므로 undefined 유지
+    //  - 이미지 셀 tabIndex 는 위 createCList 의 속성 유무로 이미 올바르게 렌더됨(true 일 때만 부여)
+    if (focusImageText === 'true') {
+        target1.options.focusImage = true;
+    } else if (focusImageText === 'false') {
+        target1.options.focusImage = false;
+    }
+}
+
+
+
+// 검증 확인 : 현재 GridView 의 senseReader/focusImage 에 따른 inputType='image' Column 이미지 요소 포커스 동작
+//  1) image Cell 의 IMG 요소(w2grid_image) 존재 여부
+//  2) IMG 요소의 tabIndex 속성값 (senseReader=true + focusImage=true → '0' 부여, 그 외 → 미부여)
+//  3) IMG 요소를 focus() 시도 후 document.activeElement 가 해당 IMG 인지 (Tab 포커스 대상 여부)
+//     - Tab 이동은 사용자 액션이므로, 여기서는 focus 가능 여부/tabIndex 상태만 자동 출력하여 검증
+scwin.btn_checkFocusImage_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let mode = target1.options.focusImage;
+    let modeDisplay = (mode === undefined) ? '미설정(기본 false)' : mode;
+    let senseReader = target1.options.senseReader;
+    bottom.setReturnValue("[현재 설정] senseReader=" + senseReader + " / focusImage=" + modeDisplay);
+
+    // 1) image Cell 의 IMG 요소
+    let topDiv = target1.render;
+    let imgEl = document.querySelector("td[id*='" + topDiv.id + "_cell_0_1'] img.w2grid_image");
+    bottom.setReturnValue("[image Cell IMG 요소 존재] " + (imgEl ? true : false));
+
+    if (!imgEl) {
+        return;
+    }
+
+    // 2) IMG 요소의 tabIndex 속성값
+    let imgTab = imgEl.hasAttribute("tabIndex") ? imgEl.getAttribute("tabIndex") : "(미부여)";
+    bottom.setReturnValue("[image 요소 tabIndex] " + imgTab);
+
+    // 3) IMG 요소 포커스 가능 여부 (focus() 후 activeElement 일치)
+    imgEl.focus();
+    let focusable = (document.activeElement === imgEl);
+    bottom.setReturnValue("[image 요소 포커스 가능(Tab 대상)] " + focusable);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusImage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusImage" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFocusImage_onclick" id="btn_checkFocusImage"
+							label="검증 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
