@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260602" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; setColumnWidth]&lt;br/&gt;Body Column 정보를 사용하여 특정 Column 의 너비를 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;columnInfo(필수) 파라미터로 너비를 변경할 Column 의 인덱스값을 설정할 수 있어야 합니다.&quot;,
+        &quot;Column 의 인덱스는 0 부터 시작하며 숨겨진 Column 과 RowNum, RowStatus Column 도 포함하여 인덱스가 설정되어야 합니다.&quot;,
+        &quot;size(필수) 파라미터로 변경할 Column 의 너비를 픽셀(px) 단위 숫자로 설정할 수 있어야 합니다.&quot;,
+        &quot;setColumnWidth() 메소드로 Column 의 너비가 변경되면 oncolumnwidthchange 이벤트가 발생해야 합니다.&quot;,
+        &quot;setColumnWidth() 메소드로 Column 의 너비가 변경되어도 onaftercolumnresize 이벤트는 발생하지 않아야 합니다.&quot;,
+        &quot;AutoFit 기능이 활성화 되어 있으면 setColumnWidth() 메소드 대상의 Column 너비가 변경된 후 나머지 Column 의 너비가 자동으로 재분배되어야 합니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 이벤트 발생 추적 플래그 초기화
+    scwin.gVar = { &quot;widthChangeFired&quot;: false, &quot;afterResizeFired&quot;: false };
+
+    // 숨겨진 Column 포함 인덱스 안내 라벨 (가장 먼저 생성)
+    $c.gcm.createLabel('label=&quot;Column(1) 은 숨김 상태입니다. 인덱스는 숨겨진 Column 도 포함하여 0 부터 부여됩니다.&quot;', '', 'label1');
+
+    // 조건 설정 (autoFit 옵션 con 적용)
+    let autoFit = con_autoFit.getValue();
+
+    let properties = {
+        autoFit: autoFit,
+        dataList: &quot;data:dlt_bind&quot;,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 바인딩 (oncolumnwidthchange 발생 / onaftercolumnresize 미발생 확인)
+    let eList = $c.gcm.createEList([&quot;oncolumnwidthchange&quot;, &quot;onaftercolumnresize&quot;]);
+
+    // dataList 생성
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+
+    // 두번째 Column(인덱스 1) 숨김 처리
+    target1.setColumnVisible(1, false);
+}
+
+
+
+scwin.target1_oncolumnwidthchange = function (info) {
+    scwin.gVar.widthChangeFired = true;
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;oncolumnwidthchange : 발생&quot;);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;info.columnIndex : &quot; + info.columnIndex);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;info.columnID : &quot; + info.columnID);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;info.oldWidth : &quot; + info.oldWidth);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;info.newWidth : &quot; + info.newWidth);
+}
+
+
+
+scwin.target1_onaftercolumnresize = function (columnIndex, oldColumnWidth, newWidth) {
+    scwin.gVar.afterResizeFired = true;
+}
+
+
+
+scwin.btn_setColumnWidth_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let size = Number(par_size.getValue());
+
+    // 이벤트 발생 플래그 초기화
+    scwin.gVar.widthChangeFired = false;
+    scwin.gVar.afterResizeFired = false;
+
+    // 인덱스 호출
+    target1.setColumnWidth(columnInfo, size);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setColumnWidth(&quot; + columnInfo + &quot;, &quot; + size + &quot;)&quot;);
+}
+
+
+
+scwin.btn_checkColumnWidth_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+
+    // 변경된 Column 의 너비 확인 (header column 은 1부터 시작)
+    let thEl = document.querySelector(&quot;th[id*='target1_column&quot; + (columnInfo + 1) + &quot;']&quot;);
+
+    if (thEl) {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;Column(&quot; + columnInfo + &quot;) width : &quot; + thEl.offsetWidth);
+    }
+
+    // onaftercolumnresize 미발생 확인
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;onaftercolumnresize : &quot; + (scwin.gVar.afterResizeFired ? &quot;발생&quot; : &quot;미발생&quot;));
+}
+
+
+
+scwin.btn_checkAutoFit_onclick = function () {
+    // AutoFit 활성 시 나머지 Column 의 너비 자동 재분배 확인 (대상 외 Column 너비 출력)
+    let widths = [];
+
+    for (var i = 0; i &lt; 4; i++) {
+        let thEl = document.querySelector(&quot;th[id*='target1_column&quot; + (i + 1) + &quot;']&quot;);
+        if (thEl) {
+            widths.push(&quot;Column(&quot; + i + &quot;) : &quot; + thEl.offsetWidth);
+        }
+    }
+
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;autoFit = &quot; + con_autoFit.getValue());
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(widths.join(&quot; / &quot;));
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFit" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_autoFit" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[none]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[lastColumn]]></xf:label>
+												<xf:value><![CDATA[lastColumn]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[allColumn]]></xf:label>
+												<xf:value><![CDATA[allColumn]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="size" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_size" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[50]]></xf:label>
+												<xf:value><![CDATA[50]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[100]]></xf:label>
+												<xf:value><![CDATA[100]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[200]]></xf:label>
+												<xf:value><![CDATA[200]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnWidth_onclick" id="btn_setColumnWidth"
+							label="setColumnWidth" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkColumnWidth_onclick" id="btn_checkColumnWidth"
+							label="너비 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkAutoFit_onclick" id="btn_checkAutoFit"
+							label="AutoFit 재분배 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

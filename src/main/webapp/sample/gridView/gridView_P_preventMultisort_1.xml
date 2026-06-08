@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] preventMultisort" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > preventMultisort]<br/>sortable=true 일때 Header Column 의 다중 정렬을 차단할지 설정합니다.",
+    "validation" : [
+        "preventMultisort=true 로 설정 시 useCtrlOnMultisort 속성은 무시됩니다.",
+        "preventMultisort=true 면 한 개의 Header Column 으로 단일 정렬만 실행할 수 있습니다.",
+        "preventMultisort=true 면 Header Column 클릭 시 기존 정렬 상태가 초기화된 후 현재 클릭한 Header Column 을 기준으로 정렬이 실행됩니다.",
+        "preventMultisort=false(기본값)면 한 개 이상의 Header Column 으로 다중 정렬을 수행할 수 있습니다.",
+        "preventMultisort=false(기본값)면 Header Column 의 정렬 상태 아이콘에 숫자가 표시되어 정렬이 적용된 순서를 확인할 수 있습니다.",
+        "preventMultisort=false(기본값)면 useCtrlOnMultisort 속성으로 다중 정렬 시 Ctrl 키의 사용 여부를 설정합니다.",
+        "preventMultisort 속성은 사용자의 클릭/더블클릭 정렬 시 적용됩니다.",
+        "다중 정렬 상태에서 이미 정렬된 Header Column 을 재클릭하면 해당 Column 의 정렬만 변경되고 다른 Column 의 정렬은 유지되어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_ : 공통 gdl_boolean 바인딩 → getText() 로 label('' / 'true' / 'false') 판단
+    //  - con_preventMultisort   : '' 미설정(기본 false) / 'true' / 'false'
+    //  - con_useCtrlOnMultisort : '' 미설정 / 'true' / 'false'
+    //    (preventMultisort=true 면 useCtrlOnMultisort 는 무시됨 검증용)
+    let vPrevent = con_preventMultisort.getText();
+    let vUseCtrl = con_useCtrlOnMultisort.getText();
+
+    // GridView 정렬 가능하도록 sortable=true 항상 포함
+    //  + 정렬 순번 숫자/정렬 아이콘 확인을 위해 showSortableImage=true 항상 포함
+    let properties = {
+        sortable: true,
+        showSortableImage: true,
+    };
+
+    // preventMultisort : 미설정('') 이면 속성 자체를 추가하지 않음(기본 false)
+    if (vPrevent === 'true') {
+        properties.preventMultisort = true;
+    } else if (vPrevent === 'false') {
+        properties.preventMultisort = false;
+    }
+
+    // useCtrlOnMultisort : 미설정('') 이면 속성 자체를 추가하지 않음
+    if (vUseCtrl === 'true') {
+        properties.useCtrlOnMultisort = true;
+    } else if (vUseCtrl === 'false') {
+        properties.useCtrlOnMultisort = false;
+    }
+
+    let lblDesc = 'GridView sortable=true, showSortableImage=true, '
+        + 'preventMultisort=' + (vPrevent === '' ? '(미설정)' : vPrevent)
+        + ', useCtrlOnMultisort=' + (vUseCtrl === '' ? '(미설정)' : vUseCtrl)
+        + ' / 컬럼 클릭(또는 Ctrl+클릭)으로 정렬 → 다중정렬 순번 숫자/단일정렬 동작 확인';
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // 정렬 확인용 dataList 생성 (공통 함수로 col1~col4 구조 dataList 생성 후 값 분포가 섞인 6행으로 덮어쓰기)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillSortData();
+
+    // 정렬 가능한 GridView 동적 생성
+    await scwin.createSortableGridView(cList);
+}
+
+
+
+// 정렬 확인용 데이터 : col1~col4 값을 섞어서 다중 정렬 효과가 확인되도록 구성 (6행)
+scwin.fillSortData = function () {
+    let rows = [
+        { col1: "B", col2: "20", col3: "Y", col4: "30" },
+        { col1: "A", col2: "20", col3: "X", col4: "10" },
+        { col1: "B", col2: "10", col3: "Z", col4: "20" },
+        { col1: "A", col2: "10", col3: "Y", col4: "40" },
+        { col1: "C", col2: "20", col3: "X", col4: "50" },
+        { col1: "A", col2: "30", col3: "Z", col4: "60" },
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// 정렬 가능한 gridView 동적 생성 (마지막 컬럼 width="*", 가로 스크롤 방지)
+scwin.createSortableGridView = async function (cList) {
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' checkAllType="false" id="" dataList="data:dlt_bind" style="width:520px;height:300px;">';
+    s += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="120" style="" inputType="text" id="col1" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col2" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col3" value=""></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4" value=""></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 정렬 상태 확인 :
+//  - 각 데이터 컬럼 Header th 별로 정렬 방향(aria-sort) 과 다중정렬 순번 숫자(정렬 아이콘 영역 텍스트) 를 출력.
+//  - 다중정렬 순번 숫자는 2개 이상 Column 정렬 시에만 표시됨 → 단일정렬(preventMultisort=true) 이면 숫자 미표시.
+//  - 정렬 자체는 사용자가 Header 를 클릭/Ctrl+클릭하여 수행 (정렬 트리거 버튼은 생성하지 않음).
+scwin.btn_checkSortState_onclick = function (e) {
+    let headTable = document.querySelector("[id*='target1_head_table']");
+    if (!headTable) {
+        wf_body_bottom.getObj("scwin").setReturnValue("head_table 를 찾을 수 없습니다.");
+        return;
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[옵션] preventMultisort : " + target1.options.preventMultisort + " / useCtrlOnMultisort : " + target1.options.useCtrlOnMultisort);
+
+    // 데이터 컬럼 헤더 th 들만 대상
+    let ths = headTable.querySelectorAll("th[class*='_header__column']");
+    let sortedCnt = 0;
+    for (let i = 0; i < ths.length; i++) {
+        let th = ths[i];
+
+        // 정렬 방향 : aria-sort (ascending / descending / other)
+        let ariaSort = th.getAttribute("aria-sort");
+
+        // 다중정렬 순번 숫자 : 정렬 아이콘 영역(div[class*='sort_div_sub']) 텍스트
+        let sortSub = th.querySelector("[class*='sort_div_sub']");
+        let subText = sortSub ? (sortSub.textContent || "").trim() : "";
+        let subNumMatch = subText.match(/\d+/);
+        let sortNum = subNumMatch ? subNumMatch[0] : "(없음)";
+
+        if (ariaSort === 'ascending' || ariaSort === 'descending') {
+            sortedCnt++;
+        }
+
+        wf_body_bottom.getObj("scwin").setReturnValue("Header[" + i + "] (" + th.id.replace(/.*target1_/, "") + ") 정렬방향(aria-sort) : " + ariaSort + " / 다중정렬 순번 숫자 : " + sortNum);
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[현재 정렬 적용된 Column 수] : " + sortedCnt + (sortedCnt >= 2 ? " (다중정렬)" : (sortedCnt === 1 ? " (단일정렬)" : " (미정렬)")));
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="preventMultisort" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_preventMultisort" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="useCtrlOnMultisort" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_useCtrlOnMultisort" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSortState_onclick" id="btn_checkSortState"
+							label="정렬 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

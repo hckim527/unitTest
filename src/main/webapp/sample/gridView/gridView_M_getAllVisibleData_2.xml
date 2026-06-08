@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getAllVisibleData" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getAllVisibleData]<br/>필터링, 정렬 상태를 기준으로 Display 포맷이 적용되지 않은 Row 데이터를 1차원 배열로 반환합니다.",
+    "validation" : [
+        "DrillDown 으로 표시되지 않는 Row 데이터는 반환되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — DrillDown(계층형) GridView 구성
+// depth 컬럼 값으로 계층을 표현. showDepth="1" 이므로 초기에는 depth 1(부모) 행만 표시되고
+// depth 2(자식) 행은 접힌 상태로 렌더링되지 않음 → getAllVisibleData() 반환 배열에 미포함됨을 검증
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="DrillDown 계층 구성 - 부모(depth 1) 2건 + 각 부모의 자식(depth 2) 각 2건 = 총 6건. showDepth=1 이므로 초기엔 부모 2건만 표시되고 자식 4건은 접혀 렌더링되지 않습니다. 접힘 상태에서 getAllVisibleData() 는 표시된 부모 Row 데이터만 반환하고, 전체 펼치기 후에는 자식 Row 데이터까지 포함하여 반환합니다."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    // - depth : 계층 깊이 값(number). 1=부모, 2=자식. DrillDown 컬럼의 depthColumn 으로 사용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모(depth 1) 바로 아래에 그 자식(depth 2)들이 위치해야 함 (엔진 drilldown 은 순서 기반)
+    let jsonData = [
+        { "name": "영업본부",   "dept": "Sales", "depth": 1 },
+        { "name": "  김영업",   "dept": "Sales", "depth": 2 },
+        { "name": "  이영업",   "dept": "Sales", "depth": 2 },
+        { "name": "개발본부",   "dept": "Dev",   "depth": 1 },
+        { "name": "  박개발",   "dept": "Dev",   "depth": 2 },
+        { "name": "  최개발",   "dept": "Dev",   "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+        checkAllType: "false",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성
+    // name 컬럼을 inputType="drilldown" 으로 설정 + depthColumn="depth" + showDepth="1" + depthStartIndex="1"
+    //  → 초기 로딩 시 depth 1 행만 표시(자식은 접힘). depth 컬럼 자체는 화면에 노출
+    // 마지막 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getAllVisibleData DrillDown 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="이름(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // name : DrillDown 컬럼 (계층 토글 컬럼)
+    strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="depth" dataList="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// getAllVisibleData 확인 : DrillDown 으로 표시된 Row 만 1차원 배열로 반환
+// 접힘 상태에서는 부모(depth 1) Row 만 반환되고 자식(depth 2) Row 는 반환되지 않음
+scwin.btn_getAllVisibleData_onclick = function () {
+    let rtn = target1.getAllVisibleData();
+    wf_body_bottom.getObj("scwin").setReturnValue("getAllVisibleData() : " + JSON.stringify(rtn));    
+}
+
+
+
+// 전체 펼치기 — 표시된 모든 부모(depth 1) 행을 toggle 하여 자식(depth 2)을 펼침
+// 펼친 후 getAllVisibleData() 반환 배열에 자식 Row 데이터가 포함됨을 확인
+scwin.btn_expandAll_onclick = function (e) {
+    // 표시된 부모 행을 위에서부터 toggle. toggle 시 행 수가 늘어나므로 화면상 인덱스를 다시 계산하며 진행
+    let i = 0;
+    while (i < target1.getVisibleRowNum()) {
+        // depth 컬럼 값이 1(부모)이고 아직 자식이 펼쳐지지 않은 행이면 toggle
+        if (Number(target1.getCellData(i, "depth")) === 1 && target1.getChildrenRowIndexArray(target1.getRealRowIndex(i)).length > 0) {
+            let before = target1.getVisibleRowNum();
+            target1.toggle(i);
+            // 펼쳐졌으면(행 수 증가) 자식 영역만큼 건너뛰고, 변화 없으면 다음 행으로
+            if (target1.getVisibleRowNum() > before) {
+                i += (target1.getVisibleRowNum() - before) + 1;
+                continue;
+            }
+        }
+        i++;
+    }
+    let rtn = target1.getAllVisibleData();
+    wf_body_bottom.getObj("scwin").setReturnValue("[전체 펼치기 후] getAllVisibleData() (자식 Row 포함) : " + JSON.stringify(rtn));
+    wf_body_bottom.getObj("scwin").setReturnValue("[전체 펼치기 후] row 단위 : " + scwin.fn_toRowText(rtn));
+}
+
+
+
+// 전체 접기 — 표시된 부모(depth 1) 행을 toggle 하여 자식을 접음
+// 접은 후 getAllVisibleData() 반환 배열에서 자식 Row 데이터가 제외됨을 확인
+scwin.btn_collapseAll_onclick = function (e) {
+    for (let i = target1.getVisibleRowNum() - 1; i >= 0; i--) {
+        // 현재 펼쳐져 있는 부모 행(depth 1, 자식 보유)을 접음
+        if (Number(target1.getCellData(i, "depth")) === 1 && target1.getChildrenRowIndexArray(target1.getRealRowIndex(i)).length > 0) {
+            // 자식이 화면에 펼쳐진 상태인 경우에만 toggle (다음 행 depth 가 2면 펼쳐진 것)
+            if (i + 1 < target1.getVisibleRowNum() && Number(target1.getCellData(i + 1, "depth")) === 2) {
+                target1.toggle(i);
+            }
+        }
+    }
+    let rtn = target1.getAllVisibleData();
+    wf_body_bottom.getObj("scwin").setReturnValue("[전체 접기 후] getAllVisibleData() (자식 Row 제외) : " + JSON.stringify(rtn));
+    wf_body_bottom.getObj("scwin").setReturnValue("[전체 접기 후] row 단위 : " + scwin.fn_toRowText(rtn));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAllVisibleData_onclick" id="btn_getAllVisibleData"
+							label="getAllVisibleData 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_expandAll_onclick" id="btn_expandAll" label="전체 펼치기"
+							style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_collapseAll_onclick" id="btn_collapseAll" label="전체 접기"
+							style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getColumnIdListMultiRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getColumnIdListMultiRow]<br/>Body 영역이 MultiLine 구조일때 Line 별 Column ID 를 2차원 배열로 반환합니다.",
+    "validation" : [
+        "Body 영역이 MultiLine 구조일때 Line 별 Column ID 를 2차원 배열로 반환해야 합니다.",
+        "배열은 GridView 에 표시된 순서에 맞게 생성되며 숨겨진 Column 도 포함되어야 합니다.",
+        "RowNum, RowStatus Column 은 반환값에 포함되지 않아야 합니다.",
+        "Line 이 병합된 구조일때 해당 Column 을 처음 만나는 Line 에 ID 정보가 포함되고, 이후 Line 에서는 제외되어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (MultiLine 구성 : 한 레코드(Row)를 2개의 Line 으로 표시)
+//  - 물리적 컬럼 배치
+//    Line1 : merge(rowSpan=2, x=0) + name(x=1) + age(x=2)
+//    Line2 : merge 자리(점유) + dept(x=1) + memo(x=2)
+//  - merge 컬럼은 rowSpan="2" 로 두 Line 에 걸쳐 병합됨 → colIndexMatch 상 Line1 에만 등장
+//    (엔진 layoutController getColInfo : rowSpan 컬럼은 i+l Line 의 trArr 를 점유 처리하여
+//     이후 Line 에서는 해당 x 위치를 건너뜀)
+//  - rowNumVisible/rowStatusVisible true → 기본 컬럼 2개 존재하나 getColumnIdListMultiRow 는
+//    defaultColCnt 부터 순회하므로 RowNum/RowStatus 는 반환값에서 제외됨
+//  - age 컬럼은 setColumnVisible(false) 로 숨기지만 반환값에는 포함됨
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine/병합/숨김/RowNum·RowStatus 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="MultiLine 2 Line: Line1=merge(병합,rowSpan2)·name·age(숨김) / Line2=dept·memo. merge 는 Line1 에만 포함, RowNum/RowStatus 는 반환 제외"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="merge" name="merge" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="age" name="age" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "merge": "G1", "name": "John", "age": "30", "dept": "영업", "memo": "메모0" },
+        { "merge": "G2", "name": "Jane", "age": "28", "dept": "기획", "memo": "메모1" },
+        { "merge": "G3", "name": "Mike", "age": "41", "dept": "개발", "memo": "메모2" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    //  - rowNumVisible / rowStatusVisible true : RowNum/RowStatus Column 표시
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: "true",
+        rowStatusVisible: "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (MultiLine : header/gBody 각각 <w2:row> 2개, merge 컬럼은 rowSpan="2")
+    //  마지막 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:560px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getColumnIdListMultiRow MultiLine 테스트 그리드"></w2:caption>';
+    // Header : merge(rowSpan2) + name / age 와 dept / memo
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column rowSpan="2" width="120" style="" inputType="text" id="hcol_merge" value="그룹"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_age" value="나이"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol_dept" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_memo" value="메모"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : merge(rowSpan2, Line1) + name(Line1) + age(Line1) / dept(Line2) + memo(Line2)
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // merge : rowSpan="2" 로 두 Line 에 걸쳐 병합 → 처음 만나는 Line(Line1)에만 ID 포함
+    strTarget += '<w2:column rowSpan="2" width="120" style="" inputType="text" id="merge" dataList="merge"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // age : 숨김 처리 대상이나 반환값에는 포함됨
+    strTarget += '<w2:column width="*" style="" inputType="text" id="age" dataList="age"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // age 컬럼(Body 컬럼 인덱스 2) 숨김 : 반환값에는 여전히 포함되는지 검증용
+    //  컬럼 순서(RowNum/RowStatus 제외) : 0=merge, 1=name, 2=age, 3=dept, 4=memo
+    scwin.target1.setColumnVisible(2, false);
+}
+
+
+
+// getColumnIdListMultiRow 확인 : Line 별 Column ID 2차원 배열을 Line 단위로 출력
+//  - 반환 구조 : [[Line1 컬럼들], [Line2 컬럼들]]
+//  - GridView 표시 순서대로 생성, 숨겨진 age 도 포함, RowNum/RowStatus 는 제외
+//  - 병합(rowSpan) 된 merge 컬럼은 처음 만나는 Line1 배열에만 포함되고 Line2 에는 미포함
+scwin.btn_getColumnIdListMultiRow_onclick = function () {
+    let rtn = target1.getColumnIdListMultiRow();
+    if (typeof rtn === 'undefined' || rtn === null) {
+        wf_body_bottom.getObj("scwin").setReturnValue("getColumnIdListMultiRow() : " + rtn);
+        return;
+    }
+    // 전체 2차원 배열을 한 줄로 출력
+    wf_body_bottom.getObj("scwin").setReturnValue("getColumnIdListMultiRow() : " + JSON.stringify(rtn));
+    // Line 단위로 표시 순서대로 출력
+    for (let i = 0; i < rtn.length; i++) {
+        wf_body_bottom.getObj("scwin").setReturnValue("Line" + (i + 1) + " : [" + rtn[i].join(", ") + "]");
+    }
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getColumnIdListMultiRow_onclick" id="btn_getColumnIdListMultiRow"
+							label="getColumnIdListMultiRow 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

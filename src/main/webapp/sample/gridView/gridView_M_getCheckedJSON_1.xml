@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getCheckedJSON" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getCheckedJSON]<br/>특정 Body Column 이 체크 상태인 Row 의 데이터를 JSON 객체 배열로 반환합니다.",
+    "validation" : [
+        "inputType 이 'checkbox','radio','custom' 인 경우에만 동작합니다.",
+        "columnInfo(필수) 파라미터로 체크 상태를 조회할 Body Column 의 인덱스를 설정해야 합니다.",
+        "특정 Body Column 이 체크 상태인 Row 의 데이터를 JSON 객체 배열로 반환해야 합니다. (각 원소는 DataList 의 모든 Column ID 를 키로, 해당 Row 의 데이터를 값으로 포함하는 객체)",
+        "inputType 이 'checkbox','radio','custom' 인 경우에만 동작해야 합니다.",
+        "Body Column 의 inputType 이 'checkbox','radio','custom' 이 아니면 빈 배열을 반환해야 합니다.",
+        "inputType='custom' 이면 실제 Body Cell 의 inputType 이 'checkbox','radio' 인 Cell 만 처리해야 합니다.",
+        "disabled/readOnly 상태인 Body Cell 의 Row 데이터도 결과에 포함되어야 합니다.",
+        "rowStatusNodeName 속성으로 지정된 키 이름으로 Row 의 상태값('R','U','C','D' 등)이 포함되어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 inputType 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    // cst 는 custom 컬럼(행별 checkbox/text/radio 혼합)
+    // DataList 에 rowStatusNodeName="rowStatus" 지정 → JSON 객체에 rowStatus 키 포함. Row0(HONG)은 amount 변경 → 상태 'U', 나머지 체크행은 'R'.
+    $c.gcm.createLabel('label="0:chk(checkbox) / 1:name(text) / 2:birth(text) / 3:amount(number) / 4:rdo(radio) / 5:cst(custom, Row0·2·4=checkbox)  ·  rowStatusNodeName=rowStatus(변경행 U)"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    // - rowStatusNodeName="rowStatus" : getCheckedJSON(getRowJSON) 반환 객체에 Row 상태값 키 포함
+    // - chk    : checkbox(binary) 원본값 1/0  → 조회 대상 Column(인덱스 0)
+    // - name   : text
+    // - birth  : text
+    // - amount : number (displayFormat #,###)
+    // - rdo    : radio(binary)
+    // - cst    : custom 컬럼 원본값 (checkbox/radio 셀은 trueValue 값, text 셀은 표시 문자열)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map" rowStatusNodeName="rowStatus">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="birth" name="birth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="rdo" name="rdo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cst" name="cst" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // chk : Row0/Row2/Row4 = 체크(trueValue "1"), Row1/Row3 = 미체크(falseValue "0")
+    // rdo : radio 단일선택 → Row1(KIM)만 "1"(chk 미체크 행) → getCheckedJSON(rdo) 는 chk 와 다른 1건 반환
+    // cst : Row0=checkbox(1=체크), Row1=text, Row2=checkbox(1=체크), Row3=radio(0=미체크), Row4=checkbox(1=체크)
+    let jsonData = [
+        { "chk": "1", "name": "HONG", "birth": "19850315", "amount": 1000, "rdo": "0", "cst": "1"    },
+        { "chk": "0", "name": "KIM",  "birth": "19900720", "amount": 2000, "rdo": "1", "cst": "text" },
+        { "chk": "1", "name": "LEE",  "birth": "19880103", "amount": 3000, "rdo": "0", "cst": "1"    },
+        { "chk": "0", "name": "PARK", "birth": "19920512", "amount": 4000, "rdo": "0", "cst": "0"    },
+        { "chk": "1", "name": "CHOI", "birth": "19870928", "amount": 5000, "rdo": "0", "cst": "1"    }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    // setCellInputTypeCustom=true → custom 컬럼에 setCellInputType 으로 행별 inputType 부여 가능
+    let properties = {
+        dataList: "data:dlt_bind",
+        setCellInputTypeCustom: "true",
+        checkAllType: "false",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Header 6컬럼)
+    // 마지막 cst 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:720px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getCheckedJSON 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol1" value="chk(checkbox)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol2" value="이름"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol3" value="생년월일"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol4" value="amount"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol5" value="rdo(radio)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol6" value="cst(custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // index 0 : chk (checkbox, valueType=binary) - trueValue="1" falseValue="0"  → 조회 대상 Column
+    strTarget += '<w2:column width="90" style="" inputType="checkbox" valueType="binary" id="chk" dataList="chk" trueValue="1" falseValue="0"></w2:column>';
+    // index 1 : name (text)
+    strTarget += '<w2:column width="100" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 2 : birth (text)
+    strTarget += '<w2:column width="110" style="" inputType="text" id="birth" dataList="birth"></w2:column>';
+    // index 3 : amount (number + displayFormat)
+    strTarget += '<w2:column width="110" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    // index 4 : rdo (radio, valueType=binary) - 단일 선택 (Row1 만 체크). getCheckedJSON 동작 inputType 중 radio 검증
+    strTarget += '<w2:column width="90" style="" inputType="radio" valueType="binary" id="rdo" dataList="rdo" trueValue="1" falseValue="0"></w2:column>';
+    // index 5 : cst (custom) - 행별 inputType 혼합 (setCellInputType 으로 지정), width="*"
+    strTarget += '<w2:column width="*" style="" inputType="custom" id="cst" dataList="cst" trueValue="1" falseValue="0"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // cst(custom) 컬럼 행별 inputType 부여 (@spec1)
+    //  Row0 = checkbox(1=체크), Row1 = text(체크 대상 아님), Row2 = checkbox(1=체크), Row3 = radio(0=미체크), Row4 = checkbox(1=체크)
+    target1.setCellInputType(0, "cst", { inputType: "checkbox" });
+    target1.setCellInputType(1, "cst", { inputType: "text" });
+    target1.setCellInputType(2, "cst", { inputType: "checkbox" });
+    target1.setCellInputType(3, "cst", { inputType: "radio" });
+    target1.setCellInputType(4, "cst", { inputType: "checkbox" });
+
+    // rowStatusNodeName 검증용 : 체크된 Row0(HONG) 의 amount 셀 값을 바인딩 DataList 로 변경 → 해당 Row 상태 'U'(Updated)
+    //  미변경 체크행(Row2/Row4)은 'R'(Read) 로 JSON 의 rowStatus 키가 다르게 나타남
+    dlt_bind.setCellData(0, "amount", 1500);
+
+    // 체크된 Row 중 일부를 disabled/readOnly 처리 → @spec2 (상태 무관 결과 포함) 검증
+    //  Row2(chk 체크) = setRowDisabled, Row4(chk 체크) = setRowReadOnly
+    target1.setRowDisabled(2, true);
+    target1.setRowReadOnly(4, true);
+}
+
+
+
+// getCheckedJSON 확인 : par_columnInfo(컬럼 인덱스) 로 호출 → 체크 상태인 Row 의 데이터를 JSON 객체 배열로 반환
+//  - chk(인덱스0)  : Row0/Row2/Row4 체크 → 각 Row 의 전체 Column ID 키 객체(rowStatus 키 포함) 반환
+//  - name(인덱스1) : text 컬럼 → 빈 배열 [] (@description / @return)
+//  - rdo(인덱스4)  : radio 단일선택 → Row1 만 체크 → 1건 반환 (checkbox/radio/custom 동작 검증)
+//  - cst(인덱스5)  : custom → 실제 checkbox 셀(Row0,Row2,Row4)만 처리, text 셀(Row1)/radio 미체크(Row3) 제외 (@spec1)
+scwin.btn_getCheckedJSON_onclick = function () {
+    // columnInfo 는 컬럼 인덱스(Number) 로 전달
+    let colIndex = Number(par_columnInfo.getValue());
+    let rtn = target1.getCheckedJSON(colIndex);
+
+    // 각 원소는 DataList 모든 Column ID 키 객체. rowStatus 상태키가 객체에 포함됨을 확인.
+    let out = "getCheckedJSON(" + colIndex + ") → 체크 Row " + rtn.length + "건";
+    for (let i = 0; i < rtn.length; i++) {
+        out += "\n  [" + i + "] " + JSON.stringify(rtn[i]);
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>0 (chk, checkbox)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (name, text)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>4 (rdo, radio)</xf:label><xf:value>4</xf:value></xf:item>
+											<xf:item><xf:label>5 (cst, custom)</xf:label><xf:value>5</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCheckedJSON_onclick" id="btn_getCheckedJSON"
+							label="getCheckedJSON 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

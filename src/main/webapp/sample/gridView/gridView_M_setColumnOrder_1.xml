@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnOrder" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260602" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnOrder]<br/>Body Column 의 ID 또는 인덱스값으로 Column 의 표시 순서를 재설정합니다.",
+    "validation" : [
+        "columnOrderArray(필수) 파라미터로 전달한 Column 의 ID 또는 인덱스 배열로 Body Column 의 표시 순서를 재설정합니다.",
+        "columnOrderArray(필수) 에 미포함된 Column 은 기존 순서를 유지하며 오른쪽에 배치됩니다.",
+        "재설정에 성공하면 true 를 반환합니다.",
+        "사용자가 순서를 변경해도 Body Column 의 인덱스값은 변경되지 않습니다.",
+        "columnMove, fixedColumnNoMove 속성값에 관계없이 setColumnOrder 를 사용할 수 있습니다.",
+        "columnMoveWithFooter=true 이면 Column 표시 순서 재설정 시 Footer Column 도 함께 재설정됩니다.",
+        "setColumnOrder() 로 순서가 변경되어도 onaftercolumnmove, onbeforecolumnmove 이벤트는 발생하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 (gVar 기본값과 일치) : gdl_boolean 의 value(true=2 / false=3)
+    con_columnMoveWithFooter.setValue("2"); // true
+    con_columnMove.setValue("3");           // false
+    con_fixedColumnNoMove.setValue("3");    // false
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// con 옵션 기본값. columnMoveWithFooter(@spec3) / columnMove, fixedColumnNoMove(@spec2)
+scwin.gVar = {
+    "cColumnMoveWithFooter" : "true",
+    "cColumnMove"           : "false",
+    "cFixedColumnNoMove"    : "false"
+};
+
+// 이벤트 발생 카운트 (@spec4 : setColumnOrder 호출 시 미발생 확인)
+scwin.evtCnt = { "before" : 0, "after" : 0 };
+
+
+
+// comp 생성
+//  - Body Column 4개 (col0, col1, col2, col3) + Footer 1행 (ft0~ft3) 구성
+//  - columnMove / fixedColumnNoMove / columnMoveWithFooter 는 con 선택값으로 생성 (@spec2, @spec3)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 이벤트 카운트 초기화
+    scwin.evtCnt = { "before" : 0, "after" : 0 };
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="초기 Column 순서=col0,col1,col2,col3 / columnMove=' + scwin.gVar.cColumnMove + ' / fixedColumnNoMove=' + scwin.gVar.cFixedColumnNoMove + ' / columnMoveWithFooter=' + scwin.gVar.cColumnMoveWithFooter + '"', '', 'label1');
+
+    // dataList 생성 (4 Column, 4 Row 직접 구성)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col0" name="name0" dataType="text"></w2:column>';
+    strData += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [];
+    for (let i = 1; i <= 4; i++) {
+        jsonData.push({
+            "col0" : "A" + i, "col1" : "B" + i, "col2" : "C" + i, "col3" : "D" + i
+        });
+    }
+    dlt_bind.setJSON(jsonData);
+
+    // 조건 설정 (columnMove / fixedColumnNoMove / columnMoveWithFooter)
+    let properties = {
+        columnMove           : scwin.gVar.cColumnMove,
+        fixedColumnNoMove    : scwin.gVar.cFixedColumnNoMove,
+        columnMoveWithFooter : scwin.gVar.cColumnMoveWithFooter
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // onbeforecolumnmove / onaftercolumnmove 바인딩 (@spec4 : setColumnOrder 시 미발생 확인)
+    let eList = $c.gcm.createEList(["onbeforecolumnmove", "onaftercolumnmove"]);
+
+    // target 생성 (Header 4컬럼 + gBody + Footer 1행)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnOrder 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column1" value="col0(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column2" value="col1(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column3" value="col2(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column4" value="col3(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col0" value=""></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="ft0" value="F-col0"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="ft1" value="F-col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="ft2" value="F-col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="ft3" value="F-col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con 옵션 변경 시 Target 재생성 시 사용할 값 갱신 (gdl_boolean : getText 로 true/false 문자열 사용)
+scwin.con_columnMoveWithFooter_onchange = function () {
+    scwin.gVar.cColumnMoveWithFooter = con_columnMoveWithFooter.getText();
+}
+scwin.con_columnMove_onchange = function () {
+    scwin.gVar.cColumnMove = con_columnMove.getText();
+}
+scwin.con_fixedColumnNoMove_onchange = function () {
+    scwin.gVar.cFixedColumnNoMove = con_fixedColumnNoMove.getText();
+}
+
+
+
+// onbeforecolumnmove / onaftercolumnmove 핸들러 : 발생 시 카운트 증가 (@spec4 확인용)
+scwin.target1_onbeforecolumnmove = function () {
+    scwin.evtCnt.before++;
+}
+scwin.target1_onaftercolumnmove = function () {
+    scwin.evtCnt.after++;
+}
+
+
+
+// 현재 Footer 표시 순서를 DOM 에서 읽어 반환 (columnMoveWithFooter 검증용)
+scwin.getFooterDisplayOrder = function () {
+    let ids = ["ft0", "ft1", "ft2", "ft3"];
+    let arr = ids.map(function (id) {
+        return target1.getFooterData(id);
+    });
+    return arr;
+}
+
+
+
+// 공통 실행 함수 : columnOrderArray 로 setColumnOrder 호출 후
+//  - 반환값(Boolean), getColumnOrder(true)(표시 순서 ID), getColumnOrder(false)(표시 순서 인덱스)
+//  - @spec1 인덱스 불변 : id 기준 getColumnIndex/getCellData 결과
+//  - @spec3 Footer 표시 순서, @spec4 이벤트 발생 카운트 출력
+scwin.runSetColumnOrder = function (title, columnOrderArray) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    bottom.setReturnValue("[" + title + "]");
+
+    // @spec4 확인을 위해 호출 직전 카운트 초기화
+    scwin.evtCnt = { "before" : 0, "after" : 0 };
+
+    bottom.setReturnValue("columnOrderArray = " + JSON.stringify(columnOrderArray));
+
+    let rtn = target1.setColumnOrder(columnOrderArray);
+    bottom.setReturnValue("[반환값] " + rtn);
+
+    // 표시 순서 (ID / 인덱스)
+    bottom.setReturnValue("[getColumnOrder(true) 표시 순서 ID] " + JSON.stringify(target1.getColumnOrder(true)));
+    bottom.setReturnValue("[getColumnOrder(false) 표시 순서 인덱스] " + JSON.stringify(target1.getColumnOrder(false)));
+
+    // @spec4 : setColumnOrder 시 onbeforecolumnmove/onaftercolumnmove 미발생 (발생 안 함 기대)
+    bottom.setReturnValue("[이벤트 발생 여부] onbeforecolumnmove=" + (scwin.evtCnt.before > 0 ? "발생" : "미발생") + " / onaftercolumnmove=" + (scwin.evtCnt.after > 0 ? "발생" : "미발생"));
+}
+
+
+
+// setColumnOrder 실행 : par_scenario 선택값으로 분기
+scwin.btn_run_onclick = function () {
+    let scenario = par_scenario.getValue();
+
+    switch (scenario) {
+        case "id" :
+            // 1) ID 배열 : col2, col0 → 나머지(col1, col3) 오른쪽 배치
+            scwin.runSetColumnOrder("ID 배열 ['col2','col0']", ["col2", "col0"]);
+            break;
+        case "index" :
+            // 2) 인덱스 배열 : 전체 역순
+            scwin.runSetColumnOrder("인덱스 배열 [3,2,1,0]", [3, 2, 1, 0]);
+            break;
+        case "mixed" :
+            // 3) ID + 인덱스 혼합
+            scwin.runSetColumnOrder("혼합 ['col2',1,'col3',0]", ["col2", 1, "col3", 0]);
+            break;
+        case "partial" :
+            // 4) 미포함 Column → 기존 순서 유지하며 오른쪽 배치
+            scwin.runSetColumnOrder("미포함 우측배치 ['col3']", ["col3"]);
+            break;
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnMoveWithFooter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_columnMoveWithFooter_onchange" id="con_columnMoveWithFooter" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnMove" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_columnMove_onchange" id="con_columnMove" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="fixedColumnNoMove" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_fixedColumnNoMove_onchange" id="con_fixedColumnNoMove" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_scenario" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>ID 배열</xf:label>
+												<xf:value>id</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>인덱스 배열</xf:label>
+												<xf:value>index</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>ID+인덱스 혼합</xf:label>
+												<xf:value>mixed</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>미포함 우측배치</xf:label>
+												<xf:value>partial</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_run_onclick" id="btn_run" label="setColumnOrder 실행" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

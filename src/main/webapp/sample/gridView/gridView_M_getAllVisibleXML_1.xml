@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getAllVisibleXML" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getAllVisibleXML]<br/>필터링, 정렬 상태를 기준으로 Display 포맷이 적용되지 않은 Row 데이터를 XML 객체로 반환합니다.",
+    "validation" : [
+        "필터링, 정렬 상태를 기준으로 GridView 에 표시된 Row 데이터를 XML 객체로 반환해야 합니다.",
+        "객체는 필터링, 정렬이 적용된 상태를 기준으로 GridView 에 표시된 첫번째 Row 부터 차례로 생성되어야 합니다.",
+        "바인딩 된 데이터가 없으면 DataList 의 baseNode 속성값을 태그명으로 빈 태그(<list></list>) 를 반환해야 합니다.",
+        "DataList 의 baseNode 속성값이 Root 노드의 태그명으로 설정되고, 반복되는 Row 데이터 노드의 태그엔 repeatNode 속성값이 설정되어야 합니다.",
+        "Row 데이터 노드엔 id(Row 인덱스값), statusValue(Row 상태값), status(Row 상태코드값) 속성이 설정되어야 합니다.",
+        "각 Cell 값은 Row 데이터 노드의 하위 노드로 Column ID 를 태그명으로 설정되며, displayFormat, maskFormat, escapeFormatter, customFormatter, customModelUnformatter 등의 Display 포맷이 적용되지 않은 원본값이어야 합니다.",
+        "GridView Column 과 바인딩되지 않은 DataList 의 Column 값은 반환되지 않아야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="컬럼 구성 - name(text) / amount(number displayFormat #,###) / dept(text, 정렬·필터 대상). DataList 의 baseNode=list / repeatNode=map. etc 컬럼은 GridView 와 미바인딩. Row2 의 amount 는 null."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    // - baseNode="list" / repeatNode="map" : 반환 XML 의 Root 태그 / Row 노드 태그명으로 사용됨 (validation 4)
+    // - amount : number, Row2 는 null
+    // - etc : GridView Column 과 바인딩되지 않는 컬럼 (@spec 검증용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="etc" name="etc" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John",  "amount": 23456, "dept": "Sales", "etc": "etc1" },
+        { "name": "Jane",  "amount": 12000, "dept": "Dev",   "etc": "etc2" },
+        { "name": "Mike",  "amount": null,  "dept": "Sales", "etc": "etc3" },
+        { "name": "Amy",   "amount": 8500,  "dept": "Dev",   "etc": "etc4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+        checkAllType: "false",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Header 3컬럼 - name / amount(displayFormat) / dept)
+    // 마지막 컬럼(dept) width="*" 로 잔여폭 자동 채움 → 세로 스크롤바 폭만큼 가로 스크롤 방지
+    // DataList 의 etc 컬럼은 GridView Column 과 바인딩하지 않음 (@spec 검증)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getAllVisibleXML 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="부서"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // amount : number + displayFormat (원본 23456 -> 그리드 표시 "23,456", 반환 XML 값은 원본 23456)
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 반환 XML 객체를 문자열로 직렬화 (가독성 위해 줄바꿈/연속 공백 정리)
+scwin.fn_xmlToStr = function (xmlObj) {
+    let str = WebSquare.xml.serialize(xmlObj);
+    return str.replace(/>\s+</g, "><").replace(/<map /g, "\n<map ").replace(/<\/list>/g, "\n</list>");
+}
+
+
+
+// getAllVisibleXML 확인 : Display 포맷이 적용되지 않은 Row 데이터를 XML 객체로 반환
+// - Root 태그 = DataList baseNode(list), 각 Row = repeatNode(map) 태그 (validation 4)
+// - Row 노드 속성 = id(Row 인덱스) / statusValue(상태값) / status(상태코드) (validation 5)
+// - Cell = Column ID 태그명 + 원본값. amount 는 displayFormat="#,###" 미적용으로 원본 23456 그대로 (validation 6)
+// - GridView 와 미바인딩된 etc 컬럼은 XML 에 미포함 (validation 7)
+scwin.btn_getAllVisibleXML_onclick = function () {
+    let rtn = target1.getAllVisibleXML();
+    wf_body_bottom.getObj("scwin").setReturnValue("getAllVisibleXML() : " + scwin.fn_xmlToStr(rtn));
+}
+
+
+
+// 필터 적용 : dept 가 'Sales' 인 Row 만 표시 -> 표시된 Row 만 XML 객체로 반환 (validation 1)
+scwin.btn_setFilter_onclick = function () {
+    dlt_bind.setColumnFilter({ type: "row", colIndex: "dept", key: "Sales", condition: "and", exactMatch: true });
+    let rtn = target1.getAllVisibleXML();
+    wf_body_bottom.getObj("scwin").setReturnValue("[필터 dept=Sales 적용] getAllVisibleXML() : " + scwin.fn_xmlToStr(rtn));
+}
+
+
+
+// 정렬 적용 : name 컬럼 내림차순 정렬 -> 정렬 상태 기준 첫 Row 부터 차례로 노드 생성 (validation 2)
+scwin.btn_setSort_onclick = function () {
+    dlt_bind.sort("name", 1);
+    let rtn = target1.getAllVisibleXML();
+    wf_body_bottom.getObj("scwin").setReturnValue("[name 내림차순 정렬] getAllVisibleXML() : " + scwin.fn_xmlToStr(rtn));
+}
+
+
+
+// 컬럼 숨김 : amount 컬럼 숨김 -> 숨긴 컬럼 데이터도 반환 XML 에 포함됨
+scwin.btn_hideColumn_onclick = function () {
+    target1.setColumnVisible("amount", false);
+    let rtn = target1.getAllVisibleXML();
+    wf_body_bottom.getObj("scwin").setReturnValue("[amount 컬럼 숨김] getAllVisibleXML() : " + scwin.fn_xmlToStr(rtn));
+}
+
+
+
+// 데이터 제거 : 바인딩 데이터 없으면 baseNode 태그명으로 빈 태그(<list></list>) 반환 (validation 3)
+scwin.btn_removeAll_onclick = function () {
+    dlt_bind.removeAll();
+    let rtn = target1.getAllVisibleXML();
+    wf_body_bottom.getObj("scwin").setReturnValue("[데이터 제거 후] getAllVisibleXML() : " + scwin.fn_xmlToStr(rtn));
+}
+
+
+
+// 초기 상태 복원 (필터/정렬/숨김/제거 후 재구성)
+scwin.btn_reset_onclick = function () {
+    scwin.comp_init();
+    wf_body_bottom.getObj("scwin").setReturnValue("초기 상태로 재구성 완료");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAllVisibleXML_onclick" id="btn_getAllVisibleXML"
+							label="getAllVisibleXML 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFilter_onclick" id="btn_setFilter"
+							label="필터 적용" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setSort_onclick" id="btn_setSort"
+							label="정렬 적용" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hideColumn_onclick" id="btn_hideColumn"
+							label="컬럼 숨김" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_removeAll_onclick" id="btn_removeAll"
+							label="데이터 제거" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_reset_onclick" id="btn_reset"
+							label="초기화" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

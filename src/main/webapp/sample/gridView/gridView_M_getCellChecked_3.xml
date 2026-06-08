@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getCellChecked" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getCellChecked]<br/>Row 인덱스와 Column 정보를 사용하여 특정 Body Cell 의 체크 상태를 반환합니다. inputType 이 'checkbox','radio','custom' 인 경우에만 동작합니다.",
+    "validation" : [
+        "MultiLine 으로 한 Row 가 여러 Line 으로 표시될 때, 각 Line 의 Cell 은 동일한 Row 인덱스값을 사용해야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (MultiLine 구성)
+//  - 한 레코드(Row)를 2개의 Line 으로 표시
+//    Line1 : name(text, colIndex 0) + chkA(checkbox·binary, colIndex 1)
+//    Line2 : chkB(checkbox·binary, colIndex 2) + memo(text, colIndex 3)
+//  - header / gBody 에 각각 <w2:row> 를 2개 두면 한 레코드가 2 Line 으로 렌더됨
+//  - Column 은 Line 에 관계없이 문서 순서대로 고유 인덱스(0,1,2,3) 를 가짐
+//  - Row 인덱스는 Line 과 무관하게 레코드 단위로 동일 (Line2 의 chkB 도 Line1 컬럼과 같은 rowIndex 로 조회됨)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="MultiLine 2 Line 구성: Line1=name·chkA / Line2=chkB·memo — 각 Line 동일 Row 인덱스"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - chkA / chkB : checkbox(binary) 원본값 1(체크) / 0(미체크)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chkA" name="chkA" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chkB" name="chkB" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // chkA / chkB 체크상태 혼합 (1=체크, 0=미체크)
+    //  Row0 : chkA 체크 / chkB 미체크
+    //  Row1 : chkA 미체크 / chkB 체크
+    //  Row2 : chkA 체크 / chkB 체크
+    //  Row3 : chkA 미체크 / chkB 미체크
+    let jsonData = [
+        { "name": "John", "chkA": "1", "chkB": "0", "memo": "메모0" },
+        { "name": "Jane", "chkA": "0", "chkB": "1", "memo": "메모1" },
+        { "name": "Mike", "chkA": "1", "chkB": "1", "memo": "메모2" },
+        { "name": "Amy",  "chkA": "0", "chkB": "0", "memo": "메모3" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+        checkAllType: "false",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (MultiLine : header/gBody 각각 <w2:row> 2개)
+    //  마지막 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getCellChecked MultiLine 테스트 그리드"></w2:caption>';
+    // Header : Line1 = name + chkA / Line2 = chkB + memo
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_chkA" value="chkA(checkbox)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol_chkB" value="chkB(checkbox)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_memo" value="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1 = name(0) + chkA(1) / Line2 = chkB(2) + memo(3)
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // colIndex 0 : name (text)
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // colIndex 1 : chkA (checkbox, valueType=binary) - trueValue="1" falseValue="0"
+    strTarget += '<w2:column width="*" style="" inputType="checkbox" valueType="binary" id="chkA" dataList="chkA" trueValue="1" falseValue="0"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // colIndex 2 : chkB (checkbox, valueType=binary) - trueValue="1" falseValue="0"  (Line2 배치)
+    strTarget += '<w2:column width="160" style="" inputType="checkbox" valueType="binary" id="chkB" dataList="chkB" trueValue="1" falseValue="0"></w2:column>';
+    // colIndex 3 : memo (text), width="*"
+    strTarget += '<w2:column width="*" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// getCellChecked 확인 : par_rowIndex / par_columnInfo 로 호출 → 체크 상태(true/false) 반환
+//  - columnInfo 는 Cell 의 Column ID(name / chkA / chkB / memo) 로 전달
+//  - Line2 의 chkB 셀도 Line1 컬럼(chkA 등)과 동일한 rowIndex 로 조회됨
+//    (각 Line 이 별도 Row 인덱스를 갖지 않음 → 한 레코드 = 동일 rowIndex)
+scwin.btn_getCellChecked_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    // columnInfo 는 Column ID 로 전달
+    let colInfo = par_columnInfo.getValue();
+    let rtn = target1.getCellChecked(rowIndex, colInfo);
+    if (typeof rtn === 'undefined') {
+        rtn = 'undefined';
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("getCellChecked(" + rowIndex + ", '" + colInfo + "') : " + rtn);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>0 (chkA 체크/chkB 미체크)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (chkA 미체크/chkB 체크)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2 (chkA 체크/chkB 체크)</xf:label><xf:value>2</xf:value></xf:item>
+											<xf:item><xf:label>3 (chkA 미체크/chkB 미체크)</xf:label><xf:value>3</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>chkA (Line1, checkbox)</xf:label><xf:value>chkA</xf:value></xf:item>
+											<xf:item><xf:label>chkB (Line2, checkbox)</xf:label><xf:value>chkB</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCellChecked_onclick" id="btn_getCellChecked"
+							label="getCellChecked 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

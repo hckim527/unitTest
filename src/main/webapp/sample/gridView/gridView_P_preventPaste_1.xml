@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] preventPaste" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > preventPaste]<br/>GridView 컴포넌트에서 붙여넣기(Ctrl+V)를 차단할지 설정합니다.",
+    "validation" : [
+        "GridView 에서 붙여넣기(Ctrl+V)를 차단할지 설정합니다. Body Cell 이 편집모드일때는 적용되지 않습니다.",
+        "true 설정 시 붙여넣기(Ctrl+V)를 차단합니다.",
+        "false(기본값) 설정 시 붙여넣기(Ctrl+V)를 허용합니다.",        
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 붙여넣기 원본 기본값 설정 (textarea 는 기본값 속성이 없어 setValue 로 설정)
+    txa_pasteSource.setValue("붙여넣기값");
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 편집 가능한 GridView (gBody 4 Column, editType=text), 데이터 4건
+//  - preventPaste 는 con_preventPaste 선택값(미설정/true/false) 으로 생성 (gdl_boolean + getText)
+//    · 미설정("") 이면 preventPaste 속성 자체를 제외 → 기본값 false 동작
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    let conPreventPaste = con_preventPaste.getText();
+
+    let properties = {
+        focusMode : "cell"
+    };
+    // 미설정("") 일 때는 preventPaste 속성 자체를 제외 (기본값 false 동작)
+    if (conPreventPaste !== "") {
+        properties.preventPaste = conPreventPaste;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // 붙여넣기 이벤트(oncustompaste) 바인딩 (붙여넣기 후 셀 값 출력용)
+    let eList = $c.gcm.createEList(["oncustompaste"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblPreventPaste = (conPreventPaste === '') ? '미설정(기본 false)' : conPreventPaste;
+    $c.gcm.createLabel('label="preventPaste=' + lblPreventPaste + ' 로 편집 가능 GridView 생성. true 면 붙여넣기(Ctrl+V) 차단(편집모드 셀은 제외). preventPaste=true 일때 최상위 요소에 추가되는 CSS 클래스는 없음"', '', 'label1');
+
+    // dataList 생성 (column id 를 col1~col4 로 맞춤, 붙여넣기 확인용 초기 텍스트 채움)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "Origin0_0", col2 : "Origin0_1", col3 : "Origin0_2", col4 : "Origin0_3" },
+        { col1 : "Origin1_0", col2 : "Origin1_1", col3 : "Origin1_2", col4 : "Origin1_3" },
+        { col1 : "Origin2_0", col2 : "Origin2_1", col3 : "Origin2_2", col4 : "Origin2_3" },
+        { col1 : "Origin3_0", col2 : "Origin3_1", col3 : "Origin3_2", col4 : "Origin3_3" }
+    ]);
+
+    // target 생성 (편집 가능 그리드 : gBody Column 에 editType="text")
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:480px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="preventPaste 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con_preventPaste 변경 시 Target 재생성 안내 (con 변경은 Target 재생성 버튼으로 반영)
+scwin.con_preventPaste_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+
+
+
+// 포커스된 그리드 셀의 값 조회
+//  - getFocusedRowIndex / getFocusedColumnIndex 로 포커스 셀 위치 → getCellDisplayData 로 셀 값 조회
+//  - 포커스 없으면 빈 문자열 반환
+scwin.getFocusedCellValue = function () {
+    let rowIndex = target1.getFocusedRowIndex();
+    let colIndex = target1.getFocusedColumnIndex();
+    if (rowIndex === undefined || rowIndex === null || rowIndex < 0 || colIndex === undefined || colIndex === null || colIndex < 0) {
+        return "";
+    }
+    return target1.getCellDisplayData(rowIndex, colIndex);
+}
+
+
+
+// oncustompaste 핸들러 (셀 선택 후 Ctrl+V 시 발생)
+//  - 기본 붙여넣기는 그대로 진행되도록 false 를 반환하지 않음
+//  - 붙여넣기 적용 이후(setTimeout 0) 포커스 셀 값을 출력
+//    · preventPaste=true 면 값이 그대로(변화 없음 = 차단), false 면 붙여넣은 값으로 변경
+scwin.target1_oncustompaste = function (e) {
+    let row = target1.getFocusedRowIndex();
+    let col = target1.getFocusedColumnIndex();
+    setTimeout(function () {
+        let bottom = wf_body_bottom.getObj("scwin");
+        bottom.btn_clear_onclick();
+        bottom.setReturnValue("붙여넣기 대상 셀(row " + row + ", col " + col + ") 값 : " + scwin.getFocusedCellValue());
+    }, 0);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="preventPaste" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_preventPaste_onchange" id="con_preventPaste" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 원본" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_pasteSource" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="이 영역의 텍스트를 선택하여 복사(Ctrl+C) → 그리드의 셀을 클릭한 뒤 붙여넣기(Ctrl+V) 하여 차단 여부를 확인하세요. preventPaste=true 면 값이 변하지 않고(차단), false 면 붙여넣은 값으로 변경됩니다. 편집모드(셀 더블클릭) 에서는 preventPaste 와 무관하게 붙여넣기가 허용됩니다" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

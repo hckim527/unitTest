@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] showSortableImage" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260605" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > showSortableImage]<br/>sortable=true 인 Header Column 에 정렬 상태 아이콘을 항상 표시할지 설정합니다.",
+    "validation" : [
+        "showSortableImage=true 면 sortable=true 인 정렬 가능한 Header Column 에 정렬 상태 아이콘을 항상 표시해야 합니다.",
+        "showSortableImage=false(기본값)면 정렬이 적용된 Header Column 에만 정렬 상태 아이콘을 표시하고, 미정렬 상태의 Header Column 에는 정렬 상태 아이콘을 표시하지 않아야 합니다.",
+        "accessibility=true 또는 sortHeaderDiv=true 이면 항상 true 로 동작해야 합니다.",
+        "sortable=true 인 Header Column 의 th 요소에 aria-sort 속성이 정렬 상태에 따라 'other', 'ascending', 'descending' 으로 설정되어야 합니다.",
+        "정렬 상태 아이콘은 'w2grid_head_sort_asc', 'w2grid_head_sort_desc', 'w2grid_head_sort_none', 'w2grid_head_sort_image_none', 'w2grid_head_sortable' CSS 클래스로 적용되어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 속성별 con_ selectbox 로 각각 독립 설정 (공통 gdl_boolean 바인딩 → value 1/2/3 가 아닌 getText() 로 label('' / 'true' / 'false') 판단)
+    //  - con_showSortableImage : '' 미설정(기본 false) / 'true' / 'false'
+    //  - con_accessibility     : '' 미설정 / 'true' (showSortableImage 강제 true 동작 검증)
+    //  - con_sortHeaderDiv     : '' 미설정 / 'true' (showSortableImage 강제 true 동작 검증)
+    let vShow = con_showSortableImage.getText();
+    let vAccess = con_accessibility.getText();
+    let vSortDiv = con_sortHeaderDiv.getText();
+
+    // sortable=true 인 정렬 가능한 Header Column 이어야 정렬 아이콘이 의미를 가지므로 항상 sortable: true 포함
+    let properties = {
+        sortable: true,
+        dataList: "data:dlt_bind",
+    };
+
+    // showSortableImage : 미설정('') 이면 속성 자체를 추가하지 않음(기본 false)
+    if (vShow === 'true') {
+        properties.showSortableImage = true;
+    } else if (vShow === 'false') {
+        properties.showSortableImage = false;
+    }
+    if (vAccess === 'true') {
+        properties.accessibility = true;
+    }
+    if (vSortDiv === 'true') {
+        properties.sortHeaderDiv = true;
+    }
+
+    let lblDesc = 'showSortableImage=' + (vShow === '' ? '(미설정)' : vShow)
+        + (vAccess === 'true' ? ', accessibility=true' : '')
+        + (vSortDiv === 'true' ? ', sortHeaderDiv=true' : '');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="sortable=true, ' + lblDesc + '"', '', 'label1');
+
+    // dataList 생성 (4행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, '');
+}
+
+
+
+// 정렬 상태/아이콘 확인 : 각 sortable Header th 의 aria-sort 속성과 정렬 아이콘 CSS 클래스(w2grid_head_sort_*) 표시 여부를 출력
+//  - 정렬 자체는 사용자가 헤더를 클릭하여 수행 (정렬 트리거 버튼은 생성하지 않음)
+scwin.btn_checkSortState_onclick = function (e) {
+    let headTable = document.querySelector("[id*='target1_head_table']");
+    if (!headTable) {
+        wf_body_bottom.getObj("scwin").setReturnValue("head_table 를 찾을 수 없습니다.");
+        return;
+    }
+
+    // sortable=true 인 Header Column 의 th (w2grid_head_sortable 클래스 보유)
+    let sortableThs = headTable.querySelectorAll("th.w2grid_head_sortable");
+    if (sortableThs.length === 0) {
+        wf_body_bottom.getObj("scwin").setReturnValue("sortable Header Column(th.w2grid_head_sortable) 이 없습니다.");
+        return;
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[옵션] showSortableImage : " + target1.options.showSortableImage + " / accessibility : " + target1.options.accessibility + " / sortHeaderDiv : " + target1.options.sortHeaderDiv);
+
+    for (let i = 0; i < sortableThs.length; i++) {
+        let th = sortableThs[i];
+
+        // aria-sort 속성 (@spec2) : other / ascending / descending
+        let ariaSort = th.getAttribute("aria-sort");
+
+        // 적용된 정렬 상태 아이콘 CSS 클래스 (@spec3) 수집
+        //  - 기본 모드 : w2grid_head_sort_asc / _desc / _none / _image_none
+        //  - sortHeaderDiv=true : ..._btn (button 렌더링), accessibility=true : ..._btn_accessibility
+        //  - th 자체의 w2grid_head_sortable 도 정렬 가능 표시 클래스로 함께 확인
+        //  th.outerHTML 전체에서 w2grid_head_sort* 클래스를 모두 수집 (모드별 button/div 변형 포함)
+        let sortClassRegex = /w2grid_head_sort\w*/g;
+        let found = (th.outerHTML.match(sortClassRegex) || []);
+        found = found.filter((v, idx) => found.indexOf(v) === idx);
+
+        // 정렬 상태 아이콘 클래스(asc/desc/none/image_none) 중 image_none 이 아닌 것이 있으면 아이콘 표시
+        let iconStateClasses = found.filter(c => /sort_(asc|desc|none|image_none)/.test(c));
+        let hasIcon = iconStateClasses.some(c => !/image_none/.test(c));
+        let iconClassStr = found.length > 0 ? found.join(", ") : "(없음)";
+
+        wf_body_bottom.getObj("scwin").setReturnValue("Header[" + i + "] aria-sort : " + ariaSort + " / 정렬아이콘 표시 : " + hasIcon + " / 아이콘 클래스 : " + iconClassStr);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="showSortableImage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_showSortableImage" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+											<xf:choices>
+												<xf:itemset nodeset="data:gdl_boolean">
+													<xf:label ref="label"></xf:label>
+													<xf:value ref="value"></xf:value>
+												</xf:itemset>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_accessibility" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+											<xf:choices>
+												<xf:itemset nodeset="data:gdl_boolean">
+													<xf:label ref="label"></xf:label>
+													<xf:value ref="value"></xf:value>
+												</xf:itemset>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="sortHeaderDiv" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_sortHeaderDiv" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+											<xf:choices>
+												<xf:itemset nodeset="data:gdl_boolean">
+													<xf:label ref="label"></xf:label>
+													<xf:value ref="value"></xf:value>
+												</xf:itemset>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th " tagname="th">
+										<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" tagname="td">
+									</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSortState_onclick" id="btn_checkSortState"
+							label="정렬 상태/아이콘 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

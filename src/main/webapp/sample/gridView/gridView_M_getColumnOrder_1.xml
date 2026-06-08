@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getColumnOrder" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getColumnOrder]<br/>GridView 컴포넌트의 Body 영역 Column 표시 순서를 배열로 반환합니다.",
+    "validation" : [
+        "GridView 컴포넌트의 Body 영역 Column 표시 순서를 배열로 반환해야 합니다.",
+        "byName 파라미터가 true 면 Column 의 ID 값을, false(기본값)면 Column 의 인덱스값을 배열의 각 요소로 전달해야 합니다.",
+        "사용자에 의해 Column 의 순서가 변경되어도 Body Column 의 인덱스값은 변경되지 않습니다.",
+        "RowNum, RowStatus Column 은 반환값에 포함되지 않습니다.",
+        "getColumnOrder() 메소드는 숨겨진 Column 도 포함하여 전체 컬럼 순서를 반환합니다.",
+        "getColumnOrder() 메소드는 GridView 가 단일 Row 로 정의된 경우에 정상동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - SingleLine(단일 Row) 구조 → getColumnOrder 정상동작 (@spec4)
+    //  - rowNumVisible / rowStatusVisible 로 RowNum·RowStatus Column 표시 → getColumnOrder 반환값에서 제외 (@spec2)
+    //  - Body Column 인덱스 : 0:name / 1:birth / 2:dept(숨김) / 3:amount  (숨겨진 dept 도 순서에 포함)
+    $c.gcm.createLabel('label="SingleLine 구조. RowNum·RowStatus Column 표시(반환값 제외) / Body Column → 0:name, 1:birth, 2:dept(숨김), 3:amount (숨김 컬럼도 순서 포함). columnMove=true 로 헤더 드래그 순서변경 가능."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="birth" name="birth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "HONG", "birth": "19850315", "dept": "영업", "amount": 1000 },
+        { "name": "KIM",  "birth": "19900720", "dept": "개발", "amount": 2000 },
+        { "name": "LEE",  "birth": "19880103", "dept": "기획", "amount": 3000 },
+        { "name": "PARK", "birth": "19920512", "dept": "총무", "amount": 4000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - rowNumVisible="true"    : RowNum Column 표시 (getColumnOrder 반환값 제외 @spec2)
+    //  - rowStatusVisible="true" : RowStatus Column 표시 (getColumnOrder 반환값 제외 @spec2)
+    //  - columnMove="true"       : 헤더 드래그로 사용자 Column 순서변경 허용 (@spec1)
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: "true",
+        rowStatusVisible: "true",
+        columnMove: "true",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼, SingleLine = 단일 Row)
+    // 마지막 amount 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:720px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getColumnOrder 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="생년월일"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="부서(숨김)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // index 0 : name (text)
+    strTarget += '<w2:column width="120" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 1 : birth (text)
+    strTarget += '<w2:column width="120" style="" inputType="text" id="birth" dataList="birth"></w2:column>';
+    // index 2 : dept (text) - 숨김 처리 대상 (숨겨도 순서에는 포함됨)
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    // index 3 : amount (number + displayFormat), width="*"
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // dept(인덱스 2) Column 숨김 처리 → 숨겨진 Column 도 getColumnOrder 순서에 포함됨을 검증 (@spec3)
+    target1.setColumnVisible(2, false);
+}
+
+
+
+// getColumnOrder 확인 : par_byName(true/false) 로 호출 → 현재 Body Column 표시 순서 배열 반환
+//  - byName=false : Body Column 인덱스값 배열 (예: [0,1,2,3])
+//  - byName=true  : Body Column ID 값 배열 (예: ['name','birth','dept','amount'])
+//  - RowNum/RowStatus Column 은 반환값 제외 / 숨김 dept 컬럼도 포함
+//  - 사용자가 헤더를 드래그하여 순서를 바꾸면 표시 순서대로 반환하되 각 인덱스값 자체는 불변 (@spec1)
+scwin.btn_getColumnOrder_onclick = function () {
+    // par_byName 은 공통 gdl_boolean 바인딩 → value(1/2) 가 아닌 getText() 로 label(true/false) 을 가져옴
+    let byNameText = par_byName.getText();
+    let rtn, out;
+
+    if (byNameText === '') {
+        // 파라미터 생략 (기본값 false → 인덱스 배열)
+        rtn = target1.getColumnOrder();
+        out = "getColumnOrder() → " + JSON.stringify(rtn);
+    } else {
+        let byName = byNameText === 'true';
+        rtn = target1.getColumnOrder(byName);
+        out = "getColumnOrder(" + byName + ") → " + JSON.stringify(rtn);
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="byName (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_byName" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean"><xf:label ref="label"></xf:label><xf:value ref="value"></xf:value></xf:itemset>
+																					</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getColumnOrder_onclick" id="btn_getColumnOrder"
+							label="getColumnOrder 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

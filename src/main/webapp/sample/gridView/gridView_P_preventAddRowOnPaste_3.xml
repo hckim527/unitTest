@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] preventAddRowOnPaste" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260602" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > preventAddRowOnPaste]<br/>줄바꿈 구분자가 포함된 데이터를 붙여넣기(Ctrl+V)할 때 새로운 Row 추가를 차단할지 설정합니다.",
+    "validation" : [
+        "GridView 가 MultiLine 일때 붙여넣기(Ctrl+V)는 MultiLine 을 각각 독립된 Row 로 처리합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 복사 소스 textarea(정적 배치) 에 개행 포함 값 설정
+    //  - MultiLine(2 line/Row) 기준, 탭(\t) 으로 2 컬럼 분리, \n 으로 6 line → 데이터 Row 3건에 분배
+    //  - 사용자가 이 값을 직접 복사(Ctrl+C)한 뒤 그리드 셀을 클릭(포커스)하고 붙여넣기(Ctrl+V)
+    txa_pasteSource.setValue("A1\tA2\nB1\tB2\nC1\tC2\nD1\tD2\nE1\tE2\nF1\tF2");
+
+    // 안내 및 붙여넣기 전 그리드 상태 출력
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    bottom.setReturnValue("[안내] textarea 복사(Ctrl+C) 후 col1 셀 클릭, 붙여넣기(Ctrl+V). preventAddRowOnPaste=" + target1.options.preventAddRowOnPaste);
+    scwin.dumpGridState(bottom, "붙여넣기 전");
+};
+
+
+
+// comp 생성
+//  - MultiLine GridView : 한 Row(데이터 1건) 가 2개의 line(gBody 내 2개의 w2:row) 으로 구성됨
+//      line0 = col1(좌), col2(우) / line1 = col3(좌), col4(우)
+//      multiRowNum = gBody 의 w2:row 수 = 2
+//  - checkEditOnPaste=true, copyType='default' 하드코딩 (preventAddRowOnPaste 가 동작하는 전제)
+//  - preventAddRowOnPaste 는 con_preventAddRowOnPaste 선택값(기본 false) 으로 생성
+//  - dataList 는 적은 수(3건 = 화면상 6 line) 로 구성
+scwin.gVar = { "cPreventAddRowOnPaste" : "false" };
+
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="MultiLine GridView (1 Row = 2 line) / preventAddRowOnPaste=' + scwin.gVar.cPreventAddRowOnPaste + ' / checkEditOnPaste=true, copyType=default / 초기 데이터 3건(=6 line)"', '', 'label1');
+
+    // 복사 소스 안내 라벨 (textarea 는 grp_parameter 영역에 정적 배치, 값은 onpageload 에서 설정)
+    $c.gcm.createLabel('label="↓ 이 텍스트를 복사(Ctrl+C)한 뒤 그리드 셀을 클릭(포커스)하고 붙여넣기(Ctrl+V) 하세요"', '', 'label_guide');
+
+    // dataList 생성 (4 Column = col1~col4, MultiLine 으로 2 line 에 분배)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="name4" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [];
+    for (let i = 1; i <= 3; i++) {
+        jsonData.push({
+            "col1" : "c1_" + i, "col2" : "c2_" + i,
+            "col3" : "c3_" + i, "col4" : "c4_" + i
+        });
+    }
+    dlt_bind.setJSON(jsonData);
+
+    // 조건 설정 (Property : preventAddRowOnPaste, 전제 옵션 하드코딩)
+    let properties = {
+        preventAddRowOnPaste : scwin.gVar.cPreventAddRowOnPaste,
+        checkEditOnPaste     : "true",
+        copyType             : "default"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 바인딩 (onviewchange)
+    let eList = $c.gcm.createEList(["onviewchange"]);
+
+    // target 생성 (MultiLine : gBody 에 2개의 w2:row(line) 정의)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" id="" style="width:420px;height:340px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="preventAddRowOnPaste MultiLine 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcolumn1" value="컬럼1"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcolumn2" value="컬럼2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    // line0 (한 데이터 Row 의 첫번째 line) : col1, col2
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    // line1 (한 데이터 Row 의 두번째 line) : col3, col4
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con_preventAddRowOnPaste 변경 시 Target 재생성 시 사용할 값 갱신용
+scwin.con_preventAddRowOnPaste_onchange = function () {
+    scwin.gVar.cPreventAddRowOnPaste = con_preventAddRowOnPaste.getText();
+}
+
+
+
+// onviewchange 이벤트 핸들러 (값 변경 후 갱신 시점 출력)
+scwin.target1_onviewchange = function (info) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("[onviewchange] rowIndex=" + info.rowIndex + ", colIndex=" + info.colIndex + ", value=" + info.value);
+}
+
+
+
+// 현재 그리드 상태(데이터 Row 수 / 각 데이터 Row 의 line 별 셀 값) 를 출력하는 공통 함수
+//  - getRowCount : 데이터 Row 수 (MultiLine 이라도 데이터 건수 기준)
+//  - 각 데이터 Row 의 line0(col1,col2) / line1(col3,col4) 값 출력 → 독립 Row 처리 여부 확인
+scwin.dumpGridState = function (bottom, title) {
+    let rowCount = target1.getRowCount();
+    bottom.setReturnValue("[" + title + "] Row수=" + rowCount);
+    for (let r = 0; r < rowCount; r++) {
+        let v1 = target1.getCellData(r, "col1");
+        let v2 = target1.getCellData(r, "col2");
+        let v3 = target1.getCellData(r, "col3");
+        let v4 = target1.getCellData(r, "col4");
+        bottom.setReturnValue("Row" + r + " [" + v1 + "," + v2 + "," + v3 + "," + v4 + "]");
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="preventAddRowOnPaste" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_preventAddRowOnPaste_onchange" id="con_preventAddRowOnPaste" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="복사 소스(6 line)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_pasteSource" style="width:200px; height:90px;"></xf:textarea>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

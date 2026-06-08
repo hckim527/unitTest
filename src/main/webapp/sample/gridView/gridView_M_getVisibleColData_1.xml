@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getVisibleColData" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260604" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getVisibleColData]<br/>필터링, 정렬 상태를 기준으로 Display 포맷이 적용되지 않은 특정 Column 의 데이터를 1차원 배열로 반환합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 데이터를 조회할 인덱스를 설정해야 합니다. Column 의 인덱스는 0 부터 시작하며 숨겨진 Footer Cell 도 포함하여 인덱스가 설정됩니다.",
+        "필터링, 정렬 상태를 기준으로 표시된 Column 데이터를 1차원 배열로 반환해야 합니다.",
+        "각 Cell 데이터는 displayFormat, maskFormat, escapeFormatter, customFormatter, customModelUnformatter 등의 Display 포맷이 적용되지 않은 원본값이어야 합니다.",
+        "배열은 필터, 정렬이 적용된 상태를 기준으로 파라미터에 해당하는 Column 의 전체 Cell 데이터로 생성되어야 합니다.",
+        "DrillDown 으로 표시되지 않는 Row 데이터는 반환되지 않아야 하며, 숨김 처리된 Row / Column 의 데이터는 반환값에 포함되어야 합니다.",
+        "데이터가 null 인 경우 빈문자열('') 이 반환되고, 바인딩 된 데이터가 없으면 빈 배열([]) 이 반환되어야 합니다.",
+        "Column 의 inputType 이 'expression' 인 경우 계산된 값을 반환해야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="컬럼 인덱스 - 0:name(text) / 1:amount(number displayFormat #,###) / 2:dept(text, 정렬·필터 대상) / 3:calc(inputType=expression, amount*2). DataList 의 etc 컬럼은 GridView 와 미바인딩. Row2 의 amount 는 null. amount 컬럼(인덱스1)은 생성 직후 setColumnVisible(1, false) 로 숨김 처리 → 숨김 Column 데이터도 반환에 포함됨을 검증."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    // - amount : number, Row2 는 null (null -> '' 검증)
+    // - etc : GridView Column 과 바인딩되지 않는 컬럼 (미바인딩 검증용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="etc" name="etc" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John",  "amount": 23456, "dept": "Sales", "etc": "etc1" },
+        { "name": "Jane",  "amount": 12000, "dept": "Dev",   "etc": "etc2" },
+        { "name": "Mike",  "amount": null,  "dept": "Sales", "etc": "etc3" },
+        { "name": "Amy",   "amount": 8500,  "dept": "Dev",   "etc": "etc4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+        checkAllType: "false",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Header 4컬럼 - name / amount(displayFormat) / dept / calc(expression))
+    // 마지막 calc 컬럼 width="*" 로 가로 스크롤 방지
+    // DataList 의 etc 컬럼은 GridView Column 과 바인딩하지 않음 (미바인딩 검증)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getVisibleColData 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="금액x2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // index 0 : name (text)
+    strTarget += '<w2:column width="120" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 1 : amount (number + displayFormat - 원본 23456 -> 표시 "23,456")
+    strTarget += '<w2:column width="120" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    // index 2 : dept (text, 필터/정렬 대상)
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    // index 3 : calc (inputType="expression" - amount 의 2배, @spec 계산값 검증)
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" id="calc" expression="Number(display(\'amount\'))*2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // amount 컬럼(인덱스 1) 숨김 -> 숨김 Column 데이터도 반환에 포함됨 검증
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// getVisibleColData 확인 : par_columnInfo selectbox 의 인덱스로 호출 -> 1차원 배열 출력
+// - 인덱스 1(amount) : 그리드 표시 "23,456"(displayFormat) 과 대비되는 원본값 23456 반환 (Display 포맷 미적용)
+// - 인덱스 3(calc)   : expression="amount*2" 계산값 반환 (@spec)
+scwin.btn_getVisibleColData_onclick = function () {
+    let colIndex = Number(par_columnInfo.getValue());
+    let rtn = target1.getVisibleColData(colIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("getVisibleColData(" + colIndex + ") : " + JSON.stringify(rtn));
+}
+
+
+
+// 필터 적용 : dept 가 'Sales' 인 Row 만 표시 -> getVisibleColData 가 표시된 Row 만 반환
+scwin.btn_setFilter_onclick = function () {
+    dlt_bind.setColumnFilter({ type: "row", colIndex: "dept", key: "Sales", condition: "and", exactMatch: true });
+    let colIndex = Number(par_columnInfo.getValue());
+    let rtn = target1.getVisibleColData(colIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("[필터 dept=Sales 적용] getVisibleColData(" + colIndex + ") : " + JSON.stringify(rtn));
+}
+
+
+
+// 정렬 적용 : name 컬럼 내림차순 정렬 -> 정렬 상태 기준 순서로 배열 생성
+scwin.btn_setSort_onclick = function () {
+    dlt_bind.sort("name", 1);
+    let colIndex = Number(par_columnInfo.getValue());
+    let rtn = target1.getVisibleColData(colIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("[name 내림차순 정렬] getVisibleColData(" + colIndex + ") : " + JSON.stringify(rtn));
+}
+
+
+
+// 컬럼 숨김 : dept 컬럼(인덱스 2) 숨김 -> 숨긴 컬럼 데이터도 반환에 포함됨
+scwin.btn_hideColumn_onclick = function () {
+    target1.setColumnVisible("dept", false);
+    let rtn = target1.getVisibleColData(2);
+    wf_body_bottom.getObj("scwin").setReturnValue("[dept 컬럼(인덱스2) 숨김] getVisibleColData(2) : " + JSON.stringify(rtn));
+}
+
+
+
+// 데이터 제거 : 바인딩 데이터 없으면 빈 배열 [] 반환
+scwin.btn_removeAll_onclick = function () {
+    dlt_bind.removeAll();
+    let colIndex = Number(par_columnInfo.getValue());
+    let rtn = target1.getVisibleColData(colIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("[데이터 제거 후] getVisibleColData(" + colIndex + ") : " + JSON.stringify(rtn));
+}
+
+
+
+// 초기 상태 복원 (필터/정렬/숨김/제거 후 재구성)
+scwin.btn_reset_onclick = function () {
+    scwin.comp_init();
+    wf_body_bottom.getObj("scwin").setReturnValue("초기 상태로 재구성 완료");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="columnInfo (인덱스)" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label>0 (name)</xf:label><xf:value>0</xf:value></xf:item>
+												<xf:item><xf:label>1 (amount, 숨김)</xf:label><xf:value>1</xf:value></xf:item>
+												<xf:item><xf:label>2 (dept)</xf:label><xf:value>2</xf:value></xf:item>
+												<xf:item><xf:label>3 (calc, expression)</xf:label><xf:value>3</xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th " tagname="th">
+										<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" tagname="td">
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getVisibleColData_onclick" id="btn_getVisibleColData"
+							label="getVisibleColData 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFilter_onclick" id="btn_setFilter"
+							label="필터 적용" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setSort_onclick" id="btn_setSort"
+							label="정렬 적용" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hideColumn_onclick" id="btn_hideColumn"
+							label="컬럼 숨김" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_removeAll_onclick" id="btn_removeAll"
+							label="데이터 제거" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_reset_onclick" id="btn_reset"
+							label="초기화" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

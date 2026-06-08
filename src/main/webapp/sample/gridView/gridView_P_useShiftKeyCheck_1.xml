@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] useShiftKeyCheck" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > useShiftKeyCheck]<br/>inputType='checkbox' 인 Body Column 에서 Shift 키와 마우스 클릭으로 일괄 체크를 할지 설정합니다.",
+    "validation" : [
+        "일괄 체크 해제 기능은 제공되지 않습니다.",
+        "true 설정 시 클릭으로 체크 상태가 변경된 Row 부터 Shift 키와 마우스 클릭으로 체크박스를 클릭한 Row 사이의 모든 Cell 을 일괄 체크합니다.",
+        "체크박스 영역을 클릭해야 하며 Cell 과 체크박스 사이의 영역에서는 동작하지 않습니다.",
+        "false(기본값) 설정 시 Shift 키를 누른 상태로 체크박스를 클릭해도 클릭된 Cell 의 체크 상태만 변경됩니다.",
+        "useShiftKeyCheck 속성은 useShiftKey 속성값에 관계없이 동작합니다.",
+        "useShiftKeyCheck 속성은 checkOnCellClick 속성값에 관계없이 체크박스 영역을 클릭할때만 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등 공통 데이터리스트 생성)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼이 호출)
+//  - con_ 옵션값으로 properties 구성 → gridView 1개(target1) 동적 재생성
+//  - chk Column = inputType="checkbox" (일괄 체크 대상)
+//  - useShiftKeyCheck 가 useShiftKey / checkOnCellClick 값과 무관하게 동작함을 확인하기 위해
+//    세 옵션을 con_ 으로 함께 구성
+scwin.comp_init = async function () {
+    // 기존 target/dataList/라벨 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof lbl_info !== 'undefined') {
+        lbl_info.remove();
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 조건 설정 - con_ selectbox 는 gdl_boolean itemset → getText() 로 "true"/"false"/"" 읽기
+    //  (getValue 는 1/2/3 enum 을 반환하므로 사용 불가)
+    //  미설정(getText()="") 시 해당 속성 미부여 → 기본값 동작 (useShiftKeyCheck 기본 false)
+    let properties = {};
+
+    let useShiftKeyCheckText = con_useShiftKeyCheck.getText();
+    if (useShiftKeyCheckText !== "") properties.useShiftKeyCheck = useShiftKeyCheckText;
+
+    let useShiftKeyText = con_useShiftKey.getText();
+    if (useShiftKeyText !== "") properties.useShiftKey = useShiftKeyText;
+
+    let checkOnCellClickText = con_checkOnCellClick.getText();
+    if (checkOnCellClickText !== "") properties.checkOnCellClick = checkOnCellClickText;
+
+    // 현재 설정 안내 라벨 동적 생성 (target 생성 전 가장 먼저)
+    let lblText = "현재 설정 → useShiftKeyCheck=" + (useShiftKeyCheckText || "(미설정·기본 false)")
+        + " / useShiftKey=" + (useShiftKeyText || "(미설정·기본 false)")
+        + " / checkOnCellClick=" + (checkOnCellClickText || "(미설정·기본 false)")
+        + " ※ chk 컬럼 체크박스 클릭 후 다른 Row 체크박스를 Shift+클릭하면 일괄 체크";
+    let lblCList = $c.gcm.createCList({ label: lblText });
+    await $c.gcm.createLabel(lblCList, '', 'lbl_info');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (6 row)
+    //  - chk  : checkbox(binary) 원본값 0/1 → 일괄 체크 대상 Column(인덱스 0)
+    //  - name : text
+    //  - dept : text
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "chk": "0", "name": "HONG", "dept": "영업팀" },
+        { "chk": "0", "name": "KIM",  "dept": "개발팀" },
+        { "chk": "0", "name": "LEE",  "dept": "기획팀" },
+        { "chk": "0", "name": "PARK", "dept": "총무팀" },
+        { "chk": "0", "name": "CHOI", "dept": "인사팀" },
+        { "chk": "0", "name": "YOON", "dept": "재무팀" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property → cList ('key="value"' 문자열)
+    properties.dataList = "data:dlt_bind";
+    properties.checkAllType = "false";
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 (chk Column = checkbox)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="useShiftKeyCheck 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" inputType="text" id="hcol1" value="chk(checkbox)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="hcol2" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol3" value="부서"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // index 0 : chk (checkbox, valueType=binary) - 일괄 체크 대상 Column
+    strTarget += '<w2:column width="100" inputType="checkbox" valueType="binary" id="chk" dataList="chk" trueValue="1" falseValue="0"></w2:column>';
+    // index 1 : name (text)
+    strTarget += '<w2:column width="150" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 2 : dept (text)
+    strTarget += '<w2:column width="*" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 체크 상태 확인 : chk(인덱스 0) Column 의 체크 상태인 Row 인덱스 목록을 getCheckedIndex 로 조회
+//  - 사용자가 chk 체크박스 클릭 후 다른 Row 체크박스를 Shift+클릭한 결과를 확인
+//  - useShiftKeyCheck=true 면 두 Row 사이 일괄 체크 → 연속된 인덱스 목록
+//  - false 면 클릭한 Cell 만 → 단일 인덱스
+scwin.btn_getCheckedIndex_onclick = function () {
+    let rtn = target1.getCheckedIndex(0);
+    let out = "체크된 Row 인덱스 [" + rtn.join(", ") + "] (" + rtn.length + "건)";
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useShiftKeyCheck" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useShiftKeyCheck" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useShiftKey" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useShiftKey" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkOnCellClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkOnCellClick" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCheckedIndex_onclick" id="btn_getCheckedIndex"
+							label="체크 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

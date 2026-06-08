@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setMultiFocus" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260602" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setMultiFocus]<br/>Body Cell 위치정보 객체 배열을 사용하여 불연속적인 Cell 들을 포커스 상태로 설정합니다.",
+    "validation" : [
+        "cellsPosition(필수) 파라미터로 전달한 Body Cell 위치정보 객체 배열로 불연속적인 Cell 들을 포커스 상태로 설정합니다.",
+        "focusMode 가 'none' 이면 setMultiFocus 메소드가 동작하지 않습니다.",
+        "cellsPosition(필수) 배열의 각 요소가 단일 Cell { row, col } 형식이면 해당 Cell 1개를 포커스합니다. (row 는 0 부터 표시된 Row 기준, col 은 0 부터 숨겨진 Column 을 포함한 인덱스)",
+        "cellsPosition(필수) 배열의 각 요소가 범위 Cell { startRow, startCol, endRow, endCol } 형식이면 해당 사각 영역의 모든 Cell 을 포커스합니다.",
+        "cellsPosition(필수) 배열에 단일 Cell 과 범위 Cell 을 혼합하여 설정할 수 있습니다.",
+        "이미 포커스된 Cell 이 있는 경우 기존 포커스 상태를 유지한 채 새로운 Cell 들을 포커스에 추가합니다.",
+        "배열 요소의 row 또는 col 이 NaN 이면 해당 요소 처리를 중단하며 이후 배열 요소도 처리하지 않습니다.",
+        "배열 요소의 인덱스가 유효 범위를 초과하면 해당 요소만 적용되지 않고 이후 요소는 계속 처리됩니다.",
+        "blockSelect 속성이 설정된 Cell 이나 숨겨진 Column 의 Cell 은 포커스 대상에서 제외됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - focusMode 는 con_focusMode 선택값(기본 'both') 으로 생성. 'none' 선택 시 setMultiFocus 미동작 확인
+//  - selectedCellColor(red) / selectedRowColor(blue) 로 포커스 결과를 배경색으로 구분
+//  - 8 Row, 6 Column. col2 는 숨겨진 Column(hidden), col5 는 blockSelect 설정 Column (@spec4 확인)
+scwin.gVar = { "cFocusMode" : "both" };
+
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="focusMode=' + scwin.gVar.cFocusMode + ' / Column 인덱스 1(col2)=숨김 / Column 인덱스 4(col5)=blockSelect / selectedCellColor=red, selectedRowColor=blue"', '', 'label1');
+
+    // dataList 생성 (6 Column, 8 Row 직접 구성)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="name4" dataType="text"></w2:column>';
+    strData += '<w2:column id="col5" name="name5" dataType="text"></w2:column>';
+    strData += '<w2:column id="col6" name="name6" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [];
+    for (let i = 1; i <= 8; i++) {
+        jsonData.push({
+            "col1" : "c1_" + i, "col2" : "c2_" + i, "col3" : "c3_" + i,
+            "col4" : "c4_" + i, "col5" : "c5_" + i, "col6" : "c6_" + i
+        });
+    }
+    dlt_bind.setJSON(jsonData);
+
+    // 조건 설정
+    let properties = {
+        focusMode         : scwin.gVar.cFocusMode,
+        selectedCellColor : "red",
+        selectedRowColor  : "blue"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let eList = "";
+
+    // target 생성 (6 Column : col2 숨김, col5 blockSelect)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" useShiftKey="true" checkAllType="false" id="" style="width:620px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setMultiFocus 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column1" value="col0"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column2" value="col1(숨김)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column3" value="col2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column4" value="col3"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column5" value="col4(block)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column6" value="col5"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col2" hidden="true" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col5" blockSelect="true" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col6" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con_focusMode 변경 시 Target 재생성 시 사용할 값 갱신용
+scwin.con_focusMode_onchange = function () {
+    scwin.gVar.cFocusMode = con_focusMode.getValue();
+}
+
+
+
+// 공통 실행 함수 : 선행 동작(preFocus) 수행 후 cellsPosition 으로 setMultiFocus 호출,
+//  getAllFocusedIndex() 로 포커스된 셀 목록을 출력
+//  - preFocus : null 이거나 [row,col] 배열. 배열이면 setFocusedCell 로 선행 포커스
+scwin.runMultiFocus = function (title, cellsPosition, preFocus) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[" + title + "]");
+
+    // 기존 포커스 제거 후 시작
+    target1.removeFocusedCell();
+
+    if (preFocus) {
+        target1.setFocusedCell(preFocus[0], preFocus[1]);
+        bottom.setReturnValue("선행 setFocusedCell(" + preFocus[0] + ", " + preFocus[1] + ") → " + JSON.stringify(target1.getAllFocusedIndex()));
+    }
+
+    bottom.setReturnValue("cellsPosition = " + JSON.stringify(cellsPosition));
+    target1.setMultiFocus(cellsPosition);
+
+    let rtn = target1.getAllFocusedIndex();
+    bottom.setReturnValue("getAllFocusedIndex 결과 = " + JSON.stringify(rtn) + " (포커스 셀 " + rtn.length + "개)");
+}
+
+
+
+// setMultiFocus 실행 : par_scenario 선택값으로 분기하여 시나리오별 cellsPosition/preFocus 로 실행
+//  각 분기 로직은 기존 시나리오 버튼 핸들러 동작을 그대로 흡수 (값·preFocus·기대 출력 변경 없음)
+scwin.btn_run_onclick = function () {
+    let scenario = par_scenario.getValue();
+
+    switch (scenario) {
+        case "single" :
+            // 1) 단일 Cell 여러 개
+            scwin.runMultiFocus("단일 Cell 여러 개", [ { row : 0, col : 0 }, { row : 2, col : 3 }, { row : 4, col : 5 } ], null);
+            break;
+        case "range" :
+            // 2) 범위 Cell
+            scwin.runMultiFocus("범위 Cell {startRow:1,startCol:2,endRow:3,endCol:3}", [ { startRow : 1, startCol : 2, endRow : 3, endCol : 3 } ], null);
+            break;
+        case "mixed" :
+            // 3) 단일 + 범위 혼합 (가이드 @sample 형식)
+            scwin.runMultiFocus("단일 + 범위 혼합", [ { row : 1, col : 0 }, { row : 2, col : 3 }, { startRow : 4, startCol : 2, endRow : 5, endCol : 3 } ], null);
+            break;
+        case "keep" :
+            // 4) 선행 포커스 유지 + 추가 (@spec1)
+            scwin.runMultiFocus("선행 포커스 유지 + 추가", [ { row : 3, col : 0 }, { row : 5, col : 3 } ], [ 0, 0 ]);
+            break;
+        case "nan" :
+            // 5) NaN 포함 → 중단 + 이후 미처리 (@spec2)
+            //  두번째 요소 col 이 NaN → 첫 요소만 포커스, 세번째 요소는 처리 안 됨
+            scwin.runMultiFocus("NaN 포함 (중단·이후 미처리)", [ { row : 0, col : 0 }, { row : 1, col : NaN }, { row : 3, col : 3 } ], null);
+            break;
+        case "overflow" :
+            // 6) 범위 초과 인덱스 포함 → 해당만 제외, 이후 계속 (@spec2)
+            //  두번째 요소 row 99 는 유효범위 초과 → 미적용, 세번째 요소는 정상 포커스
+            scwin.runMultiFocus("범위 초과 인덱스 (해당만 제외·이후 계속)", [ { row : 0, col : 0 }, { row : 99, col : 0 }, { row : 2, col : 3 } ], null);
+            break;
+        case "block" :
+            // 7) blockSelect Cell(col 4) / 숨겨진 Column(col 1) 포함 → 제외 (@spec4)
+            scwin.runMultiFocus("blockSelect(col 4) / 숨김 Column(col 1) Cell 포함", [ { row : 0, col : 0 }, { row : 1, col : 1 }, { row : 2, col : 4 }, { row : 3, col : 5 } ], null);
+            break;
+        case "none" :
+            // 8) focusMode=none → 미동작
+            //  현재 그리드의 focusMode 가 'none' 이 아니면 안내만 출력
+            scwin.runMultiFocusNone();
+            break;
+    }
+}
+
+// focusMode=none 미동작 시나리오 처리 (기존 btn_none_onclick 로직 그대로)
+scwin.runMultiFocusNone = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    bottom.setReturnValue("[focusMode=none 미동작]");
+    if (target1.options.focusMode !== "none") {
+        bottom.setReturnValue("현재 focusMode=" + target1.options.focusMode + " 입니다. con_focusMode 를 'none' 으로 선택 후 'Target 재생성' 하여 확인하세요.");
+        return;
+    }
+    target1.removeFocusedCell();
+    bottom.setReturnValue("cellsPosition = " + JSON.stringify([ { row : 0, col : 0 }, { row : 2, col : 3 } ]));
+    target1.setMultiFocus([ { row : 0, col : 0 }, { row : 2, col : 3 } ]);
+    let rtn = target1.getAllFocusedIndex();
+    bottom.setReturnValue("getAllFocusedIndex 결과 = " + JSON.stringify(rtn) + " (포커스 셀 " + rtn.length + "개)");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_focusMode_onchange" id="con_focusMode" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>both</xf:label>
+												<xf:value>both</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>cell</xf:label>
+												<xf:value>cell</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="시나리오" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_scenario" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>단일 Cell</xf:label>
+												<xf:value>single</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>범위 Cell</xf:label>
+												<xf:value>range</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>단일+범위 혼합</xf:label>
+												<xf:value>mixed</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>선행 유지+추가</xf:label>
+												<xf:value>keep</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>NaN 중단</xf:label>
+												<xf:value>nan</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>범위초과 제외</xf:label>
+												<xf:value>overflow</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>blockSelect/숨김 제외</xf:label>
+												<xf:value>block</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>focusMode=none 미동작</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_run_onclick" id="btn_run" label="setMultiFocus 실행" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

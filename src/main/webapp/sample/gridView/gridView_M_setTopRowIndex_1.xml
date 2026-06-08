@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260605" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; setTopRowIndex]&lt;br/&gt;Row 인덱스를 사용하여 특정 Row 가 Body 영역의 첫번째 Row 로 표시되게 세로 스크롤을 이동합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;topRowIndex(필수) 파라미터로 Body 영역(뷰포트)의 첫번째 Row 로 표시할 Row 의 인덱스를 설정해야 합니다. (Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다)&quot;,
+        &quot;Row 인덱스를 사용하여 특정 Row 가 Body 영역의 첫번째 Row 로 표시되게 세로 스크롤을 이동해야 합니다.&quot;,
+        &quot;drawType='native' 인 경우 setTopRowIndex() 메소드는 동작하지 않습니다.&quot;,
+        &quot;noEvent(선택) 파라미터가 true 면 세로 스크롤이 최하단에 닿을때 onscrollend 이벤트를 발생시키지 않고, false(기본값)면 발생시켜야 합니다.&quot;,
+        &quot;autoFocus(선택) 파라미터가 true 면 메소드 실행 후 (0,0) 위치의 Cell 로 포커스를 이동하고, false(기본값)면 포커스를 이동하지 않아야 합니다.&quot;,
+        &quot;세로 스크롤을 최하단으로 이동해도 topRowIndex 파라미터에 해당하는 Row 가 첫번째 Row 가 되지 않으면 최대 스크롤 위치로 보정됩니다.&quot;,
+        &quot;topRowIndex 파라미터에 해당하는 Row 가 첫번째 Row 이면 setTopRowIndex() 메소드가 실행되지 않습니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // onscrollend 발생여부 플래그 초기화
+    scwin.scrollEndFired = false;
+
+    // 현재 조건(drawType) 라벨 표시
+    $c.gcm.createLabel('label=&quot;drawType : ' + (con_drawType.getValue() || '(미설정)') + ' / 데이터 10 행, 디자인 높이 약 3~4 행 (뷰포트보다 데이터가 많아 세로 스크롤 발생)&quot;', '', 'label1');
+
+    // dataList 생성 (10 행 — 뷰포트보다 데이터가 많아 setTopRowIndex 로 세로 스크롤 이동 효과 확인 가능)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 10);
+
+    // 조건 설정 (drawType 미설정 시 '' → createCList 가 빈 문자열 속성을 제외하므로 Property 미설정 상태로 생성)
+    let properties = {
+        drawType: con_drawType.getValue(),
+        dataList: &quot;data:dlt_bind&quot;,
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // 디자인 높이를 작게(약 3~4행) 설정 → 뷰포트에 일부 Row 만 표시되어 세로 스크롤이 발생, setTopRowIndex 이동 확인 가능
+    // 마지막 컬럼 width='*' 로 가로 스크롤 방지
+    // onscrollend 이벤트 바인딩 (noEvent 파라미터 검증용)
+    strTarget += '&lt;w2:gridView ' + strNameSpace + ' ' + cList + ' id=&quot;&quot; style=&quot;width:500px;height:171px;&quot; ev:onscrollend=&quot;scwin.target1_onscrollend&quot;&gt;';
+    strTarget += '&lt;w2:header style=&quot;&quot; id=&quot;header1&quot;&gt;&lt;w2:row style=&quot;&quot; id=&quot;row1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;hcol1&quot; value=&quot;col1&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;hcol2&quot; value=&quot;col2&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;hcol3&quot; value=&quot;col3&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot; inputType=&quot;text&quot; id=&quot;hcol4&quot; value=&quot;col4&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;&lt;/w2:header&gt;';
+    strTarget += '&lt;w2:gBody style=&quot;&quot; id=&quot;gBody1&quot;&gt;&lt;w2:row style=&quot;&quot; id=&quot;row2&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;col1&quot; dataList=&quot;col1&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;col2&quot; dataList=&quot;col2&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;col3&quot; dataList=&quot;col3&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot; inputType=&quot;text&quot; id=&quot;col4&quot; dataList=&quot;col4&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;&lt;/w2:gBody&gt;';
+    strTarget += '&lt;/w2:gridView&gt;';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// onscrollend 핸들러 — 세로 스크롤이 최하단에 닿을때 발생 (noEvent=false 일 때 발생, noEvent=true 일 때 미발생)
+scwin.target1_onscrollend = function (e) {
+    scwin.scrollEndFired = true;
+}
+
+
+
+// setTopRowIndex 실행 — topRowIndex(par 값) Row 가 Body 영역의 첫번째 Row 로 표시되게 세로 스크롤 이동
+// @param topRowIndex : 첫번째 Row 로 표시할 Row 인덱스 (0부터)
+// @param noEvent  : true → onscrollend 미발생 / false(기본) → 발생
+// @param autoFocus : true → 실행 후 (0,0) Cell 포커스 이동 / false(기본) → 미이동
+// @return 없음. 이동은 렌더 의존값이므로 native setTimeout(500) 으로 갱신 후 getTopRowIndex()/getBottomRowIndex()/포커스/onscrollend 발생여부 확인
+//  - 정상        : getTopRowIndex() == 설정값 (해당 Row 가 최상단)
+//  - drawType=native : 미동작 (스크롤 불변)
+//  - 9(끝, 첫번째 될 수 없음) : 최대 스크롤 위치로 보정 (getTopRowIndex()&lt;9, getBottomRowIndex()=9)
+//  - 0(이미 첫번째) : 미실행 (변화 없음)
+scwin.btn_setTopRowIndex_onclick = function (e) {
+    let topRowIndex = Number(par_topRowIndex.getValue());
+    let noEvent = (par_noEvent.getText() === 'true');
+    let autoFocus = (par_autoFocus.getText() === 'true');
+
+    // 호출 전 상태
+    let beforeTop = target1.getTopRowIndex();
+    let beforeBottom = target1.getBottomRowIndex();
+    scwin.scrollEndFired = false;
+
+    // setTopRowIndex 실행 (noEvent, autoFocus 파라미터 전달)
+    // setTopRowIndex(인덱스) 자체가 세로 스크롤을 이동시키므로 사전 스크롤은 불필요.
+    // 끝쪽 인덱스(예: 9) 호출 시 첫번째 Row 가 될 수 없으면 자동으로 최대 스크롤 위치로 보정됨(@spec1).
+    target1.setTopRowIndex(topRowIndex, noEvent, autoFocus);
+
+    // 이동은 렌더 의존값 → native setTimeout(500) 으로 갱신 후 읽음
+    setTimeout(function () {
+        let afterTop = target1.getTopRowIndex();
+        let afterBottom = target1.getBottomRowIndex();
+
+        // 포커스 위치 확인 (autoFocus 검증)
+        let focusedTd = document.activeElement;
+        let focusedCellId = (focusedTd &amp;&amp; focusedTd.id) ? focusedTd.id : '(없음)';
+
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(
+            &quot;setTopRowIndex(&quot; + topRowIndex + &quot;, noEvent=&quot; + noEvent + &quot;, autoFocus=&quot; + autoFocus + &quot;) 실행&quot;
+            + &quot;\n[호출 전] getTopRowIndex() : &quot; + beforeTop + &quot; , getBottomRowIndex() : &quot; + beforeBottom
+            + &quot;\n[호출 후] getTopRowIndex() : &quot; + afterTop + &quot; , getBottomRowIndex() : &quot; + afterBottom
+            + &quot;\n해당 Row 가 첫번째 Row 로 표시됨(getTopRowIndex() == 설정값) : &quot; + (afterTop === topRowIndex)
+            + &quot;\nonscrollend 발생 여부 : &quot; + scwin.scrollEndFired
+            + &quot;\n실행 후 포커스 Cell id : &quot; + focusedCellId
+        );
+    }, 500);
+}</script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+                    <xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="drawType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_drawType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>(미설정)</xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>native</xf:label>
+												<xf:value>native</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+                    <xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="topRowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_topRowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0 (첫번째 Row - 이미 첫번째이면 미실행)</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>4 (중간 Row)</xf:label>
+												<xf:value>4</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>9 (마지막 Row - 첫번째 될 수 없어 최대 스크롤 보정)</xf:label>
+												<xf:value>9</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="noEvent" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_noEvent" ref="" style="" submenuSize="auto"
+										nodeSet="data:gdl_boolean" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFocus" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_autoFocus" ref="" style="" submenuSize="auto"
+										nodeSet="data:gdl_boolean" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setTopRowIndex_onclick" id="btn_setTopRowIndex"
+							label="setTopRowIndex 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

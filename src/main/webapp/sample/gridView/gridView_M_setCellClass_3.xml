@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260605" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<style type="text/css">.cRed, .cRed .w2grid_input { color: red !important; }</style>
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; setCellClass]&lt;br/&gt;Body Cell 정보를 사용하여 특정 Cell 에 CSS 클래스를 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.&quot;,
+        &quot;Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (MultiLine 구성)
+//  - 한 레코드(Row)를 2개의 Line 으로 표시
+//    Line1 : name(colIndex 0) + age(colIndex 1)
+//    Line2 : dept(colIndex 2) + memo(colIndex 3)
+//  - header / gBody 에 각각 &lt;w2:row&gt; 를 2개 두면 한 레코드가 2 Line 으로 렌더됨
+//  - 인덱스는 좌상단(Line1 좌→우)부터 우하단(Line2 좌→우) 순서로 고유하게 부여됨
+//    name=0, age=1, dept=2, memo=3
+//  - Row 인덱스는 Line 과 무관하게 레코드 단위로 동일 (Line2 셀도 Line1 과 같은 rowIndex 사용)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label=&quot;MultiLine 2 Line 구성: Line1=name(0)·age(1) / Line2=dept(2)·memo(3) — 각 Line 동일 Row 인덱스, 모든 Column 고유 인덱스&quot;', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '&lt;w2:dataList ' + $c.gcm.getNameSpace() + ' id=&quot;dlt_bind&quot; baseNode=&quot;list&quot; repeatNode=&quot;map&quot;&gt;';
+    strDlt += '&lt;w2:columnInfo&gt;';
+    strDlt += '&lt;w2:column id=&quot;name&quot; name=&quot;name&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;age&quot; name=&quot;age&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;dept&quot; name=&quot;dept&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;memo&quot; name=&quot;memo&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;/w2:columnInfo&gt;';
+    strDlt += '&lt;w2:data use=&quot;true&quot;&gt;&lt;/w2:data&gt;';
+    strDlt += '&lt;/w2:dataList&gt;';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { &quot;name&quot;: &quot;John&quot;, &quot;age&quot;: &quot;30&quot;, &quot;dept&quot;: &quot;영업&quot;, &quot;memo&quot;: &quot;메모0&quot; },
+        { &quot;name&quot;: &quot;Jane&quot;, &quot;age&quot;: &quot;28&quot;, &quot;dept&quot;: &quot;기획&quot;, &quot;memo&quot;: &quot;메모1&quot; },
+        { &quot;name&quot;: &quot;Mike&quot;, &quot;age&quot;: &quot;41&quot;, &quot;dept&quot;: &quot;개발&quot;, &quot;memo&quot;: &quot;메모2&quot; }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: &quot;data:dlt_bind&quot;,
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (MultiLine : header/gBody 각각 &lt;w2:row&gt; 2개)
+    //  마지막 컬럼 width=&quot;*&quot; 로 가로 스크롤 방지
+    strTarget += '&lt;w2:gridView ' + strNameSpace + ' ' + cList + ' id=&quot;&quot; style=&quot;width:520px;height:260px;&quot;&gt;';
+    strTarget += '&lt;w2:caption style=&quot;&quot; id=&quot;caption1&quot; value=&quot;setCellClass MultiLine 테스트 그리드&quot;&gt;&lt;/w2:caption&gt;';
+    // Header : Line1 = name + age / Line2 = dept + memo
+    strTarget += '&lt;w2:header style=&quot;&quot; id=&quot;header1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;hrow1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;160&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol_name&quot; value=&quot;이름&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol_age&quot; value=&quot;나이&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;hrow2&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;160&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol_dept&quot; value=&quot;부서&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol_memo&quot; value=&quot;memo&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:header&gt;';
+    // gBody : Line1 = name(0) + age(1) / Line2 = dept(2) + memo(3)
+    strTarget += '&lt;w2:gBody style=&quot;&quot; id=&quot;gBody1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;brow1&quot;&gt;';
+    // colIndex 0 : name (text)
+    strTarget += '&lt;w2:column width=&quot;160&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;name&quot; dataList=&quot;name&quot;&gt;&lt;/w2:column&gt;';
+    // colIndex 1 : age (text)
+    strTarget += '&lt;w2:column width=&quot;*&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;age&quot; dataList=&quot;age&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;brow2&quot;&gt;';
+    // colIndex 2 : dept (text)  (Line2 배치)
+    strTarget += '&lt;w2:column width=&quot;160&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;dept&quot; dataList=&quot;dept&quot;&gt;&lt;/w2:column&gt;';
+    // colIndex 3 : memo (text), width=&quot;*&quot;
+    strTarget += '&lt;w2:column width=&quot;*&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;memo&quot; dataList=&quot;memo&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:gBody&gt;';
+    strTarget += '&lt;/w2:gridView&gt;';
+
+    scwin.target1 = await $p.dynamicCreate(
+        &quot;target1&quot;,
+        &quot;gridView&quot;,
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// setCellClass 실행 : par_rowIndex / par_columnInfo / par_className 로 호출
+//  - columnInfo 는 Column 인덱스(0~3) 또는 Column ID(name/age/dept/memo) 로 전달
+//  - Line2 의 셀(dept=2, memo=3)도 Line1 과 동일한 rowIndex 로 클래스가 적용됨
+//    (각 Line 이 별도 Row 인덱스를 갖지 않음 → 한 레코드 = 동일 rowIndex)
+//  - 모든 Column 은 고유 인덱스(name=0, age=1, dept=2, memo=3) 를 가짐
+scwin.btn_setCellClass_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    // columnInfo : 숫자면 인덱스, 아니면 Column ID 로 전달
+    let colRaw = par_columnInfo.getValue();
+    let columnInfo = (colRaw !== '' &amp;&amp; !isNaN(colRaw)) ? Number(colRaw) : colRaw;
+    let className = par_className.getValue();
+
+    // Body Cell 에 CSS 클래스 설정 (MultiLine : Line2 셀도 동일 rowIndex 사용)
+    target1.setCellClass(rowIndex, columnInfo, className);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;setCellClass(&quot; + rowIndex + &quot;, &quot; + columnInfo + &quot;, &quot; + className + &quot;)&quot;);
+
+    // getCellClass 로 설정값 확인
+    let rtn = target1.getCellClass(rowIndex, columnInfo);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;getCellClass(&quot; + rowIndex + &quot;, &quot; + columnInfo + &quot;) : &quot; + rtn);
+
+    // 적용된 Body Cell 의 td 요소에 className 이 반영되었는지 확인
+    //  (Line2 의 dept/memo 셀도 동일 rowIndex 로 클래스가 적용됨)
+    let appliedTd = document.querySelector(&quot;td.&quot; + (className.split(' ')[0]));
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;적용된 td className : &quot; + (appliedTd ? appliedTd.className : 'null'));
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 (name, Line1)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (age, Line1)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 (dept, Line2)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 (memo, Line2)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[dept (ID, Line2)]]></xf:label>
+												<xf:value><![CDATA[dept]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[memo (ID, Line2)]]></xf:label>
+												<xf:value><![CDATA[memo]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="className" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_className" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[cRed]]></xf:label>
+												<xf:value><![CDATA[cRed]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellClass_onclick" id="btn_setCellClass"
+							label="setCellClass 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

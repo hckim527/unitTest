@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getTotalRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260605" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getTotalRow]<br/>GridView 컴포넌트에 바인딩된 DataList 의 전체 Row 갯수를 반환합니다.",
+    "validation" : [
+        "바인딩된 DataList 의 전체 Row 갯수를 반환해야 합니다.",
+        "SubTotal Row 는 반환값에 포함되지 않으며 필터링, GroupBy 적용 여부와 관계없이 DataList 의 전체 Row 갯수를 반환해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+// 바인딩 DataList(9건) + dept 그룹 기준 SubTotal Row(3건) 으로 구성된 GridView 동적 생성.
+//  - 데이터 Row 9건(부서 3그룹 × 3건) -> dept 그룹별 SubTotal Row 3건 삽입
+//  - getTotalRow() 은 SubTotal Row 를 제외한 9 를 반환
+//  - 필터/GroupBy 적용 후에도 getTotalRow()=9 로 불변
+scwin.comp_init = async function () {
+    // 기존 target/dataList 정리
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    scwin.gFilterOn = false;
+    scwin.gGroupOn = false;
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="dept 컬럼 기준 SubTotal(소계) 구성. 데이터 Row 9건(부서 3그룹 × 3건) + dept 그룹별 SubTotal Row 3건이 표시됩니다. getTotalRow() 은 SubTotal Row 를 제외한 9 를 반환하며, 필터/GroupBy 적용 후에도 9 로 불변합니다."', '', 'label1');
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 9건 : Sales 3건 + Dev 3건 + QA 3건 -> dept 그룹 3개 -> SubTotal Row 3개 생성됨
+    let jsonData = [
+        { "name": "John",  "dept": "Sales", "amount": 100 },
+        { "name": "Jane",  "dept": "Sales", "amount": 200 },
+        { "name": "Jack",  "dept": "Sales", "amount": 300 },
+        { "name": "Mike",  "dept": "Dev",   "amount": 400 },
+        { "name": "Amy",   "dept": "Dev",   "amount": 500 },
+        { "name": "Alex",  "dept": "Dev",   "amount": 600 },
+        { "name": "Tom",   "dept": "QA",    "amount": 700 },
+        { "name": "Tina",  "dept": "QA",    "amount": 800 },
+        { "name": "Tony",  "dept": "QA",    "amount": 900 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // Header(이름/부서/금액) + gBody(데이터) + SubTotal(부서별 소계)
+    // - SubTotal : targetColumnID="dept" -> dept 가 바뀔 때마다 소계 Row 삽입, amount 에 sum('amount') expression
+    // - 마지막 컬럼 width="*" 로 가로 스크롤 방지
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="SubTotal 바인딩 그리드 (데이터 9건 + SubTotal 3건)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row (dept 값이 바뀌는 지점마다 삽입)
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol1" value="소계(SubTotal)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// getTotalRow 확인 — 바인딩 DataList 의 전체 Row 갯수 반환 (SubTotal Row 3건 미포함 → 9)
+scwin.btn_getTotalRow_onclick = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("getTotalRow() : " + target1.getTotalRow());
+}
+
+
+
+// 필터 적용/해제 — dept 컬럼을 'Sales' 로 필터링. 표시 Row 는 줄어들지만 getTotalRow() 는 전체 9 로 불변
+scwin.btn_toggleFilter_onclick = function () {
+    if (scwin.gFilterOn === true) {
+        dlt_bind.removeColumnFilterAll();
+        scwin.gFilterOn = false;
+        wf_body_bottom.getObj("scwin").setReturnValue("[필터 해제 후] getTotalRow() : " + target1.getTotalRow());
+    } else {
+        // 4번째 인자 exactMatch=true 필요 — (colID, dataValue) 2-인자만으로는 필터가 적용되지 않음
+        dlt_bind.setColumnFilter("dept", "Sales", "and", true);
+        scwin.gFilterOn = true;
+        wf_body_bottom.getObj("scwin").setReturnValue("[dept='Sales' 필터 적용 후] 표시 Row 는 3건으로 줄지만 getTotalRow() : " + target1.getTotalRow());
+    }
+}
+
+
+
+// GroupBy 적용/해제 — dept 컬럼(인덱스 1) 기준 그룹핑. 그룹 결과만 표시되어도 getTotalRow() 는 전체 9 로 불변
+scwin.btn_toggleGroupby_onclick = function () {
+    if (scwin.gGroupOn === true) {
+        target1.clearGroupby();
+        scwin.gGroupOn = false;
+        wf_body_bottom.getObj("scwin").setReturnValue("[GroupBy 해제 후] getTotalRow() : " + target1.getTotalRow());
+    } else {
+        // dept 컬럼(인덱스 1) 기준 그룹핑
+        target1.groupby({ sortIndex: [1], sortOrder: [1] });
+        scwin.gGroupOn = true;
+        wf_body_bottom.getObj("scwin").setReturnValue("[dept GroupBy 적용 후] getTotalRow() : " + target1.getTotalRow());
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getTotalRow_onclick" id="btn_getTotalRow" label="getTotalRow 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_toggleFilter_onclick" id="btn_toggleFilter" label="필터 적용/해제" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_toggleGroupby_onclick" id="btn_toggleGroupby" label="GroupBy 적용/해제" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

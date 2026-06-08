@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] showSortableImage" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260605" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > showSortableImage]<br/>sortable=true 인 Header Column 에 정렬 상태 아이콘을 항상 표시할지 설정합니다.",
+    "validation" : [
+        "Body Column 의 inputType='drilldown', 'expression' 인 Column 은 정렬할 수 없지만 Header Column 이 sortable=true 이면 showSortableImage 속성에 의해 정렬 상태 아이콘은 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — Body Column 에 inputType="drilldown" / "expression" 컬럼을 포함하는 커스텀 GridView 구성
+//  - 모든 Header Column 은 sortable="true"
+//  - con_showSortableImage 값(true/false/미설정)에 따라 정렬 상태 아이콘 표시 여부를 확인
+//  - drilldown / expression 컬럼은 정렬 불가 타입이지만, sortable=true + showSortableImage=true 면 정렬 상태 아이콘이 표시됨(@spec4)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblShowSortableImage = con_showSortableImage.getText() === '' ? '미설정' : con_showSortableImage.getText();
+    $c.gcm.createLabel('label="showSortableImage=' + lblShowSortableImage + ' 로 GridView 생성. 모든 Header Column sortable=true. 이름 컬럼은 inputType=drilldown, 금액 컬럼은 inputType=expression(수량*단가) 으로 정렬 불가 타입입니다."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - depth : 계층 깊이 값(number). 1=부모, 2=자식. drilldown 컬럼의 depthColumn 으로 사용
+    //  - qty / price : expression 컬럼(qty * price) 계산에 사용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모(depth 1) 바로 아래에 그 자식(depth 2)들이 위치해야 함 (엔진 drilldown 은 순서 기반)
+    let jsonData = [
+        { "name": "영업본부",   "dept": "Sales", "qty": 10, "price": 1000, "depth": 1 },
+        { "name": "  김영업",   "dept": "Sales", "qty": 3,  "price": 1000, "depth": 2 },
+        { "name": "  이영업",   "dept": "Sales", "qty": 7,  "price": 1000, "depth": 2 },
+        { "name": "개발본부",   "dept": "Dev",   "qty": 8,  "price": 2000, "depth": 1 },
+        { "name": "  박개발",   "dept": "Dev",   "qty": 5,  "price": 2000, "depth": 2 },
+        { "name": "  최개발",   "dept": "Dev",   "qty": 3,  "price": 2000, "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    //  - con_showSortableImage 가 미설정('') 이면 createCList 가 빈 문자열 value 를 자동 제외하여 키가 빠짐(기본값 false 동작)
+    //  - sortable: true 는 그리드 전역 정렬 활성, 각 Header Column 의 sortable="true" 와 함께 정렬 상태 아이콘 표시 조건 충족
+    let properties = {
+        dataList: "data:dlt_bind",
+        sortable: "true",
+        showSortableImage: con_showSortableImage.getText(),
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성
+    //  - 모든 Header Column 에 sortable="true" 부여
+    //  - name : inputType="drilldown" (정렬 불가 타입)
+    //  - amount : inputType="expression" (qty * price, 정렬 불가 타입)
+    //  - dept : inputType="text" (정상 정렬 가능 타입) — 비교용
+    //  - 마지막 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:560px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="showSortableImage drilldown/expression 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" sortable="true" id="hName" value="이름(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" sortable="true" id="hDept" value="부서(text)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" sortable="true" id="hAmount" value="금액(expression)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // name : drilldown 컬럼 (계층 토글 컬럼, 정렬 불가 타입)
+    strTarget += '<w2:column width="180" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" sortable="true" id="name" dataList="name"></w2:column>';
+    // dept : 일반 text 컬럼 (정렬 가능 타입, 비교용)
+    strTarget += '<w2:column width="120" style="" inputType="text" sortable="true" id="dept" dataList="dept"></w2:column>';
+    // amount : expression 컬럼 (qty * price, 정렬 불가 타입)
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" sortable="true" id="amount" expression="Number(display(\'qty\')) * Number(display(\'price\'))"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 특정 Header Column 의 th 요소를 headerId 로 탐색
+scwin.getHeaderTh = function (headerId) {
+    let headTable = document.querySelector("[id*='target1_head_table']");
+    if (!headTable) return null;
+    let ths = headTable.getElementsByTagName("th");
+    let dataHeaderId = headerId;
+    for (let i = 0; i < ths.length; i++) {
+        if (ths[i].getAttribute("data-header_id") === dataHeaderId) {
+            return ths[i];
+        }
+    }
+    return null;
+};
+
+
+
+// 정렬 상태/아이콘 확인 — drilldown / expression Header Column(정렬 불가 타입)의 정렬 상태 아이콘 표시 여부 출력
+//  - showSortableImage=true 면 정렬 불가 타입(drilldown/expression)이어도 sortable=true 인 Header 에 정렬 상태 아이콘이 표시됨(@spec4)
+//  - showSortableImage=false(또는 미설정) 면 정렬 상태 아이콘이 표시되지 않음
+scwin.btn_checkSortImage_onclick = function () {
+    // 정렬 상태 아이콘 클래스 존재 여부를 확인할 대상 Header Column (정렬 불가 타입)
+    let targets = [
+        { id: "hName",   desc: "이름 Header(Body inputType=drilldown)" },
+        { id: "hAmount", desc: "금액 Header(Body inputType=expression)" }
+    ];
+
+    for (let t of targets) {
+        let th = scwin.getHeaderTh(t.id);
+        if (th === null) {
+            wf_body_bottom.getObj("scwin").setReturnValue(t.desc + " → Header Column 을 찾을 수 없습니다.");
+            continue;
+        }
+        // 정렬 상태 아이콘 클래스(asc/desc/none)가 th 하위에 존재하는지 확인
+        let asc  = th.querySelector(".w2grid_head_sort_asc")  ? "w2grid_head_sort_asc" : "";
+        let desc = th.querySelector(".w2grid_head_sort_desc") ? "w2grid_head_sort_desc" : "";
+        let none = th.querySelector(".w2grid_head_sort_none") ? "w2grid_head_sort_none" : "";
+        let hasIcon = !!(asc || desc || none);
+        let iconClass = asc || desc || none || "(정렬 아이콘 없음)";
+
+        wf_body_bottom.getObj("scwin").setReturnValue(t.desc + " → 정렬 상태 아이콘 표시 : " + hasIcon + " (" + iconClass + ")");
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="showSortableImage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_showSortableImage" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSortImage_onclick" id="btn_checkSortImage"
+							label="정렬 상태/아이콘 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] preventCopyColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_preventCopyColumn" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="label" name="name1"></w2:column>
+						<w2:column dataType="text" id="value" name="name2"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><label><![CDATA[]]></label><value><![CDATA[]]></value></w2:row>
+						<w2:row><label><![CDATA[col2]]></label><value><![CDATA[col2]]></value></w2:row>
+						<w2:row><label><![CDATA[col2,col3]]></label><value><![CDATA[col2,col3]]></value></w2:row>
+						<w2:row><label><![CDATA[col2, col3]]></label><value><![CDATA[col2, col3]]></value></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > preventCopyColumn]<br/>GridView 컴포넌트에서 복사(Ctrl+C) 및 잘라내기(Ctrl+X)를 차단할 Body Column 을 설정합니다.",
+    "validation" : [
+        "preventCopy=true 이거나 Body Cell 이 편집모드이면 preventCopyColumn 속성은 무시됩니다.",
+        "복사(Ctrl+C) 및 잘라내기(Ctrl+X)를 차단할 Body Column 의 ID 를 쉼표(',')로 구분하여 설정합니다.",
+        "ID 사이에 공백을 입력하면 Column 매칭에 실패합니다.",
+        "다중 Cell 선택(직사각형) 후 복사 시 해당 Column 의 Cell 값은 복사되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 편집 가능한 GridView (gBody 4 Column, editType=text), 데이터 4건
+//  - preventCopyColumn 은 con_preventCopyColumn 선택값(차단할 Column ID 문자열) 으로 생성
+//    · 미설정("") 이면 preventCopyColumn 속성 자체를 제외 → 차단 없음
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    let conPreventCopyColumn = con_preventCopyColumn.getValue();
+    let conPreventCopy = con_preventCopy.getText();
+
+    let properties = {
+        focusMode : "cell"
+    };
+    // 미설정("") 일 때는 preventCopyColumn 속성 자체를 제외 (차단 없음)
+    if (conPreventCopyColumn !== "") {
+        properties.preventCopyColumn = conPreventCopyColumn;
+    }
+    // preventCopy=true 이면 preventCopyColumn 은 무시되고 전체 Column 복사/잘라내기가 차단됨
+    if (conPreventCopy !== "") {
+        properties.preventCopy = conPreventCopy;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // 복사 이벤트(oncustomcopy/oncustomcut) 바인딩 (no-op)
+    let eList = $c.gcm.createEList(["oncustomcopy", "oncustomcut"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblPreventCopyColumn = (conPreventCopyColumn === '') ? '미설정(차단 없음)' : conPreventCopyColumn;
+    let lblPreventCopy = (conPreventCopy === '') ? '미설정(기본 false)' : conPreventCopy;
+    $c.gcm.createLabel('label="preventCopyColumn=' + lblPreventCopyColumn + ', preventCopy=' + lblPreventCopy + ' 로 편집 가능 GridView 생성. 설정한 Body Column 의 셀은 복사(Ctrl+C)/잘라내기(Ctrl+X) 시 값이 복사되지 않음. ID 사이 공백이 있으면 매칭 실패하여 차단되지 않음. preventCopy=true 이면 preventCopyColumn 은 무시되고 전체 Column 의 복사/잘라내기가 차단됨"', '', 'label1');
+
+    // dataList 생성 (column id 를 col1~col4 로 맞춤, 복사 확인용 텍스트 채움)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "CopyText0_0", col2 : "CopyText0_1", col3 : "CopyText0_2", col4 : "CopyText0_3" },
+        { col1 : "CopyText1_0", col2 : "CopyText1_1", col3 : "CopyText1_2", col4 : "CopyText1_3" },
+        { col1 : "CopyText2_0", col2 : "CopyText2_1", col3 : "CopyText2_2", col4 : "CopyText2_3" },
+        { col1 : "CopyText3_0", col2 : "CopyText3_1", col3 : "CopyText3_2", col4 : "CopyText3_3" }
+    ]);
+
+    // target 생성 (편집 가능 그리드 : gBody Column 에 editType="text")
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:480px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="preventCopyColumn 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con_preventCopyColumn 변경 시 Target 재생성 안내 (con 변경은 Target 재생성 버튼으로 반영)
+scwin.con_preventCopyColumn_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+
+
+
+// 포커스된 그리드 셀의 값 조회 (사용자가 복사한 원본 셀 값)
+//  - getFocusedRowIndex / getFocusedColumnIndex 로 포커스 셀 위치 → getCellDisplayData 로 셀 값 조회
+//  - 포커스 없으면 빈 문자열 반환
+scwin.getFocusedCellValue = function () {
+    let rowIndex = target1.getFocusedRowIndex();
+    let colIndex = target1.getFocusedColumnIndex();
+    if (rowIndex === undefined || rowIndex === null || rowIndex < 0 || colIndex === undefined || colIndex === null || colIndex < 0) {
+        return "";
+    }
+    return target1.getCellDisplayData(rowIndex, colIndex);
+}
+
+
+
+// 붙여넣기 대상(txa_pasteTarget) 값 변경 시점에 출력
+//  - GridView 값(포커스된 복사 원본 셀 값) 과 붙여넣기 대상 값을 한 줄로 출력
+//  - 차단 Column 의 셀이면 붙여넣기 대상 값이 비고, 비차단 Column 이면 GridView 값과 일치
+scwin.txa_pasteTarget_onchange = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    bottom.setReturnValue("GridView 값 : " + scwin.getFocusedCellValue() + " / 붙여넣기 대상 값 : " + txa_pasteTarget.getValue());
+}
+
+
+
+// oncustomcopy 핸들러 (복사 시도 시 발생 — 출력 없음, no-op)
+scwin.target1_oncustomcopy = function (e) {
+}
+
+
+
+// oncustomcut 핸들러 (잘라내기 시도 시 발생 — 출력 없음, no-op)
+scwin.target1_oncustomcut = function (e) {
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="preventCopyColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_preventCopyColumn_onchange" id="con_preventCopyColumn" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:dlt_preventCopyColumn">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="preventCopy" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 appearance="minimal" ev:onchange="scwin.con_preventCopyColumn_onchange" id="con_preventCopy" ref="" selectedIndex="0" style=""><xf:choices><xf:itemset nodeset="data:gdl_boolean"><xf:label ref="label"></xf:label><xf:value ref="value"></xf:value></xf:itemset></xf:choices></xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 대상" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_pasteTarget" ev:onchange="scwin.txa_pasteTarget_onchange" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="그리드 셀을 클릭(선택) 후 복사(Ctrl+C) → 이 영역을 클릭하고 붙여넣기(Ctrl+V) 하여 차단 여부를 확인하세요. 차단 Column 의 셀은 빈 값(붙지 않음), 비차단 Column 은 셀값이 붙음" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

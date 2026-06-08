@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] preventPasteColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map" />
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > preventPasteColumn]<br/>GridView 컴포넌트에서 붙여넣기(Ctrl+V)를 차단할 Body Column 을 설정합니다.",
+    "validation" : [
+        "Body Cell 이 편집 모드인 경우 checkEditOnPaste 속성값에 따라 붙여넣기의 단위가 결정됩니다.",
+        "Cell 단위로 붙여넣기가 되는 경우 탭/줄바꿈 구분자로 Cell 영역을 구분합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 편집 가능한 GridView (gBody 4 Column, editType=text), 데이터 4건
+//  - preventPasteColumn 은 Body Cell 편집모드에서는 무시되므로 이 _2 에서는 설정하지 않음
+//  - 편집모드 붙여넣기 단위는 checkEditOnPaste 속성이 결정 → con_checkEditOnPaste 선택값으로 생성
+//    · 미설정("") 이면 checkEditOnPaste 속성 자체를 제외 (기본값 false 동작)
+//    · "true"  : 탭/줄바꿈으로 구분된 데이터를 편집 셀 기준 여러 Cell 에 각각 붙여넣음
+//    · "false" : 복사 데이터를 현재 편집 중인 셀 하나에 한 줄(띄어쓰기 합침)로 붙여넣음
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    let conCheckEditOnPaste = con_checkEditOnPaste.getText();
+
+    let properties = {
+        focusMode : "cell"
+    };
+    // 미설정("") 일 때는 checkEditOnPaste 속성 자체를 제외 (기본값 false)
+    if (conCheckEditOnPaste !== "") {
+        properties.checkEditOnPaste = conCheckEditOnPaste;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // 붙여넣기 이벤트 바인딩 (붙여넣기 후 셀 값 출력용)
+    //  - oncustompaste : checkEditOnPaste=true (다중 셀 paste 경로) 에서 발생
+    //  - onafteredit   : checkEditOnPaste=false (편집 input native 붙여넣기) 시 편집 종료 후 셀 값 출력
+    let eList = $c.gcm.createEList(["oncustompaste", "onafteredit"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblCheckEditOnPaste = (conCheckEditOnPaste === '') ? '미설정(기본값 false)' : conCheckEditOnPaste;
+    $c.gcm.createLabel('label="checkEditOnPaste=' + lblCheckEditOnPaste + ' 로 편집 가능 GridView 생성. 편집모드(셀 더블클릭)에서는 preventPasteColumn 이 무시되며 checkEditOnPaste 가 붙여넣기 단위를 결정함 → true: 탭/줄바꿈 구분으로 여러 Cell 에 각각 붙음, false: 현재 편집 셀 하나에 한 줄로 합쳐서 붙음"', '', 'label1');
+
+    // dataList 생성 (column id 를 col1~col4 로 맞춤, 붙여넣기 확인용 초기 텍스트 채움)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "Origin0_0", col2 : "Origin0_1", col3 : "Origin0_2", col4 : "Origin0_3" },
+        { col1 : "Origin1_0", col2 : "Origin1_1", col3 : "Origin1_2", col4 : "Origin1_3" },
+        { col1 : "Origin2_0", col2 : "Origin2_1", col3 : "Origin2_2", col4 : "Origin2_3" },
+        { col1 : "Origin3_0", col2 : "Origin3_1", col3 : "Origin3_2", col4 : "Origin3_3" }
+    ]);
+
+    // target 생성 (편집 가능 그리드 : gBody Column 에 editType="text")
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:480px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="preventPasteColumn 편집모드(checkEditOnPaste) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 붙여넣기 원본 textarea 에 탭/줄바꿈 구분 2x2 데이터를 채움 (사용자가 그대로 복사하여 사용)
+    //  - "A[탭]B" + 줄바꿈 + "C[탭]D" → 탭은 가로 Cell, 줄바꿈은 세로 Cell 구분자
+    txa_pasteSource.setValue("A\tB\nC\tD");
+}
+
+
+
+// con_checkEditOnPaste 변경 시 Target 재생성 안내 (con 변경은 Target 재생성 버튼으로 반영)
+scwin.con_checkEditOnPaste_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+
+
+
+// oncustompaste 핸들러 (편집모드 셀에서 Ctrl+V 시 발생)
+//  - 붙여넣기 적용 이후(setTimeout 0) 붙여넣기 영향을 받은 2*2 영역(시작 셀 기준)의 셀 값을 출력
+//    · checkEditOnPaste=true  : 시작 셀 + 우측/아래 셀로 탭/줄바꿈 구분되어 각각 붙음
+//    · checkEditOnPaste=false : 시작 셀 하나에만 한 줄로 합쳐서 붙고 나머지 셀은 원본 유지
+scwin.target1_oncustompaste = function (e) {
+    let row = target1.getFocusedRowIndex();
+    let col = target1.getFocusedColumnIndex();
+    setTimeout(function () {
+        let bottom = wf_body_bottom.getObj("scwin");
+        bottom.btn_clear_onclick();
+        bottom.setReturnValue("붙여넣기 시작 셀(row " + row + ", col " + col + ")");
+        // 시작 셀 기준 2*2 영역 셀 값 출력 (범위를 벗어나면 출력 생략)
+        for (let r = row; r <= row + 1; r++) {
+            for (let c = col; c <= col + 1; c++) {
+                if (r < 0 || c < 0) continue;
+                let val = target1.getCellDisplayData(r, c);
+                if (val === undefined || val === null) continue;
+                bottom.setReturnValue("(row " + r + ", col " + c + ") 셀 값 : " + val);
+            }
+        }
+    }, 0);
+}
+
+
+
+// onafteredit 핸들러 (편집모드 종료 시 발생)
+//  - checkEditOnPaste=false 인 경우 편집 input 에 native 붙여넣기 후 커밋되면 이 이벤트로 셀 값 출력
+//    (이 때는 oncustompaste 가 발생하지 않으므로 출력 누락 방지)
+//  - checkEditOnPaste=true 는 oncustompaste 에서 다중 셀을 출력하므로 중복/덮어쓰기 방지를 위해 생략
+scwin.target1_onafteredit = function (row, columnIndex, value) {
+    let cep = target1.options.checkEditOnPaste;
+    if (cep === true || cep === "true") {
+        return;
+    }
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    bottom.setReturnValue("편집 종료 셀(row " + row + ", col " + columnIndex + ") 값 : " + value);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkEditOnPaste" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_checkEditOnPaste_onchange" id="con_checkEditOnPaste" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 원본" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_pasteSource" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="이 영역의 텍스트(탭으로 가로 셀 구분, 줄바꿈으로 세로 셀 구분: A[탭]B / C[탭]D 의 2x2 데이터)를 선택하여 복사(Ctrl+C) → 그리드 셀을 더블클릭(편집모드 진입) 후 붙여넣기(Ctrl+V). checkEditOnPaste=true 면 2x2 셀에 A,B,C,D 가 각각 붙고, false 면 편집 셀 하나에 'A B C D' 한 줄로 합쳐서 붙습니다" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
