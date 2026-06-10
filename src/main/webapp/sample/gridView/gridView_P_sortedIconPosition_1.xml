@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] sortedIconPosition" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260605" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-874
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > sortedIconPosition]<br/>sortable=true 인 Header Column 에 정렬 상태 아이콘이 표시되는 위치를 설정합니다.",
+    "validation" : [
+        "sortedIconPosition='left' 면 정렬 상태 아이콘이 Header 값의 왼쪽에 표시되어야 합니다.",
+        "sortedIconPosition='right'(기본값)면 정렬 상태 아이콘이 Header 값의 오른쪽에 표시되어야 합니다.",
+        "sortHeaderDiv=true 이면 항상 'right' 로 동작해야 합니다.",
+        "sortedIconPosition 속성값 설정에 따라 'w2grid_head_sort_div_main', 'w2grid_head_sort_div_sub_sortable_image' 또는 'w2grid_head_sort_div_main_left', 'w2grid_head_sort_div_sub_sortable_image_left' CSS 클래스가 적용되어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_ 설정값 수집
+    //  - con_sortedIconPosition : left/right enum (getValue) — '' 미설정(기본 right) / 'left' / 'right'
+    //  - con_sortHeaderDiv      : gdl_boolean(getText) — '' 미설정 / 'true' (항상 right 동작 검증)
+    let vPos = con_sortedIconPosition.getValue();
+    let vSortDiv = con_sortHeaderDiv.getText();
+
+    // sortable=true + showSortableImage=true : 정렬 아이콘이 항상 표시되어야 위치 확인 가능
+    let properties = {
+        sortable: true,
+        showSortableImage: true,
+        dataList: "data:dlt_bind",
+    };
+
+    // sortedIconPosition : 미설정('') 이면 속성 자체를 추가하지 않음(기본 right)
+    if (vPos === 'left') {
+        properties.sortedIconPosition = 'left';
+    } else if (vPos === 'right') {
+        properties.sortedIconPosition = 'right';
+    }
+    if (vSortDiv === 'true') {
+        properties.sortHeaderDiv = true;
+    }
+
+    let lblDesc = 'sortedIconPosition=' + (vPos === '' ? '(미설정)' : vPos)
+        + (vSortDiv === 'true' ? ', sortHeaderDiv=true' : '');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="sortable=true, showSortableImage=true, ' + lblDesc + '"', '', 'label1');
+
+    // dataList 생성 (4행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, '');
+}
+
+
+
+// 아이콘 위치 확인 : 각 sortable Header th 의 정렬 화살표에 대해
+//   ① 클래스 기준(_main_left 유무) ② 실제 background-position 기준 두 가지로 좌/우 위치를 판정
+//  - 정렬 화살표는 .w2grid_head_sort_none/_asc/_desc 요소의 CSS background-image 로 표시되며
+//    background-position 의 X 값이 실제 표시 위치(좌: 4px 부근 / 우: calc(100% - 4px))를 결정한다.
+//  - 클래스(_left)는 정상 적용되나 background-position 이 좌측으로 바뀌지 않으면(우측 100% 유지) 실제로는 우측에 표시됨 → 좌표값으로 검출
+//  - 정렬 자체는 사용자가 헤더를 클릭하여 수행 (정렬 트리거 버튼은 생성하지 않음)
+scwin.btn_checkIconPos_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let headTable = document.querySelector("[id*='target1_head_table']");
+    if (!headTable) {
+        bottom.setReturnValue("head_table 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let sortableThs = headTable.querySelectorAll("th.w2grid_head_sortable");
+    if (sortableThs.length === 0) {
+        bottom.setReturnValue("sortable Header Column(th.w2grid_head_sortable) 이 없습니다.");
+        return;
+    }
+
+    bottom.setReturnValue("[옵션] sortedIconPosition : " + target1.options.sortedIconPosition + " / sortHeaderDiv : " + target1.options.sortHeaderDiv);
+
+    for (let i = 0; i < sortableThs.length; i++) {
+        let th = sortableThs[i];
+
+        // 정렬 화살표 background 를 가진 요소 찾기
+        //  - 기본 모드 : div.w2grid_head_sort_div_main(_left)  /  sortHeaderDiv 모드 : button.w2grid_head_sort_div_main_btn
+        //  - 모드별로 background 없는 outer/컨테이너가 함께 존재하므로 backgroundImage 가 실제로 있는 요소를 선택
+        let candidates = th.querySelectorAll("[class*='w2grid_head_sort_div_main'], [class*='w2grid_head_sort_none'], [class*='w2grid_head_sort_asc'], [class*='w2grid_head_sort_desc']");
+        let arrowEl = null;
+        for (let ci = 0; ci < candidates.length; ci++) {
+            if (getComputedStyle(candidates[ci]).backgroundImage !== "none") { arrowEl = candidates[ci]; break; }
+        }
+        if (!arrowEl && candidates.length > 0) { arrowEl = candidates[0]; }
+        let cls = arrowEl ? arrowEl.className : "(없음)";
+
+        // ① 클래스 기준 : _left 유무 (sortHeaderDiv 모드는 _btn 으로 _left 미부여 → 오른쪽)
+        let clsSide = arrowEl ? (/_main_left|_image_left/.test(cls) ? "왼쪽(left)" : "오른쪽(right)") : "(판단불가)";
+
+        // ② background-position 기준 : 실제 화살표 표시 위치
+        //   X 값이 100%(=우측 기준) 면 오른쪽, 4px/0%/left 면 왼쪽
+        let bgPos = arrowEl ? getComputedStyle(arrowEl).backgroundPosition : "";
+        let bgSide = "(판단불가)";
+        if (arrowEl && bgPos && bgPos !== "0% 0%") {
+            if (/100%|right/.test(bgPos)) {
+                bgSide = "오른쪽(right)";
+            } else if (/(^|[\s,])(left|0%|0px|[1-9]\d?px)/.test(bgPos)) {
+                bgSide = "왼쪽(left)";
+            } else {
+                bgSide = "불명확";
+            }
+        }
+
+        bottom.setReturnValue("Header[" + i + "] 클래스기준 : " + clsSide + " / background-position기준 : " + bgSide);
+        bottom.setReturnValue("  background-position : " + (bgPos || "(없음)"));
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortedIconPosition" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_sortedIconPosition" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>left</xf:label>
+												<xf:value>left</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>right</xf:label>
+												<xf:value>right</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortHeaderDiv" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_sortHeaderDiv" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkIconPos_onclick" id="btn_checkIconPos"
+							label="아이콘 위치 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

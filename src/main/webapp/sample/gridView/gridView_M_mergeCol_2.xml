@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeCol" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260610" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="columnIndex 파라미터 Number|String 분리 — _2 는 Body Column ID(String) 사용 버전" meta_date="20260610" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : columnIndex 파라미터를 Body Column ID(String) 로 지정하는 버전.
+//     (_1 은 숫자 인덱스 버전. description 은 _1 과 동일하게 유지.)
+//     분리 사유(ID 지정) 관련 validation 1개만 기재 — 인덱스/include/@desc2/@spec2 등은 _1 담당.
+scwin.tData = {
+    "description" : "[gridView > M > mergeCol]<br/>Body Column 의 정보를 사용하여 특정 Column 을 자동 병합 대상에서 추가하거나 삭제합니다.",
+    "validation" : [
+        "columnIndex(필수) 파라미터로 자동 병합 대상에서 추가/삭제하려는 Body Column ID 를 설정합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — 세로(bycol) 병합 차이가 드러나도록 구성 (P_mergeCol_1 과 동일 데이터)
+//   행 | col1 | col2 | col3 | col4
+//   ---+------+------+------+------
+//    0 |  A   |  X   |  P   |  1
+//    1 |  A   |  X   |  P   |  1
+//    2 |  A   |  Y   |  P   |  2
+//    3 |  A   |  Y   |  Q   |  3
+//  · col1(A,A,A,A) : 전부 동일 → 대상이면 [행0~행3] 세로병합.
+//  · col2(X,X,Y,Y) : [행0~행1]=X / [행2~행3]=Y 두 그룹 세로병합.
+//  · col3(P,P,P,Q) : [행0~행2]=P 세로병합 (행3=Q 단독).
+//  · col4(1,1,2,3)  : [행0~행1]=1 세로병합 (행2,행3 단독).
+//  mergeCol(컬럼ID, include) 로 특정 Column 을 병합 대상에서 추가/삭제한 뒤
+//  mergeCells("bycol") 재적용 시 대상에서 제외된 컬럼은 동일값 연속이어도 병합되지 않음을 확인.
+scwin.MERGE_DATA = [
+    { "col1": "A", "col2": "X", "col3": "P", "col4": "1" },
+    { "col1": "A", "col2": "X", "col3": "P", "col4": "1" },
+    { "col1": "A", "col2": "Y", "col3": "P", "col4": "2" },
+    { "col1": "A", "col2": "Y", "col3": "Q", "col4": "3" }
+];
+
+
+
+// comp 생성 : mergeCells="bycol" 그리드 1개를 동적 생성한다. (P_mergeCol_1 과 동일 구성, 컬럼 숨김 없음)
+//  ★ _2 는 ID 로 대상 컬럼을 지정하므로 setColumnVisible 로 컬럼을 숨기지 않는다.
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="mergeCells=bycol(세로병합). par_columnIndex 에 Body Column ID(col1~col4) 선택 + par_include 선택 후 [mergeCol + 병합실행] 으로 대상 추가/삭제"', '', 'label1');
+
+    // DataList 생성 후 검증용 데이터 적재
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON(scwin.MERGE_DATA, false);
+
+    // mergeCells="bycol" 고정 (같은 Column 내 동일값 연속 Cell 을 rowSpan(세로) 방식으로 병합)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id,
+        mergeCells: "bycol",
+        defaultCellHeight: 34
+    });
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:380px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeCol sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// mergeCol 실행 : par_columnIndex(필수, Body Column ID 문자열) + par_include(선택, 기본 true) 로
+//   target1.mergeCol(컬럼ID, include) 호출 후 mergeCells("bycol") 재적용하여 병합 결과를 갱신한다.
+//  · include 미설정('') 선택 시 두번째 인자를 생략하여 기본값(true) 동작 확인.
+scwin.btn_mergeCol_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let vColId = par_columnIndex.getValue();      // Body Column ID 문자열 (col1~col4)
+    let vInclude = par_include.getText();          // 'true' / 'false' / '' (미설정→생략)
+
+    if (vInclude === '') {
+        // include 생략 (선택 파라미터 미지정 → 기본값 true 로 병합 대상 추가)
+        target1.mergeCol(vColId);
+        bottom.setReturnValue("[호출] target1.mergeCol('" + vColId + "') (include 생략 → 기본값 true)");
+    } else {
+        let bInclude = (vInclude === 'true');
+        target1.mergeCol(vColId, bInclude);
+        bottom.setReturnValue("[호출] target1.mergeCol('" + vColId + "', " + bInclude + ")");
+    }
+
+    // mergeCol 로 변경한 대상 정보를 반영하기 위해 bycol 재적용
+    target1.mergeCells("bycol");
+
+    bottom.setReturnValue("[옵션] mergeCells : " + target1.options.mergeCells);
+
+    scwin.printMergeState(bottom, vColId);
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan 을 읽어 세로(bycol) 병합 그룹과 병합 대상 컬럼을 판정
+//  - 세로 병합 : rowSpan > 1 인 td (앵커 셀)
+//  - td 셀렉터는 gid = target1.id 사용 (e.target.id 는 클릭된 버튼 id 라 사용 불가)
+//  - 흡수되어 표시되지 않는 td / 중복 키 제외 → 빈 행이 노출되지 않도록 처리
+scwin.printMergeState = function (bottom, vColId) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let rowSpanCnt = 0;
+    let descs = [];
+    let mergedColSet = {};
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        // 흡수되어 화면에 표시되지 않는 td 제외
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (rs > 1) {
+            rowSpanCnt++;
+            mergedColSet["col" + (c + 1)] = true;
+            let val = (td.textContent || "").trim();
+            descs.push("⬇ col" + (c + 1) + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+        }
+    }
+
+    bottom.setReturnValue("판정 : " + (rowSpanCnt === 0 ? "병합 없음" : "세로(rowSpan) 병합") + " / 병합 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+
+    // mergeCol 로 지정한 컬럼(vColId)의 병합 여부 판정
+    let merged = mergedColSet[vColId] === true;
+    bottom.setReturnValue("지정 Column '" + vColId + "' 병합 여부 : " + merged + " / 병합된 Body Column : " + (Object.keys(mergedColSet).sort().join(",") || "없음"));
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(4행)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 세로 병합 시 흡수된 Row 의 TR 높이가 0 으로 collapse 되어 병합 셀이 짧아지는 현상 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 34px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 34px; }
+/* 마지막 Row 가 세로 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 (narrowed 셀렉터로 빈 행 노출 방지) */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: table-row !important; height: 34px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnIndex (필수, Body Column ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnIndex" label="label" ref="" selectedIndex="1" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>col1</xf:label>
+												<xf:value>col1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>col2</xf:label>
+												<xf:value>col2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>col3</xf:label>
+												<xf:value>col3</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>col4</xf:label>
+												<xf:value>col4</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="include (선택, 기본 true)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_include" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeCol_onclick" id="btn_mergeCol"
+							label="mergeCol + 병합실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

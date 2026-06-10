@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeByRestricRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(mergeByRestricRow = mergeCells('byrestricrow', options) 단축 메소드)" meta_date="20260610" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  mergeByRestricRow(options) = mergeCells("byrestricrow", options) 단축 메소드 (mergeOptionStr 인자 없음).
+//  options(선택) 전용 검증 : noDraw / keepMerge / fixedRows / fixedCols + 생략.
+scwin.tData = {
+    "description" : "[gridView > M > mergeByRestricRow]<br/>Body 영역에서 동일값이 연속되는 Cell 을 가로 방향 제한 방식으로 병합합니다.",
+    "validation" : [
+        "윗쪽 Row 가 병합된 범위 내에서 'byrow' 방식으로 병합을 수행합니다.",
+        "displayFormat 등의 포맷 속성이 적용되지 않은 원본 데이터와 초기 Column 위치를 기준으로 병합됩니다.",
+        "mergeCells 속성값을 'byrestricrow' 로 설정합니다.",
+        "options(선택) 파라미터를 생략하면 기본값(noDraw/keepMerge/fixedRows/fixedCols 모두 false)으로 병합 처리 제어가 동작합니다.",
+        "options.noDraw(선택) true 설정 시 GridView 를 갱신하지 않습니다(다회 병합 성능 개선). false(기본) 설정 시 갱신합니다.",
+        "options.keepMerge(선택) true 설정 시 고정영역·수동병합 등 기존 병합을 유지합니다. false(기본) 설정 시 기존 병합을 모두 초기화한 후 새로 병합합니다(mergeCellsFixedCols/Rows 속성값은 불변).",
+        "options.fixedRows(선택) true 설정 시 fixedRow 고정 영역도 병합 대상이 됩니다(mergeCellsFixedRows 속성값 불변, Body 병합 유지). false(기본) 설정 시 비고정 영역을 대상으로 합니다.",
+        "options.fixedCols(선택) true 설정 시 fixedColumn/fixedRightColumn 고정 영역도 병합 대상이 됩니다(mergeCellsFixedCols 속성값 불변, Body 병합 유지). false(기본) 설정 시 비고정 영역을 대상으로 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — gridView_M_mergeCells_4(byrestricrow) 와 동일한 10열 가로 계층 데이터.
+//  (왼쪽으로 갈수록 큰 그룹 → 오른쪽으로 갈수록 잘게 쪼개지는 가로 계층)
+//   ★ 4행 패턴 1벌을 2번 반복 → 고정 영역(행0~3)과 비고정 영역(행4~7)이 '동일' 구성.
+//    행0/행4 : 10000 ×10                          (1x10 한 그룹)
+//    행1/행5 : 220000 ×5 / 320000 ×5              (경계 col5|col6)
+//    행2/행6 : 630000 ×4 / 730000 ×3 / 830000 ×3
+//    행3/행7 : 1240000 ×3 / 1340000 ×2 / 1440000 ×3 / 1540000 ×2
+//   ── byrestricrow 제한 시연 ──
+//    아래 행의 가로병합이 '윗 행이 병합된 범위' 를 넘지 못한다.
+//    예) 행2 의 730000(원래 col5~col7) 은 윗 행(행1)의 경계 col5|col6 때문에 col5 단독 + col6~col7 로 잘려 병합된다.
+//   ── fixedRow=4 대비 시연 ──
+//    행0~3(고정 영역)과 행4~7(비고정 영역)이 동일 패턴이므로 fixedRows=true 시 양 영역 병합이 동일하게 나타난다.
+scwin.makeData = function () {
+    // 10열 × 4행 = 40개 값 (1벌)
+    let base = [];
+    for (let f = 0; f < 10 * 4; f++) {
+        let rx = Math.floor(f / 10) + 1;
+        let zx = rx + 10 * Math.floor(f / (10 / rx));
+        base.push(zx * 10000);
+    }
+    // 고정 4행 + 비고정 4행 동일 구성 위해 4행 패턴 2벌(총 8행 = 80값)
+    return base.concat(base);
+}
+
+
+
+// comp 생성 : 10열 그리드를 동적 생성한다.
+//  ★ mergeCells 속성은 생성 attribute 로 주지 않는다. (생성 후 mergeByRestricRow() 메소드로 적용)
+//  ★ fixedRow=4(행0~3 고정 Row), fixedColumn=2(col1~col2 고정 Column) + mergeCellsFixedRows/Cols=never
+//     → 고정 영역(행0~3)과 비고정 영역(행4~7)이 동일 4행 패턴이라 fixedRows=true 대비가 명확.
+//     → options.fixedRows/fixedCols=true 시 고정 영역(상단 4행/좌측 2열)도 병합 대상이 되는지(속성 불변) 검증용.
+//     (행0/행4=10000 ×10 전열 동일값 → 고정 col1~col2 도 가로병합 대상이 됨)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="10열 계층 데이터(4행 패턴 2벌=총 8행, 고정 행0~3 / 비고정 행4~7 동일 구성). byrestricrow=아래 행 가로병합이 윗 행 병합 범위를 넘지 못함(예: 행2 730000 이 col5 단독+col6~col7 로 잘림). fixedRow=4(행0~3 고정), fixedColumn=2(col1~col2 고정), mergeCellsFixedRows/Cols=never. options 선택 후 mergeByRestricRow 버튼으로 적용"', '', 'label1');
+
+    // 10열 DataList 인라인 생성 (공통 createDynamicDataList 는 col1~col4 만 정의하므로 직접 생성)
+    let dlNS = $c.gcm.getNameSpace();
+    let strDL = '';
+    strDL += '<w2:dataList ' + dlNS + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDL += '<w2:columnInfo>';
+    for (let i = 1; i <= 10; i++) {
+        strDL += '<w2:column id="col' + i + '" name="col' + i + '" dataType="text"></w2:column>';
+    }
+    strDL += '</w2:columnInfo>';
+    strDL += '<w2:data use="true"></w2:data>';
+    strDL += '</w2:dataList>';
+    $p.data.create(strDL);
+    let arrDC = $p.data.getAllDataCollection("object");
+    scwin["dlt_bind"] = arrDC[arrDC.length - 1];
+
+    // 8행 계층 데이터 적재 (flat array → 10열씩 8행 = 4행 패턴 2벌)
+    dlt_bind.setData(scwin.makeData());
+
+    // fixedRow=4(행0~3 고정), fixedColumn=2 + 고정영역 병합 속성 초기값 never
+    let properties = {
+        dataList: "data:" + dlt_bind.id,
+        fixedRow: 4,
+        fixedColumn: 2,
+        mergeCellsFixedRows: "never",
+        mergeCellsFixedCols: "never"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" defaultCellHeight="38" id="" style="width:680px;height:360px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeByRestricRow sample (가로 계층 / 10열)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let i = 1; i <= 10; i++) {
+        strTarget += '<w2:column width="65" style="" inputType="text" id="column' + i + '" value="col' + i + '"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    for (let i = 1; i <= 10; i++) {
+        strTarget += '<w2:column width="65" style="" inputType="text" id="col' + i + '" value=""></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 수동 병합(mergeCell) : byrestricrow(가로 병합)이 만들지 않는 '세로 병합'을 수동으로 적용한다.
+//  · keepMerge 검증용 사전 병합 — col10(colIndex 9)의 행2~행3 을 rowSpan=2 로 세로 병합.
+//  · 이후 mergeByRestricRow 을 keepMerge=true 로 실행하면 이 수동 세로병합이 유지되고,
+//    keepMerge=false(또는 미설정) 로 실행하면 초기화되어 사라진다.
+scwin.btn_manualMerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // col10(colIndex 9) 행2~행3 세로 병합(rowSpan=2)
+    target1.mergeCell({ "rowIndex": 2, "colIndex": 9, "rowSpan": 2, "colSpan": 1 });
+
+    bottom.setReturnValue("[수동 병합] mergeCell 로 col10 [행2~행3] 세로병합(rowSpan=2) 적용.");
+    bottom.setReturnValue("→ 이제 keepMerge=true 로 mergeByRestricRow 실행 시 이 세로병합 유지 / keepMerge=false(또는 미설정) 시 초기화 확인.");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// mergeByRestricRow 실행 : par_ 값으로 options 를 구성하여 target1.mergeByRestricRow() 호출
+//  · 첫 인자가 options(선택) — mergeOptionStr 인자 없음.
+//  · options(선택) : noDraw/keepMerge/fixedRows/fixedCols 중 '미설정'이 아닌 키만 담아 구성.
+//    4개 모두 미설정이면 options 인자 자체를 생략하여 target1.mergeByRestricRow() 호출(필수여부 N param 생략 로직).
+scwin.btn_mergeByRestricRow_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // options 구성 : '미설정'(빈 라벨)이 아닌 par_ 값만 boolean 으로 담는다.
+    //  · gdl_boolean 의 value 는 위치 인덱스('1'/'2'/'3')이고 의미는 label('','true','false')에 있으므로
+    //    getValue() 가 아닌 getText() 로 true/false/미설정(빈 라벨)을 판정한다.
+    let vNoDraw    = par_noDraw.getText();
+    let vKeepMerge = par_keepMerge.getText();
+    let vFixedRows = par_fixedRows.getText();
+    let vFixedCols = par_fixedCols.getText();
+
+    let options = {};
+    let usedKeys = [];
+    if (vNoDraw !== '')    { options.noDraw    = (vNoDraw === 'true');    usedKeys.push("noDraw=" + options.noDraw); }
+    if (vKeepMerge !== '') { options.keepMerge = (vKeepMerge === 'true'); usedKeys.push("keepMerge=" + options.keepMerge); }
+    if (vFixedRows !== '') { options.fixedRows = (vFixedRows === 'true'); usedKeys.push("fixedRows=" + options.fixedRows); }
+    if (vFixedCols !== '') { options.fixedCols = (vFixedCols === 'true'); usedKeys.push("fixedCols=" + options.fixedCols); }
+
+    let hasOptions = usedKeys.length > 0;
+
+    // 메소드 호출 직전 mergeCells 속성값 캡처 (before → after 비교용)
+    let beforeMerge = target1.options.mergeCells;
+
+    // 필수여부 N 인 options 가 모두 미설정이면 인자 자체를 생략
+    if (hasOptions) {
+        target1.mergeByRestricRow(options);
+    } else {
+        target1.mergeByRestricRow();
+    }
+
+    if (options.noDraw === true) {
+        bottom.setReturnValue("[옵션] noDraw=true → mergeByRestricRow 호출만으로는 화면 미갱신. 화면 갱신은 다음 병합/refresh 시 반영됨.");
+    }
+
+    // mergeCells 속성값이 'byrestricrow' 로 변경되는지 before → after 출력
+    bottom.setReturnValue("[속성] mergeCells 속성값 : '" + (beforeMerge || '(미설정)') + "' → '" + target1.options.mergeCells + "'" + (beforeMerge !== target1.options.mergeCells ? " (메소드 호출로 변경됨)" : " (이미 동일값)") + " / options={" + (hasOptions ? usedKeys.join(", ") : "(생략)") + "}");
+    bottom.setReturnValue("[고정영역속성] mergeCellsFixedRows=" + target1.options.mergeCellsFixedRows + " / mergeCellsFixedCols=" + target1.options.mergeCellsFixedCols + " (fixedRows/fixedCols 옵션 사용해도 불변)");
+
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan/colSpan 을 읽어 세로(⬇)/가로(➡)/블록(⬛) 병합 그룹을 출력
+//  - td 셀렉터는 gid = target1.id 사용(e.target.id 는 버튼 id 라 사용 불가)
+//  - 흡수되어 표시되지 않는 td 와 중복 키(고정/스크롤 영역 중복 id)는 제외
+//  - 고정 영역(행0~3/col1~2) td 도 표시되므로 fixedRows/fixedCols 옵션 시 고정 영역 병합도 함께 출력됨
+scwin.printMergeState = function (bottom) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let rowSpanCnt = 0;
+    let colSpanCnt = 0;
+    let descs = [];
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (rs > 1 || cs > 1) {
+            if (rs > 1) rowSpanCnt++;
+            if (cs > 1) colSpanCnt++;
+            let val = (td.textContent || "").trim();
+            if (rs > 1 && cs === 1) {
+                descs.push("⬇ col" + (c + 1) + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+            } else if (cs > 1 && rs === 1) {
+                descs.push("➡ 행" + r + " [col" + (c + 1) + "~col" + (c + cs) + "] 가로병합 = '" + val + "'");
+            } else {
+                descs.push("⬛ [행" + r + "~행" + (r + rs - 1) + ", col" + (c + 1) + "~col" + (c + cs) + "] 블록병합(" + rs + "x" + cs + ") = '" + val + "'");
+            }
+        }
+    }
+
+    let modeName;
+    if (rowSpanCnt === 0 && colSpanCnt === 0) modeName = "병합 없음";
+    else if (rowSpanCnt > 0 && colSpanCnt === 0) modeName = "세로(rowSpan) 병합";
+    else if (colSpanCnt > 0 && rowSpanCnt === 0) modeName = "가로(colSpan) 병합";
+    else modeName = "혼합(블록) 병합";
+
+    bottom.setReturnValue("판정 : " + modeName + " / 병합 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(8행)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 세로 병합 시 흡수된 Row 의 TR 높이가 0 으로 collapse 되어 병합 셀이 짧아지는 현상 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 38px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 38px; }
+/* 마지막 Row 가 세로 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: table-row !important; height: 38px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.noDraw (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_noDraw" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="options.keepMerge (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_keepMerge" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.fixedRows (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_fixedRows" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="options.fixedCols (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_fixedCols" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_manualMerge_onclick" id="btn_manualMerge" label="수동 병합(mergeCell)" style=""></w2:button>
+							<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeByRestricRow_onclick" id="btn_mergeByRestricRow"
+							label="mergeByRestricRow" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

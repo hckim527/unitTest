@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] copyType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > copyType]<br/>GridView 에서 복사/붙여넣기를 위한 데이터 선택 방식을 설정합니다.",
+    "validation" : [
+        "copyType='default'(기본값) 설정 시 엔진의 복사/붙여넣기 처리 방식을 사용합니다.",
+        "여러 Cell 이 직사각형 형태로 선택되었을때 붙여넣기 데이터에 탭/줄바꿈 구분자가 있을 경우 n*n Cell 에 붙여넣기 됩니다.",
+        "여러 Cell 이 직사각형 형태로 선택되었을때 붙여넣기 데이터에 탭/줄바꿈 구분자가 없을 경우 동일 데이터가 전체 Cell 에 붙여넣기 됩니다.",
+        "여러 Cell 이 형태 없이 선택된 경우 붙여넣기가 되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 그리드 2개를 순서대로 동적 생성
+//    · target_src : source(복사 원본). copyType="default", 식별 값(a/b/c/d, S) 보유
+//    · target1    : target(붙여넣기 대상). copyType="default", editType=text 편집가능, 초기값 Origin...
+//  - 복사/붙여넣기는 사용자 액션(Ctrl+C / Ctrl+V)으로 직접 수행 (시뮬레이션 JS 없음)
+//  - 직사각형 선택은 드래그(dataDragSelect+useShiftKey), 불연속 선택은 Ctrl+클릭(useCtrlKey)
+//  - target 에 붙여넣기(oncustompaste) 시 결과를 하단 출력
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_src !== 'undefined') {
+        $p.data.remove("dlt_src");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof target_src !== 'undefined') {
+        target_src.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="source 그리드에서 셀 선택(드래그=직사각형 / Ctrl+클릭=불연속) 후 Ctrl+C → target 그리드 셀 선택 후 Ctrl+V 로 붙여넣기. 붙여넣기 결과는 하단 출력 영역에 표시"', '', 'label1');
+
+    // ── source 그리드 (target_src) : 복사 원본 ────────────────────────────
+    //  - (0,0)~(1,1) 2x2 영역에 a/b/c/d, (2,0) 에 S (단일셀 복사용)
+    $c.gcm.createDynamicDataList('', '', 'dlt_src');
+    dlt_src.setJSON([
+        { col1 : "a",  col2 : "b",      col3 : "src0_2", col4 : "src0_3" },
+        { col1 : "c",  col2 : "d",      col3 : "src1_2", col4 : "src1_3" },
+        { col1 : "S",  col2 : "src2_1", col3 : "src2_2", col4 : "src2_3" }
+    ]);
+
+    let cListSrc = $c.gcm.createCList({ focusMode : "cell", copyType : "default", dataDragSelect : true, useShiftKey : true, useCtrlKey : true });
+    let strSrc = '';
+    strSrc += '<w2:gridView ' + strNameSpace + ' ' + cListSrc + ' dataList="data:dlt_src" checkAllType="false" id="" style="width:520px;height:160px;">';
+    strSrc += '<w2:caption style="" id="captionS" value="source (복사 원본) : (0,0)~(1,1)=a,b,c,d / (2,0)=S"></w2:caption>';
+    strSrc += '<w2:header style="" id="headerS">';
+    strSrc += '<w2:row style="" id="rowS1">';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="columnS1" value="col1"></w2:column>';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="columnS2" value="col2"></w2:column>';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="columnS3" value="col3"></w2:column>';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="columnS4" value="col4"></w2:column>';
+    strSrc += '</w2:row>';
+    strSrc += '</w2:header>';
+    strSrc += '<w2:gBody style="" id="gBodyS">';
+    strSrc += '<w2:row style="" id="rowS2">';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="col1"></w2:column>';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="col2"></w2:column>';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="col3"></w2:column>';
+    strSrc += '<w2:column width="120" style="" inputType="text" id="col4"></w2:column>';
+    strSrc += '</w2:row>';
+    strSrc += '</w2:gBody>';
+    strSrc += '</w2:gridView>';
+
+    scwin.target_src = await $p.dynamicCreate(
+        "target_src",
+        "gridView",
+        strSrc,
+        grp_comp
+    );
+
+    // ── target 그리드 (target1) : 붙여넣기 대상 ──────────────────────────
+    let cList = $c.gcm.createCList({ focusMode : "cell", copyType : "default", dataDragSelect : true, useShiftKey : true, useCtrlKey : true });
+
+    // 붙여넣기 이벤트(oncustompaste) 바인딩 → 붙여넣기 후 target 결과를 하단에 출력
+    let eList = $c.gcm.createEList(["oncustompaste"]);
+
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "Origin0_0", col2 : "Origin0_1", col3 : "Origin0_2", col4 : "Origin0_3" },
+        { col1 : "Origin1_0", col2 : "Origin1_1", col3 : "Origin1_2", col4 : "Origin1_3" },
+        { col1 : "Origin2_0", col2 : "Origin2_1", col3 : "Origin2_2", col4 : "Origin2_3" },
+        { col1 : "Origin3_0", col2 : "Origin3_1", col3 : "Origin3_2", col4 : "Origin3_3" },
+        { col1 : "Origin4_0", col2 : "Origin4_1", col3 : "Origin4_2", col4 : "Origin4_3" }
+    ]);
+
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:520px;height:230px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="target (붙여넣기 대상) : 초기값 Origin..."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// target 그리드 붙여넣기 이벤트 (oncustompaste)
+//  - false 를 반환하지 않으므로 기본 붙여넣기 동작은 그대로 진행됨
+//  - 붙여넣기 직전 포커스된(=붙여넣기 대상) Cell 목록을 확보 → setTimeout 으로 붙여넣기 적용 후 결과 값을 하단에 출력
+scwin.target1_oncustompaste = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let focused = target1.getAllFocusedIndex();   // 붙여넣기 대상(선택) Cell 목록
+
+    setTimeout(function () {
+        bottom.btn_clear_onclick();
+        bottom.setReturnValue("[붙여넣기 결과] 대상 Cell " + focused.length + "개");
+        for (let i = 0; i < focused.length; i++) {
+            let f = focused[i];
+            let colID = target1.getColumnID(f.col);
+            bottom.setReturnValue("(" + f.row + "," + f.col + ") = " + target1.getCellData(f.row, colID));
+        }
+        if (focused.length === 0) {
+            bottom.setReturnValue("선택된 Cell 이 없어 붙여넣기가 적용되지 않았습니다.");
+        }
+    }, 0);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:170px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="직사각형+구분자있음" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="source (0,0)~(1,1) 복사(탭/줄바꿈 구분 a,b / c,d) → target (0,0)~(1,1) 붙여넣기 → 4개 Cell 에 a,b,c,d 각각" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="직사각형+구분자없음" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="source (2,0)=S 단일 셀 복사(구분자 없음) → target (2,0)~(3,1) 붙여넣기 → 4개 Cell 모두 S" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="형태없음(불연속)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="source (0,0) 복사 → target (0,0),(2,1),(4,3) 불연속(비직사각형) Ctrl+클릭 선택 후 붙여넣기 → 미동작(원본 유지)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

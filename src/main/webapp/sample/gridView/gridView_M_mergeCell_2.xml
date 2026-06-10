@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeCell" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > mergeCell]<br/>Body Cell 정보를 사용하여 Body 영역의 특정 Cell 을 병합합니다.",
+    "validation" : [
+        "mergeInfo.rowIndex 는 DrillDown 으로 숨겨진 Row 도 인덱스에 포함하여 설정됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 계층 데이터 — depth1(부모) / depth2(자식). 모든 Cell 고유값(데이터 index 추적용).
+//  [0]부모A(depth1) / [1]자식a(depth2, A의 자식) / [2]부모B(depth1) / [3]자식b(depth2, B의 자식)
+scwin.DRILL_DATA = [
+    { "nm": "부모A", "g1": "A-g1", "g2": "A-g2", "depth": 1 },
+    { "nm": "  자식a", "g1": "a-g1", "g2": "a-g2", "depth": 2 },
+    { "nm": "부모B", "g1": "B-g1", "g2": "B-g2", "depth": 1 },
+    { "nm": "  자식b", "g1": "b-g1", "g2": "b-g2", "depth": 2 }
+];
+
+
+
+// comp 생성 : DrillDown(inputType="drilldown", depthColumn, showDepth) 그리드 1개 동적 생성.
+//  ★ mergeCells 속성은 부여하지 않음(수동 병합 mergeCell 전용).
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="DrillDown 그리드. 데이터 순서 [0]부모A [1]자식a [2]부모B [3]자식b. 자식 접힘 시 화면 표시 Row 는 부모A·부모B 2개지만, mergeCell 의 rowIndex 는 숨겨진 자식a(index1)도 포함하여 매겨짐 → 부모B 는 rowIndex 2"', '', 'label1');
+
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // DrillDown 전용 DataList 동적 생성 (depth 컬럼 포함)
+    $p.data.create('<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map"><w2:columnInfo>'
+        + '<w2:column id="nm" name="nm" dataType="text"></w2:column>'
+        + '<w2:column id="g1" name="g1" dataType="text"></w2:column>'
+        + '<w2:column id="g2" name="g2" dataType="text"></w2:column>'
+        + '<w2:column id="depth" name="depth" dataType="number"></w2:column>'
+        + '</w2:columnInfo><w2:data use="true"></w2:data></w2:dataList>');
+    dlt_bind.setJSON(scwin.DRILL_DATA, false);
+
+    let cList = $c.gcm.createCList({ dataList: "data:" + dlt_bind.id, checkAllType: "false" });
+
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' defaultCellHeight="38" id="" style="width:520px;height:230px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeCell DrillDown sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h_nm" value="nm(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="h_g1" value="g1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="h_g2" value="g2"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="h_depth" value="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="nm" dataList="nm"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="g1" dataList="g1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="g2" dataList="g2"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="depth" dataList="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// DrillDown 숨김 Row 인덱스 검증 (버튼 1개) :
+//  자식을 접어 숨긴 뒤, 부모B(데이터 index 2)에 mergeCell(rowIndex:2) 호출.
+//  자식a 가 접혀 화면에서 안 보여도 인덱스 한 칸(index1)을 차지하므로, 화면상 2번째인 부모B 의 rowIndex 는 2 다.
+//  → rowIndex 2 로 부모B 에 병합이 적용되면 "숨겨진 Row 도 인덱스에 포함"이 입증된다.
+scwin.btn_verify_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 펼쳐진 부모를 모두 접어 자식 숨김 (다음 표시 Row 의 depth 가 2 면 펼침 상태)
+    let guard = 0, i = 0;
+    while (i < target1.getVisibleRowNum() && guard < 50) {
+        guard++;
+        let isOpen = Number(target1.getCellData(i, "depth")) === 1
+            && (i + 1 < target1.getVisibleRowNum())
+            && Number(target1.getCellData(i + 1, "depth")) === 2;
+        if (isOpen) { target1.toggle(i); continue; }
+        i++;
+    }
+
+    // 부모B = 데이터 index 2 (숨겨진 자식a 가 index1 차지). 화면 표시상으로는 2번째 Row.
+    target1.mergeCell({ "rowIndex": 2, "colIndex": 1, "colSpan": 2 });
+
+    let merged = scwin.findMergedTd();
+    let appliedToB = !!(merged && merged.text.indexOf("B") >= 0);
+    bottom.setReturnValue("rowIndex 2(숨겨진 자식a 포함하여 카운트) → 부모B 에 병합 적용 : " + appliedToB + " (표시값='" + (merged ? merged.text : "") + "')");
+}
+
+
+
+// 공통 : Body 영역에서 병합된(rowSpan>1 또는 colSpan>1) 화면 표시 td 1개를 찾아 반환.
+//  - display:none 잔여 셀 제외
+scwin.findMergedTd = function () {
+    let tds = document.querySelectorAll("td[id*='" + target1.id + "_cell_']");
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (td.style.display === 'none') continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        if (rs > 1 || cs > 1) {
+            return { rowSpan: rs, colSpan: cs, text: (td.textContent || '').trim() };
+        }
+    }
+    return null;
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생기는 현상 → 세로 스크롤바 숨김 */
+.w2grid_scrollY { display: none !important; }
+
+/* 세로 병합 시 흡수된 Row 의 TR 높이가 0 으로 collapse 되는 현상 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 38px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 38px; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_verify_onclick" id="btn_verify"
+							label="DrillDown 숨김 Row 인덱스 검증" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

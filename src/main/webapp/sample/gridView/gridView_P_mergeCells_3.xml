@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeCells" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > mergeCells]<br/>Body 영역에서 동일한 값이 연속되는 Cell 을 자동으로 병합하는 방식을 설정합니다.",
+    "validation" : [
+        "'byrestriccol' 설정 시 왼쪽 Column 이 병합된 범위 내에서 'bycol' 방식으로 병합을 수행하며, 'bycol' 방식으로 병합되는 각 Cell 의 왼쪽 Cell 이 서로 다른 병합 그룹이라면 병합되지 않습니다.",
+        "'bycolupper' 설정 시 'byrestriccol' 방식으로 병합하되 왼쪽 Column 이 아닌 Column 의 upperColumn 속성에 설정된 값을 기준으로 병합이 수행됩니다. (upperColumn 미설정 Column 은 'bycol' 과 동일하게 동작하며, fixedColumn/fixedRightColumn 제약을 무시하고 전체 Column 범위를 병합 대상으로 처리합니다.)",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — byrestriccol / bycolupper / byrestricrow 의 차이가 '계단식 병합' 으로 풍부하게 드러나도록 구성.
+//  (왼쪽 col1 = 큰 그룹 → 오른쪽으로 갈수록 잘게 쪼개지는 계층)
+//  (byrestriccol / bycolupper 전용 — byrestricrow 가로 제한은 별도 샘플 gridView_P_mergeCells_4 참조)
+//  계층형 cascade — 왼쪽 큰 그룹 → 오른쪽으로 갈수록 잘게 쪼개지는 세로 계층.
+//  · col1 사업부  : 영업본부(0~2행) / 관리본부(3~5행)   (세로 2그룹 → bycolupper 기준 경계)
+//  · col2 팀      : 1팀(0~1행) / 2팀(2행) / 3팀(3~5행)  (세로 3그룹 → byrestriccol 제한 경계)
+//  · col3 평가등급 : 우수(0~4행) / 보통(5행)             (upperColumn=col1)
+//        - byrestriccol → 왼쪽 col2(팀) 경계로 제한 → 우수가 1팀[0~1]/2팀[2]/3팀[3~4] 로 잘게 세로병합
+//        - bycolupper   → col1(사업부) 기준 → 우수가 영업본부[0~2]/관리본부[3~4] 로 더 크게 세로병합
+//  · col4 비고    : col3 과 동일값(우수/보통). upperColumn 미설정 → bycolupper 시 'bycol' 로 동작(연속 우수[0~4] 통째 세로병합, 사업부/팀 경계 무시) → upperColumn 설정한 col3 과 대비 (spec 의 'upperColumn 미설정 Column 은 bycol 과 동일' 시연)
+scwin.MERGE_DATA = [
+    { "col1": "영업본부", "col2": "1팀", "col3": "우수", "col4": "우수" },
+    { "col1": "영업본부", "col2": "1팀", "col3": "우수", "col4": "우수" },
+    { "col1": "영업본부", "col2": "2팀", "col3": "우수", "col4": "우수" },
+    { "col1": "관리본부", "col2": "3팀", "col3": "우수", "col4": "우수" },
+    { "col1": "관리본부", "col2": "3팀", "col3": "우수", "col4": "우수" },
+    { "col1": "관리본부", "col2": "3팀", "col3": "보통", "col4": "보통" }
+];
+
+
+
+// comp 생성 : con_mergeCells 셀렉트박스 값으로 mergeCells 옵션을 설정하여 그리드 1개를 동적 생성한다.
+//  ★ mergeCells 는 생성 attribute 로 주지 않고, 데이터 적재 + 렌더가 끝난 뒤 mergeCells() 메소드로 적용한다.
+//     (생성 attribute 로 초기 렌더 중 세로병합하면 병합된 Row 가 height 0 으로 collapse 되어 일부 Row 가 사라짐)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (Target 재생성 시 동일 id 재생성이 무시되지 않도록 먼저 제거)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // con_ 설정값 수집 : '' 미설정(속성 제외) / byrestriccol / bycolupper
+    let vMerge = con_mergeCells.getValue();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="mergeCells=' + (vMerge === '' ? '(미설정)' : vMerge) + ' / 사업부→팀→평가등급(upper=사업부) 계층. byrestriccol=평가등급(우수)이 팀 경계로 1팀[0~1]/2팀[2]/3팀[3~4] 제한 / bycolupper=사업부 기준이라 영업본부[0~2]/관리본부[3~4] 로 더 크게"', '', 'label1');
+
+    // 계층형 DataList 생성 (col1~col4) 후 병합 비교용 데이터 적재
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON(scwin.MERGE_DATA, false);
+
+    let properties = {
+        dataList: "data:" + dlt_bind.id,
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 (mergeCells 속성은 부여하지 않음 → 아래에서 메소드로 적용)
+    //  · col3(평가등급) 의 upperColumn="col1"(사업부) : bycolupper 일 때 기준 Column 을 팀(왼쪽) → 사업부(col1) 로 변경
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strTarget = '';
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" defaultCellHeight="38" id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeCells sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column1" value="사업부"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column2" value="팀"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column3" value="평가등급(upper=사업부)"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column4" value="비고"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="col3" upperColumn="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 생성(데이터 적재 완료) 후 mergeCells() 메소드로 병합 적용 (미설정이면 병합 없음)
+    if (vMerge !== '') {
+        let grid = $p.getComponentById("target1");
+        grid.mergeCells(vMerge);
+    }
+}
+
+
+
+// 병합 상태 확인 : Body td 의 rowSpan / colSpan 을 읽어 병합 그룹을 직관 형식으로 출력한다.
+//  - ⬇ colN [행a~행b] 세로병합 = 값 / ➡ 행N [colA~colB] 가로병합 = 값
+scwin.btn_checkMerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let mode = target1.options.mergeCells || "(미설정)";
+    bottom.setReturnValue("[옵션] mergeCells : " + mode);
+
+    let tds = document.querySelectorAll("td[id*='target1_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let descs = [];
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (getComputedStyle(td).display === "none" || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        if (rs <= 1 && cs <= 1) continue;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+        let val = (td.textContent || "").trim();
+        if (rs > 1 && cs === 1) {
+            descs.push("⬇ col" + (c + 1) + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+        } else if (cs > 1 && rs === 1) {
+            descs.push("➡ 행" + r + " [col" + (c + 1) + "~col" + (c + cs) + "] 가로병합 = '" + val + "'");
+        } else {
+            descs.push("⬛ [행" + r + "~행" + (r + rs - 1) + ", col" + (c + 1) + "~col" + (c + cs) + "] 블록병합(" + rs + "x" + cs + ") = '" + val + "'");
+        }
+    }
+
+    bottom.setReturnValue("병합 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* mergeCells 병합 시 엔진이 body 내용을 viewport 보다 약 20px(빈 영역) 크게 렌더하여 세로 스크롤바가 생김.
+   데이터(6행)는 height:300px 안에 모두 표시되고 초과분은 빈 영역이므로, 그리드의 세로 스크롤바를 숨겨 스크롤이 보이지 않게 처리. */
+.w2grid_scrollY { display: none !important; }
+
+/* 세로 병합 시 흡수된 Row(병합 블록 최상단 Row 등)의 TR 높이가 0 으로 collapse 되어
+   병합 셀(예: 1팀 rowSpan=2)이 1행 높이로 짧아지는 현상 보정 → 각 Body Row 높이를 유지해
+   병합 셀이 차지하는 행 수만큼 온전한 높이로 표시되게 한다. (숨김 Row 는 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 38px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 38px; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="mergeCells" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_mergeCells" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>byrestriccol</xf:label>
+												<xf:value>byrestriccol</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>bycolupper</xf:label>
+												<xf:value>bycolupper</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkMerge_onclick" id="btn_checkMerge"
+							label="병합 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

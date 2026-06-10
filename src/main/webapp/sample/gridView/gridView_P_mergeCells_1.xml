@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeCells" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > mergeCells]<br/>Body 영역에서 동일한 값이 연속되는 Cell 을 자동으로 병합하는 방식을 설정합니다.",
+    "validation" : [
+        "'never'(기본값) 설정 시 Body 영역에서 동일 Cell 값에 대한 병합을 수행하지 않습니다.",
+        "'bycol' 설정 시 같은 Column 내에서 동일한 값이 연속되는 Cell 에 rowSpan 방식의 세로 병합을 수행합니다.",
+        "'byrow' 설정 시 같은 Row 내에서 동일한 값이 연속되는 Cell 에 colSpan 방식의 가로 병합을 수행합니다.",
+        "fixedColumn, fixedRightColumn, fixedRow 속성으로 고정된 영역엔 적용되지 않습니다.",
+        "displayFormat 등의 포맷 속성이 적용되지 않은 원본 데이터와 초기 Column 위치를 기준으로 병합 처리됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_ 설정값 수집 : '' 미설정(속성 제외=기본 never) / never / bycol / byrow
+    let vMerge = con_mergeCells.getValue();
+
+    // 병합 옵션 : 미설정('') 이면 mergeCells 속성 자체를 추가하지 않음(기본 never)
+    //  - fixedColumn=1 : col1(A,A,A,A) 은 고정 영역이라 동일값 연속이어도 병합되지 않음(validation #4)
+    let properties = {
+        dataList: "data:dlt_bind",
+        fixedColumn: 1,
+    };
+    if (vMerge !== '') {
+        properties.mergeCells = vMerge;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="mergeCells=' + (vMerge === '' ? '(미설정)' : vMerge) + ', fixedColumn=1 (col1=고정,A,A,A,A) / col4=displayFormat(숫자포맷)"', '', 'label1');
+
+    // dataList 생성 후 병합이 보이도록 데이터 구성
+    //   col1(고정,A,A,A,A) col2(X,X,Y,Y) col3(X,X,Y,Z) col4(1000,1000,2000,2000 원본=숫자)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "A", "col2": "X", "col3": "X", "col4": "1000" },
+        { "col1": "A", "col2": "X", "col3": "X", "col4": "1000" },
+        { "col1": "A", "col2": "Y", "col3": "Y", "col4": "2000" },
+        { "col1": "A", "col2": "Y", "col3": "Z", "col4": "2000" }
+    ], false);
+
+    // target 생성 (col4 에 displayFormat 적용 → 원본 1000/2000 vs 표시 1,000.00/2,000.00)
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strTarget = '';
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:380px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeCells sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column1" value="col1(고정)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column4" value="col4(포맷)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" dataType="number" displayFormat="#,##0.00" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan / colSpan 을 읽어 세로(bycol)/가로(byrow)/병합없음(never) 판정
+//  - bycol : rowSpan > 1 인 td 존재 (세로 병합)
+//  - byrow : colSpan > 1 인 td 존재 (가로 병합)
+//  - never : rowSpan/colSpan 모두 1 (병합 없음)
+//  - 고정 영역(col1) td 는 mergeCells 적용 대상이 아님(validation #4)
+//  - col4 는 displayFormat 표시값과 무관하게 원본 데이터(1000/2000) 기준 병합(validation #5)
+scwin.btn_checkMerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[옵션] mergeCells : " + target1.options.mergeCells + " / fixedColumn : " + target1.options.fixedColumn);
+
+    // 스크롤(일반) 영역과 고정 영역 td 를 모두 조회
+    let tds = document.querySelectorAll("td[id*='target1_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let rowSpanCnt = 0;
+    let colSpanCnt = 0;
+    let fixedMerged = false;
+    let descs = [];
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        // display:none 처리된 잔여 셀 제외
+        if (td.style.display === 'none') continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        let id = td.id;
+        // col1(고정 영역) 셀 여부 : id 에 _0_0 ~ _3_0 (colIndex 0) 형태 포함
+        let isCol1 = /_cell_\d+_0(_|$)/.test(id);
+        if (rs > 1) { rowSpanCnt++; if (isCol1) fixedMerged = true; }
+        if (cs > 1) { colSpanCnt++; if (isCol1) fixedMerged = true; }
+        // 병합된 셀(앵커)을 "범위 + 값" 으로 직관적으로 기술
+        if (rs > 1 || cs > 1) {
+            let m = id.match(/_cell_(\d+)_(\d+)/);
+            if (m) {
+                let r = Number(m[1]), c = Number(m[2]);
+                let val = (td.textContent || "").trim();
+                if (rs > 1 && cs === 1) {
+                    descs.push("⬇ col" + (c + 1) + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+                } else if (cs > 1 && rs === 1) {
+                    descs.push("➡ 행" + r + " [col" + (c + 1) + "~col" + (c + cs) + "] 가로병합 = '" + val + "'");
+                } else {
+                    descs.push("⬛ [행" + r + "~행" + (r + rs - 1) + ", col" + (c + 1) + "~col" + (c + cs) + "] 블록병합(" + rs + "x" + cs + ") = '" + val + "'");
+                }
+            }
+        }
+    }
+
+    let mode;
+    if (rowSpanCnt === 0 && colSpanCnt === 0) mode = "never (병합 없음)";
+    else if (rowSpanCnt > 0 && colSpanCnt === 0) mode = "bycol (세로 병합)";
+    else if (colSpanCnt > 0 && rowSpanCnt === 0) mode = "byrow (가로 병합)";
+    else mode = "혼합";
+
+    bottom.setReturnValue("판정 : " + mode + " / 병합 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+    bottom.setReturnValue("고정(col1) 영역 병합 여부 : " + fixedMerged + " (false 면 고정 영역 미병합)");
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="mergeCells" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_mergeCells" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>never</xf:label>
+												<xf:value>never</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>bycol</xf:label>
+												<xf:value>bycol</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>byrow</xf:label>
+												<xf:value>byrow</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkMerge_onclick" id="btn_checkMerge"
+							label="병합 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

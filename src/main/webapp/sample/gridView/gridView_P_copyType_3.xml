@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] copyType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260608" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="사용자 액션(Ctrl+C/Ctrl+V) 기반 source/target 2그리드 구조로 간소화" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="03" meta_desc="validation 1~3 만 남기고 _1 스타일(단일 그리드 + textarea 복사값 출력) 로 재구성, copyOption con 제거" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map" />
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > copyType]<br/>GridView 에서 복사/붙여넣기를 위한 데이터 선택 방식을 설정합니다.",
+    "validation" : [
+        "copyType='native' 설정 시 웹브라우저의 기본 복사/붙여넣기 처리방식을 사용합니다.",
+        "noSelect 속성은 항상 false 로 동작하며 Cell 의 포커스 여부와 관계없이 드래그에 의해 텍스트 단위로 선택됩니다.",
+        "텍스트 단위로 선택된 경우만 복사되며 여러 Cell 을 선택 시 탭/줄바꿈 Cell 구분자가 포함되어 복사됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - GridView(target1, dlt_bind) 1개 : 복사 원본. 드래그로 텍스트 단위 선택 후 Ctrl+C 한 값을
+//    textarea 에 Ctrl+V 로 붙여넣어 복사값/구분자를 확인
+//  - copyType="native" 고정 : 웹브라우저의 기본 복사/붙여넣기 처리방식을 사용 (본 샘플 주제)
+//    · native 시 엔진이 noSelect 를 강제 false 로 동작시킴 (gridView.js : copyType==="native" → options.noSelect = false)
+//    · native 는 드래그에 의한 텍스트 단위 선택이 고유 동작이므로 dataDragSelect 는 설정하지 않음(텍스트 드래그 유지)
+//  - validation 1~3 은 copyOption 무관 → con(grp_condition) 없음
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // copyType="native" 는 본 샘플 주제이므로 GridView 에 고정 적용 (dataDragSelect 미설정 = 텍스트 드래그 유지)
+    let properties = {
+        copyType : "native"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 사용자 액션 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="copyType=native. 그리드에서 드래그로 텍스트 선택 후 Ctrl+C → 아래 textarea 에 Ctrl+V 로 복사값 확인. native 는 noSelect 항상 false, 드래그 텍스트 단위 선택"', '', 'label1');
+
+    // GridView dataList 생성 (복사 원본 데이터)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "A0", col2 : "B0", col3 : "C0", col4 : "D0" },
+        { col1 : "A1", col2 : "B1", col3 : "C1", col4 : "D1" },
+        { col1 : "A2", col2 : "B2", col3 : "C2", col4 : "D2" },
+        { col1 : "A3", col2 : "B3", col3 : "C3", col4 : "D3" }
+    ]);
+
+    // GridView 생성 (복사 원본 — 드래그로 텍스트 선택 후 Ctrl+C 한 값을 textarea 에 붙여넣어 확인)
+    let strTarget = scwin.buildGridXml(strNameSpace, cList, "dlt_bind", "copyType=native 테스트 그리드");
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// GridView XML 생성
+scwin.buildGridXml = function (strNameSpace, cList, dataListId, captionText) {
+    let s = '';
+    s += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:' + dataListId + '" checkAllType="false" id="" style="width:520px;height:230px;">';
+    s += '<w2:caption style="" id="" value="' + captionText + '"></w2:caption>';
+    s += '<w2:header style="" id="">';
+    s += '<w2:row style="" id="">';
+    s += '<w2:column width="120" style="" inputType="text" id="" value="col1"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="" value="col2"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="" value="col3"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="" value="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="">';
+    s += '<w2:row style="" id="">';
+    s += '<w2:column width="120" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+    return s;
+}
+
+
+
+// 붙여넣기(textarea) 시 복사된 값 출력
+//  - 그리드에서 드래그로 텍스트 선택 후 Ctrl+C 한 값을 textarea 에 Ctrl+V 로 붙여넣으면 onchange 발생
+//    → 클립보드 값/구분자를 하단에 출력
+//  - 탭(\t)=Cell 구분, 줄바꿈(\n)=Row 구분 을 [TAB]/[NL] 로 가시화하여 함께 출력
+scwin.txa_paste_onchange = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let pasted = txa_paste.getValue();
+    let visible = pasted.replace(/\t/g, '[TAB]').replace(/\r/g, '[CR]').replace(/\n/g, '[NL]');
+    bottom.setReturnValue("붙여넣은 값(클립보드) : " + pasted);
+    bottom.setReturnValue("구분자 표시 : " + visible);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="복사값 확인" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_paste" ev:onchange="scwin.txa_paste_onchange" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="그리드에서 드래그로 텍스트 선택 후 Ctrl+C 한 텍스트를 이 영역에 Ctrl+V 로 붙여넣어 복사값을 확인" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

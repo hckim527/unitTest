@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeCells" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > mergeCells]<br/>Body 영역에서 동일한 값이 연속되는 Cell 을 자동으로 병합하는 방식을 설정합니다.",
+    "validation" : [
+        "mergeCells 속성을 설정하면 setColumnOrder() 메소드가 실행되지 않습니다.",
+        "Row 가 삽입/삭제되거나 필터/정렬이 적용되면 mergeCells 속성에 의한 병합이 다시 처리됩니다. (insertRow() 메소드로 Row 가 삽입되거나 Cell 값이 변경된 경우에는 병합이 다시 처리되지 않습니다.)",
+        "병합된 Cell 값을 수정하면 병합된 Cell 전체값이 함께 수정됩니다. (UI 를 통해 병합된 Cell 을 분리해서 각 Cell 값을 수정하는 것은 지원하지 않습니다.)",
+        "SubTotal 은 병합 경계로 처리되어, SubTotal 을 넘어서는 병합은 발생하지 않습니다.",
+        "DrillDown 기능으로 숨겨진 Row 는 병합 범위 계산에서 제외됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — 4개 그리드 구성
+//  - gridA(target1) : mergeCells="byrow"(가로 병합, colSpan>1) → #1 setColumnOrder 미실행 / #3 병합 셀 표시
+//  - gridB(target2) : mergeCells="bycol"(세로 병합)            → #2 정렬 재병합 vs insertRow 미재병합
+//  - gridC(target3) : mergeCells="bycol" + SubTotal           → #4 SubTotal 병합 경계
+//  - gridD(target4) : mergeCells="bycol" + DrillDown          → #5 접힌 Row 병합 제외
+scwin.comp_init = async function () {
+    // 기존 target/dataList 정리
+    ["dlt_A", "dlt_B", "dlt_C", "dlt_D"].forEach(function (id) {
+        if (typeof window[id] !== 'undefined') { $p.data.remove(id); }
+    });
+    ["target1", "target2", "target3", "target4"].forEach(function (id) {
+        if (typeof window[id] !== 'undefined') { window[id].remove(); }
+    });
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="① gridA: byrow(가로 병합) - setColumnOrder 미실행/병합 셀 표시   ② gridB: bycol(세로 병합) - 정렬 재병합 vs insertRow 미재병합   ③ gridC: bycol + SubTotal(병합 경계)   ④ gridD: bycol + DrillDown(접힌 Row 병합 제외)"', '', 'label1');
+
+    // ===== gridA : byrow 병합 (같은 Row 동일값 → colSpan 가로 병합). byrow 는 colSpan>1 이라 setColumnOrder 거부 =====
+    $p.data.create('<w2:dataList ' + ns + ' id="dlt_A" baseNode="list" repeatNode="map"><w2:columnInfo>'
+        + '<w2:column id="c1" name="c1" dataType="text"></w2:column>'
+        + '<w2:column id="c2" name="c2" dataType="text"></w2:column>'
+        + '<w2:column id="c3" name="c3" dataType="text"></w2:column>'
+        + '<w2:column id="c4" name="c4" dataType="text"></w2:column>'
+        + '</w2:columnInfo><w2:data use="true"></w2:data></w2:dataList>');
+    // Row 0,1 의 c2=c3=c4="P" (가로 3칸 병합) / Row 2,3 의 c2=c3=c4="Q"
+    dlt_A.setJSON([
+        { "c1": "1", "c2": "P", "c3": "P", "c4": "P" },
+        { "c1": "2", "c2": "P", "c3": "P", "c4": "P" },
+        { "c1": "3", "c2": "Q", "c3": "Q", "c4": "Q" },
+        { "c1": "4", "c2": "Q", "c3": "Q", "c4": "Q" }
+    ], false);
+    let clA = $c.gcm.createCList({ dataList: "data:dlt_A", mergeCells: "byrow", checkAllType: "false" });
+    let sA = '<w2:gridView ' + ns + ' ' + clA + ' id="" style="width:340px;height:170px;">'
+        + '<w2:caption style="" id="capA" value="gridA (byrow)"></w2:caption>'
+        + '<w2:header style="" id="hA"><w2:row style="" id="hrA">'
+        + '<w2:column width="70" inputType="text" id="hA1" value="c1"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="hA2" value="c2"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="hA3" value="c3"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="hA4" value="c4"></w2:column>'
+        + '</w2:row></w2:header>'
+        + '<w2:gBody style="" id="bA"><w2:row style="" id="brA">'
+        + '<w2:column width="70" inputType="text" id="c1" dataList="c1"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="c2" dataList="c2"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="c3" dataList="c3"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="c4" dataList="c4"></w2:column>'
+        + '</w2:row></w2:gBody></w2:gridView>';
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", sA, grp_comp);
+
+    // ===== gridB : bycol 병합 (같은 Column 동일값 연속 → rowSpan 세로 병합) =====
+    // c2 초기값 M,N,M,N (비연속 → 병합 없음). 정렬하면 M,M,N,N 으로 연속되어 병합 발생(재병합 검증).
+    $p.data.create('<w2:dataList ' + ns + ' id="dlt_B" baseNode="list" repeatNode="map"><w2:columnInfo>'
+        + '<w2:column id="k" name="k" dataType="text"></w2:column>'
+        + '<w2:column id="c2" name="c2" dataType="text"></w2:column>'
+        + '</w2:columnInfo><w2:data use="true"></w2:data></w2:dataList>');
+    dlt_B.setJSON([
+        { "k": "1", "c2": "M" },
+        { "k": "2", "c2": "N" },
+        { "k": "3", "c2": "M" },
+        { "k": "4", "c2": "N" }
+    ], false);
+    let clB = $c.gcm.createCList({ dataList: "data:dlt_B", mergeCells: "bycol", checkAllType: "false" });
+    let sB = '<w2:gridView ' + ns + ' ' + clB + ' id="" style="width:260px;height:200px;">'
+        + '<w2:caption style="" id="capB" value="gridB (bycol)"></w2:caption>'
+        + '<w2:header style="" id="hB"><w2:row style="" id="hrB">'
+        + '<w2:column width="100" inputType="text" id="hB1" value="k"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="hB2" value="c2"></w2:column>'
+        + '</w2:row></w2:header>'
+        + '<w2:gBody style="" id="bB"><w2:row style="" id="brB">'
+        + '<w2:column width="100" inputType="text" id="k" dataList="k"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="c2" dataList="c2"></w2:column>'
+        + '</w2:row></w2:gBody></w2:gridView>';
+    scwin.target2 = await $p.dynamicCreate("target2", "gridView", sB, grp_comp);
+
+    // ===== gridC : bycol 병합 + SubTotal (dept 기준 소계) =====
+    // val 컬럼 전 Row "S" 동일 → SubTotal 없으면 4칸 병합되나 dept(A 2건/B 2건) SubTotal 경계로 그룹 내 2칸만 병합
+    $p.data.create('<w2:dataList ' + ns + ' id="dlt_C" baseNode="list" repeatNode="map"><w2:columnInfo>'
+        + '<w2:column id="dept" name="dept" dataType="text"></w2:column>'
+        + '<w2:column id="val" name="val" dataType="text"></w2:column>'
+        + '<w2:column id="amt" name="amt" dataType="number"></w2:column>'
+        + '</w2:columnInfo><w2:data use="true"></w2:data></w2:dataList>');
+    dlt_C.setJSON([
+        { "dept": "A", "val": "S", "amt": 100 },
+        { "dept": "A", "val": "S", "amt": 200 },
+        { "dept": "B", "val": "S", "amt": 300 },
+        { "dept": "B", "val": "S", "amt": 400 }
+    ], false);
+    let clC = $c.gcm.createCList({ dataList: "data:dlt_C", mergeCells: "bycol", checkAllType: "false" });
+    let sC = '<w2:gridView ' + ns + ' ' + clC + ' id="" style="width:340px;height:280px;">'
+        + '<w2:caption style="" id="capC" value="gridC (bycol + SubTotal)"></w2:caption>'
+        + '<w2:header style="" id="hC"><w2:row style="" id="hrC">'
+        + '<w2:column width="80" inputType="text" id="hC1" value="dept"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="hC2" value="val"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="hC3" value="amt"></w2:column>'
+        + '</w2:row></w2:header>'
+        + '<w2:gBody style="" id="bC"><w2:row style="" id="brC">'
+        + '<w2:column width="80" inputType="text" id="dept" dataList="dept"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="val" dataList="val"></w2:column>'
+        + '<w2:column width="*" inputType="text" dataType="number" displayFormat="#,###" id="amt" dataList="amt"></w2:column>'
+        + '</w2:row></w2:gBody>'
+        + '<w2:subTotal style="" id="subC" targetColumnID="dept"><w2:row style="" id="srC">'
+        + '<w2:column width="80" inputType="text" id="sC1" value="소계"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="sC2" value=""></w2:column>'
+        + '<w2:column width="*" inputType="expression" dataType="number" displayFormat="#,###" id="sC3" expression="sum(\'amt\')"></w2:column>'
+        + '</w2:row></w2:subTotal></w2:gridView>';
+    scwin.target3 = await $p.dynamicCreate("target3", "gridView", sC, grp_comp);
+
+    // ===== gridD : bycol 병합 + DrillDown (depth 계층) =====
+    // grp 컬럼: 부모1(G)-부모2(G)-[부모2의 자식 X]-부모3(G).
+    //  - 접힘(초기): 자식(X)이 숨겨져 병합 계산에서 제외 → 표시된 부모 3건(G,G,G)이 연속 → rowSpan=3 세로 병합
+    //  - 펼침: 자식(X)이 표시되어 부모2 와 부모3 사이에 끼면서 G 연속이 깨짐 → 병합 범위가 부모1·2(rowSpan=2)로 축소
+    //  → 숨겨진 Row 가 병합 범위 계산에서 제외됨을 병합 범위 변화로 검증
+    $p.data.create('<w2:dataList ' + ns + ' id="dlt_D" baseNode="list" repeatNode="map"><w2:columnInfo>'
+        + '<w2:column id="nm" name="nm" dataType="text"></w2:column>'
+        + '<w2:column id="grp" name="grp" dataType="text"></w2:column>'
+        + '<w2:column id="depth" name="depth" dataType="number"></w2:column>'
+        + '</w2:columnInfo><w2:data use="true"></w2:data></w2:dataList>');
+    dlt_D.setJSON([
+        { "nm": "부모1", "grp": "G", "depth": 1 },
+        { "nm": "부모2", "grp": "G", "depth": 1 },
+        { "nm": "  자식1", "grp": "X", "depth": 2 },
+        { "nm": "부모3", "grp": "G", "depth": 1 }
+    ], false);
+    let clD = $c.gcm.createCList({ dataList: "data:dlt_D", mergeCells: "bycol", checkAllType: "false" });
+    let sD = '<w2:gridView ' + ns + ' ' + clD + ' id="" style="width:340px;height:220px;">'
+        + '<w2:caption style="" id="capD" value="gridD (bycol + DrillDown)"></w2:caption>'
+        + '<w2:header style="" id="hD"><w2:row style="" id="hrD">'
+        + '<w2:column width="120" inputType="text" id="hD1" value="nm(DrillDown)"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="hD2" value="grp"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="hD3" value="depth"></w2:column>'
+        + '</w2:row></w2:header>'
+        + '<w2:gBody style="" id="bD"><w2:row style="" id="brD">'
+        + '<w2:column width="120" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="nm" dataList="nm"></w2:column>'
+        + '<w2:column width="80" inputType="text" id="grp" dataList="grp"></w2:column>'
+        + '<w2:column width="*" inputType="text" id="depth" dataList="depth"></w2:column>'
+        + '</w2:row></w2:gBody></w2:gridView>';
+    scwin.target4 = await $p.dynamicCreate("target4", "gridView", sD, grp_comp);
+}
+
+
+
+// 공통 : 특정 그리드의 병합 td 정보(rowSpan/colSpan > 1)를 수집하여 문자열 배열로 반환
+//  - display:none 잔여 셀 제외
+scwin.collectMerge = function (gridObj) {
+    let gid = gridObj.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    let list = [];
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (td.style.display === 'none') continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        if (rs > 1 || cs > 1) {
+            list.push(td.id.replace(/^mf_/, '') + " (rowSpan=" + rs + ", colSpan=" + cs + ", '" + (td.textContent || '').trim() + "')");
+        }
+    }
+    return list;
+}
+
+
+
+// #1 setColumnOrder 실행 → mergeCells(byrow, colSpan>1) 설정 시 실행되지 않음
+//    getColumnOrder() before/after 동일 확인 (컬럼 순서 미변경)
+scwin.btn_setColumnOrder_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let before = target1.getColumnOrder();
+    bottom.setReturnValue("[#1] before getColumnOrder() : [" + before.join(",") + "]");
+    target1.setColumnOrder(before.slice().reverse());
+    let after = target1.getColumnOrder();
+    bottom.setReturnValue("[#1] setColumnOrder(역순) 시도 후 getColumnOrder() : [" + after.join(",") + "]");
+    bottom.setReturnValue("[#1] 컬럼 순서 변경 안 됨(setColumnOrder 미실행) : " + (before.join(",") === after.join(",")));
+}
+
+
+
+// #2-a 정렬 → 재병합 확인 (gridB bycol)
+//    c2 초기 M,N,M,N(비연속, 병합 없음) → c2 오름차순 정렬 → M,M,N,N(연속) → 세로 병합 발생(재병합)
+scwin.btn_sortRemerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 비연속(M,N,M,N) 상태로 원복
+    dlt_B.setJSON([
+        { "k": "1", "c2": "M" },
+        { "k": "2", "c2": "N" },
+        { "k": "3", "c2": "M" },
+        { "k": "4", "c2": "N" }
+    ], false);
+    bottom.setReturnValue("[#2-정렬 전] 최대 rowSpan : " + scwin.getMaxRowSpan(target2) + " (M,N 비연속 → 병합 없음)");
+    dlt_B.sort("c2", 0);
+    bottom.setReturnValue("[#2-정렬 후] 최대 rowSpan : " + scwin.getMaxRowSpan(target2) + " (M,M,N,N 연속 → 재병합)");
+}
+
+
+
+// #2-c insertRow → 미재병합 확인 (gridB bycol)
+//    M,M,N,N 병합 상태(M 그룹 rowSpan=2)를 만든 뒤, M 그룹 끝(index 2)에 c2="M"(병합 조건 충족) Row 삽입.
+//    → 데이터는 M,M,M,N,N 으로 병합 조건을 갖추지만, insertRow 는 병합을 재처리하지 않으므로
+//      기존 M 그룹은 rowSpan=2 그대로이고 삽입된 M 은 병합되지 않은 별도 셀(rowSpan=1)로 남는다.
+//    (dataList.insertRow(index, ...) 의 2번째 인자는 데이터가 아니므로 빈 Row 가 삽입됨 →
+//     setCellData 로 삽입 Row 에 병합 조건값(c2="M")을 채운다. setCellData 도 재병합을 일으키지 않음=validation #2)
+scwin.btn_insertRowNoRemerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // M,M,N,N 병합 상태(M 그룹 rowSpan=2) 구성
+    dlt_B.setJSON([
+        { "k": "1", "c2": "M" },
+        { "k": "2", "c2": "M" },
+        { "k": "3", "c2": "N" },
+        { "k": "4", "c2": "N" }
+    ], false);
+    bottom.setReturnValue("[#2-insertRow 전] 데이터 M,M,N,N / 최대 rowSpan : " + scwin.getMaxRowSpan(target2) + " (M 그룹 rowSpan=2)");
+
+    // M 그룹 끝(index 2)에 Row 삽입 후 병합 조건값 c2="M" 설정 → 데이터 M,M,M,N,N
+    dlt_B.insertRow(2);
+    dlt_B.setCellData(2, "k", "9");
+    dlt_B.setCellData(2, "c2", "M");
+    bottom.setReturnValue("[#2-insertRow 후] 데이터 M,M,M,N,N (삽입 Row 가 병합 조건 충족) / Row 수 : " + dlt_B.getRowCount());
+    bottom.setReturnValue("[#2-insertRow 후] 최대 rowSpan : " + scwin.getMaxRowSpan(target2) + " (재병합이면 M 그룹 rowSpan=3 이어야 하나, 미재병합으로 기존 rowSpan=2 유지 + 삽입 M 은 별도 rowSpan=1)");
+}
+
+
+
+// #3 병합된 Cell 값 표시 — gridA(byrow). Row0 의 c2/c3/c4 는 하나의 가로 병합 셀.
+//    병합 선두 컬럼(c2) 데이터를 "Z" 로 변경하면 병합된 표시 셀(colSpan) 전체가 "Z" 로 함께 표시됨.
+//    (UI 로는 병합 셀이 분리되지 않아 개별 Cell 을 따로 수정할 수 없음 → 병합 셀은 하나로 동작)
+scwin.btn_editMergedCell_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let gid = target1.id;
+    let tdBefore = document.querySelector("td[id*='" + gid + "_cell_0_1']");
+    bottom.setReturnValue("[#3-수정 전] Row0 병합 셀 표시값 : '" + (tdBefore ? tdBefore.textContent.trim() : "") + "' (colSpan=" + (tdBefore ? tdBefore.colSpan : "") + ")");
+    // 병합 선두 컬럼(c2) 값을 "Z" 로 변경
+    dlt_A.setCellData(0, "c2", "Z");
+    let tdAfter = document.querySelector("td[id*='" + gid + "_cell_0_1']");
+    bottom.setReturnValue("[#3-수정 후] Row0 병합 셀 표시값 : '" + (tdAfter ? tdAfter.textContent.trim() : "") + "' (colSpan=" + (tdAfter ? tdAfter.colSpan : "") + ")");
+    bottom.setReturnValue("[#3] 병합 셀 전체가 함께 변경되어 하나의 셀로 표시됨 : " + (tdAfter && tdAfter.textContent.trim() === "Z" && tdAfter.colSpan > 1));
+}
+
+
+
+// #4 SubTotal 병합 경계 — gridC(bycol). val 컬럼 전 Row "S" 동일.
+//    SubTotal 이 없으면 4칸 세로 병합되나, dept SubTotal 경계로 그룹 내 2칸씩만 병합 → 최대 rowSpan 4 미만(2)
+scwin.btn_subTotalBoundary_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let maxRowSpan = scwin.getMaxRowSpan(target3);
+    bottom.setReturnValue("[#4] 최대 rowSpan : " + maxRowSpan + " (전체 4행 동일값이나 SubTotal 경계로 그룹 내 2행만 병합)");
+    bottom.setReturnValue("[#4] SubTotal 넘는 병합 미발생(rowSpan 4 미만) : " + (maxRowSpan < 4));
+}
+
+
+
+// #5 DrillDown 숨겨진 Row 병합 범위 — gridD(bycol). grp: 부모1(G)-부모2(G)-[자식1]-부모3(G).
+//    @spec : DrillDown 으로 숨겨진 Row 는 병합 범위 계산에서 제외됨.
+//    접힘 상태에서 표시된 Row 와 실제 데이터 순서 기준 병합 td 의 rowSpan 을 출력하여
+//    숨겨진 Row 가 병합 범위에 포함되는지(=경계가 되는지) 실측 확인한다.
+scwin.btn_drilldownExclude_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 접힘(초기) 상태 : 자식1 숨김. 표시 Row 와 병합 td 출력
+    bottom.setReturnValue("[#5-접힘] 표시 Row 수 : " + target4.getVisibleRowNum() + " / 최대 rowSpan : " + scwin.getMaxRowSpan(target4) + " (자식1 숨김)");
+
+    // 전체 펼치기 : 숨겨진 자식1 표시
+    let i = 0;
+    while (i < target4.getVisibleRowNum()) {
+        if (Number(target4.getCellData(i, "depth")) === 1 && target4.getChildrenRowIndexArray(target4.getRealRowIndex(i)).length > 0) {
+            let before = target4.getVisibleRowNum();
+            target4.toggle(i);
+            if (target4.getVisibleRowNum() > before) {
+                i += (target4.getVisibleRowNum() - before) + 1;
+                continue;
+            }
+        }
+        i++;
+    }
+    bottom.setReturnValue("[#5-펼침] 표시 Row 수 : " + target4.getVisibleRowNum() + " / 최대 rowSpan : " + scwin.getMaxRowSpan(target4) + " (자식1 포함)");
+}
+
+
+
+// 공통 : 특정 그리드 Body td 의 최대 rowSpan 반환 (display:none 제외)
+scwin.getMaxRowSpan = function (gridObj) {
+    let tds = document.querySelectorAll("td[id*='" + gridObj.id + "_cell_']");
+    let max = 1;
+    for (let i = 0; i < tds.length; i++) {
+        if (tds[i].style.display === 'none') continue;
+        let rs = tds[i].rowSpan || 1;
+        if (rs > max) max = rs;
+    }
+    return max;
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnOrder_onclick" id="btn_setColumnOrder" label="#1 setColumnOrder 실행" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sortRemerge_onclick" id="btn_sortRemerge" label="#2 정렬 → 재병합" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_insertRowNoRemerge_onclick" id="btn_insertRowNoRemerge" label="#2 insertRow → 미재병합" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_editMergedCell_onclick" id="btn_editMergedCell" label="#3 병합 셀 값 수정" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_subTotalBoundary_onclick" id="btn_subTotalBoundary" label="#4 SubTotal 경계" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_drilldownExclude_onclick" id="btn_drilldownExclude" label="#5 DrillDown 제외" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

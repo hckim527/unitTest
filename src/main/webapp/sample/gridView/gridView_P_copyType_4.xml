@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] copyType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260609" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > copyType]<br/>GridView 에서 복사/붙여넣기를 위한 데이터 선택 방식을 설정합니다.",
+    "validation" : [
+        "여러 Cell 이 직사각형 형태로 선택되었을때 동일 데이터가 전체 Cell 에 붙여넣기 됩니다.",
+        "여러 Cell 이 형태 없이 선택된 경우 붙여넣기가 되지 않습니다.",
+        "copyType='native' 일때 copyOption 은 항상 'display' 로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - source(복사 원본) 그리드 + target(붙여넣기 대상) 그리드 2개 구성
+//  - 두 그리드 모두 copyType="native" 고정 : 웹브라우저 기본 복사/붙여넣기 방식
+//    · native 는 셀 단위가 아닌 '텍스트' 선택/복사 → source 셀의 텍스트를 DOM Selection 으로 선택/복사 후 target 에 붙여넣기
+//    · copyOption="dataList" 로 고정 설정해도 native 시 copyOption 은 항상 "display" 로 동작 (@spec)
+//  - col2(금액) 에 displayFormat="#,##0" 적용 → 원본("1234567") 과 표시값("1,234,567") 이 다름
+scwin.comp_init = async function () {
+    // 기존 target / source / dataList 삭제
+    if (typeof dlt_src !== 'undefined') {
+        $p.data.remove("dlt_src");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target_src !== 'undefined') {
+        target_src.remove();
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 : copyType="native" + copyOption="dataList" 고정
+    //  - copyOption 을 dataList 로 고정해도 native 환경에서는 항상 display 로 동작함을 검증 (@spec)
+    let properties = {
+        focusMode : "cell",
+        copyType : "native",
+        copyOption : "dataList"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="copyType=native, copyOption=dataList(고정). source 셀의 텍스트를 선택/복사하여 target 에 붙여넣기. 직사각형 선택=동일 데이터 전체, 형태없음(불연속)=미동작. copyOption=dataList 로 설정해도 native 는 항상 display(표시값) 복사. col2 는 displayFormat(천단위콤마) 적용. 결과는 하단 출력 영역에 표시"', '', 'label1');
+
+    // source dataList 생성 (복사 원본 - col2 는 금액 원본값, displayFormat 으로 천단위 콤마 표시)
+    $c.gcm.createDynamicDataList('', '', 'dlt_src');
+    dlt_src.setJSON([
+        { col1 : "RowA", col2 : "1234567", col3 : "AAA", col4 : "TextA" },
+        { col1 : "RowB", col2 : "2200000", col3 : "BBB", col4 : "TextB" },
+        { col1 : "RowC", col2 : "30500",   col3 : "CCC", col4 : "TextC" },
+        { col1 : "RowD", col2 : "888",     col3 : "DDD", col4 : "TextD" }
+    ]);
+
+    // target dataList 생성 (붙여넣기 대상 - 초기값 Origin...)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "Origin0_0", col2 : "10", col3 : "Origin0_2", col4 : "Origin0_3" },
+        { col1 : "Origin1_0", col2 : "20", col3 : "Origin1_2", col4 : "Origin1_3" },
+        { col1 : "Origin2_0", col2 : "30", col3 : "Origin2_2", col4 : "Origin2_3" },
+        { col1 : "Origin3_0", col2 : "40", col3 : "Origin3_2", col4 : "Origin3_3" },
+        { col1 : "Origin4_0", col2 : "50", col3 : "Origin4_2", col4 : "Origin4_3" }
+    ]);
+
+    // source 그리드 생성 (복사 원본 - col2 displayFormat="#,##0" 으로 원본 != 표시)
+    let strSrc = '';
+    strSrc += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_src" checkAllType="false" id="" style="width:520px;height:170px;">';
+    strSrc += '<w2:caption style="" id="captionSrc" value="source (복사 원본) : col2(금액) 은 displayFormat 천단위콤마"></w2:caption>';
+    strSrc += '<w2:header style="" id="headerSrc">';
+    strSrc += '<w2:row style="" id="rowSrc1">';
+    strSrc += '<w2:column width="100" style="" inputType="text" id="columnSrc1" value="이름"></w2:column>';
+    strSrc += '<w2:column width="130" style="" inputType="text" id="columnSrc2" value="금액"></w2:column>';
+    strSrc += '<w2:column width="100" style="" inputType="text" id="columnSrc3" value="코드"></w2:column>';
+    strSrc += '<w2:column width="100" style="" inputType="text" id="columnSrc4" value="비고"></w2:column>';
+    strSrc += '</w2:row>';
+    strSrc += '</w2:header>';
+    strSrc += '<w2:gBody style="" id="gBodySrc">';
+    strSrc += '<w2:row style="" id="rowSrc2">';
+    strSrc += '<w2:column width="100" style="" inputType="text" id="col1"></w2:column>';
+    strSrc += '<w2:column width="130" style="" inputType="text" id="col2" dataType="number" displayFormat="#,##0"></w2:column>';
+    strSrc += '<w2:column width="100" style="" inputType="text" id="col3"></w2:column>';
+    strSrc += '<w2:column width="100" style="" inputType="text" id="col4"></w2:column>';
+    strSrc += '</w2:row>';
+    strSrc += '</w2:gBody>';
+    strSrc += '</w2:gridView>';
+
+    scwin.target_src = await $p.dynamicCreate(
+        "target_src",
+        "gridView",
+        strSrc,
+        grp_comp
+    );
+
+    // target 그리드 생성 (붙여넣기 대상 - editType="text", col2 동일 displayFormat)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:520px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="target (붙여넣기 대상) : 초기값 Origin..."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col2" editType="text"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 붙여넣기 시뮬레이션 : source 셀에서 선택/복사한 텍스트를 paste 이벤트로 합성하여 target1.handlePasteEvent 호출
+scwin.firePaste = function (pasteText) {
+    let e = {
+        clipboardData : {
+            getData : function () { return pasteText; }
+        },
+        target : target1.render,
+        preventDefault : function () {},
+        stopPropagation : function () {}
+    };
+    target1.handlePasteEvent.call(target1, e);
+}
+
+
+
+// target 그리드 영역 셀 값 출력 (붙여넣기 결과 확인용)
+scwin.printCells = function (bottom, startRow, endRow, startCol, endCol) {
+    for (let r = startRow; r <= endRow; r++) {
+        let parts = [];
+        for (let c = startCol; c <= endCol; c++) {
+            let colID = target1.getColumnID(c);
+            parts.push("col" + (c + 1) + "=" + target1.getCellData(r, colID));
+        }
+        bottom.setReturnValue("row " + r + " : " + parts.join(" , "));
+    }
+}
+
+
+
+// source 그리드 셀의 '텍스트'를 DOM Selection 으로 선택 후 선택된 텍스트 반환
+//  - native 는 셀 단위가 아닌 브라우저 텍스트 선택으로 복사하므로, 셀 td 의 표시 텍스트를 직접 선택
+//  - col2(displayFormat) 는 표시값(천단위콤마) 이 선택됨 → native copyOption=display 와 일치
+scwin.selectSourceCellText = function (rowIndex, colIndex) {
+    let td = document.getElementById(target_src.id + "_cell_" + rowIndex + "_" + colIndex);
+    let sel = window.getSelection();
+    sel.removeAllRanges();
+    if (td) {
+        let range = document.createRange();
+        range.selectNodeContents(td);
+        sel.addRange(range);
+    }
+    return sel.toString();
+}
+
+
+
+// 버튼1 : source 셀 텍스트 선택/복사 → target 직사각형 붙여넣기 = 동일 데이터 전체 (validation #1)
+//  - source (0,0) 의 텍스트('RowA')를 선택/복사 → target (0,0)~(1,1) 직사각형 붙여넣기 → 4개 Cell 모두 동일
+scwin.btn_rect_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // source 셀의 '텍스트' 선택/복사 (셀 단위 아님)
+    let copied = scwin.selectSourceCellText(0, 0);
+    bottom.setReturnValue("[직사각형 전체 동일] source (0,0) 텍스트 선택/복사 : '" + copied + "'");
+
+    // target 직사각형 선택 후 붙여넣기 → 동일 데이터 전체
+    target1.removeFocusedCell();
+    target1.setFocusedMultiCell(0, 0, 1, 1);
+    scwin.firePaste(copied);
+
+    setTimeout(function () {
+        scwin.printCells(bottom, 0, 1, 0, 1);
+    }, 0);
+}
+
+
+
+// 버튼2 : source 셀 텍스트 선택/복사 → target 형태없음(불연속) 붙여넣기 = 미동작 (validation #2)
+//  - source (0,0) 텍스트 선택/복사 → target (0,0),(2,1),(4,3) 불연속 붙여넣기 → 값 변화 없음(원본 유지)
+scwin.btn_noShape_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let copied = scwin.selectSourceCellText(0, 0);
+    bottom.setReturnValue("[형태없음] source (0,0) 텍스트 선택/복사 : '" + copied + "' → target 불연속(0,0),(2,1),(4,3) 붙여넣기 → 미동작(원본 유지)");
+
+    target1.removeFocusedCell();
+    target1.setMultiFocus([
+        { row : 0, col : 0 },
+        { row : 2, col : 1 },
+        { row : 4, col : 3 }
+    ]);
+    scwin.firePaste(copied);
+
+    setTimeout(function () {
+        bottom.setReturnValue("(0,0) col1=" + target1.getCellData(0, target1.getColumnID(0)));
+        bottom.setReturnValue("(2,1) col2=" + target1.getCellData(2, target1.getColumnID(1)));
+        bottom.setReturnValue("(4,3) col4=" + target1.getCellData(4, target1.getColumnID(3)));
+    }, 0);
+}
+
+
+
+// 버튼3 : copyOption 항상 display 동작 확인 (validation #3)
+//  - source col2(displayFormat) 의 '텍스트'를 선택/복사하면 표시값(천단위콤마)이 복사됨
+//    → native 는 copyOption 설정값과 무관하게 항상 display(표시값) 로 복사됨을 입증
+scwin.btn_copyOptionDisplay_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let col2ID = target_src.getColumnID(1);
+    let origin = target_src.getCellData(0, col2ID);
+    let display = target_src.getCellDisplayData(0, col2ID);
+
+    // source col2(금액) 셀의 텍스트 선택/복사 → 표시값이 복사됨
+    let copiedText = scwin.selectSourceCellText(0, 1);
+
+    bottom.setReturnValue("[copyOption 항상 display] 설정 copyOption=dataList (고정) → native 는 무관하게 display 동작");
+    bottom.setReturnValue("source col2 원본값 getCellData = " + origin);
+    bottom.setReturnValue("source col2 표시값 getCellDisplayData = " + display);
+    bottom.setReturnValue("source col2 텍스트 선택/복사값 = '" + copiedText + "' → copyOption=dataList 인데도 표시값(display) 이 복사됨 (native 는 항상 display)");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="copyType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="native (고정)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="copyOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="dataList (고정)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="직사각형 전체 동일" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_rect_onclick" id="btn_rect" label="source 텍스트 복사 → target 직사각형 붙여넣기" style=""></w2:button>
+									<w2:textbox class="" id="" label="source (0,0) 셀 텍스트 선택/복사 → target (0,0)~(1,1) 직사각형 붙여넣기 → 4개 Cell 모두 동일 데이터" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="형태없음(불연속)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_noShape_onclick" id="btn_noShape" label="source 텍스트 복사 → target 불연속 붙여넣기(미동작)" style=""></w2:button>
+									<w2:textbox class="" id="" label="source (0,0) 셀 텍스트 선택/복사 → target (0,0),(2,1),(4,3) 불연속(비직사각형) 붙여넣기 → 미동작(원본 유지)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="copyOption 항상 display" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_copyOptionDisplay_onclick" id="btn_copyOptionDisplay" label="copyOption 항상 display 확인" style=""></w2:button>
+									<w2:textbox class="" id="" label="source col2(displayFormat) 의 getCellData(원본) vs getCellDisplayData(표시값) 비교 → native 는 copyOption 무관 항상 display(표시값) 복사" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

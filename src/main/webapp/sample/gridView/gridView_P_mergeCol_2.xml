@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeCol" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260610" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 (가로 병합 byrow, colSpan 연속 컬럼) 전용 분리 샘플
+//    - description 은 _1 과 동일(변경 금지)
+//    - validation 은 분리 사유 1개만(콤마구분/미설정/적용조건/고정영역 validation 은 _1 담당)
+scwin.tData = {
+    "description" : "[gridView > P > mergeCol]<br/>동일값이 연속되는 Cell 이 자동으로 병합될때 대상이 되는 Body Column 의 ID 를 설정합니다.",
+    "validation" : [
+        "colSpan 방식으로 가로 병합이 수행되려면 연속된 Body Column 의 ID 를 한 개 이상 설정해야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 병합 옵션 구성
+    //  ★ _2 전용 : mergeCells="byrow" 코드 고정(가로 병합) → 같은 Row 내 동일값 인접 Cell 이 colSpan 병합.
+    //    - mergeCol="col2,col3" 코드 고정(연속된 Body Column ID) → 연속 컬럼 colSpan 가로병합 발생.
+    let properties = {
+        dataList: "data:dlt_bind",
+        mergeCells: "byrow",        // ★ 가로 병합(코드 고정)
+        mergeCol: "col2,col3",      // ★ 연속된 Body Column ID(코드 고정) → colSpan 가로병합 대상
+        defaultCellHeight: 34,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="mergeCells=byrow(가로 병합 고정), mergeCol=col2,col3(연속 Column 고정) / 연속된 Body Column ID 라 [col2~col3] colSpan 가로병합 수행"', '', 'label1');
+
+    // dataList 생성 후 가로 병합이 보이도록 데이터 구성
+    //  ★ byrow 병합은 윗쪽 행 경계를 누적 참조하므로(전열에 행 전체가 동일값이면 경계가 열려
+    //     아래 행이 윗 범위를 초과 병합될 수 있음), col4 는 행마다 다른 값(Z0~Z3)을 주어
+    //     각 행 병합이 독립되도록 구성.
+    //
+    //   행 | col1 | col2 | col3 | col4
+    //   ---+------+------+------+------
+    //    0 |  R0  |  A   |  A   |  Z0   ← col2=col3 동일 → [col2~col3] colSpan 가로병합
+    //    1 |  R1  |  B   |  B   |  Z1   ← col2=col3 동일 → [col2~col3] colSpan 가로병합
+    //    2 |  R2  |  C   |  D   |  Z2   ← col2!=col3 → 가로병합 없음
+    //    3 |  R3  |  E   |  E   |  Z3   ← col2=col3 동일 → [col2~col3] colSpan 가로병합
+    //
+    //  · mergeCol="col2,col3" 코드 고정 → 가로병합 대상은 col2,col3 두 컬럼으로 한정.
+    //  · col1(R0~R3) : 행마다 달라 가로병합 대상 아님(앞 컬럼이 경계를 닫아 col2 병합이 col1 로 안 번짐).
+    //  · col2,col3 인접 동일행(행0,1,3)만 colSpan=2 가로병합, 행2(col2≠col3)는 미발생.
+    //  · col4(Z0~Z3) : 행마다 달라 가로병합 대상 외(mergeCol 미포함이며 인접 동일값도 없음).
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "R0", "col2": "A", "col3": "A", "col4": "Z0" },
+        { "col1": "R1", "col2": "B", "col3": "B", "col4": "Z1" },
+        { "col1": "R2", "col2": "C", "col3": "D", "col4": "Z2" },
+        { "col1": "R3", "col2": "E", "col3": "E", "col4": "Z3" }
+    ], false);
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strTarget = '';
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:380px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeCol byrow sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 가로 병합 확인 : 각 Body td 의 colSpan(>1=가로병합) 을 읽어 연속/비연속/단일 대비로
+//   'mergeCol 에 연속된 Body Column ID 를 설정했을 때만 colSpan 가로병합이 발생' 함을 확인.
+scwin.btn_checkRowMerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // e.target.id 는 클릭된 버튼(btn_checkRowMerge) → 대상 그리드는 target1 고정 조회
+    let gridId = e.target.id.replace('btn_checkRowMerge', 'target1');
+    bottom.setReturnValue("[옵션] mergeCells : " + target1.options.mergeCells + " / mergeCol : " + target1.options.mergeCol);
+
+    let tds = document.querySelectorAll("td[id*='" + gridId + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    // colIndex → 컬럼 ID 매핑 (col1=0, col2=1, col3=2, col4=3)
+    let colIdByIndex = ["col1", "col2", "col3", "col4"];
+
+    let descs = [];       // 가로병합(colSpan>1) 그룹
+    let seen = {};        // 중복 td 방지 (행,열)
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        // 흡수되어 화면에 표시되지 않는 td 제외
+        if (td.style.display === 'none' || getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let cs = td.colSpan || 1;
+        if (cs <= 1) continue;   // 가로병합(colSpan>1) 만 대상
+
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        let val = (td.textContent || "").trim();
+        descs.push("가로병합 행" + r + " [" + colIdByIndex[c] + "~" + colIdByIndex[c + cs - 1] + "] colSpan=" + cs + " = '" + val + "'");
+    }
+
+    bottom.setReturnValue("가로병합(colSpan>1) 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("가로병합 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue("  " + descs[d]);
+    }
+    bottom.setReturnValue("판정 : 연속된 Body Column ID(col2,col3) 설정으로 [col2~col3] colSpan 가로병합 수행 → " + (descs.length > 0 ? "가로병합 O" : "가로병합 X"));
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* Body Row 높이 보정 (가로 병합 시 행 높이 일관성 유지) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 34px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 34px; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="mergeCells" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="byrow (코드 고정)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="mergeCol" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="col2,col3 (연속 Column 코드 고정)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkRowMerge_onclick" id="btn_checkRowMerge"
+							label="가로 병합 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

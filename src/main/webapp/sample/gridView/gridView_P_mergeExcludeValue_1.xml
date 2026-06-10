@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeExcludeValue" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260610" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > mergeExcludeValue]<br/>동일값의 Cell 이 자동으로 병합될때 대상에서 제외할 Cell 값을 설정합니다.",
+    "validation" : [
+        "mergeCells, mergeCellsFixedCols, mergeCellsFixedRows 속성값이 'never' 가 아닌 영역에 적용됩니다.",
+        "displayFormat 등의 포맷 속성이 적용되지 않은 원본 데이터를 기준으로 처리됩니다.",
+        "콤마(',')를 구분자로 병합에서 제외할 Cell 값을 한 개 이상 설정합니다.",
+        "'$blank' 키워드 설정 시 ''(Empty String) 값인 Cell 을 병합에서 제외합니다.",
+        "Cell 값은 문자열로 처리되어 숫자와 문자를 구분하지 않습니다.",
+        "속성값을 설정하지 않으면 Cell 값으로 병합을 제외하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // con_ 설정값 수집
+    //  - con_mergeExcludeValue : '' 미설정(제외 없음) / A(단일) / A,B(콤마 복수) / $blank(빈셀 제외) / 1000(숫자 문자열 제외)
+    let vExclude = con_mergeExcludeValue.getValue();
+
+    // 병합 옵션 구성
+    //  - mergeCells="bycol" 코드 고정 : 같은 Column 내 동일값 연속 Cell 을 rowSpan(세로) 방식으로 병합
+    //    (mergeExcludeValue 는 mergeCells 가 'never' 가 아닌 영역에 적용되므로 bycol 상시 활성화)
+    //  - mergeExcludeValue 미설정('') 이면 속성 자체를 적용하지 않음(Cell 값으로 병합을 제외하지 않음)
+    //  - mergeExcludeValue 는 '$blank' 처럼 '$' 로 시작하는 값이 dynamicCreate 의 XML 속성으로 들어가면
+    //    expression 바인딩으로 해석되어 빈값으로 처리되므로, 속성으로 전달하지 않고
+    //    생성 후 options 에 직접 지정한 뒤 mergeCells('bycol') 으로 병합을 재적용한다.
+    let properties = {
+        dataList: "data:dlt_bind",
+        mergeCells: "bycol",
+        defaultCellHeight: 34,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="mergeCells=bycol(세로병합), mergeExcludeValue=' + (vExclude === '' ? '(미설정 → 제외 없음)' : vExclude) + ' / col4=displayFormat(숫자포맷)"', '', 'label1');
+
+    // dataList 생성 후 세로 병합에서 제외값 동작이 보이도록 데이터 구성
+    //   행 | col1 | col2 |  col3   | col4(원본 숫자)
+    //   ---+------+------+---------+----------------
+    //    0 |  A   |  B   |  (빈값) |  1000
+    //    1 |  A   |  B   |  (빈값) |  1000
+    //    2 |  A   |  C   |   X     |  2000
+    //    3 |  A   |  C   |   X     |  2000
+    //  · col1(A,A,A,A) : 전부 동일 → 제외값 'A' 시 병합 제외, 그 외엔 [행0~행3] 세로병합.
+    //  · col2(B,B,C,C) : [행0~행1]=B / [행2~행3]=C → 제외값 'A' 여도 B/C 병합 유지(제외값과 무관).
+    //  · col3('','',X,X) : [행0~행1]=빈값 / [행2~행3]=X → '$blank' 시 빈셀 병합 제외, X 병합 유지.
+    //  · col4(1000,1000,2000,2000 원본=숫자, 표시=1,000.00 …) : 제외값 '1000'(문자열) 시 원본 1000 셀 병합 제외(원본기준+문자열처리).
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "A", "col2": "B", "col3": "",  "col4": "1000" },
+        { "col1": "A", "col2": "B", "col3": "",  "col4": "1000" },
+        { "col1": "A", "col2": "C", "col3": "X", "col4": "2000" },
+        { "col1": "A", "col2": "C", "col3": "X", "col4": "2000" }
+    ], false);
+
+    // target 생성 (col4 에 displayFormat 적용 → 원본 1000/2000 vs 표시 1,000.00/2,000.00)
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strTarget = '';
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:400px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeExcludeValue sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column4" value="col4(포맷)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" dataType="number" displayFormat="#,##0.00" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // mergeExcludeValue 적용 : 생성 후 options 에 직접 지정하고 병합을 재적용
+    //  (속성 문자열로 전달 시 '$blank' 가 expression 으로 해석되어 빈값 처리되는 문제 회피)
+    if (vExclude !== '') {
+        target1.options.mergeExcludeValue = vExclude;
+        target1.mergeCells("bycol");
+    }
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan 을 읽어 세로(bycol) 병합 그룹과 병합 제외된 컬럼을 판정
+//  - 세로 병합 : rowSpan > 1 인 td (앵커 셀)
+//  - mergeExcludeValue 로 지정한 값의 Cell 은 동일값이 연속이어도 병합되지 않음(rowSpan=1 로 잔존)
+//    · col4 는 displayFormat 표시값(1,000.00)과 무관하게 원본(1000) 기준으로 제외 판정(원본기준+문자열처리)
+scwin.btn_checkMerge_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[옵션] mergeCells : " + target1.options.mergeCells + " / mergeExcludeValue : " + (target1.options.mergeExcludeValue === undefined || target1.options.mergeExcludeValue === "" ? "(미설정→제외 없음)" : target1.options.mergeExcludeValue));
+
+    // td id 는 그리드 id 기준(target1.id, 페이지 scope 시 mf_target1). e.target.id 는 클릭된 버튼 id 라 사용 불가
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let rowSpanCnt = 0;
+    let descs = [];
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        // 흡수되어 화면에 표시되지 않는 td 제외
+        if (td.style.display === 'none' || getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (rs > 1) {
+            rowSpanCnt++;
+            let val = (td.textContent || "").trim();
+            descs.push("⬇ col" + (c + 1) + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+        }
+    }
+
+    bottom.setReturnValue("판정 : bycol / 병합 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 세로 병합 시 흡수된 Row 의 TR 높이가 0 으로 collapse 되어 병합 셀이 짧아지는 현상 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 34px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 34px; }
+/* 마지막 Row 가 세로 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 */
+tr.grid_body_row.w2grid_hidedRow { display: table-row !important; height: 34px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="mergeExcludeValue" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_mergeExcludeValue" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>A</xf:label>
+												<xf:value>A</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>A,B</xf:label>
+												<xf:value>A,B</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>$blank</xf:label>
+												<xf:value>$blank</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1000</xf:label>
+												<xf:value>1000</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkMerge_onclick" id="btn_checkMerge"
+							label="병합 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
