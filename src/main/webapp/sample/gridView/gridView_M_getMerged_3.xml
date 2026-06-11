@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getMerged" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : Body 가 MultiLine 일때 getMerged 의 rowIndex/colIndex 특성을 시연하는 분리 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 = c1·c2·c3 (colIndex 0~2) / Line2 = c4·c5·c6 (colIndex 3~5)
+//     · rowIndex : 같은 레코드의 Line1·Line2 셀은 getMerged 호출 시 동일 rowIndex(레코드 단위)로 취급됨.
+//     · colIndex : MultiLine 이어도 각 Column(c1~c6)은 고유 colIndex(0~5)를 가져 getMerged 로 개별 지정 가능.
+scwin.tData = {
+    "description" : "[gridView > M > getMerged]<br/>Body Cell 정보를 사용하여 특정 Body Cell 의 병합 여부를 반환합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+        "Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line) 3 레코드.
+//  한 레코드는 화면상 2개의 Line(TR)으로 렌더됨.
+//   Line1 : c1 | c2 | c3   (colIndex 0,1,2)
+//   Line2 : c4 | c5 | c6   (colIndex 3,4,5)
+scwin.MERGE_DATA = [
+    { "c1": "A0", "c2": "A1", "c3": "A2", "c4": "A3", "c5": "A4", "c6": "A5" },
+    { "c1": "B0", "c2": "B1", "c3": "B2", "c4": "B3", "c5": "B4", "c6": "B5" },
+    { "c1": "C0", "c2": "C1", "c3": "C2", "c4": "C3", "c5": "C4", "c6": "C5" }
+];
+
+
+
+// comp 생성 : MultiLine(레코드당 2 Line) 그리드 1개를 동적 생성 후 결정적 병합(mergeCell) 적용.
+//  적용 병합(레코드 단위 rowIndex, 고유 colIndex):
+//   · mergeCell(0, 0, colSpan 2)  → 레코드0 Line1 의 c1·c2 가로병합  : getMerged(0,0)=true, (0,1)=true
+//   · mergeCell(1, 3, colSpan 2)  → 레코드1 Line2 의 c4·c5 가로병합  : getMerged(1,3)=true, (1,4)=true
+//   · mergeCell(0, 4, rowSpan 2)  → 레코드0·1 의 c5(colIndex 4) 세로병합 : getMerged(0,4)=true, (1,4) 도 포함
+//  병합되지 않은 셀(예: (0,2),(2,5))은 getMerged=false.
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="MultiLine 구성(레코드당 2 Line): Line1=c1·c2·c3(colIndex 0~2) / Line2=c4·c5·c6(colIndex 3~5). 레코드 단위 rowIndex(0~2), 각 Line 동일. 병합 적용 → 레코드0 c1·c2 가로, 레코드1 c4·c5 가로, c5 세로(레코드0~1)"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (6개 컬럼)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="c1" name="c1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c2" name="c2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c3" name="c3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c4" name="c4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c5" name="c5" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c6" name="c6" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.MERGE_DATA, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+        defaultCellHeight: 30
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // MultiLine : header/gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:300px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getMerged MultiLine sample"></w2:caption>';
+    // Header : Line1(c1,c2,c3) / Line2(c4,c5,c6)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c1" value="c1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c2" value="c2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c3" value="c3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c4" value="c4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c5" value="c5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c6" value="c6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(c1,c2,c3) / Line2(c4,c5,c6) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c1" dataList="c1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c2" dataList="c2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c3" dataList="c3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c4" dataList="c4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c5" dataList="c5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c6" dataList="c6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 결정적 병합 적용 (레코드 단위 rowIndex, 고유 colIndex 기준)
+    target1.mergeCell({ "rowIndex": 0, "colIndex": 0, "colSpan": 2, "rowSpan": 1 }); // 레코드0 Line1 c1·c2 가로
+    target1.mergeCell({ "rowIndex": 1, "colIndex": 3, "colSpan": 2, "rowSpan": 1 }); // 레코드1 Line2 c4·c5 가로
+    target1.mergeCell({ "rowIndex": 0, "colIndex": 4, "colSpan": 1, "rowSpan": 2 }); // 레코드0~1 c5(colIndex4) 세로
+}
+
+
+
+// rowIndex 파라미터 수집 (레코드 인덱스 Number)
+scwin.getRowIndexParam = function () {
+    return Number(par_rowIndex.getValue());
+};
+
+
+
+// colIndex 파라미터 수집 (고유 컬럼 인덱스 0~5 Number)
+scwin.getColIndexParam = function () {
+    return Number(par_colIndex.getValue());
+};
+
+
+
+// getMerged 실행 : getMerged(rowIndex, colIndex) 반환값(Boolean) 과 병합 형태를 함께 출력.
+//  · rowIndex 는 레코드 단위(0~2) → MultiLine 의 Line1/Line2 가 동일 rowIndex 를 공유.
+//  · colIndex 는 고유(0~5) → 각 Column 을 개별 지정.
+//  · 병합 형태 : getMerged 는 Boolean 만 반환하므로, getMergedInfo 의 start/end 인덱스로 세로/가로/블록을 도출.
+scwin.btn_getMerged_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let rowIndex = scwin.getRowIndexParam();
+    let colIndex = scwin.getColIndexParam();
+
+    let ret = target1.getMerged(rowIndex, colIndex);
+    // colIndex 0~2 → Line1, 3~5 → Line2 (동일 rowIndex 공유)
+    let line = colIndex <= 2 ? "Line1" : "Line2";
+    // 병합 형태 산출 (getMergedInfo 의 병합 그룹 시작/끝 좌표로 판정 — getMerged_1 과 일관)
+    let mergeType = scwin.getMergeType(rowIndex, colIndex, ret);
+    bottom.setReturnValue("getMerged(rowIndex " + rowIndex + ", colIndex " + colIndex + " / " + line + ") → " + ret + " / 병합 형태 : " + mergeType);
+}
+
+
+
+// 병합 형태 도출 : getMerged 가 false 면 "병합없음", true 면 getMergedInfo 의 start/end 좌표로 세로/가로/블록 구분.
+//  getMergedInfo 는 흡수 셀에는 start/end 를 모두 채우지만 병합 시작(앵커) 셀에는 start 만 채우므로,
+//  앵커 셀(end 누락)이면 같은 그룹의 우/하 인접 흡수 셀 정보로 끝 좌표를 보완한다.
+scwin.getMergeType = function (rowIndex, colIndex, merged) {
+    if (merged !== true) return "병합없음";
+    let info = target1.getMergedInfo(rowIndex, colIndex);
+    let sRow = (info.startRowIndex !== undefined) ? info.startRowIndex : rowIndex;
+    let sCol = (info.startColIndex !== undefined) ? info.startColIndex : colIndex;
+    let eRow = info.endRowIndex;
+    let eCol = info.endColIndex;
+    if (eRow === undefined || eCol === undefined) {
+        let right = target1.getMergedInfo(sRow, sCol + 1);
+        let down = target1.getMergedInfo(sRow + 1, sCol);
+        if (right.endColIndex !== undefined && right.startColIndex === sCol) eCol = right.endColIndex;
+        if (down.endRowIndex !== undefined && down.startRowIndex === sRow) eRow = down.endRowIndex;
+        if (eRow === undefined) eRow = sRow;
+        if (eCol === undefined) eCol = sCol;
+    }
+    let rowMerged = (sRow !== eRow);
+    let colMerged = (sCol !== eCol);
+    if (rowMerged && colMerged) return "블록 병합";
+    if (rowMerged) return "세로 병합";
+    if (colMerged) return "가로 병합";
+    return "병합";
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(3레코드)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 행 높이 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 30px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 30px; }
+/* 마지막 Row 가 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: table-row !important; height: 30px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0 (레코드0)</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1 (레코드1)</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2 (레코드2)</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="colIndex (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_colIndex" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0 (Line1 c1)</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1 (Line1 c2)</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2 (Line1 c3)</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3 (Line2 c4)</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>4 (Line2 c5)</xf:label>
+												<xf:value>4</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>5 (Line2 c6)</xf:label>
+												<xf:value>5</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getMerged_onclick" id="btn_getMerged"
+							label="getMerged" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

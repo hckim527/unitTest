@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : 'DrillDown 으로 숨겨진 Row 도 인덱스에 포함됩니다' 분리 샘플.
+//     mergeCells="byrow" + inputType="drilldown" 그리드. 부모 Row 를 접으면 자식 Row 가 화면에서 숨겨지지만
+//     mergeRow(rowIndex,...) 에 전달하는 인덱스는 '숨겨진 Row 까지 포함한 실제(전체) Row 인덱스' 이다.
+//     접힌 상태에서 숨겨진 자식 Row 인덱스로 mergeRow(idx,false) 호출 → mergeCells("byrow") → 펼치면 그 Row 만 가로병합 제외됨을 확인.
+scwin.tData = {
+    "description" : "[gridView > M > mergeRow]<br/>Body Row 인덱스를 사용하여 특정 Row 를 자동 병합 대상에서 추가하거나 삭제합니다.",
+    "validation" : [
+        "DrillDown 으로 숨겨진 Row 도 인덱스에 포함됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — DrillDown 계층(부모 depth1 / 자식 depth2) + 각 행 인접 컬럼 동일값(가로병합 표시).
+//  실제 Row 인덱스(숨김 포함) | depth | col1 | col2 | col3 | col4
+//  ----+------+--------+------+------+------
+//   0  |  1   | 영업본부 | 부서  | 인원  | 100   → 부모(자식 보유). col 값 모두 달라 가로병합 안 됨
+//   1  |  2   |  김영업  |  S   |  S   |  10    → 자식, col2~col3 동일(가로병합 대상)
+//   2  |  2   |  이영업  |  S   |  S   |  20    → 자식, col2~col3 동일(가로병합 대상)
+//   3  |  1   | 개발본부 | 부서  | 인원  | 200   → 부모(자식 보유). col 값 모두 달라 가로병합 안 됨
+//   4  |  2   |  박개발  |  D   |  D   |  30    → 자식, col2~col3 동일(가로병합 대상)
+//   5  |  2   |  최개발  |  D   |  D   |  40    → 자식, col2~col3 동일(가로병합 대상)
+//  · showDepth=1 → 초기엔 부모(행0,행3) 2건만 표시되고 자식(행1,2,4,5) 4건은 접혀 숨겨짐.
+//  · 숨겨진 자식 Row 인덱스(예 2)는 실제 Row 인덱스 기준으로 mergeRow 에 그대로 사용 → 인덱스에 숨김 Row 포함.
+scwin.MERGE_DATA = [
+    { "depth": 1, "col1": "영업본부", "col2": "부서", "col3": "인원", "col4": "100" },
+    { "depth": 2, "col1": "  김영업", "col2": "S",   "col3": "S",   "col4": "10"  },
+    { "depth": 2, "col1": "  이영업", "col2": "S",   "col3": "S",   "col4": "20"  },
+    { "depth": 1, "col1": "개발본부", "col2": "부서", "col3": "인원", "col4": "200" },
+    { "depth": 2, "col1": "  박개발", "col2": "D",   "col3": "D",   "col4": "30"  },
+    { "depth": 2, "col1": "  최개발", "col2": "D",   "col3": "D",   "col4": "40"  }
+];
+
+
+
+// comp 생성 : mergeCells="byrow" + inputType="drilldown" 그리드 1개를 동적 생성.
+//  ★ 초기엔 부모 2건만 표시되고 자식 4건은 접힘(숨김). 자식 Row 의 인덱스는 화면 미표시여도 실제 Row 인덱스에 그대로 포함됨.
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="mergeCells=byrow(가로병합) + DrillDown. 부모(행0,행3) 접으면 자식(행1,2,4,5)이 숨겨지지만 mergeRow 인덱스는 숨김 Row 포함한 실제 Row 인덱스(0~5). 숨겨진 자식 인덱스로 mergeRow 호출 후 펼치면 그 Row 만 가로병합 제외됨을 확인"', '', 'label1');
+
+    // DataList 생성 (depth number 컬럼 포함) 후 검증용 데이터 적재
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.MERGE_DATA, false);
+
+    // mergeCells="byrow" (같은 Row 내 동일값 연속 Cell 을 colSpan(가로) 병합)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id,
+        mergeCells: "byrow",
+        checkAllType: "false",
+        defaultCellHeight: 34
+    });
+
+    // target 생성 (col1 을 inputType="drilldown" 으로 → 계층 토글 컬럼)
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:420px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeRow + DrillDown sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column1" value="col1(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="130" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// rowIndex 파라미터 수집 (인덱스 Number — 숨김 Row 포함한 실제 Row 인덱스)
+scwin.getRowIndexParam = function () {
+    return Number(par_rowIndex.getValue());
+};
+
+
+
+// include 파라미터 수집 (par_include 는 gdl_boolean 바인딩)
+//  ★ value 는 인덱스('1'/'2'/'3') 이고 의미는 label('','true','false') 이므로 getText() 로 판정.
+//     ('' → 생략, 'true' → true, 'false' → false)
+//  반환 : { omit:true } (생략) 또는 { omit:false, value:Boolean }
+scwin.getIncludeParam = function () {
+    let t = par_include.getText();
+    if (t === '' || t === undefined || t === null) return { omit: true };
+    return { omit: false, value: (t === 'true') };
+};
+
+
+
+// 전체 접기 : 표시된 부모(depth1) 행을 toggle 하여 자식(depth2)을 모두 접음(숨김)
+scwin.btn_collapseAll_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    for (let i = target1.getVisibleRowNum() - 1; i >= 0; i--) {
+        if (Number(target1.getCellData(i, "depth")) === 1 && target1.getChildrenRowIndexArray(target1.getRealRowIndex(i)).length > 0) {
+            if (i + 1 < target1.getVisibleRowNum() && Number(target1.getCellData(i + 1, "depth")) === 2) {
+                target1.toggle(i);
+            }
+        }
+    }
+
+    bottom.setReturnValue("전체 접기 완료. 화면 표시 Row 수 : " + target1.getVisibleRowNum() + "  // 부모(행0,행3) 2건만 표시, 자식(행1,2,4,5)은 숨김");
+    bottom.setReturnValue("숨겨진 자식 Row 인덱스(실제 Row 인덱스) : 1, 2, 4, 5  // 화면 미표시여도 인덱스에 그대로 포함됨");
+}
+
+
+
+// 전체 펼치기 : 표시된 부모(depth1) 행을 toggle 하여 자식(depth2)을 모두 펼침
+scwin.btn_expandAll_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let i = 0;
+    while (i < target1.getVisibleRowNum()) {
+        if (Number(target1.getCellData(i, "depth")) === 1 && target1.getChildrenRowIndexArray(target1.getRealRowIndex(i)).length > 0) {
+            let before = target1.getVisibleRowNum();
+            target1.toggle(i);
+            if (target1.getVisibleRowNum() > before) {
+                i += (target1.getVisibleRowNum() - before) + 1;
+                continue;
+            }
+        }
+        i++;
+    }
+
+    bottom.setReturnValue("전체 펼치기 완료. 화면 표시 Row 수 : " + target1.getVisibleRowNum());
+    scwin.printMergeState(bottom);
+}
+
+
+
+// mergeRow + 병합실행 : 숨겨진(또는 표시된) Row 인덱스로 mergeRow(rowIndex[, include]) 호출 후 mergeCells("byrow") 로 반영.
+//  · 인덱스는 '숨김 Row 포함한 실제 Row 인덱스' 기준. 접힌 상태에서 숨겨진 자식 인덱스를 지정해도 그 Row 가 정확히 가리켜짐.
+//  · include 미설정('') 이면 rowIndex 만 전달(생략 호출) → 기본값 true 동작.
+scwin.btn_mergeRowRun_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let rowIndex = scwin.getRowIndexParam();
+    let inc = scwin.getIncludeParam();
+
+    if (inc.omit) {
+        // include(선택) 생략 → 기본값 true
+        target1.mergeRow(rowIndex);
+        bottom.setReturnValue("호출 : target1.mergeRow(" + rowIndex + ")  // include 생략 → 기본값 true (숨김 Row 포함 실제 인덱스)");
+    } else {
+        target1.mergeRow(rowIndex, inc.value);
+        bottom.setReturnValue("호출 : target1.mergeRow(" + rowIndex + ", " + inc.value + ")  // 숨김 Row 포함 실제 인덱스");
+    }
+
+    // 병합 실행 메소드(mergeCells) 를 별도 실행해야 화면에 반영됨
+    target1.mergeCells("byrow");
+    bottom.setReturnValue("병합 실행 : target1.mergeCells('byrow')  // 펼치기 후 해당 Row 의 가로병합 적용/제외를 확인하세요");
+
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 colSpan 을 읽어 가로(➡) 병합 그룹과 화면 가로병합된 Body Row 목록을 출력.
+//  (td 셀렉터는 gid = target1.id 사용 — e.target.id 는 버튼 id 라 사용 불가)
+//  또한 [mergeRow 대상] 에는 전체 Row(숨김 포함, 0~5) 의 자동 병합 대상 여부를 출력하여 숨겨진 Row 조작 효과를 확인.
+scwin.printMergeState = function (bottom) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+
+    let colSpanCnt = 0;
+    let descs = [];
+    let mergedRowSet = {};
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        // 흡수되어 화면에 표시되지 않는 td 제외
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let cs = td.colSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (cs > 1) {
+            colSpanCnt++;
+            mergedRowSet["화면행" + r] = true;
+            let val = (td.textContent || "").trim();
+            descs.push("➡ 화면행" + r + " [col" + (c + 1) + "~col" + (c + cs) + "] 가로병합 = '" + val + "'");
+        }
+    }
+
+    bottom.setReturnValue("판정 : " + (colSpanCnt > 0 ? "가로(colSpan) 병합" : "병합 없음") + " / 병합 그룹 " + descs.length + "개");
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+
+    // mergeRow 대상 상태 : 전체 Body Row(숨김 포함, 실제 Row 인덱스 0~5) 별 자동 병합 대상 여부.
+    //  · target1.mergeRowObj[index] === false → 대상에서 삭제됨(X), 그 외(undefined/true) → 대상 O(기본)
+    //  · 숨겨진 Row 인덱스(예 2)도 항목에 포함되어 그 Row 의 추가/삭제 상태를 표시 → 인덱스에 숨김 Row 포함 확인.
+    let rowCnt = scwin.MERGE_DATA.length;
+    let mro = target1.mergeRowObj || {};
+    let targetDescs = [];
+    for (let ri = 0; ri < rowCnt; ri++) {
+        let isTarget = (mro[ri] !== false);
+        let hidden = (Number(scwin.MERGE_DATA[ri].depth) === 2);
+        targetDescs.push("행" + ri + ":" + (isTarget ? "O" : "X") + (hidden ? "(자식)" : "(부모)"));
+    }
+    bottom.setReturnValue("[mergeRow 대상] " + targetDescs.join(" / ") + "  // O=병합대상 / X=대상삭제(include false), 숨김 자식 Row 포함");
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 행 높이 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 34px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 34px; }
+/* 마지막 Row 가 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: table-row !important; height: 34px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" label="label" ref="" selectedIndex="2" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0 (행0/부모)</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1 (행1/자식·숨김)</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2 (행2/자식·숨김)</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3 (행3/부모)</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>4 (행4/자식·숨김)</xf:label>
+												<xf:value>4</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>5 (행5/자식·숨김)</xf:label>
+												<xf:value>5</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="include (선택, 기본 true)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_include" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_collapseAll_onclick" id="btn_collapseAll"
+							label="전체 접기(자식 Row 숨김)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeRowRun_onclick" id="btn_mergeRowRun"
+							label="mergeRow + 병합실행(mergeCells)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_expandAll_onclick" id="btn_expandAll"
+							label="전체 펼치기(병합 결과 확인)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

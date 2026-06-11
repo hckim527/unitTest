@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeClear" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ mergeClear : 동적으로 병합된 Body Cell 을 모두 원래 상태로 해제 (파라미터 없음).
+//     · 본 샘플(_2)은 @spec3 중 '메소드(mergeCol()/mergeRow()) 기반 제외조건 미초기화' 만 분리 시연한다.
+//       (속성값 mergeCol/mergeExcludeValue 기반 제외조건 미초기화는 _3 신규 샘플에서 다룬다.)
+//     · ① 제외조건(mergeCol()/mergeRow() 메소드) 설정 → ② mergeClear 실행 후
+//       제외조건이 유지되는지를 '재병합 시 제외 컬럼/행이 여전히 미병합되는지'로 확인한다.
+//     · 내부 객체(mergeColObj/mergeRowObj) 직접 접근 금지 → 공개 API getMerged(row,col)·DOM(td rowSpan/colSpan)
+//       으로만 기능적으로 관찰한다.
+//     · @related(mergeCol/mergeRow/mergeCells)는 제외조건 setUp 용도로만 사용(검증 대상 아님).
+scwin.tData = {
+    "description" : "[gridView > M > mergeClear]<br/>동적으로 병합된 Body Cell 을 모두 원래 상태로 해제합니다.",
+    "validation" : [
+        "mergeCol(), mergeRow() 메소드 등으로 설정한 병합 제외 조건은 초기화되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — 자동 병합과 메소드 제외조건이 모두 드러나도록 구성.
+//
+//  행 | col1 | col2 | col3 | col4
+//  ---+------+------+------+------
+//   0 |  A   |  X   |  P   |  S
+//   1 |  A   |  X   |  P   |  S
+//   2 |  A   |  Y   |  P   |  S
+//   3 |  A   |  X   |  P   |  S   ← 행3 도 col1=A·col4=S 로 윗행과 동일값(제외만 다름)
+//
+//  · mergeCells("bycol") 세로 병합 대상(동일값 연속) :
+//      col1 = A,A,A,A  → 제외 없으면 [행0~행3] 전부 병합 대상
+//      col2 = X,X,Y,X  → 제외 없으면 [행0~행1]=X / [행2]=Y / [행3]=X (행3 단독, mergeRow 검증과 무관한 대조군 형태)
+//      col3 = P,P,P,P  → 제외 없으면 [행0~행3] 전부 병합 대상
+//      col4 = S,S,S,S  → 제외 없으면 [행0~행3] 전부 병합 대상
+//  · 메소드 제외조건 :
+//      mergeCol(2,false)       → col3(인덱스2) 자동병합 제외
+//      mergeRow(3,false)       → 행3 자동병합 제외
+//    => 핵심: col1·col4 는 행3 도 윗행과 '동일값(A/S)' 이라 제외조건이 없었다면 [행0~행3] 으로 병합됐을 셀이다.
+//       그러나 mergeRow(3,false) 때문에 실제로는 [행0~행2]만 병합되고 행3 은 '동일값인데도' 분리된다.
+//       → '값이 달라서 미병합' 이 아니라 'mergeRow 제외라서 미병합' 임이 명확히 드러난다.
+//       (col3 은 mergeCol(2,false) 로 컬럼 전체가 제외되어 전부 동일값(P)이어도 미병합.)
+scwin.MERGE_DATA = [
+    { "col1": "A", "col2": "X", "col3": "P", "col4": "S" },
+    { "col1": "A", "col2": "X", "col3": "P", "col4": "S" },
+    { "col1": "A", "col2": "Y", "col3": "P", "col4": "S" },
+    { "col1": "A", "col2": "X", "col3": "P", "col4": "S" }
+];
+
+
+
+// comp 생성 : 그리드 1개를 동적 생성.
+//  ★ mergeCells 류 속성은 attribute 로 주지 않는다 (초기 미병합 상태로 생성 → 버튼으로 병합/해제).
+//     속성값 기반 제외조건(mergeExcludeValue/mergeCol 속성)은 _3 샘플에서 다루므로 여기서는 부여하지 않는다.
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="① 메소드 제외조건(mergeCol(2,false)·mergeRow(3,false)) 설정 + 자동병합 → ② mergeClear 실행 후 메소드 제외조건이 초기화되지 않고 그대로 유지되는지 확인(@spec3 메소드 제외조건 미초기화)"', '', 'label1');
+
+    // DataList 생성 후 검증용 데이터 적재
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON(scwin.MERGE_DATA, false);
+
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id,
+        defaultCellHeight: 34
+    });
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:380px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeClear sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// ① 메소드 제외조건 설정 + 자동병합 : mergeCells("bycol") 전에 메소드 제외조건(mergeCol/mergeRow)을 등록.
+//  · mergeCol(2,false)     → col3(인덱스2) 자동병합 제외
+//  · mergeRow(3,false)     → 행3 자동병합 제외
+scwin.btn_setUp_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 메소드 제외조건 설정 (병합 실행 전에 등록)
+    target1.mergeCol(2, false);   // col3(인덱스2) 자동 병합 대상에서 제외
+    target1.mergeRow(3, false);   // 행3 자동 병합 대상에서 제외
+
+    // 자동 병합 (bycol)
+    target1.mergeCells("bycol");
+
+    scwin.setUpDone = true;
+
+    bottom.setReturnValue("[①] mergeCol(2,false)·mergeRow(3,false) 제외조건 설정 후 mergeCells('bycol') 병합");
+    // ① 시점의 실제 병합 영역(병합 그룹) 출력
+    scwin.printMergeState(bottom);
+}
+
+
+
+// ② mergeClear 실행 후 재병합 : 모든 동적 병합을 해제(파라미터 없음)한 뒤 mergeCells('bycol')로 재병합.
+//  @spec3 — 병합은 해제되지만 메소드(mergeCol()/mergeRow()) 제외조건은 초기화되지 않고 그대로 유지됨.
+//  내부 객체 미사용 → 재병합 후 제외 컬럼/행 셀이 여전히 미병합인지를
+//  공개 API getMerged(row,col) + DOM(td rowSpan/colSpan) 으로 관찰하여 유지를 입증한다.
+scwin.btn_mergeClear_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    if (!scwin.setUpDone) {
+        bottom.setReturnValue("먼저 [① 병합·제외조건 설정] 버튼을 눌러주세요.");
+        return;
+    }
+
+    // mergeClear → 재병합 (제외조건 유지 여부를 기능적으로 관찰하기 위함)
+    target1.mergeClear();
+
+    target1.mergeCells("bycol");
+
+    let gid = target1.id;
+
+    // 제외조건 유지 판정 : 셀 병합 여부를 공개 API getMerged + DOM(td rowSpan/colSpan)으로 관찰.
+    //  · 미병합 셀 → getMerged=false 이고 자기 td 의 rowSpan/colSpan 이 1.
+    let isMerged = function (row, col) {
+        if (target1.getMerged(row, col)) return true;
+        let td = document.getElementById(gid + "_cell_" + row + "_" + col);
+        return !!(td && (td.rowSpan > 1 || td.colSpan > 1));
+    };
+
+    // 미제외 col2 는 재병합 / mergeCol(2,false) col3·mergeRow(3,false) 행3 은 동일값이어도 미병합이면 제외조건 유지.
+    let col2Merged = isMerged(0, 1);
+    let col3Merged = isMerged(0, 2) || isMerged(1, 2) || isMerged(2, 2) || isMerged(3, 2);
+    let row3Merged = isMerged(3, 0) || isMerged(3, 1) || isMerged(3, 2) || isMerged(3, 3);
+    let keep = (col2Merged && !col3Merged && !row3Merged);
+
+    // ② 재병합 결과의 실제 병합 영역(병합 그룹) 출력
+    //    (제외된 col3·행3 이 병합 목록에 나타나지 않음 → 제외조건 유지가 병합 영역으로도 확인됨)
+    scwin.printMergeState(bottom);
+    bottom.setReturnValue("→ mergeClear 후 mergeCol()/mergeRow() 제외조건 " + (keep ? "유지됨" : "초기화됨") + "(@spec3)");
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan/colSpan 을 읽어 세로(⬇)/가로(➡)/블록(⬛) 병합 그룹을 출력.
+//  · 다른 병합 샘플(mergeCells_1 등)과 동일한 형식으로 '실제로 병합된 영역' 을 눈으로 확인.
+//  · 내부 객체 직접 접근 금지 → 표시되는 td 의 rowSpan/colSpan(DOM 관찰)만 사용.
+//  · td 셀렉터는 gid = target1.id 사용 (e.target.id 는 버튼 id 라 사용 불가).
+//  · 표시되는 td(seen 키)만 집계, 세로/가로 병합에 흡수된 td 는 display:none/offset 0 으로 제외.
+scwin.printMergeState = function (bottom) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let mergedCnt = 0;
+    let descs = [];
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+        if (td.offsetWidth === 0) continue;
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (rs > 1 || cs > 1) {
+            mergedCnt++;
+            let val = (td.textContent || "").trim();
+            if (rs > 1 && cs === 1) {
+                descs.push("⬇ col" + (c + 1) + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+            } else if (cs > 1 && rs === 1) {
+                descs.push("➡ 행" + r + " [col" + (c + 1) + "~col" + (c + cs) + "] 가로병합 = '" + val + "'");
+            } else {
+                descs.push("⬛ [행" + r + "~행" + (r + rs - 1) + ", col" + (c + 1) + "~col" + (c + cs) + "] 블록병합(" + rs + "x" + cs + ") = '" + val + "'");
+            }
+        }
+    }
+
+    bottom.setReturnValue("[병합 영역] 병합 그룹 " + mergedCnt + "개 (표시 td 기준)");
+    for (let d = 0; d < descs.length; d++) bottom.setReturnValue("  - " + descs[d]);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(4행)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 세로 병합 시 흡수된 Row 의 TR 높이가 0 으로 collapse 되어 병합 셀이 짧아지는 현상 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 34px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 34px; }
+/* 마지막 Row 가 세로 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: table-row !important; height: 34px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setUp_onclick" id="btn_setUp"
+							label="① 병합·제외조건 설정" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeClear_onclick" id="btn_mergeClear"
+							label="② mergeClear 실행 후 재병합" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

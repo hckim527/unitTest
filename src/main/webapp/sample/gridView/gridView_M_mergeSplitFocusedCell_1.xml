@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeSplitFocusedCell" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > mergeSplitFocusedCell]<br/>현재 포커스된 Cell 의 병합을 해제합니다.",
+    "validation" : [
+        "수동/자동 병합된 Cell 을 모두 해제하며 고정 영역의 병합도 해제합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — 6행 x 5열.
+//  · 고정 영역(col0,col1)은 행1~행3 에서 같은 값(FIX) → "고정 영역 병합" 버튼(mergeCellsFixedCols "bycol") 으로 세로 자동병합 생성용.
+//  · 비고정 영역 행0 의 col2,col3 은 같은 값(DUP) → "자동 병합" 버튼(mergeCells "byrow") 으로 가로 자동병합 생성용.
+//  · 그 외 셀은 모두 다른 값(R{r}C{c}) → 자동병합이 의도한 영역에서만 발생하도록 유지.
+//  병합 후 분할(mergeSplitFocusedCell) 시 병합 영역이 개별 셀(rowSpan/colSpan=1)로 복귀(병합 해제)되는지 확인.
+//
+//   col   |  0(고정)|  1(고정)|  2   |  3   |  4
+//   행0   |  R0C0  |  R0C1  | DUP  | DUP  | R0C4   ← byrow 가로병합 대상(col2,col3)
+//   행1   |  FIX   |  FIX   | R1C2 | R1C3 | R1C4   ┐
+//   행2   |  FIX   |  FIX   | R2C2 | R2C3 | R2C4   │ 고정영역 col0/col1 세로병합 대상(행1~행3)
+//   행3   |  FIX   |  FIX   | R3C2 | R3C3 | R3C4   ┘
+//   행4   |  R4C0  |  R4C1  | R4C2 | R4C3 | R4C4
+//   행5   |  R5C0  |  R5C1  | R5C2 | R5C3 | R5C4
+scwin.GRID_DATA = (function () {
+    let arr = [];
+    for (let r = 0; r < 6; r++) {
+        let o = {};
+        for (let c = 0; c < 5; c++) o["col" + (c + 1)] = "R" + r + "C" + c;
+        arr.push(o);
+    }
+    // 고정 영역(col0,col1) 행1~행3 동일값(FIX) → mergeCellsFixedCols("bycol") 세로 자동병합
+    for (let r = 1; r <= 3; r++) { arr[r].col1 = "FIX"; arr[r].col2 = "FIX"; }
+    // 비고정 영역 행0 col2,col3 동일값(DUP) → mergeCells("byrow") 가로 자동병합
+    arr[0].col3 = "DUP"; arr[0].col4 = "DUP";
+    return arr;
+})();
+
+
+
+// comp 생성 : useShiftKey=true(setFocusedMultiCell 필수), dataDragSelect=true, mergeCells 미지정(기본 never)
+//  fixedColumn=2(col0,col1 좌측 고정) → 고정 영역 병합/분할 확인용
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="6행 x 5열. fixedColumn=2 로 col0,col1 좌측 고정. 고정영역 col0,col1 행1~행3 동일값(FIX), 비고정 행0 col2,col3 동일값(DUP). [수동 병합]/[자동 병합]/[고정 영역 병합] 버튼으로 각각 수동·자동·고정영역 병합을 만든 뒤, 그 병합 셀을 셀 드래그/클릭 또는 포커스로 선택하고 [mergeSplitFocusedCell] 버튼으로 분할(해제)한다. 분할은 mergeSplitFocusedCell 버튼만 수행한다"', '', 'label1');
+
+    // 5열 DataList 인라인 생성 (공통 createDynamicDataList 는 col1~col4 만 정의하므로 직접 생성)
+    let dlNS = $c.gcm.getNameSpace();
+    let strDL = '';
+    strDL += '<w2:dataList ' + dlNS + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDL += '<w2:columnInfo>';
+    for (let c = 1; c <= 5; c++) {
+        strDL += '<w2:column id="col' + c + '" name="col' + c + '" dataType="text"></w2:column>';
+    }
+    strDL += '</w2:columnInfo>';
+    strDL += '<w2:data use="true"></w2:data>';
+    strDL += '</w2:dataList>';
+    $p.data.create(strDL);
+    let arrDC = $p.data.getAllDataCollection("object");
+    scwin["dlt_bind"] = arrDC[arrDC.length - 1];
+
+    // 검증용 데이터 적재
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    // useShiftKey=true, dataDragSelect=true(드래그로 직사각형 셀 범위 선택), fixedColumn=2(col0,col1 좌측 고정)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id,
+        useShiftKey: true,
+        dataDragSelect: true,
+        fixedColumn: 2
+    });
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" defaultCellHeight="30" id="" style="width:340px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeSplitFocusedCell sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let c = 1; c <= 5; c++) {
+        strTarget += '<w2:column width="115" style="" inputType="text" id="column' + c + '" value="col' + (c - 1) + '"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    for (let c = 1; c <= 5; c++) {
+        strTarget += '<w2:column width="115" style="" inputType="text" id="col' + c + '" value=""></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// ① 수동 병합 : mergeCell({rowIndex:1, colIndex:2, rowSpan:2, colSpan:2}) 로 비고정 영역
+//  (1,2)~(2,3) 2x2 블록을 수동 병합. mergeSplitFocusedCell 분할 대상(수동 병합)을 만드는 setUp 용도이며
+//  분할은 호출하지 않는다.
+scwin.btn_mergeManual_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 이전 자동병합 정리 후 수동 병합만 생성
+    target1.mergeCells("never");
+    target1.mergeClear();
+    target1.removeFocusedCell();
+
+    target1.mergeCell({ "rowIndex": 1, "colIndex": 2, "rowSpan": 2, "colSpan": 2 });
+
+    bottom.setReturnValue("[수동 병합] mergeCell({rowIndex:1, colIndex:2, rowSpan:2, colSpan:2}) 실행 → (1,2)~(2,3) 2x2 블록 수동 병합 생성 (분할 대상)");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// ② 자동 병합(byrow) : mergeCells("byrow") 로 같은 행에서 연속적으로 같은 데이터인 컬럼들을 가로 자동병합.
+//  행0 의 col2,col3 이 동일값(DUP)이라 해당 영역이 가로 병합됨. mergeSplitFocusedCell 분할 대상(자동 병합) setUp.
+scwin.btn_mergeAuto_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 이전 수동/자동 병합 정리 후 자동 병합만 생성
+    target1.mergeClear();
+    target1.removeFocusedCell();
+
+    target1.mergeCells("byrow");
+
+    bottom.setReturnValue("[자동 병합] mergeCells(\"byrow\") 실행 → 같은 행에서 연속적으로 같은 데이터인 컬럼 자동 병합 (행0 col2,col3 'DUP' 가로 병합 생성, 분할 대상)");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// ③ 고정 영역 병합 : mergeCellsFixedCols("bycol") 로 fixedColumn(col0,col1) 영역 내에서 같은 컬럼의
+//  연속 동일 데이터를 세로 자동병합. 고정영역 행1~행3 동일값(FIX)이라 col0,col1 이 세로 병합됨.
+//  @spec1 '고정 영역의 병합도 해제' 검증을 위한 고정 영역 병합 setUp.
+scwin.btn_mergeFixed_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 이전 병합 정리 후 고정 영역 병합만 생성
+    target1.mergeCells("never");
+    target1.mergeClear();
+    target1.removeFocusedCell();
+
+    target1.mergeCellsFixedCols("bycol");
+
+    bottom.setReturnValue("[고정 영역 병합] mergeCellsFixedCols(\"bycol\") 실행 → fixedColumn(col0,col1) 영역 내 연속 동일 데이터 세로 자동 병합 (행1~행3 'FIX' 세로 병합 생성, 분할 대상)");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// ④ mergeSplitFocusedCell (분할 — 이 버튼만 분할 수행) : 사용자가 그리드에서 직접 드래그/클릭으로 선택(포커스)한
+//  현재 병합 셀을 mergeSplitFocusedCell() 로 분할(해제). ①②③ 으로 만든 수동/자동/고정영역 병합 셀을 포커스한 뒤
+//  이 버튼을 누르면 그 병합이 개별 셀(rowSpan/colSpan=1)로 복귀(해제)된다.
+scwin.btn_splitFocused_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 포커스를 설정하지 않고 현재(사용자가 직접 선택한) 포커스 상태에서 바로 분할 실행
+    target1.mergeSplitFocusedCell();
+
+    bottom.setReturnValue("[mergeSplitFocusedCell] 현재 포커스된 Cell 기준 mergeSplitFocusedCell() 실행 → 포커스된 병합 Cell 의 병합 해제 (사용자가 그리드에서 직접 선택한 병합 셀을 분할)");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan/colSpan 을 읽어 블록(⬛)/세로(⬇)/가로(➡) 병합 그룹을 출력
+//  - td 셀렉터는 gid = target1.id 사용(e.target.id 는 버튼 id 라 사용 불가)
+//  - 흡수되어 표시되지 않는 td 와 중복 키는 제외
+scwin.printMergeState = function (bottom) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let descs = [];
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (rs > 1 || cs > 1) {
+            let val = (td.textContent || "").trim();
+            if (rs > 1 && cs === 1) {
+                descs.push("⬇ col" + c + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+            } else if (cs > 1 && rs === 1) {
+                descs.push("➡ 행" + r + " [col" + c + "~col" + (c + cs - 1) + "] 가로병합 = '" + val + "'");
+            } else {
+                descs.push("⬛ [행" + r + "~행" + (r + rs - 1) + ", col" + c + "~col" + (c + cs - 1) + "] 블록병합(" + rs + "x" + cs + ") = '" + val + "'");
+            }
+        }
+    }
+
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음 (모든 Cell 이 개별 셀로 분할됨)");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 6행은 height 안에 표시되지 않을 수 있어 스크롤은 유지하되, 빈 행 노출 방지를 위해 흡수 행 보정. */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: none !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeManual_onclick" id="btn_mergeManual"
+							label="① 수동 병합 (mergeCell 1,2~2,3)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeAuto_onclick" id="btn_mergeAuto"
+							label="② 자동 병합 (mergeCells byrow)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeFixed_onclick" id="btn_mergeFixed"
+							label="③ 고정 영역 병합 (mergeCellsFixedCols bycol)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_splitFocused_onclick" id="btn_splitFocused"
+							label="mergeSplitFocusedCell" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

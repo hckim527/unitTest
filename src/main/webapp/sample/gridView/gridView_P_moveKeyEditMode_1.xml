@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; P &gt; moveKeyEditMode]&lt;br/&gt;상/하 방향키 입력 시 Cell 이동과 함께 편집 모드로 변경할지 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;moveKeyEditModeAll=true 이면 항상 true 로 동작합니다.&quot;,
+        &quot;true 설정 시 상/하 방향키 입력 시 Cell 이동과 함께 편집 모드로 변경되며, 현재 Cell 이 편집 모드인 것과 관계없이 이동합니다.&quot;,
+        &quot;false(기본값) 설정 시 상/하 방향키 입력 시 현재 Cell 이 편집 모드인 경우 Cell 이동이 되지 않으며, 편집 모드가 아닌 경우 Cell 선택이 이동됩니다.&quot;,
+        &quot;Column 의 inputType 속성값이 'text','secret','textImage', 'drilldown' 인 경우에 동작합니다.&quot;,
+        &quot;focusmove 속성값이 'true','vertical' 인 경우에 동작합니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // con_focusMove 기본값 vertical (기존 하드코딩 동작 유지)
+    con_focusMove.setValue(&quot;vertical&quot;);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 값 읽기
+    let moveKeyEditModeVal = con_moveKeyEditMode.getValue();
+    let moveKeyEditModeAllVal = con_moveKeyEditModeAll.getValue();
+    let focusMoveVal = con_focusMove.getValue();
+
+    // 동작 조건/현재 설정 라벨 생성
+    $c.gcm.createLabel('label=&quot;전제조건: Column inputType = text / secret / textImage / drilldown + focusMove 속성값이 true 또는 vertical (moveKeyEditMode 동작 조건 충족)&quot;', '', 'label1');
+    $c.gcm.createLabel('label=&quot;현재 설정: moveKeyEditMode=' + (moveKeyEditModeVal === '' ? '미설정(기본 false)' : moveKeyEditModeVal) + ' / moveKeyEditModeAll=' + (moveKeyEditModeAllVal === '' ? '미설정(기본 false)' : moveKeyEditModeAllVal) + ' / focusMove=' + (focusMoveVal === '' ? '미설정(기본 true)' : focusMoveVal) + '&quot;', '', 'label2');
+
+    // dataList 직접 생성 (4행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '&lt;w2:dataList ' + strNameSpace + ' id=&quot;dlt_bind&quot; baseNode=&quot;list&quot; repeatNode=&quot;map&quot;&gt;';
+    strDl += '&lt;w2:columnInfo&gt;';
+    strDl += '&lt;w2:column id=&quot;col1&quot; name=&quot;col1&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;col2&quot; name=&quot;col2&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;col3&quot; name=&quot;col3&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;col4&quot; name=&quot;col4&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;depth&quot; name=&quot;depth&quot; dataType=&quot;number&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;/w2:columnInfo&gt;';
+    strDl += '&lt;w2:data use=&quot;true&quot;&gt;';
+    // drilldown 컬럼(col4) 계층: 행마다 depth(레벨)를 다르게 부여하여 실제 트리 구조(들여쓰기)가 렌더되도록 구성
+    //  row1=depth1(루트) / row2=depth2(row1의 자식) / row3=depth3(row2의 자식) / row4=depth2(row1의 자식)
+    let depthArr = [1, 2, 3, 2];
+    for (let r = 1; r &lt;= 4; r++) {
+        strDl += '&lt;w2:row&gt;';
+        strDl += '&lt;col1&gt;&lt;![CDATA[A' + r + ']]&gt;&lt;/col1&gt;';
+        strDl += '&lt;col2&gt;&lt;![CDATA[B' + r + ']]&gt;&lt;/col2&gt;';
+        strDl += '&lt;col3&gt;&lt;![CDATA[C' + r + ']]&gt;&lt;/col3&gt;';
+        strDl += '&lt;col4&gt;&lt;![CDATA[D' + r + ']]&gt;&lt;/col4&gt;';
+        strDl += '&lt;depth&gt;&lt;![CDATA[' + depthArr[r - 1] + ']]&gt;&lt;/depth&gt;';
+        strDl += '&lt;/w2:row&gt;';
+    }
+    strDl += '&lt;/w2:data&gt;';
+    strDl += '&lt;/w2:dataList&gt;';
+    $p.data.create(strDl);
+
+    // moveKeyEditMode / moveKeyEditModeAll / focusMove 속성 (미설정 시 속성 미부여 = 기본값)
+    let mkemAttr = moveKeyEditModeVal === '' ? '' : 'moveKeyEditMode=&quot;' + moveKeyEditModeVal + '&quot; ';
+    let mkemAllAttr = moveKeyEditModeAllVal === '' ? '' : 'moveKeyEditModeAll=&quot;' + moveKeyEditModeAllVal + '&quot; ';
+    let focusMoveAttr = focusMoveVal === '' ? '' : 'focusMove=&quot;' + focusMoveVal + '&quot; ';
+
+    // target 생성 (전제조건: inputType = text/secret/textImage/drilldown + focusMove = con_focusMove 값)
+    //  col1=text, col2=secret, col3=textImage(imageSrc+viewType=icon), col4=drilldown(depthColumn=depth)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '&lt;w2:gridView ' + strNameSpace + ' ' + mkemAttr + mkemAllAttr + focusMoveAttr + 'editModeEvent=&quot;ondblclick&quot; dataList=&quot;data:dlt_bind&quot; checkAllType=&quot;false&quot; id=&quot;&quot; style=&quot;width:520px;height:250px;&quot;&gt;';
+    strTarget += '&lt;w2:caption style=&quot;&quot; id=&quot;caption1&quot; value=&quot;this is a grid caption.&quot;&gt;&lt;/w2:caption&gt;';
+    strTarget += '&lt;w2:header style=&quot;&quot; id=&quot;header1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;row1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;column1&quot; value=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;column2&quot; value=&quot;secret&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; id=&quot;column3&quot; value=&quot;textImage&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;140&quot; inputType=&quot;text&quot; id=&quot;column4&quot; value=&quot;drilldown&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:header&gt;';
+    strTarget += '&lt;w2:gBody style=&quot;&quot; id=&quot;gBody1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;row2&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;text&quot; dataType=&quot;text&quot; id=&quot;col1&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;secret&quot; dataType=&quot;text&quot; id=&quot;col2&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; inputType=&quot;textImage&quot; viewType=&quot;icon&quot; imageSrc=&quot;/cm/images/base/ico_grid_filter.svg&quot; dataType=&quot;text&quot; id=&quot;col3&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;140&quot; inputType=&quot;drilldown&quot; depthColumn=&quot;depth&quot; depthStartIndex=&quot;1&quot; dataType=&quot;text&quot; id=&quot;col4&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:gBody&gt;';
+    strTarget += '&lt;/w2:gridView&gt;';
+
+    scwin.target1 = await $p.dynamicCreate(
+        &quot;target1&quot;,
+        &quot;gridView&quot;,
+        strTarget,
+        grp_comp
+    );
+
+    // 상/하 방향키 입력 후, 이동된 Cell 위치 + 편집 모드 여부 자동 출력
+    // (편집 모드에서는 키 이벤트가 셀 내부 편집 input 으로 가서 gridView onkeyup 프로퍼티 핸들러가 fire 되지 않으므로
+    //  document 에 capture-phase keyup 리스너를 1회 등록하여 편집 input 의 방향키 keyup 도 포착)
+    if (typeof scwin.moveKeyHandler === 'function') {
+        document.removeEventListener('keyup', scwin.moveKeyHandler, true);
+    }
+    scwin.moveKeyHandler = function (ev) {
+        let key = ev &amp;&amp; (ev.keyCode || ev.which);
+        // 상(38)/하(40) 방향키일 때만 이동 결과 출력
+        if (key !== 38 &amp;&amp; key !== 40) {
+            return;
+        }
+        // 현재 target1 그리드의 셀(또는 셀 내부 편집 input)에서 발생한 이벤트인지 확인
+        let gridEl = document.getElementById(scwin.target1.id);
+        if (!gridEl || !ev.target || !gridEl.contains(ev.target)) {
+            return;
+        }
+        let dir = key === 38 ? '상(ArrowUp)' : '하(ArrowDown)';
+        let row = scwin.target1.getFocusedRowIndex();
+        let col = scwin.target1.getFocusedColumnIndex();
+        let editing = scwin.target1.isEditing();
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[방향키 이동] &quot; + dir + &quot; → 이동된 Cell(row=&quot; + row + &quot;, col=&quot; + col + &quot;) 편집모드(isEditing)=&quot; + editing);
+    };
+    document.addEventListener('keyup', scwin.moveKeyHandler, true);
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="moveKeyEditMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_moveKeyEditMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="moveKeyEditModeAll" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_moveKeyEditModeAll" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="focusMove" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+											disabledClass="w2selectbox_disabled" id="con_focusMove" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item>
+													<xf:label><![CDATA[]]></xf:label>
+													<xf:value><![CDATA[]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[true]]></xf:label>
+													<xf:value><![CDATA[true]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[vertical]]></xf:label>
+													<xf:value><![CDATA[vertical]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[horizontal]]></xf:label>
+													<xf:value><![CDATA[horizontal]]></xf:value>
+												</xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+									<xf:group class="w2tb_td" tagname="td"></xf:group>
+								</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

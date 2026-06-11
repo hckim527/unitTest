@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeFocusedCell" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260610" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > mergeFocusedCell]<br/>포커스된 첫번째, 마지막 Cell 위치를 기준으로 Body Cell 을 직사각형 병합합니다.",
+    "validation" : [
+        "마지막에 포커스된 Cell 의 인덱스가 첫번째 포커스된 Cell 보다 작으면 병합되지 않습니다.",
+        "첫번째로 포커스된 Cell 을 시작점으로, 마지막에 포커스된 Cell 을 끝점으로 직사각형 영역이 병합됩니다.",
+        "해당 영역의 Cell 은 포커스 상태가 아니어도 모두 병합됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — 6행 x 5열, 각 Cell 값이 모두 다름(R{r}C{c}). 직사각형 병합 후 범위 내 값이 시작셀 값으로
+//  채워지는지(@sample) 확인 가능. mergeCells 기본 never(자동병합 없음) → 수동 직사각형 병합만 보임.
+//
+//   col   |  0   |  1   |  2   |  3   |  4
+//   행0   | R0C0 | R0C1 | R0C2 | R0C3 | R0C4
+//   행1   | R1C0 | R1C1 | R1C2 | R1C3 | R1C4
+//   ...                  (6행)
+scwin.GRID_DATA = (function () {
+    let arr = [];
+    for (let r = 0; r < 6; r++) {
+        let o = {};
+        for (let c = 0; c < 5; c++) o["col" + (c + 1)] = "R" + r + "C" + c;
+        arr.push(o);
+    }
+    return arr;
+})();
+
+
+
+// comp 생성 : useShiftKey=true(setFocusedMultiCell 필수), dataDragSelect=true, mergeCells 미지정(기본 never)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="6행 x 5열, 각 Cell 값=R{행}C{열}(모두 다름). fixedColumn=2 로 col0,col1 좌측 고정, 그리드 width 가 5컬럼 합보다 작아 가로 스크롤 발생(고정 영역 확인용). mergeCells 기본 never(자동병합 없음). 셀 드래그로 직사각형 범위 선택 → mergeFocusedCell 버튼으로 병합. 버튼으로 포커스 범위 설정 후 mergeFocusedCell 실행"', '', 'label1');
+
+    // 5열 DataList 인라인 생성 (공통 createDynamicDataList 는 col1~col4 만 정의하므로 직접 생성)
+    let dlNS = $c.gcm.getNameSpace();
+    let strDL = '';
+    strDL += '<w2:dataList ' + dlNS + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDL += '<w2:columnInfo>';
+    for (let c = 1; c <= 5; c++) {
+        strDL += '<w2:column id="col' + c + '" name="col' + c + '" dataType="text"></w2:column>';
+    }
+    strDL += '</w2:columnInfo>';
+    strDL += '<w2:data use="true"></w2:data>';
+    strDL += '</w2:dataList>';
+    $p.data.create(strDL);
+    let arrDC = $p.data.getAllDataCollection("object");
+    scwin["dlt_bind"] = arrDC[arrDC.length - 1];
+
+    // 검증용 데이터 적재
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    // useShiftKey=true, dataDragSelect=true(드래그로 직사각형 셀 범위 선택), fixedColumn=2(col0,col1 좌측 고정)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id,
+        useShiftKey: true,
+        dataDragSelect: true,
+        fixedColumn: 2
+    });
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" defaultCellHeight="30" id="" style="width:340px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeFocusedCell sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let c = 1; c <= 5; c++) {
+        strTarget += '<w2:column width="115" style="" inputType="text" id="column' + c + '" value="col' + (c - 1) + '"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    for (let c = 1; c <= 5; c++) {
+        strTarget += '<w2:column width="115" style="" inputType="text" id="col' + c + '" value=""></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 정상 병합 : (1,2)~(3,4) 비고정 영역 포커스 후 mergeFocusedCell() → 3x3 블록 병합 + 범위 내 셀이 시작셀(R1C2) 값
+scwin.btn_mergeNormal_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 포커스 범위 초기화 후 (1,2)~(3,4) 범위 포커스 설정
+    target1.removeFocusedCell();
+    target1.setFocusedMultiCell(1, 2, 3, 4);
+
+    target1.mergeFocusedCell();
+
+    bottom.setReturnValue("setFocusedMultiCell(1,2,3,4) 후 mergeFocusedCell() 실행 → 첫번째 포커스(1,2)~마지막 포커스(3,4) 직사각형 병합");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 역순(마지막 < 첫번째) 병합 안 됨 : (3,4)~(1,2) 포커스 후 mergeFocusedCell() → 병합되지 않음(@desc2)
+scwin.btn_mergeReverse_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.removeFocusedCell();
+    target1.setFocusedMultiCell(3, 4, 1, 2);
+
+    target1.mergeFocusedCell();
+
+    bottom.setReturnValue("setFocusedMultiCell(3,4,1,2)[역순] 후 mergeFocusedCell() 실행 → 마지막 인덱스(1,2)가 첫번째(3,4)보다 작아 병합 안 됨 기대");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 현재 포커스 그대로 병합 : 포커스를 프로그래밍적으로 설정하지 않고, 사용자가 그리드에서 직접 드래그/Shift 로
+//  선택한 현재 포커스 범위(첫/마지막 Cell)를 그대로 mergeFocusedCell() 로 직사각형 병합
+scwin.btn_mergeFocused_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 포커스를 설정하지 않고 현재 포커스 상태에서 바로 실행
+    target1.mergeFocusedCell();
+
+    bottom.setReturnValue("현재 포커스된 첫/마지막 Cell 기준으로 mergeFocusedCell() 실행 (포커스를 미설정, 사용자가 그리드에서 직접 선택한 범위를 그대로 병합)");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 고정+비고정 포커스 병합 : (1,0)~(2,3) 포커스 — 고정 col0,col1 + 비고정 col2,col3 포함 영역을
+//  mergeFocusedCell() 로 병합. 고정/비고정 영역이 모두 포함된 경우의 엔진 동작 확인용.
+scwin.btn_mergeFixed_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.removeFocusedCell();
+    target1.setFocusedMultiCell(1, 0, 2, 3);
+
+    target1.mergeFocusedCell();
+
+    bottom.setReturnValue("setFocusedMultiCell(1,0,2,3) 후 mergeFocusedCell() 실행 → 고정(col0,col1)+비고정(col2,col3) 영역 포함 범위 병합");
+    scwin.printMergeState(bottom);
+}
+
+
+
+// 병합 상태 확인 : 각 Body td 의 rowSpan/colSpan 을 읽어 블록(⬛)/세로(⬇)/가로(➡) 병합 그룹을 출력
+//  - td 셀렉터는 gid = target1.id 사용(e.target.id 는 버튼 id 라 사용 불가)
+//  - 흡수되어 표시되지 않는 td 와 중복 키는 제외
+scwin.printMergeState = function (bottom) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    let descs = [];
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let rs = td.rowSpan || 1;
+        let cs = td.colSpan || 1;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (rs > 1 || cs > 1) {
+            let val = (td.textContent || "").trim();
+            if (rs > 1 && cs === 1) {
+                descs.push("⬇ col" + c + " [행" + r + "~행" + (r + rs - 1) + "] 세로병합 = '" + val + "'");
+            } else if (cs > 1 && rs === 1) {
+                descs.push("➡ 행" + r + " [col" + c + "~col" + (c + cs - 1) + "] 가로병합 = '" + val + "'");
+            } else {
+                descs.push("⬛ [행" + r + "~행" + (r + rs - 1) + ", col" + c + "~col" + (c + cs - 1) + "] 블록병합(" + rs + "x" + cs + ") = '" + val + "'");
+            }
+        }
+    }
+
+    if (descs.length === 0) {
+        bottom.setReturnValue("병합된 셀 없음");
+    } else {
+        for (let d = 0; d < descs.length; d++) bottom.setReturnValue(descs[d]);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 6행은 height 안에 표시되지 않을 수 있어 스크롤은 유지하되, 빈 행 노출 방지를 위해 흡수 행 보정. */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: none !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeFocused_onclick" id="btn_mergeFocused"
+							label="mergeFocusedCell" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeNormal_onclick" id="btn_mergeNormal"
+							label="정상 병합 (1,2~3,4)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeReverse_onclick" id="btn_mergeReverse"
+							label="역순 병합 안 됨 (3,4~1,2)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeFixed_onclick" id="btn_mergeFixed"
+							label="고정+비고정 포커스 → mergeFocusedCell (1,0~2,3)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

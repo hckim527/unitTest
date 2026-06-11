@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] mergeRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : Body 가 MultiLine 일때 각 Line 의 Row 인덱스값이 같음을 시연하는 분리 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//     mergeRow(N, false) 로 레코드 N 을 byrow 자동병합 대상에서 제외 → mergeCells("byrow") 반영 시
+//     레코드 N 의 모든 Line(Line1/Line2)이 함께 병합 해제됨을 확인.
+//     즉 rowIndex 는 Line 단위가 아니라 데이터 레코드 단위(각 Line 의 rowIndex 동일).
+scwin.tData = {
+    "description" : "[gridView > M > mergeRow]<br/>Body Row 인덱스를 사용하여 특정 Row 를 자동 병합 대상에서 추가하거나 삭제합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line) + 각 Line 가로(byrow) 병합이 드러나도록 구성.
+//  한 레코드는 화면상 2개의 Line(TR)으로 렌더됨.
+//   Line1 : c1 | c2 | c3   (인접 동일값이면 가로병합)
+//   Line2 : c4 | c5 | c6   (인접 동일값이면 가로병합)
+//
+//  레코드 | Line1(c1,c2,c3)      | Line2(c4,c5,c6)
+//  ------+----------------------+----------------------
+//   0    | A , A , A  (c1~c3병합) | P , P , P  (c4~c6병합)
+//   1    | B , B , C  (c1~c2병합) | Q , Q , R  (c4~c5병합)
+//   2    | D , D , F  (c1~c2병합) | S , S , S  (c4~c6병합)
+//  · 모든 레코드가 자동 병합 대상이면 각 Line 의 인접 동일값이 가로병합됨.
+//  · mergeRow(N, false) 로 레코드 N 을 제외하면 그 레코드의 Line1·Line2 가 함께 병합 해제됨
+//    → 각 Line 의 rowIndex 가 동일(레코드 단위)함을 입증.
+scwin.MERGE_DATA = [
+    { "c1": "A", "c2": "A", "c3": "A", "c4": "P", "c5": "P", "c6": "P" },
+    { "c1": "B", "c2": "B", "c3": "C", "c4": "Q", "c5": "Q", "c6": "R" },
+    { "c1": "D", "c2": "D", "c3": "F", "c4": "S", "c5": "S", "c6": "S" }
+];
+
+
+
+// comp 생성 : MultiLine(레코드당 2 Line) + mergeCells="byrow" 그리드 1개를 동적 생성.
+//  ★ 초기에는 모든 레코드(Row)가 자동 병합 대상.
+//     (mergeRow(rowIndex, include) 로 특정 레코드를 추가/삭제하여 검증)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="MultiLine 구성(레코드당 2 Line): Line1=c1·c2·c3 / Line2=c4·c5·c6. mergeCells=byrow(가로병합). Row 인덱스는 레코드 단위(0~2)로 각 Line 동일. 초기엔 전체 레코드가 자동 병합 대상"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (6개 컬럼)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="c1" name="c1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c2" name="c2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c3" name="c3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c4" name="c4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c5" name="c5" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c6" name="c6" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.MERGE_DATA, false);
+
+    // mergeCells="byrow" (같은 Line 내 동일값 연속 Cell 을 colSpan(가로) 병합)
+    let properties = {
+        dataList: "data:dlt_bind",
+        mergeCells: "byrow",
+        defaultCellHeight: 30
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // MultiLine : header/gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:300px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="mergeRow MultiLine sample"></w2:caption>';
+    // Header : Line1(c1,c2,c3) / Line2(c4,c5,c6)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c1" value="c1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c2" value="c2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c3" value="c3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c4" value="c4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c5" value="c5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c6" value="c6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(c1,c2,c3) / Line2(c4,c5,c6) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c1" dataList="c1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c2" dataList="c2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c3" dataList="c3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c4" dataList="c4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c5" dataList="c5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c6" dataList="c6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// rowIndex 파라미터 수집 (레코드 인덱스 Number)
+scwin.getRowIndexParam = function () {
+    return Number(par_rowIndex.getValue());
+};
+
+
+
+// include 파라미터 수집 (par_include 는 gdl_boolean 바인딩)
+//  ★ value 는 인덱스('1'/'2'/'3') 이고 의미는 label('','true','false') 이므로 getText() 로 판정.
+//     ('' → 생략, 'true' → true, 'false' → false)  (getValue() 오용 시 판정 오류 발생)
+//  반환 : { omit:true } (생략) 또는 { omit:false, value:Boolean }
+scwin.getIncludeParam = function () {
+    let t = par_include.getText();
+    if (t === '' || t === undefined || t === null) return { omit: true };
+    return { omit: false, value: (t === 'true') };
+};
+
+
+
+// mergeRow + 병합실행 : mergeRow(rowIndex[, include]) 호출 후 mergeCells("byrow") 로 반영
+//  · MultiLine 이므로 rowIndex 는 레코드 단위 → 해당 레코드의 모든 Line 이 함께 처리됨.
+scwin.btn_mergeRowRun_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let rowIndex = scwin.getRowIndexParam();
+    let inc = scwin.getIncludeParam();
+
+    if (inc.omit) {
+        // include(선택) 생략 → 기본값 true
+        target1.mergeRow(rowIndex);
+        bottom.setReturnValue("호출 : target1.mergeRow(" + rowIndex + ")  // include 생략 → 기본값 true");
+    } else {
+        target1.mergeRow(rowIndex, inc.value);
+        bottom.setReturnValue("호출 : target1.mergeRow(" + rowIndex + ", " + inc.value + ")");
+    }
+
+    // 병합 실행 메소드(mergeCells) 를 별도 실행해야 화면에 반영됨
+    target1.mergeCells("byrow");
+    bottom.setReturnValue("병합 실행 : target1.mergeCells('byrow')");
+
+    scwin.printMultiLineMergeState(bottom);
+}
+
+
+
+// MultiLine 병합 상태 확인 : 각 Body td 의 colSpan 을 읽어 레코드(rowIndex) → Line 별 가로병합 여부를 출력.
+//  · td id 는 _cell_{rowIndex}_{colIndex} 이며 MultiLine 이어도 rowIndex 는 레코드 단위로 동일.
+//    (Line1 의 c1~c3, Line2 의 c4~c6 가 같은 rowIndex 를 공유)
+//  · 셀렉터는 gid = target1.id 사용 (e.target.id 는 버튼 id 라 사용 불가)
+scwin.printMultiLineMergeState = function (bottom) {
+    let gid = target1.id;
+    let tds = document.querySelectorAll("td[id*='" + gid + "_cell_']");
+    if (tds.length === 0) {
+        bottom.setReturnValue("body cell td 를 찾을 수 없습니다.");
+        return;
+    }
+
+    // rowIndex → 가로병합된 colSpan 그룹 수집
+    let mergedByRow = {};     // rowIndex → true (해당 레코드에 가로병합 존재)
+    let lineMergedByRow = {}; // rowIndex → { line1:bool, line2:bool } (Line 별 가로병합)
+    let seen = {};
+
+    for (let i = 0; i < tds.length; i++) {
+        let td = tds[i];
+        // 흡수(display:none/offsetParent null) td 제외
+        if (getComputedStyle(td).display === 'none' || td.offsetParent === null) continue;
+        let m = td.id.match(/_cell_(\d+)_(\d+)/);
+        if (!m) continue;
+        let r = Number(m[1]), c = Number(m[2]);
+        let key = r + "_" + c;
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        if (!lineMergedByRow[r]) lineMergedByRow[r] = { line1: false, line2: false };
+        let cs = td.colSpan || 1;
+        if (cs > 1) {
+            mergedByRow[r] = true;
+            // Line 구분 : Line1 = c1~c3(colIndex 0~2), Line2 = c4~c6(colIndex 3~5)
+            if (c <= 2) lineMergedByRow[r].line1 = true;
+            else lineMergedByRow[r].line2 = true;
+        }
+    }
+
+    // 레코드별 각 Line 가로병합 여부 출력 (각 Line 이 동일 rowIndex 로 함께 처리됨을 입증)
+    let rowCnt = scwin.MERGE_DATA.length;
+    for (let ri = 0; ri < rowCnt; ri++) {
+        let lm = lineMergedByRow[ri] || { line1: false, line2: false };
+        bottom.setReturnValue("레코드(rowIndex) " + ri + " → Line1 가로병합:" + lm.line1 + " / Line2 가로병합:" + lm.line2);
+    }
+
+    // mergeRow 대상 상태 : 레코드(rowIndex)별 자동 병합 대상 여부.
+    //  · target1.mergeRowObj[index] === false → 대상에서 삭제됨(X), 그 외(undefined/true) → 대상 O(기본)
+    let mro = target1.mergeRowObj || {};
+    let targetDescs = [];
+    for (let ri = 0; ri < rowCnt; ri++) {
+        let isTarget = (mro[ri] !== false);
+        targetDescs.push("rowIndex" + ri + ":" + (isTarget ? "O" : "X"));
+    }
+    bottom.setReturnValue("[mergeRow 대상] " + targetDescs.join(" / ") + "  // O=병합대상 / X=대상에서 삭제(include false). MultiLine 이어도 rowIndex 는 레코드 단위(각 Line 동일)");
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 병합 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(3레코드)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 행 높이 보정 (숨김 Row 제외) */
+tr.grid_body_row:not(.w2grid_hidedRow) { height: 30px !important; }
+tr.grid_body_row:not(.w2grid_hidedRow) > td { height: 30px; }
+/* 마지막 Row 가 병합에 흡수될 때 엔진이 그 TR 을 display:none(w2grid_hidedRow)으로 숨기는 현상 보정 */
+tr.grid_body_row.w2grid_lastRow.w2grid_hidedRow { display: table-row !important; height: 30px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0 (레코드0)</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1 (레코드1)</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2 (레코드2)</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="include (선택, 기본 true)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_include" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_mergeRowRun_onclick" id="btn_mergeRowRun"
+							label="mergeRow + 병합실행(mergeCells)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

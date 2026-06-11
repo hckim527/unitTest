@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] titleFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260611" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; P &gt; titleFormatter]&lt;br/&gt;Body 영역의 각 Cell 에 title 속성을 동적 생성하기 위한 사용자 정의 함수를 설정합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;titleFormatter 속성을 설정하면 titleAuto 속성은 무시됩니다.&quot;,
+        &quot;사용자 정의 함수를 설정하면 각 Cell 의 title 속성값을 생성하며, 함수는 처리중인 Cell 의 Row 인덱스, Column 인덱스, Cell 의 원본값을 파라미터로 전달받고 반환값이 처리중인 Cell 의 title 속성값으로 적용됩니다.&quot;,
+        &quot;반환값을 생략하면 처리중인 Cell 의 title 속성값에 undefined 가 설정됩니다.&quot;,
+        &quot;titleFormatter 속성에 설정된 사용자 정의 함수는 Body 영역의 전체 Cell 에 적용됩니다.&quot;,
+        &quot;SubTotal Row 에는 적용되지 않습니다.&quot;,
+        &quot;Cell 의 inputType 속성값이 'expression','drilldown','spinner','custom' 인 경우엔 사용자 정의 함수가 동작하지 않습니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 값 읽기 (미설정이면 속성 미부여 = 기본값)
+    let titleFormatterVal = con_titleFormatter.getValue();
+    let titleAutoVal = con_titleAuto.getValue();
+
+    // 동작 조건/현재 설정 라벨 생성
+    $c.gcm.createLabel('label=&quot;titleFormatter 함수는 각 Cell 의 Row 인덱스, Column 인덱스, 원본값을 받아 title 을 생성합니다.&quot;', '', 'label1');
+    $c.gcm.createLabel('label=&quot;현재 설정: titleFormatter=' + (titleFormatterVal === '' ? '미설정' : '설정') + ' / titleAuto=' + (titleAutoVal === '' ? '미설정' : titleAutoVal) + '&quot;', '', 'label2');
+
+    // dataList 직접 생성 (그룹 기준 dept 가 연속되도록 정렬, 빈 행 0)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '&lt;w2:dataList ' + strNameSpace + ' id=&quot;dlt_bind&quot; baseNode=&quot;list&quot; repeatNode=&quot;map&quot;&gt;';
+    strDl += '&lt;w2:columnInfo&gt;';
+    strDl += '&lt;w2:column id=&quot;dept&quot; name=&quot;dept&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;col1&quot; name=&quot;col1&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;col2&quot; name=&quot;col2&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;col3&quot; name=&quot;col3&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;colExpr&quot; name=&quot;colExpr&quot; dataType=&quot;number&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;colDrill&quot; name=&quot;colDrill&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;colSpin&quot; name=&quot;colSpin&quot; dataType=&quot;number&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;colCust&quot; name=&quot;colCust&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;w2:column id=&quot;amount&quot; name=&quot;amount&quot; dataType=&quot;number&quot;&gt;&lt;/w2:column&gt;';
+    strDl += '&lt;/w2:columnInfo&gt;';
+    strDl += '&lt;w2:data use=&quot;true&quot;&gt;';
+    // [dept, col1, col2, col3, colExpr, colDrill, colSpin, colCust, amount]
+    // col3 에는 각 행 실제(비어있지 않은) 값(Val0~Val3)을 부여 → 셀 데이터는 존재하지만
+    // titleFormatter 함수가 col3 분기에서 반환값을 생략하므로 title=undefined 가 됨을 명확히 실증
+    // colSpin(숫자: 1,2,3,4)을 expression 컬럼(colExpr)이 참조 (colExpr = colSpin * 100)
+    let rows = [
+        ['Sales', 'Apple',  'Banana', 'Val0', 10, 'Drill1', 1, 'Cust1', 100],
+        ['Sales', 'Grape',  'Melon',  'Val1', 20, 'Drill2', 2, 'Cust2', 200],
+        ['Dev',   'Orange', 'Peach',  'Val2', 30, 'Drill3', 3, 'Cust3', 300],
+        ['Dev',   'Mango',  'Kiwi',   'Val3', 40, 'Drill4', 4, 'Cust4', 400]
+    ];
+    for (let r = 0; r &lt; rows.length; r++) {
+        strDl += '&lt;w2:row&gt;';
+        strDl += '&lt;dept&gt;&lt;![CDATA[' + rows[r][0] + ']]&gt;&lt;/dept&gt;';
+        strDl += '&lt;col1&gt;&lt;![CDATA[' + rows[r][1] + ']]&gt;&lt;/col1&gt;';
+        strDl += '&lt;col2&gt;&lt;![CDATA[' + rows[r][2] + ']]&gt;&lt;/col2&gt;';
+        strDl += '&lt;col3&gt;&lt;![CDATA[' + rows[r][3] + ']]&gt;&lt;/col3&gt;';
+        strDl += '&lt;colExpr&gt;&lt;![CDATA[' + rows[r][4] + ']]&gt;&lt;/colExpr&gt;';
+        strDl += '&lt;colDrill&gt;&lt;![CDATA[' + rows[r][5] + ']]&gt;&lt;/colDrill&gt;';
+        strDl += '&lt;colSpin&gt;&lt;![CDATA[' + rows[r][6] + ']]&gt;&lt;/colSpin&gt;';
+        strDl += '&lt;colCust&gt;&lt;![CDATA[' + rows[r][7] + ']]&gt;&lt;/colCust&gt;';
+        strDl += '&lt;amount&gt;&lt;![CDATA[' + rows[r][8] + ']]&gt;&lt;/amount&gt;';
+        strDl += '&lt;/w2:row&gt;';
+    }
+    strDl += '&lt;/w2:data&gt;';
+    strDl += '&lt;/w2:dataList&gt;';
+    $p.data.create(strDl);
+
+    // titleFormatter / titleAuto 속성 (미설정 시 속성 미부여 = 기본값)
+    // titleFormatter 설정 시: scwin.target1_titleFormatter 함수를 부여
+    let titleFormatterAttr = titleFormatterVal === '' ? '' : 'titleFormatter=&quot;scwin.target1_titleFormatter&quot; ';
+    let titleAutoAttr = titleAutoVal === '' ? '' : 'titleAuto=&quot;' + titleAutoVal + '&quot; ';
+
+    // target 생성 (Header inputType=text + Body inputType 혼합 + SubTotal Row)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '&lt;w2:gridView ' + strNameSpace + ' ' + titleFormatterAttr + titleAutoAttr + 'checkAllType=&quot;false&quot; dataList=&quot;data:dlt_bind&quot; id=&quot;&quot; style=&quot;width:980px;height:320px;&quot;&gt;';
+    strTarget += '&lt;w2:caption style=&quot;&quot; id=&quot;caption1&quot; value=&quot;titleFormatter 테스트 그리드&quot;&gt;&lt;/w2:caption&gt;';
+    // Header : 모든 컬럼 inputType=text
+    strTarget += '&lt;w2:header style=&quot;&quot; id=&quot;header1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;hrow1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;90&quot;  inputType=&quot;text&quot; id=&quot;hdept&quot; value=&quot;부서&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; id=&quot;hcol1&quot; value=&quot;텍스트1&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; id=&quot;hcol2&quot; value=&quot;텍스트2&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; id=&quot;hcol3&quot; value=&quot;반환생략&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;100&quot; inputType=&quot;text&quot; id=&quot;hcolExpr&quot; value=&quot;expression&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;100&quot; inputType=&quot;text&quot; id=&quot;hcolDrill&quot; value=&quot;drilldown&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;90&quot;  inputType=&quot;text&quot; id=&quot;hcolSpin&quot; value=&quot;spinner&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot;   inputType=&quot;text&quot; id=&quot;hcolCust&quot; value=&quot;custom&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:header&gt;';
+    // Body : inputType 혼합 (text 3 + expression/drilldown/spinner/custom)
+    strTarget += '&lt;w2:gBody style=&quot;&quot; id=&quot;gBody1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;brow1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;90&quot;  inputType=&quot;text&quot; dataType=&quot;text&quot; id=&quot;dept&quot; dataList=&quot;dept&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; dataType=&quot;text&quot; id=&quot;col1&quot; dataList=&quot;col1&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; dataType=&quot;text&quot; id=&quot;col2&quot; dataList=&quot;col2&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; dataType=&quot;text&quot; id=&quot;col3&quot; dataList=&quot;col3&quot;&gt;&lt;/w2:column&gt;';
+    // V6: expression — titleFormatter 함수 미동작. 식은 숫자 데이터 컬럼 colSpin 을 display() 로 참조(colSpin * 100)하여 각 행 유효 숫자 산출
+    strTarget += '&lt;w2:column width=&quot;100&quot; inputType=&quot;expression&quot; dataType=&quot;number&quot; displayFormat=&quot;#,###&quot; id=&quot;colExpr&quot; expression=&quot;Number(display(\'colSpin\')) * 100&quot;&gt;&lt;/w2:column&gt;';
+    // V6: drilldown — 함수 미동작
+    strTarget += '&lt;w2:column width=&quot;100&quot; inputType=&quot;drilldown&quot; dataType=&quot;text&quot; id=&quot;colDrill&quot; dataList=&quot;colDrill&quot;&gt;&lt;/w2:column&gt;';
+    // V6: spinner — 함수 미동작
+    strTarget += '&lt;w2:column width=&quot;90&quot;  inputType=&quot;spinner&quot; dataType=&quot;number&quot; viewType=&quot;icon&quot; id=&quot;colSpin&quot; dataList=&quot;colSpin&quot;&gt;&lt;/w2:column&gt;';
+    // V6: custom — 함수 미동작 (typeGetter 로 실제 custom 렌더 구성 → text 폴백 방지, titleFormatter 미적용 실증)
+    strTarget += '&lt;w2:column width=&quot;*&quot;   inputType=&quot;custom&quot; dataType=&quot;text&quot; id=&quot;colCust&quot; dataList=&quot;colCust&quot; typeGetter=&quot;scwin.target1_custTypeGetter&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:gBody&gt;';
+    // SubTotal : dept 기준 소계 Row (titleFormatter 가 적용되지 않아야 함 = V5)
+    strTarget += '&lt;w2:subTotal style=&quot;&quot; id=&quot;subTotal1&quot; targetColumnID=&quot;dept&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;srow1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;90&quot;  inputType=&quot;text&quot; id=&quot;sdept&quot; value=&quot;소계&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; id=&quot;scol1&quot; value=&quot;&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; id=&quot;scol2&quot; value=&quot;&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;110&quot; inputType=&quot;text&quot; id=&quot;scol3&quot; value=&quot;&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;100&quot; inputType=&quot;text&quot; id=&quot;scolExpr&quot; value=&quot;&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;100&quot; inputType=&quot;text&quot; id=&quot;scolDrill&quot; value=&quot;&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;90&quot;  inputType=&quot;text&quot; id=&quot;scolSpin&quot; value=&quot;&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot;   inputType=&quot;expression&quot; dataType=&quot;number&quot; displayFormat=&quot;#,###&quot; id=&quot;scolCust&quot; expression=&quot;sum(\'amount\')&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:subTotal&gt;';
+    strTarget += '&lt;/w2:gridView&gt;';
+
+    scwin.target1 = await $p.dynamicCreate(
+        &quot;target1&quot;,
+        &quot;gridView&quot;,
+        strTarget,
+        grp_comp
+    );
+
+    // 생성 직후 각 Body Cell 의 title 속성을 읽어 함수 반환값과 비교 출력 (검증 자동 출력)
+    scwin.printTitleResult();
+}
+
+
+
+// titleFormatter 사용자 정의 함수 (con_titleFormatter=설정 시에만 부여)
+// 처리중 Cell 의 Row 인덱스, Column 인덱스, Cell 원본값을 파라미터로 전달받고 반환값이 title 로 적용됨
+scwin.target1_titleFormatter = function (rowIndex, colIndex, data) {
+    if (colIndex === 1) {
+        // col1(text) : Row 인덱스 + 원본값
+        return 'Row ' + rowIndex + ': ' + data;
+    } else if (colIndex === 2) {
+        // col2(text) : Amount 라벨 + 원본값
+        return 'Amount: ' + data;
+    } else if (colIndex === 3) {
+        // col3(text) : 셀에 값(data=Val0~Val3)이 존재하지만 사용자 정의 함수가 반환값을 생략 → title 에 undefined 설정 (V3)
+        return;
+    }
+    // 그 외 컬럼(dept 등) : 원본값 그대로 반환
+    return data;
+};
+
+
+
+// colCust(inputType=custom) 셀 타입 동적 구성 함수
+// typeGetter 를 지정하여 셀을 실제 custom 렌더(내부 text 컴포넌트)로 구성한다.
+// 이로써 custom 컬럼이 text 셀로 폴백되지 않으며, 엔진의 custom setInnerHTML 경로에는
+// titleFormatter 호출이 없으므로 colCust 셀에는 title 속성이 적용되지 않는다 (V6 실증).
+scwin.target1_custTypeGetter = function (info) {
+    // info : { colID, colIndex, rowIndex, realRowIndex } - 셀 원본값을 내부 text 셀로 표시
+    return {
+        id: 'dynamic_custom_' + info.rowIndex + '_' + info.colIndex,
+        inputType: 'text',
+        options: { textAlign: 'left' }
+    };
+};
+
+
+
+// 각 Body Cell 의 td title 속성을 읽어 결과창에 출력
+scwin.printTitleResult = function () {
+    let gridId = scwin.target1.id;
+    let titleFormatterVal = con_titleFormatter.getValue();
+    let titleAutoVal = con_titleAuto.getValue();
+
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[설정] titleFormatter=&quot; + (titleFormatterVal === '' ? '미설정' : '설정') + &quot; / titleAuto=&quot; + (titleAutoVal === '' ? '미설정' : titleAutoVal));
+
+    // 검증 대상 컬럼 (col1~col3 일반 text + V6 컬럼)
+    let cols = [
+        { col: 'col1', label: 'text(Row n: data)' },
+        { col: 'col2', label: 'text(Amount: data)' },
+        { col: 'col3', label: 'text(셀값 존재+반환생략)' },
+        { col: 'colExpr', label: 'expression' },
+        { col: 'colDrill', label: 'drilldown' },
+        { col: 'colSpin', label: 'spinner' },
+        { col: 'colCust', label: 'custom(typeGetter→내부 text 셀)' }
+    ];
+
+    // Body 데이터 Row 0 의 각 컬럼 title 을 출력 (V2/V3/V4/V6)
+    let r = 0;
+    for (let i = 0; i &lt; cols.length; i++) {
+        let colIdx = scwin.target1.getColumnIndex(cols[i].col);
+        let td = document.querySelector(&quot;td[id*='&quot; + gridId + &quot;_cell_&quot; + r + &quot;_&quot; + colIdx + &quot;']&quot;);
+        let titleVal = '(td 미검출)';
+        if (td) {
+            // td 자체 title 우선, 없으면 내부 요소 title
+            let tv = td.getAttribute('title');
+            if (tv === null) {
+                let inner = td.querySelector('[title]');
+                tv = inner ? inner.getAttribute('title') : null;
+            }
+            titleVal = (tv === null ? '(title 속성 없음)' : &quot;'&quot; + tv + &quot;'&quot;);
+        }
+        // 셀 데이터(원본값)를 함께 출력 → 특히 col3 는 셀에 값이 있어도 함수 반환 생략으로 title=undefined 임을 명확화
+        let cellData = scwin.target1.getCellData(r, colIdx);
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[Row&quot; + r + &quot; &quot; + cols[i].label + &quot;] 셀데이터='&quot; + cellData + &quot;' / title=&quot; + titleVal);
+    }
+
+    // [엔진/가이드 불일치 보고] custom 컬럼은 typeGetter 로 실제 custom 렌더(내부 text 셀)로 구성되었으나,
+    // 내부 위임 셀(비-embedded text)이 grid 의 titleFormatter 를 적용하여 td title 이 설정됨.
+    // 반면 expression / drilldown / spinner 는 title 미적용으로 V6 일치. custom 만 가이드와 불일치.
+    if (titleFormatterVal !== '') {
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[불일치] custom: 가이드는 사용자 정의 함수 미동작이나, 내부 위임 셀이 titleFormatter 를 적용해 title 이 설정됨 (expression/drilldown/spinner 는 미적용으로 일치)&quot;);
+    }
+
+    // SubTotal Row 의 셀 title 확인 (V5: 미적용)
+    let subTr = document.querySelector(&quot;tr[id='srow1']&quot;) || document.querySelector(&quot;tr[id$='srow1']&quot;);
+    let subTitleInfo = '(SubTotal Row 미검출)';
+    if (subTr) {
+        let subTds = subTr.querySelectorAll('td');
+        let titled = 0;
+        for (let s = 0; s &lt; subTds.length; s++) {
+            let tv = subTds[s].getAttribute('title');
+            if (tv !== null &amp;&amp; tv !== '') titled++;
+        }
+        subTitleInfo = 'title 가 부여된 셀 수=' + titled + ' / 전체 셀 수=' + subTds.length;
+    }
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[SubTotal Row] &quot; + subTitleInfo + &quot; (V5: 0 = title 미적용 기대)&quot;);
+};</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="titleFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_titleFormatter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[설정]]></xf:label>
+												<xf:value><![CDATA[설정]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="titleAuto" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_titleAuto" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
