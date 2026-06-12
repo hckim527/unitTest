@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] autoFitCellMinWidth" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > autoFitCellMinWidth]<br/>autoFit='allColumn' 일때 AutoFit 적용 방식이 변경되는 최소 Column 너비를 설정합니다.",
+    "validation" : [
+        "autoFitCellMinWidth 속성을 설정하면 autoFitMinWidth 속성은 무시됩니다.",
+        "AutoFit 적용 방식이 변경되는 최소 Column 너비를 픽셀(px) 단위로 설정합니다.",
+        "0 보다 큰 값을 설정하여야 하며, 유효하지 않은 값을 설정하면 autoFitCellMinWidth 속성이 무시됩니다.",
+        "'{설정값} * (전체 Column 수 - 숨겨진 Column 수) + 기본 Column(rowNum/rowStatus) 너비 합계' 계산식으로 기준값을 산출합니다.",
+        "GridView 너비가 기준값보다 크면 GridView 너비에 맞게 AutoFit 기능이 적용됩니다.",
+        "GridView 너비가 기준값보다 작으면 GridView 내부 너비가 기준값만큼 확장된 후 가로 스크롤바가 표시되고, 내부 너비에 맞게 AutoFit 기능이 적용됩니다.",
+        "setColumnVisible() 메소드로 Column 을 표시/숨김 처리할 경우 AutoFit 기능의 적용 여부가 다시 계산됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 본 Property 는 autoFit='allColumn' 환경에서만 동작하므로 properties 에 autoFit:'allColumn' 을 항상 함께 설정
+//  - autoFitCellMinWidth 는 con_autoFitCellMinWidth(xf:select1) 선택값(px)을 그대로 전달 (Number 타입, dynamic=N → 생성 시점 적용)
+//  - 미설정(빈 항목 선택) 케이스: properties.autoFitCellMinWidth 키 자체를 추가하지 않음
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_ 설정값 수집 (xf:select1 선택값, 빈값이면 미설정)
+    //  - '' 미설정 / '60' 작은값(기준값<500px) / '200' 큰값(기준값>500px) / '0' 유효하지 않은 값(0보다 크지 않아 속성 무시)
+    let vCellMinWidth = con_autoFitCellMinWidth.getValue();
+    // autoFitMinWidth : override 검증용 con 옵션 baseline ('' 미설정 / '2000'). autoFitCellMinWidth 유효값이면 무시됨.
+    let vMinWidth = con_autoFitMinWidth.getValue();
+
+    // dataList 바인딩 (4행) + autoFit='allColumn' (본 속성 동작 전제조건)
+    let properties = {
+        dataList: "data:dlt_bind",
+        autoFit: "allColumn",
+    };
+
+    // autoFitCellMinWidth : 미설정('') 이면 속성 자체를 추가하지 않음
+    if (vCellMinWidth !== '' && vCellMinWidth !== null && vCellMinWidth !== undefined) {
+        properties.autoFitCellMinWidth = vCellMinWidth;
+    }
+
+    // autoFitMinWidth : override 검증용 con 옵션 baseline (autoFitCellMinWidth 유효값이면 무시됨). 미설정('') 이면 키 미추가
+    if (vMinWidth !== '' && vMinWidth !== null && vMinWidth !== undefined) {
+        properties.autoFitMinWidth = vMinWidth;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    //  - GridView 너비 500px, 4 Column. 기준값 = 설정값 * (전체Column수 - 숨김Column수) + 기본Column(rowStatus) 너비 합계
+    //  - 미설정 또는 0(유효하지 않은 값) → 속성 무시 (AutoFit 적용 방식 변경 없음)
+    //  - 60(작은값) → 기준값 < 500px → GridView 너비에 맞게 AutoFit (가로 스크롤 없음)
+    //  - 200(큰값) → 기준값 > 500px → 내부 너비가 기준값만큼 확장 + 가로 스크롤바 표시
+    $c.gcm.createLabel('label="[전제] autoFit=allColumn / GridView 500px / Column 4개. 현재 autoFitCellMinWidth=' + (vCellMinWidth === '' ? '(미설정)' : vCellMinWidth) + ' / autoFitMinWidth=' + (vMinWidth === '' ? '(미설정)' : vMinWidth) + '. autoFitCellMinWidth 유효값이면 그 기준값으로 적용(autoFitMinWidth 무시), 미설정/0이면 autoFitMinWidth 적용."', '', 'label1');
+
+    // dataList 생성 (4행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, '');
+}
+
+
+
+// 기준값 계산식과 실제 적용 결과(컬럼 너비 / 내부 너비 / 가로 스크롤 발생 여부) 확인
+//  - 기준값 = autoFitCellMinWidth * (전체 Column 수 - 숨김 Column 수) + 기본 Column(rowNum/rowStatus) 너비 합계
+//  - GridView 너비(500px)와 기준값 비교 결과에 따라 AutoFit 적용 방식이 달라짐
+scwin.btn_checkBaseWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let cellMinWidth = target1.options.autoFitCellMinWidth;
+    bottom.setReturnValue("[옵션] autoFit : " + target1.options.autoFit + " / autoFitCellMinWidth : " + (cellMinWidth === '' ? "(미설정)" : cellMinWidth) + " / autoFitMinWidth : " + (target1.options.autoFitMinWidth === '' ? "(미설정)" : target1.options.autoFitMinWidth));
+
+    // 각 Column 의 실제 너비 (헤더 th id 는 1부터, Column 인덱스는 0 부터)
+    let widths = [];
+    let totalWidth = 0;
+    for (var i = 0; i < 4; i++) {
+        let th = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (th && target1.getColumnVisible(i)) {
+            widths.push("Column(" + i + ") : " + th.offsetWidth + "px");
+            totalWidth += th.offsetWidth;
+        }
+    }
+    bottom.setReturnValue(widths.join(" / "));
+
+    // GridView 내부 body 테이블 너비 (큰값일 때 기준값만큼 확장됨)
+    let bodyTable = document.querySelector("[id*='target1_body_table']");
+    let innerWidth = bodyTable ? bodyTable.offsetWidth : 0;
+
+    // 가로 스크롤바 표시 여부 (엔진은 _scrollX_div 영역 높이로 가로 스크롤 표시를 결정)
+    let scrollXDiv = document.querySelector("[id*='target1_scrollX_div']");
+    let hasXScroll = scrollXDiv ? (scrollXDiv.offsetHeight > 0) : false;
+
+    bottom.setReturnValue("Column 너비 합 : " + totalWidth + "px / GridView 내부 너비 : " + innerWidth + "px / 가로 스크롤바 발생 : " + hasXScroll);
+}
+
+
+
+// setColumnVisible() 으로 Column 표시/숨김 처리 시 AutoFit 적용 여부가 재계산되는지 확인 (@spec)
+//  - 숨김 Column 수가 바뀌면 기준값 계산식의 (전체 Column 수 - 숨김 Column 수) 항이 변하여 적용 여부가 재계산됨
+scwin.btn_toggleColumnVisible_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 현재 Column(1) 표시 상태 토글 (엔진 getColumnVisible 로 판단 - 숨김 시 th 가 DOM 에 잔존하므로 offsetParent 로는 불가)
+    let isVisible = target1.getColumnVisible(1);
+
+    target1.setColumnVisible(1, !isVisible);
+    bottom.setReturnValue("setColumnVisible(1, " + (!isVisible) + ") 호출 → Column(1) " + (!isVisible ? "표시" : "숨김"));
+
+    // 재계산된 각 Column 너비 / 가로 스크롤 발생 여부 확인
+    let widths = [];
+    for (var i = 0; i < 4; i++) {
+        let th = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (th) {
+            let w = (!target1.getColumnVisible(i)) ? "숨김" : (th.offsetWidth + "px");
+            widths.push("Column(" + i + ") : " + w);
+        }
+    }
+    // 가로 스크롤바 표시 여부 (엔진은 _scrollX_div 영역 높이로 가로 스크롤 표시를 결정)
+    let scrollXDiv = document.querySelector("[id*='target1_scrollX_div']");
+    let hasXScroll = scrollXDiv ? (scrollXDiv.offsetHeight > 0) : false;
+    bottom.setReturnValue("AutoFit 재계산 → " + widths.join(" / ") + " / 가로 스크롤바 발생 : " + hasXScroll);
+}
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFitCellMinWidth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_autoFitCellMinWidth" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>60 (작은값)</xf:label>
+												<xf:value>60</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>200 (큰값)</xf:label>
+												<xf:value>200</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0 (유효하지 않은 값)</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFitMinWidth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_autoFitMinWidth" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2000</xf:label>
+												<xf:value>2000</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkBaseWidth_onclick" id="btn_checkBaseWidth"
+							label="기준값/너비 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_toggleColumnVisible_onclick" id="btn_toggleColumnVisible"
+							label="컬럼 표시/숨김 토글" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] autoFit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > autoFit]<br/>GridView 컴포넌트의 너비에 맞게 각 Column 의 너비를 자동으로 조정할지 설정합니다.",
+    "validation" : [
+        "AutoFit 기능이 설정되면 Column 또는 GridView 의 너비가 변경될때 설정값에 맞게 자동으로 Column 너비가 재조정됩니다.",
+        "'none'(기본값) 이면 Column 의 너비를 자동으로 조정하지 않습니다. (Column 의 너비는 디자인 시 정의된 상태를 유지하며 컴포넌트의 너비를 벗어난 경우 가로 스크롤바가 표시됩니다.)",
+        "'allColumn' 이면 각 Column 의 너비 비율은 유지하며 Column 의 너비를 조정하여 컴포넌트에 한번에 표시되게 합니다.",
+        "'allColumn' 일때 특정 Column 의 너비를 변경하면 나머지 Column 은 너비의 비율을 유지하며 재조정됩니다.",
+        "'lastColumn' 이면 마지막 Column 의 너비만 조정하여 컴포넌트의 남는 여백을 채워 Column 이 컴포넌트에 모두 표시되게 합니다.",
+        "'lastColumn' 일때 특정 Column 의 너비를 변경하면 마지막 Column 의 너비가 함께 변경되며 특정 너비를 벗어나면 컴포넌트에 가로 스크롤바가 표시됩니다.",
+        "'lastColumn' 일때 전체 Column 이 컴포넌트에 한번에 표시되지 않는 상태(가로 스크롤 표시)이면 Column 의 너비를 자동으로 조정하지 않습니다.",
+        "세로 스크롤바가 표시될 경우 스크롤바 영역을 제외한 너비를 기준으로 Column 의 너비가 조정됩니다.",
+        "setColumnVisible(), setRowNumVisible(), setRowStatusVisible() 메소드로 Column 의 표시/숨김이 바뀌면 Column 의 너비가 재조정됩니다.",
+        "disabled, readOnly, focus 등 활성/비활성 상태에 관계없이 AutoFit 기능은 동일하게 동작합니다.",
+        "autoFit 속성을 'none' 이외의 값으로 설정하면 GridView 의 너비가 변경될때 Column 의 너비가 자동 재조정됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_ 설정값 수집
+    //  - con_autoFit : none/allColumn/lastColumn enum (getValue)
+    //                  '' 미설정(속성 자체 미적용, 기본 none) / 'none' / 'allColumn' / 'lastColumn'
+    //  - con_colWidth : 각 Column 의 너비(px). '70' → 4컬럼 합 280<500 여백 / '150' → 합 600>500 초과(가로 스크롤)
+    let vAutoFit = con_autoFit.getValue();
+    let vColWidth = con_colWidth.getValue();
+
+    // dataList 바인딩 (4행)
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+
+    // autoFit : 미설정('') 이면 속성 자체를 추가하지 않음(기본 none)
+    if (vAutoFit !== '') {
+        properties.autoFit = vAutoFit;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 컬럼 합계 / 초과 여부 (안내 라벨용)
+    let nColTotal = parseInt(vColWidth, 10) * 4;
+    let bOverflow = nColTotal > 500;
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    //  - GridView 너비 500px. con_colWidth 70 → 합 280px 여백 / 150 → 합 600px 초과(가로 스크롤)
+    $c.gcm.createLabel('label="autoFit=' + (vAutoFit === '' ? '(미설정)' : vAutoFit) + ' / 컬럼 너비 ' + vColWidth + 'px (4컬럼 합 ' + nColTotal + 'px) ' + (bOverflow ? '→ GridView 너비 500px 초과: none 은 가로 스크롤바가 표시되고 lastColumn 은 가로 스크롤 상태이므로 너비를 자동 조정하지 않습니다.' : '→ GridView 너비 500px 미만(여백): allColumn/lastColumn 이 여백을 채우도록 너비를 조정합니다.') + ' 30행 바인딩으로 세로 스크롤바가 표시되며 스크롤바 영역을 제외한 너비를 기준으로 Column 너비가 조정됩니다. 각 Column 의 너비를 드래그로 변경하거나 컬럼 너비를 바꾼 뒤 [Target 재생성] 후 [컬럼 너비 확인] 버튼으로 재조정 결과와 가로 스크롤 발생 여부를 확인하세요."', '', 'label1');
+
+    // dataList 생성 (30행) - 그리드 height 300px 에 30행 바인딩으로 세로 스크롤바 강제 발생
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 30);
+
+    // target 생성 (인라인 gridView - createBasicGridView 와 동일 구조/ID, 각 Column width 만 con_colWidth 값으로)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let cw = vColWidth;
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:500px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="column1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="column2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="column3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="column4" value="name4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="' + cw + '" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 각 Column 의 실제 너비와 현재 autoFit 설정값을 확인
+//  - none      : Column 너비 70px 유지(여백 그대로) 또는 컴포넌트 초과 시 가로 스크롤
+//  - allColumn : 각 Column 너비 비율 유지하며 확대되어 컴포넌트 너비를 꽉 채움
+//  - lastColumn: 마지막 Column 만 확대되어 여백을 채움
+//  - 헤더 th id 는 1부터(column1~column4), Column 인덱스는 0 부터(0~3)
+scwin.btn_checkColumnWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[옵션] autoFit : " + target1.options.autoFit);
+
+    let widths = [];
+    let totalWidth = 0;
+    for (var i = 0; i < 4; i++) {
+        let thEl = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (thEl) {
+            widths.push("Column(" + i + ") : " + thEl.offsetWidth + "px");
+            totalWidth += thEl.offsetWidth;
+        }
+    }
+    bottom.setReturnValue(widths.join(" / "));
+
+    // GridView body wrapper 의 실제 너비와 비교 (autoFit 시 Column 합이 컴포넌트 너비에 맞게 조정됨)
+    let bodyTable = document.querySelector("[id*='target1_body_table']");
+    let containerWidth = bodyTable ? bodyTable.offsetWidth : 0;
+
+    // 가로 스크롤바 발생 여부 (엔진은 _scrollX_div 영역 높이로 가로 스크롤 표시 판단)
+    //  - none + 컬럼 합이 컴포넌트 너비 초과 시 표시 / lastColumn 은 초과 상태이면 너비 자동 조정 안 함(스크롤 유지)
+    let scrollXDiv = document.querySelector("[id*='target1_scrollX_div']");
+    let hasXScroll = scrollXDiv ? (scrollXDiv.offsetHeight > 0) : false;
+
+    bottom.setReturnValue("Column 너비 합 : " + totalWidth + "px / GridView body 너비 : " + containerWidth + "px / 가로 스크롤바 발생 : " + hasXScroll);
+}
+
+
+
+// Column 표시/숨김 토글 시 너비가 재조정되는지 확인 (@spec3)
+//  - setColumnVisible 로 Column(1) 을 숨기면 autoFit='allColumn'/'lastColumn' 환경에서 나머지 Column 의 너비가 재조정됨
+scwin.btn_toggleColumnVisible_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 현재 Column(1) 표시 상태 토글 (엔진 getColumnVisible 로 판단)
+    //  - 엔진은 setColumnVisible(idx,false) 시 헤더 th 를 DOM 에서 제거하지 않고 너비 0 으로 유지하므로
+    //    offsetParent 로는 숨김 판정이 불가 → 공식 메소드 getColumnVisible 사용
+    let isVisible = target1.getColumnVisible(1);
+
+    target1.setColumnVisible(1, !isVisible);
+    bottom.setReturnValue("setColumnVisible(1, " + (!isVisible) + ") 호출 → Column(1) " + (!isVisible ? "표시" : "숨김"));
+
+    // 재조정된 각 Column 너비 확인
+    let widths = [];
+    for (var i = 0; i < 4; i++) {
+        let th = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (th) {
+            let w = (!target1.getColumnVisible(i)) ? "숨김" : (th.offsetWidth + "px");
+            widths.push("Column(" + i + ") : " + w);
+        }
+    }
+    bottom.setReturnValue("autoFit=" + target1.options.autoFit + " → " + widths.join(" / "));
+}
+
+
+
+// disabled/readOnly/focus 와 무관하게 AutoFit 동작 동일함을 확인 (@spec4)
+//  - GridView 를 disabled 처리한 후 Column 너비를 재확인하여 autoFit 결과가 동일하게 유지됨을 확인
+scwin.btn_checkDisabled_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // 현재 disabled 상태 판정 (엔진 공개 메소드 getDisabled('grid') 사용)
+    let isDisabled = target1.getDisabled("grid");
+
+    // disabled 상태 토글 (너비 비교 없이 상태만 변경)
+    target1.setDisabled(!isDisabled);
+
+    bottom.setReturnValue("setDisabled(" + (!isDisabled) + ") 호출 → GridView " + (!isDisabled ? "disabled" : "enabled") + " 상태로 변경. autoFit 동일 적용 여부는 [컬럼 너비 확인] 버튼으로 확인하세요.");
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFit" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_autoFit" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>allColumn</xf:label>
+												<xf:value>allColumn</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>lastColumn</xf:label>
+												<xf:value>lastColumn</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="컬럼 너비" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_colWidth" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>70 (여백)</xf:label>
+												<xf:value>70</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>150 (초과)</xf:label>
+												<xf:value>150</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkColumnWidth_onclick" id="btn_checkColumnWidth"
+							label="컬럼 너비 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_toggleColumnVisible_onclick" id="btn_toggleColumnVisible"
+							label="컬럼 표시/숨김 토글" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkDisabled_onclick" id="btn_checkDisabled"
+							label="disabled 토글" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

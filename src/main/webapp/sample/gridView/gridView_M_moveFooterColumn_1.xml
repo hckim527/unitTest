@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] moveFooterColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > moveFooterColumn]<br/>Footer Column 의 ID 또는 인덱스값을 사용하여 Footer Column 의 위치를 이동합니다.",
+    "validation" : [
+        "특정 Footer Column 의 위치만 이동하며 Header, Body Column 의 위치는 변경되지 않습니다.",
+        "fromInfo(필수) 파라미터로 위치를 이동시킬 Footer Column 의 ID 또는 인덱스값을 설정합니다.",
+        "toIndex(필수) 파라미터로 fromInfo 의 Footer Column 이 이동될 위치를 설정합니다.",
+        "설정값 위치를 기준으로 fromInfo 파라미터의 Footer Column 이 오른쪽이면 설정값 위치의 왼쪽으로 이동합니다.",
+        "설정값 위치를 기준으로 fromInfo 파라미터의 Footer Column 이 왼쪽이면 설정값 위치의 오른쪽으로 이동합니다.",
+        "columnMove, columnMoveWithFooter, fixedColumnNoMove 속성값에 관계없이 moveFooterColumn() 메소드를 사용할 수 있습니다.",
+        "Footer 가 MultiLine 인 경우 동일 Column 위치의 Cell 이 함께 이동됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Body 5컬럼 (col1~col5, 단일 Header 행 / 단일 Body 행)
+//  - Footer 2행 MultiLine : 상단(F1-col1~F1-col5), 하단(F2-col1~F2-col5)
+//    각 Footer 셀에 고유 id(f1c1~f1c5 / f2c1~f2c5) 와 식별값 부여
+//  - columnMove 속성 미설정 → 속성과 무관하게 moveFooterColumn 동작 검증 (@spec2)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="그리드는 Body 5컬럼 + Footer 2행(MultiLine) 구성, 각 Footer 셀에 F1-/F2- 식별값 부여. par_fromInfo·par_toIndex 인덱스 선택 후 moveFooterColumn 실행. 동일 Column 위치의 위아래 Footer Cell 이 함께 이동. columnMove 속성과 무관하게 동작. toIndex 기준 fromInfo 가 우측이면 좌측으로, 좌측이면 우측으로 이동."', '', 'label1');
+
+    // dataList 생성 (5 Column, 1 Row)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="name4" dataType="text"></w2:column>';
+    strData += '<w2:column id="col5" name="name5" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    dlt_bind.setJSON([
+        { "col1" : "A1", "col2" : "B1", "col3" : "C1", "col4" : "D1", "col5" : "E1" }
+    ]);
+
+    // columnMove 등 속성 미설정 (@spec2 : 속성 무관 동작)
+    let cList = $c.gcm.createCList({});
+
+    // target 생성 (Header 5컬럼 + gBody 1행 + Footer 2행 MultiLine)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:660px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="moveFooterColumn 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="col1(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="col2(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="col3(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="col4(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol5" value="col5(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col5" dataList="col5"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    // 상단 Footer 행 (F1)
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f1c1" value="F1-col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f1c2" value="F1-col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f1c3" value="F1-col3"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f1c4" value="F1-col4"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f1c5" value="F1-col5"></w2:column>';
+    strTarget += '</w2:row>';
+    // 하단 Footer 행 (F2) → MultiLine (@spec4 : 동일 위치 Cell 함께 이동)
+    strTarget += '<w2:row style="" id="frow2">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f2c1" value="F2-col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f2c2" value="F2-col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f2c3" value="F2-col3"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f2c4" value="F2-col4"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f2c5" value="F2-col5"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Footer DOM 의 특정 행(rowIdx) td 텍스트를 좌→우로 읽어 배열로 반환
+scwin.readFooterRow = function (rowIdx) {
+    let footTable = document.querySelector("table[id*='target1_foot_table']");
+    if (!footTable) return [];
+    let trs = footTable.querySelectorAll("tbody tr");
+    if (!trs || trs.length <= rowIdx) return [];
+    let tds = trs[rowIdx].querySelectorAll("td");
+    let arr = [];
+    tds.forEach(function (td) {
+        let txt = (td.textContent || '').trim();
+        if (td.id || txt) arr.push(txt);
+    });
+    return arr;
+}
+
+
+
+// moveFooterColumn 실행 (_1 = INDEX 변형)
+//  - par_fromInfo / par_toIndex 선택값을 Number 로 변환하여 인덱스로 호출
+//  - 호출 후 Footer 상단(F1) / 하단(F2) 순서를 DOM 으로 읽어 @spec4 확인
+//  - Body 순서(getColumnOrder(true)) 는 불변 확인용으로만 출력 (@spec1)
+scwin.btn_run_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let fromIdxNum = parseInt(par_fromInfo.getValue(), 10);
+    let toIdxNum = parseInt(par_toIndex.getValue(), 10);
+
+    bottom.setReturnValue("moveFooterColumn(" + fromIdxNum + ", " + toIdxNum + ") 호출");
+
+    target1.moveFooterColumn(fromIdxNum, toIdxNum);
+
+    // Footer 상단 행(F1) 순서
+    bottom.setReturnValue("[Footer 상단(F1) 순서] " + JSON.stringify(scwin.readFooterRow(0)));
+    // Footer 하단 행(F2) 순서 (@spec4 : 동일 위치 Cell 함께 이동)
+    bottom.setReturnValue("[Footer 하단(F2) 순서] " + JSON.stringify(scwin.readFooterRow(1)));
+    // Body 표시 순서 (불변 확인용 @spec1)
+    bottom.setReturnValue("[Body 표시 순서 ID] " + JSON.stringify(target1.getColumnOrder(true)));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="fromInfo (인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_fromInfo" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>4</xf:label>
+												<xf:value>4</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="toIndex (인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_toIndex" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>4</xf:label>
+												<xf:value>4</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_run_onclick" id="btn_run" label="moveFooterColumn" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

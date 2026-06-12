@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] clearAutoFit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > clearAutoFit]<br/>GridView 컴포넌트의 autoFit 설정을 해제하고 Column 너비를 초기화 합니다.",
+    "validation" : [
+        "clearAutoFit() 실행 시 autoFit 속성은 ''(Empty String)값으로 설정됩니다.",
+        "디자인 시 설정한 Column 너비로 초기화되며 사용자가 변경한 Column 너비는 복원되지 않습니다.",
+        "디자인 시 Header 에 가변 너비('*') 설정을 한 경우 autoFit 속성만 초기화하고 Column 너비 복원은 실행되지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = { "mode" : "fixed" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - autoFit="allColumn" 으로 GridView 를 생성한다(clearAutoFit 의 해제 대상).
+//  - scwin.gVar.mode (테스트 설정 동작 - 테스트 버튼으로 전환) :
+//      fixed : 모든 Column 고정 width(90px×6=540 > GridView 500px). autoFit 으로 500px 에 맞춰 축소되어 있다가
+//              clearAutoFit() 시 디자인 너비(90px)로 복원되며 가로 스크롤바가 표시됨(@spec1·@spec2).
+//      star  : 마지막 Column width="*" (initialColWidthList 에 "*" 포함). clearAutoFit() 시 autoFit 만 ""
+//              로 초기화되고 너비 복원은 실행되지 않음(@spec2 의 "*" 케이스).
+//  - createBasicGridView 는 컬럼/별표 너비 커스터마이즈가 불가하므로 인라인 gridView 를 동적 생성한다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 테스트 설정값 수집 (컬럼 너비 모드 - 테스트 버튼으로 전환)
+    let vMode = scwin.gVar.mode;
+
+    // dataList 바인딩 (autoFit="allColumn" 으로 생성)
+    let properties = {
+        dataList: "data:dlt_bind",
+        autoFit: "allColumn",
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let strMode = (vMode === 'star') ? '가변(*)' : '고정(90px)';
+
+    $c.gcm.createLabel('label="[전제] autoFit=allColumn 생성 / 컬럼너비(테스트)=' + strMode + '. 컬럼을 드래그로 변경 후 [clearAutoFit] → 고정모드는 디자인너비 복원(사용자 변경 미복원, 합 540px로 500px 초과라 가로스크롤), 가변(*)모드는 autoFit만 초기화. [상태 확인]으로 전후 비교."', '', 'label1');
+
+    // dataList 생성 (30행) - 세로 스크롤바 발생, 6컬럼 (col1~col6)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 30);
+
+    // target 생성 (인라인 gridView - autoFit=allColumn, 컬럼 6개, GridView width 500px)
+    //  - fixed : 모든 컬럼 width="90"  (합 540 > 500)
+    //  - star  : 컬럼 1~5 width="90", 마지막(6) width="*"
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let lastW = (vMode === 'star') ? "*" : "90";
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:500px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column4" value="name4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column5" value="name5"></w2:column>';
+    strTarget += '<w2:column width="' + lastW + '" style="" inputType="text" id="column6" value="name6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col5" value=""></w2:column>';
+    strTarget += '<w2:column width="' + lastW + '" style="" inputType="text" id="col6" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 현재 autoFit 속성값과 각 Column 너비를 확인 (clearAutoFit 전/후 비교용)
+//  - 헤더 th id 는 1부터(column1~column6), Column 인덱스는 0 부터(0~5)
+scwin.btn_checkState_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[옵션] autoFit : '" + target1.options.autoFit + "'");
+
+    let widths = [];
+    let totalWidth = 0;
+    for (var i = 0; i < 6; i++) {
+        let th = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (th) {
+            widths.push("Column(" + i + ") : " + th.offsetWidth + "px");
+            totalWidth += th.offsetWidth;
+        }
+    }
+    bottom.setReturnValue(widths.join(" / "));
+
+    // 가로 스크롤바 발생 여부 (엔진은 _scrollX_div 영역 높이로 판단)
+    let scrollXDiv = document.querySelector("[id*='target1_scrollX_div']");
+    let hasXScroll = scrollXDiv ? (scrollXDiv.offsetHeight > 0) : false;
+
+    bottom.setReturnValue("Column 너비 합 : " + totalWidth + "px / 가로 스크롤바 발생 : " + hasXScroll);
+}
+
+
+
+// clearAutoFit() 호출 → autoFit 설정 해제 + Column 너비 초기화
+//  - 고정 모드 : 디자인 너비(90px)로 복원되며 합 540px > 500px 이므로 가로 스크롤바 표시(@spec1·@spec2)
+//  - 가변(*) 모드 : autoFit 속성만 '' 로 초기화되고 너비 복원은 실행되지 않음(@spec2 "*")
+//  - 사용자가 드래그로 변경한 Column 너비는 복원되지 않음(@spec2)
+scwin.btn_clearAutoFit_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.clearAutoFit();
+
+    // autoFit 속성값 (''로 설정됨)
+    bottom.setReturnValue("clearAutoFit() 호출 → [옵션] autoFit : '" + target1.options.autoFit + "'");
+
+    // 각 Column 너비 (디자인 너비 복원 / 가변(*) 모드는 복원 안 됨)
+    let widths = [];
+    let totalWidth = 0;
+    for (var i = 0; i < 6; i++) {
+        let th = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (th) {
+            widths.push("Column(" + i + ") : " + th.offsetWidth + "px");
+            totalWidth += th.offsetWidth;
+        }
+    }
+    bottom.setReturnValue(widths.join(" / "));
+
+    // 가로 스크롤바 발생 여부
+    let scrollXDiv = document.querySelector("[id*='target1_scrollX_div']");
+    let hasXScroll = scrollXDiv ? (scrollXDiv.offsetHeight > 0) : false;
+
+    bottom.setReturnValue("Column 너비 합 : " + totalWidth + "px / 가로 스크롤바 발생 : " + hasXScroll);
+}
+
+
+
+// [테스트 설정] 고정컬럼 모드로 그리드 재생성 (모든 컬럼 90px, 합 540>500)
+scwin.btn_createFixed_onclick = function () {
+    scwin.gVar.mode = "fixed";
+    scwin.comp_init();
+};
+
+// [테스트 설정] 가변(*) 컬럼 모드로 그리드 재생성 (마지막 컬럼 width="*")
+scwin.btn_createStar_onclick = function () {
+    scwin.gVar.mode = "star";
+    scwin.comp_init();
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_createFixed_onclick" id="btn_createFixed" label="고정컬럼 그리드 생성" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_createStar_onclick" id="btn_createStar" label="가변(*)컬럼 그리드 생성" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearAutoFit_onclick" id="btn_clearAutoFit"
+							label="clearAutoFit" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkState_onclick" id="btn_checkState"
+							label="상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

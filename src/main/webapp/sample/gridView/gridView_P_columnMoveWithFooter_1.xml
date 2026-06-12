@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] columnMoveWithFooter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > columnMoveWithFooter]<br/>Column 을 이동할때 Footer Column 이 함께 이동될지 설정합니다.",
+    "validation" : [
+        "setColumnOrder() 메소드 또는 columnMove=true 일때 Header 를 Drag&Drop 하여 Column 을 이동할 수 있습니다.",
+        "true 설정 시 Column 을 이동할 때 Footer Column 을 함께 이동시킵니다.",
+        "true 설정 시 Footer 가 병합된 경우 병합된 Column 의 Header, Body 전체가 함께 이동됩니다.",
+        "false(기본값) 설정 시 Column 을 이동할 때 Footer Column 은 함께 이동되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : 기본 true 로 Footer 함께 이동 동작 시연 (정적 아이템 미설정/true/false)
+    con_columnMoveWithFooter.setValue("true");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - columnMove 는 properties 에 항상 "true" (전제조건 상수, con 노출 안 함)
+//  - columnMoveWithFooter 는 con 선택값으로 생성 (빈값이면 속성 미부여 = 기본 false)
+//  - Footer 일부 병합(ft1 colSpan=2) → 병합 Column 함께 이동 검증
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // con 값 직접 사용 (정적 아이템 : 'true' / 'false' / '' 미설정)
+    let vColumnMoveWithFooter = con_columnMoveWithFooter.getValue();
+    let lblWith = (vColumnMoveWithFooter === '') ? '미설정' : vColumnMoveWithFooter;
+
+    // 그리드 구조 + 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="columnMoveWithFooter=' + lblWith + ' / Body 4컬럼(인덱스 0~3) + Footer(F-col1·2 는 병합셀) 구성. columnMove=true 전제. 헤더를 드래그앤드롭하여 컬럼 이동 후 [컬럼/Footer 순서 확인] 클릭. columnMoveWithFooter=true 면 Footer 도 Body 와 함께 이동(병합 Footer 는 Header/Body 전체 함께 이동), false 면 Footer 순서 불변. 드래그 중 헤더 값이 툴팁으로 하단 출력됩니다."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 4 Row)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "A2", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "A3", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "A4", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - columnMove="true"          : 전제조건 상수 (헤더 드래그 순서변경 허용)
+    //  - columnMoveWithFooter       : con 선택값 (Footer 함께 이동 여부, 미설정 시 속성 미부여 = 기본 false)
+    let properties = {
+        dataList: "data:dlt_bind",
+        columnMove: "true"
+    };
+    if (vColumnMoveWithFooter !== '') properties.columnMoveWithFooter = vColumnMoveWithFooter;
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 (단순 4컬럼 헤더 + gBody + Footer(ft1 colSpan=2 병합))
+    //  - header  : col1 / col2 / col3 / col4 (단순 4컬럼, Footer 병합 검증 명확화)
+    //  - footer  : ft1(colSpan=2, col1+col2 위치 병합) / ft3 / ft4 → Body 4컬럼 폭에 3개 Footer 컬럼 대응
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:720px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="columnMoveWithFooter 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : col1
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    // index 1 : col2
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    // index 2 : col3
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    // index 3 : col4 , width="*"
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    // ft1 : col1+col2 위치 병합 (colSpan=2) → 병합 Footer Column 함께 이동 검증
+    strTarget += '<w2:column colSpan="2" width="360" style="" inputType="text" id="ft1" value="F-col1·2 병합"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="ft3" value="F-col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="ft4" value="F-col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 헤더 Drag 중 표시되는 툴팁(고스트) 값 자동 출력
+    //  - 엔진은 헤더 드래그 중 document.body 에 <div class="w2grid_columnMove_ghost"> 를 만들고
+    //    그 innerHTML 에 드래그한 헤더 값을 넣어 display:block 으로 표시함(드롭 시 display:none).
+    //  - 드래그는 사용자 액션이므로 별도 버튼 없이 document 의 mousemove 를 capture-phase 로 1회 등록하여
+    //    고스트가 표시중일 때 그 textContent(헤더 값)를 결과로 출력함.
+    if (typeof scwin.columnMoveTooltipHandler === 'function') {
+        document.removeEventListener('mousemove', scwin.columnMoveTooltipHandler, true);
+    }
+    scwin._lastTooltip = '';
+    scwin.columnMoveTooltipHandler = function (ev) {
+        let ghost = document.querySelector('.w2grid_columnMove_ghost');
+        if (ghost && ghost.style.display !== 'none') {
+            let txt = (ghost.textContent || '').trim();
+            // 드래그 중 헤더 값 1회 출력 (직전 출력값과 다를 때만)
+            if (txt && txt !== scwin._lastTooltip) {
+                scwin._lastTooltip = txt;
+                wf_body_bottom.getObj("scwin").setReturnValue("[헤더 드래그 툴팁] " + txt);
+            }
+        } else {
+            // 표시중이 아니면 리셋 (다음 드래그 때 다시 출력)
+            scwin._lastTooltip = '';
+        }
+    };
+    document.addEventListener('mousemove', scwin.columnMoveTooltipHandler, true);
+}
+
+
+
+// 컬럼 / Footer 순서 확인
+//  - Body 컬럼 표시 순서 : getColumnOrder(true)=표시 순서 ID 배열
+//  - Footer 컬럼 표시 순서 : Footer DOM 을 좌→우로 읽어 식별값(F-colN) 배열 출력
+//  - columnMoveWithFooter=true 면 드래그 후 Footer 순서가 Body 와 함께 변경 / false 면 Footer 불변
+scwin.btn_checkOrder_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    // Body 표시 순서 ID
+    bottom.setReturnValue("[Body 표시 순서 ID] " + JSON.stringify(target1.getColumnOrder(true)));
+
+    // Footer 표시 순서 (Footer Table DOM 좌→우 식별값)
+    let footTable = document.querySelector("table[id*='target1_foot_table']");
+    let tds = footTable ? footTable.querySelectorAll("td[id]") : [];
+    let footOrder = [];
+    tds.forEach(function(td){ footOrder.push((td.textContent||'').trim()); });
+    bottom.setReturnValue("[Footer 표시 순서] " + JSON.stringify(footOrder));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnMoveWithFooter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_columnMoveWithFooter" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>true</xf:label>
+												<xf:value>true</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>false</xf:label>
+												<xf:value>false</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkOrder_onclick" id="btn_checkOrder"
+							label="컬럼/Footer 순서 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
