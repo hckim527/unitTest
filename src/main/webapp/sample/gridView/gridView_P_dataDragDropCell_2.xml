@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dataDragDropCell" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dataDragDropCell]<br/>Drag&Drop 으로 Cell 단위의 데이터 이동을 허용할지 설정합니다.",
+    "validation" : [
+        "Cell 데이터를 Drag&Drop 으로 이동 시 Row 상태값은 'U' 로 설정되며 dataDragDropStatus 속성은 동작하지 않습니다.",
+        "동일 GridView 에 데이터 Drop 이 허용된 경우 Drag 가 GridView 의 상/하단을 벗어나면 스크롤이 자동으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_dataDragDropCell : 공통 gdl_boolean 바인딩 (getText() 로 '' 미설정 / 'true' / 'false' 판단)
+    //  - '' : 속성 자체를 추가하지 않음(기본 false → 동일 GridView 내 Cell D&D 불가)
+    //  - 'true' : 동일 GridView 내 Cell 단위 D&D 활성화 (본 _2 검증 대상)
+    //  - 'false' : Cell D&D 비활성화
+    let vDrag = con_dataDragDropCell.getText();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  본 _2 는 단일 GridView 내 Cell 이동(상태/스크롤) 범위만 다룬다.
+    //  dataDragDropCell=true 면 셀을 Drag 하여 다른 셀 위치로 옮길 수 있으며(원본 셀 데이터 삭제 후 Drop 위치에 삽입),
+    //  Cell 이동은 Row 데이터 변경이므로 영향 Row 의 상태값이 U 로 설정되고 dataDragDropStatus 는 동작하지 않는다.
+    $c.gcm.createLabel('label="동일 GridView 내 Cell 이동. con=true 후 셀을 다른 셀 위치로 Drag&Drop 하면 원본 셀 데이터가 삭제되고 Drop 위치에 삽입되며, dataDragDropStatus=true 를 설정했음에도 영향 Row 의 상태값이 유지되지 않고 U 로 변경됩니다(dataDragDropCell 환경에서 dataDragDropStatus 미동작). 데이터가 영역보다 많아 Drag 가 상/하단을 벗어나면 자동 스크롤됩니다. [행 상태/순서 출력] 으로 확인하세요."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (col1=text, col2=number, col3=text, col4=number)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 10행 로드 (자동스크롤(@spec7) 확인 위해 height 보다 많은 행)
+    let jsonData = [];
+    for (let i = 1; i <= 10; i++) {
+        jsonData.push({ "col1": "행" + i, "col2": String(i * 100), "col3": "C" + i, "col4": String(i * 10) });
+    }
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - dataDragDropCell : con 선택값 ('' 미설정이면 속성 미부여 → 기본 false)
+    //  - Cell 단위이므로 focusMode 미설정. dataDragDropOther/dataDragDropSelf 미설정(=false) → 동일 GridView 내 Cell 이동.
+    //  - rowStatusVisible : Row 상태값(U) 시각 확인용 표시.
+    //  - dataDragDropStatus : true 로 고정. dataDragDropCell 환경에서는 동작하지 않음을 입증하기 위함
+    //    (true 여도 Cell 이동 시 영향 Row 상태값이 유지되지 않고 'U' 로 변경됨 → validation 1번 검증).
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: true,
+        rowStatusVisible: true,
+        dataDragDropStatus: true,
+    };
+    if (vDrag === 'true') {
+        properties.dataDragDropCell = true;
+    } else if (vDrag === 'false') {
+        properties.dataDragDropCell = false;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼, 단일 Row 헤더). height 를 데이터보다 작게 → 자동스크롤 가능.
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:700px;height:300px;" ev:ondatadragstart="scwin.target1_ondatadragstart" ev:ondatadropself="scwin.target1_ondatadropself" ev:ondatadrop="scwin.target1_ondatadrop">';
+    strTarget += '<w2:caption style="" id="caption1" value="dataDragDropCell 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+};
+   
+
+
+// 데이터 Drag 시작 : 출력 영역을 비우고 Drag 시작을 알림.
+scwin.target1_ondatadragstart = function (rowIndex) {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+    b.setReturnValue("데이터 Drag 시작 - 시작 rowIndex : " + rowIndex);
+};
+
+// 데이터 Drag 종료(동일 그리드 Drop) : Cell 이동 결과(상태 U 발생) 를 출력.
+scwin.target1_ondatadropself = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("동일 GridView Drop 발생(ondatadropself) - 원본 셀 데이터 삭제 후 Drop 위치에 삽입, dataDragDropStatus=true 여도 영향 Row 상태값이 U 로 변경됨(미동작). 행 상태/순서 출력 버튼으로 확인.");
+};
+
+// 데이터 Drag 종료(일반 Drop)
+scwin.target1_ondatadrop = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("Drop 발생(ondatadrop)");
+};
+
+
+
+// 행 상태/순서 출력 : 각 행의 rowStatus(getRowStatus) 와 셀 값(getCellData) 출력.
+//  - Cell 이동이 발생한 Row 는 상태값 U 로 표시됨(validation 1번 결과 확인).
+//  - getRowStatus / getCellData 는 dataList 메소드(엔진 @name 주석 확인 완료).
+scwin.btn_print_status_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let total = dlt_bind.getRowCount();
+    let out = "[행 순서 / 셀값 / 상태값] (상태 U = Cell 이동으로 데이터가 변경된 행)";
+    for (let i = 0; i < total; i++) {
+        out += "\n행" + i + " : col1=" + dlt_bind.getCellData(i, "col1")
+             + ", col2=" + dlt_bind.getCellData(i, "col2")
+             + ", col3=" + dlt_bind.getCellData(i, "col3")
+             + ", col4=" + dlt_bind.getCellData(i, "col4")
+             + ", status=" + dlt_bind.getRowStatus(i);
+    }
+    b.setReturnValue(out);
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataDragDropCell" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_dataDragDropCell" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button id="btn_print_status" label="행 상태/순서 출력" ev:onclick="scwin.btn_print_status_onclick" class="tc_btn_basic"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

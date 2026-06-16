@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dataDragSelect" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260616" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dataDragSelect]<br/>마우스 Drag 를 사용한 다중 Cell 선택(직사각형) 기능을 활성화합니다.",
+    "validation" : [
+        "true 설정 시, 마우스 Drag 로 다중 Cell 선택(직사각형)을 허용합니다.",
+        "false 설정 시, 마우스 Drag 로 다중 Cell 선택(직사각형)을 허용하지 않습니다.",
+        "미설정 시, 마우스 Drag 로 다중 Cell 선택(직사각형)을 허용하지 않습니다.",
+        "useShiftKey=true 이고, dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성이 모두 false 인 경우에 동작합니다.",
+        "useShiftKey=false 인 경우 Drag 의 마지막 위치 Cell 이 선택됩니다.",
+        "focusMode='none' 이면 Cell 선택이 동작하지 않으므로 적용되지 않습니다.",
+        "dataDragSelect=true, useCtrlKey=true 일때 Ctrl 키와 조합하여 복수의 범위 선택은 지원하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+
+    // con 셀렉트값 : '' 미설정 / 'true' / 'false' (focusMode 는 빈값''=미설정 / cell / none)
+    //  - dataDragSelect 는 useShiftKey=true + dataDragDrop/Self/Other/Cell 모두 false 일 때만 동작
+    //    → target1 에 dataDragDrop 계열은 부여하지 않음(모두 기본 false)
+    let vSelect    = con_dataDragSelect.getText();
+    let vShiftKey  = con_useShiftKey.getText();
+    let vCtrlKey   = con_useCtrlKey.getText();
+    let vFocusMode = con_focusMode.getValue();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let lblSelect    = (vSelect === '')    ? '미설정(기본 false)' : vSelect;
+    let lblShiftKey  = (vShiftKey === '')  ? '미설정' : vShiftKey;
+    let lblCtrlKey   = (vCtrlKey === '')   ? '미설정' : vCtrlKey;
+    let lblFocusMode = (vFocusMode === '') ? '미설정' : vFocusMode;
+    $c.gcm.createLabel('label="con(dataDragSelect=' + lblSelect + ' / useShiftKey=' + lblShiftKey + ' / useCtrlKey=' + lblCtrlKey + ' / focusMode=' + lblFocusMode + ') 적용. dataDragSelect=true + useShiftKey=true 이면 Body Cell 을 마우스로 Drag 하여 직사각형 다중 Cell 을 선택 → [선택 Cell 확인] 으로 결과를 확인하세요. useShiftKey=false 이면 Drag 마지막 위치 Cell 1개만 선택됩니다."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === DataList(dlt_src) : 4 Column [text, text, text, text] ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // 데이터 4행 로드
+    let srcData = [
+        { "col1": "행1", "col2": "100", "col3": "Aa", "col4": "10" },
+        { "col1": "행2", "col2": "200", "col3": "Bb", "col4": "20" },
+        { "col1": "행3", "col2": "300", "col3": "Cc", "col4": "30" },
+        { "col1": "행4", "col2": "400", "col3": "Dd", "col4": "40" }
+    ];
+    dlt_src.setJSON(srcData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // === target1 : con 값으로 dataDragSelect/useShiftKey/useCtrlKey/focusMode 적용 ('' 이면 속성 미부여) ===
+    //  - dataDragDrop 계열은 전부 미부여(기본 false) → dataDragSelect 동작 전제 충족
+    let props = { dataList: "data:dlt_src" };
+    if (vSelect    === 'true') { props.dataDragSelect = true; } else if (vSelect    === 'false') { props.dataDragSelect = false; }
+    if (vShiftKey  === 'true') { props.useShiftKey   = true; } else if (vShiftKey  === 'false') { props.useShiftKey   = false; }
+    if (vCtrlKey   === 'true') { props.useCtrlKey    = true; } else if (vCtrlKey   === 'false') { props.useCtrlKey    = false; }
+    if (vFocusMode !== '')     { props.focusMode     = vFocusMode; }
+    let srcCList = $c.gcm.createCList(props);
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:440px;height:300px;">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (dataDragSelect 테스트)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+};
+
+
+
+// 선택 Cell 확인 : Drag 로 '시각적으로 선택(하이라이트)된' Cell 만 출력
+//  - dataDragSelect 의 다중 Cell 선택은 화면 하이라이트(focusedTd 클래스)로 표시되므로, 실제 선택 상태는 DOM 의 focusedTd td 로 판단한다.
+//  - getAllFocusedIndex() 는 내부 focus 상태를 반환하여 focusMode='none' 처럼 시각 선택이 없는 경우에도 값이 나오므로 사용하지 않는다.
+//  - dataDragSelect=true + useShiftKey=true 면 직사각형 범위 다중 Cell, useShiftKey=false 면 Drag 마지막 위치 Cell 1개가 하이라이트됨.
+//  - dataDragSelect=false / focusMode='none' 이면 시각 선택이 표시되지 않음.
+scwin.btn_checkSelected_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    let opt = target1.options;
+    b.setReturnValue("적용 : dataDragSelect=" + opt.dataDragSelect + " / useShiftKey=" + opt.useShiftKey + " / useCtrlKey=" + opt.useCtrlKey + " / focusMode=" + opt.focusMode);
+
+    // 시각적으로 선택(하이라이트)된 Cell td 수집 (id: ..._cell_{row}_{col})
+    let tds = document.querySelectorAll("td[id*='target1_cell_']");
+    let selected = [];
+    for (let i = 0; i < tds.length; i++) {
+        if ((tds[i].className || "").indexOf("focusedTd") >= 0) {
+            let m = tds[i].id.match(/cell_(\d+)_(\d+)/);
+            if (m) { selected.push({ row: parseInt(m[1], 10), col: parseInt(m[2], 10) }); }
+        }
+    }
+
+    if (selected.length > 0) {
+        b.setReturnValue("선택된 Cell 수 : " + selected.length);
+        for (let j = 0; j < selected.length; j++) {
+            b.setReturnValue("  row=" + selected[j].row + ", col=" + selected[j].col);
+        }
+    } else {
+        b.setReturnValue("선택된 Cell 없음 (시각적 선택 상태)");
+    }
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataDragSelect" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_dataDragSelect" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useShiftKey" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_useShiftKey" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useCtrlKey" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_useCtrlKey" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 appearance="minimal" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_focusMode" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>cell</xf:label>
+												<xf:value>cell</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSelected_onclick" id="btn_checkSelected" label="선택 Cell 확인"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

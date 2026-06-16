@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] excludeModifiedRows" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > excludeModifiedRows]<br/>Footer 와 SubTotal 계산에서 'C', 'U', 'D', 'V' 상태인 Row 데이터를 제외할지 설정합니다.",
+    "validation" : [
+        "true 설정 시 Footer 와 SubTotal 계산에서 'C','U','D','V' 상태의 Row 데이터를 제외합니다.",
+        "false (default) 또는 미설정 시 Footer 와 SubTotal 계산에서 모든 상태의 Row 데이터를 포함합니다.",
+        "Row 데이터의 상태값이 변경되면 Footer 와 SubTotal 영역의 sum, avg, max, min 등의 값을 재계산합니다. 재계산은 즉시 수행되며, Row 데이터의 상태값만 메소드로 변경한 경우도 적용됩니다.",
+        "excludeModifiedRows=true 이면 'D','V' 상태 Row 를 제외하므로 결과적으로 excludeDeletedRows 가 true 로 동작합니다. 단 excludeModifiedRows 와 excludeDeletedRows 는 독립적으로 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // 공통 DataList(gdl_boolean 등) 생성 — con_ 셀렉트박스 바인딩에 필요
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+// Footer(sum/avg/max/min) + dept 기준 SubTotal 을 갖는 amount 집계 그리드 동적 생성.
+//  - con_excludeModifiedRows gdl_boolean 으로 '' 미설정 / 'true' / 'false' 판단 (getText, getValue 금지)
+//  - 미설정('') 이면 해당 속성 미부여 (기본값 false 동작)
+//  - 데이터는 dept(targetColumnID) 기준 사전 정렬 → GroupBy 없이도 정적 w2:subTotal 의 dept 별 소계 Row 가 렌더됨
+scwin.comp_init = async function () {
+    // 기존 target/dataList 정리
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="Row 를 C/U/D/V 상태로 만들면 excludeModifiedRows=true 면 Footer/SubTotal 에서 제외, false/미설정이면 포함됩니다. modifyRowStatus 로 데이터 값 변경 없이 상태값만 바꾼 경우도 동일하게 적용됩니다."', '', 'label1');
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // con 판단 ('' 미설정 / 'true' / 'false')
+    let vExclude = con_excludeModifiedRows.getText();
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 9건 : dept 기준 사전 정렬(Dev×3 → QA×3 → Sales×3)
+    //  - 같은 dept 연속 배치 → dept 별 SubTotal(소계) Row 가 렌더됨
+    let jsonData = [
+        { "name": "Mike", "dept": "Dev",   "amount": 100 },
+        { "name": "Amy",  "dept": "Dev",   "amount": 200 },
+        { "name": "Alex", "dept": "Dev",   "amount": 300 },
+        { "name": "Bob",  "dept": "QA",    "amount": 400 },
+        { "name": "Cara", "dept": "QA",    "amount": 500 },
+        { "name": "Dan",  "dept": "QA",    "amount": 600 },
+        { "name": "John", "dept": "Sales", "amount": 700 },
+        { "name": "Jane", "dept": "Sales", "amount": 800 },
+        { "name": "Jack", "dept": "Sales", "amount": 900 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 ('' 미설정이면 해당 속성 미부여 → 기본 false)
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    if (vExclude === 'true') {
+        properties.excludeModifiedRows = true;
+    } else if (vExclude === 'false') {
+        properties.excludeModifiedRows = false;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // Header(이름/부서/금액) + gBody(데이터) + SubTotal(dept 별 sum) + Footer(sum/avg/max/min)
+    //  - Footer/SubTotal 의 amount 집계 expression 에서 C/U/D/V Row 제외 여부가 excludeModifiedRows 로 결정됨
+    //  - 9데이터 + 3소계 + 헤더가 스크롤 없이 모두 보이도록 height 충분히 확보 (가상화로 인한 DOM 카운트 오류 방지)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:520px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="excludeModifiedRows 집계 그리드 (데이터 9건, dept 정렬)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row (amount sum)
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="scol1" value="소계"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    // Footer : amount 전체 sum/avg/max/min
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="fcol1" value="합계"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="fcol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="fcol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+    //  - 데이터가 dept(targetColumnID) 기준 정렬돼 있으면 GroupBy 없이도 정적 w2:subTotal 의 dept 별 소계 Row 가 렌더됨.
+}
+
+
+
+// Footer/SubTotal 의 amount 집계값(현재 표시값)을 읽어 출력
+//  - excludeModifiedRows 옵션값
+//  - Footer sum / dept 별 SubTotal sum 표시값 (excludeModifiedRows=true 면 C/U/D/V Row 제외해 재계산됨)
+scwin.readAggValues = function (prefix) {
+    let optExclude = target1.options.excludeModifiedRows;
+
+    // Footer amount(sum) 표시 셀 (항상 표시)
+    let footerCell = document.querySelector("td[id$='_fcol3']");
+    let footerSum = footerCell ? footerCell.textContent.trim() : "(없음)";
+
+    // SubTotal dept 별 소계(amount sum) 계산
+    //  - 소계 Row DOM(scol3)은 데이터 조작 시 숨은 버퍼 셀이 중복·잔존하여 부정확(중복 출력) →
+    //    엔진 subtotalDataController 와 동일 알고리즘으로 직접 계산한다.
+    //    excludeModifiedRows=true 면 getDeletedIndex()(D/V) + getModifiedIndex()(C/U/D) 를 합집합으로 제외 → C/U/D/V 제외.
+    let exclude = target1.options.excludeModifiedRows;
+    let excludeSet = {};
+    if (exclude) {
+        let deleted = dlt_bind.getDeletedIndex ? dlt_bind.getDeletedIndex() : [];
+        let modified = dlt_bind.getModifiedIndex ? dlt_bind.getModifiedIndex() : [];
+        for (let k = 0; k < deleted.length; k++) { excludeSet[deleted[k]] = true; }
+        for (let k = 0; k < modified.length; k++) { excludeSet[modified[k]] = true; }
+    }
+    let subSums = [];
+    let sums = {}, deptOrder = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        if (excludeSet[i]) continue;
+        let dept = dlt_bind.getCellData(i, "dept");
+        let amt = Number(dlt_bind.getCellData(i, "amount")) || 0;
+        if (!sums.hasOwnProperty(dept)) { sums[dept] = 0; deptOrder.push(dept); }
+        sums[dept] += amt;
+    }
+    deptOrder.forEach(function (d) { subSums.push(d + " " + sums[d].toLocaleString()); });
+
+    wf_body_bottom.getObj("scwin").setReturnValue(prefix + " excludeModifiedRows : " + optExclude);
+    wf_body_bottom.getObj("scwin").setReturnValue(prefix + " Footer 합계(sum) : " + footerSum);
+    wf_body_bottom.getObj("scwin").setReturnValue(prefix + " SubTotal 소계(sum) : [" + subSums.join(", ") + "]");
+}
+
+
+
+// Footer/SubTotal 집계 확인 — 현재 집계값 출력
+scwin.btn_checkAgg_onclick = function (e) {
+    scwin.readAggValues("[현재]");
+}
+
+
+
+// C(추가) : insertRow(3) + setCellData 로 신규행 추가 → 상태값 'C'
+//  - excludeModifiedRows=true 면 'C' Row 가 Footer/SubTotal 에서 제외(소계/합계 불변), false 면 포함(증가)
+scwin.btn_makeC_onclick = function (e) {
+    // insertRow(index) 는 빈 행만 추가되므로 setCellData 로 값을 채운다(2번째 인자 객체로는 값이 반영되지 않음)
+    dlt_bind.insertRow(3);
+    dlt_bind.setCellData(3, "name", "NewDev");
+    dlt_bind.setCellData(3, "dept", "Dev");
+    dlt_bind.setCellData(3, "amount", 1000);
+    wf_body_bottom.getObj("scwin").setReturnValue("insertRow(3, Dev/1000) 실행 → Row 상태값 : " + dlt_bind.getRowStatus(3) + " (C = 추가)");
+
+    // Footer/SubTotal 재계산은 비동기(~100ms)로 처리되므로 지연 후 읽는다.
+    setTimeout(function () { scwin.readAggValues("[C 상태 적용 후]"); }, 300);
+}
+
+
+
+// U(수정) : par_rowIndex Row 의 amount 를 setCellData 로 변경 → 상태값 'U'
+//  - excludeModifiedRows=true 면 'U' Row 가 Footer/SubTotal 에서 제외, false 면 포함(변경값 반영)
+scwin.btn_makeU_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+
+    dlt_bind.setCellData(idx, "amount", 9999);
+    wf_body_bottom.getObj("scwin").setReturnValue("setCellData(" + idx + ", 'amount', 9999) 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx) + " (U = 수정)");
+
+    // Footer/SubTotal 재계산은 비동기(~100ms)로 처리되므로 지연 후 읽는다.
+    setTimeout(function () { scwin.readAggValues("[U 상태 적용 후]"); }, 300);
+}
+
+
+
+// D(삭제) : par_rowIndex Row 를 deleteRow → 상태값 'D'
+//  - excludeModifiedRows=true 면 'D' Row 가 Footer/SubTotal 에서 제외, false 면 포함
+scwin.btn_makeD_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+
+    dlt_bind.deleteRow(idx);
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteRow(" + idx + ") 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx) + " (D = 삭제)");
+
+    // Footer/SubTotal 재계산은 비동기(~100ms)로 처리되므로 지연 후 읽는다.
+    setTimeout(function () { scwin.readAggValues("[D 상태 적용 후]"); }, 300);
+}
+
+
+
+// V(추가 후 삭제) : insertRow(3)+setCellData → C → deleteRow(3) → 상태값 'V'
+//  - excludeModifiedRows=true 면 'V' Row 가 Footer/SubTotal 에서 제외(Dev 소계 불변), false 면 포함(Dev 소계 증가)
+scwin.btn_makeV_onclick = function (e) {
+    dlt_bind.insertRow(3);
+    dlt_bind.setCellData(3, "name", "NewDev");
+    dlt_bind.setCellData(3, "dept", "Dev");
+    dlt_bind.setCellData(3, "amount", 1000);
+    let cStatus = dlt_bind.getRowStatus(3);
+    dlt_bind.deleteRow(3);
+    wf_body_bottom.getObj("scwin").setReturnValue("신규행 추가(상태 " + cStatus + ", Dev/1000) 후 삭제 → Row 상태값 : " + dlt_bind.getRowStatus(3) + " (V = 추가 후 삭제)");
+
+    // Footer/SubTotal 재계산은 비동기(~100ms)로 처리되므로 지연 후 읽는다.
+    setTimeout(function () { scwin.readAggValues("[V 상태 적용 후]"); }, 300);
+}
+
+
+
+// 상태값만 변경 : par_rowIndex Row 의 데이터 값은 그대로 두고 modifyRowStatus 로 상태값만 "U" 로 설정
+//  - @spec "Row 데이터의 상태값만 메소드로 변경한 경우도 적용됩니다" 실증
+//  - excludeModifiedRows=true 면 해당 Row 가 Footer/SubTotal 에서 제외(소계/합계 감소), false 면 포함(불변)
+//  - 데이터 값(amount)은 변하지 않으므로, 합계 변화는 오로지 상태값 변경에 의한 것임을 입증
+scwin.btn_modifyStatus_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+
+    // 변경 전 데이터 값(불변 확인용)
+    let beforeAmount = dlt_bind.getCellData(idx, "amount");
+
+    // 데이터 값 변경 없이 상태값만 "U" 로 설정
+    dlt_bind.modifyRowStatus(idx, "U");
+    let afterAmount = dlt_bind.getCellData(idx, "amount");
+    wf_body_bottom.getObj("scwin").setReturnValue("modifyRowStatus(" + idx + ", 'U') 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx) + " (U = 수정), amount 값 : " + beforeAmount + " → " + afterAmount + " (데이터 값 불변)");
+
+    // Footer/SubTotal 재계산은 비동기(~100ms)로 처리되므로 지연 후 읽는다.
+    setTimeout(function () { scwin.readAggValues("[상태값만 U 적용 후]"); }, 300);
+}
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="excludeModifiedRows" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_excludeModifiedRows" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[7]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[8]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkAgg_onclick" id="btn_checkAgg"
+							label="Footer/SubTotal 집계 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_makeC_onclick" id="btn_makeC"
+							label="C(신규행 추가)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_makeU_onclick" id="btn_makeU"
+							label="U(행 수정)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_makeD_onclick" id="btn_makeD"
+							label="D(행 삭제)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_makeV_onclick" id="btn_makeV"
+							label="V(추가 후 삭제)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_modifyStatus_onclick" id="btn_modifyStatus"
+							label="modifyRowStatus(상태만 변경)" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

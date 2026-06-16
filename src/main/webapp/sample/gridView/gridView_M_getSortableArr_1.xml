@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getSortableArr" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getSortableArr]<br/>전체 Header Column 의 sortable 속성값을 1차원 배열로 반환합니다.",
+    "validation" : [
+        "반환 배열의 각 요소는 true/false 값을 갖습니다.",
+        "반환 배열에는 숨김 처리된 Column 과 RowNum, RowStatus Column 이 포함됩니다.",
+        "Column 의 위치가 변경된 경우 GridView 에 표시되는 위치를 기준으로 배열이 생성됩니다.",
+        "Header 가 MultiLine 인 경우 좌상단부터 우하단 순서로 배열이 생성됩니다.",
+        "Header Column 의 개별 sortable 속성을 설정한 경우 해당 Column 은 GridView 의 sortable 속성이 무시되고, 개별 sortable 미설정 시 GridView 의 sortable 속성이 적용됩니다.",
+        "Body Column 의 inputType='drilldown','expression' 인 Column 은 정렬할 수 없지만 sortable 속성값은 true 가 될 수 있습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - GridView sortable="true"           : 개별 미설정 Header(그룹A, col3)의 기본 정렬 가능 → 반환 true
+    //  - rowNumVisible / rowStatusVisible    : RowNum·RowStatus Column 표시 → 반환 배열에 포함(값 false)
+    //  - MultiLine 헤더(2 Row) + 병합         : 좌상단부터 우하단 순서로 배열 생성
+    //  - 개별 sortable : col1=true / col2=false(GridView true 무시) / col4=true / col5=true / col3·그룹A=미설정(GridView true 적용)
+    //  - col4 drilldown / col5 expression    : 정렬 불가하나 sortable 속성값은 true
+    //  - col3                                : comp_init 에서 setColumnVisible("col3",false) 로 숨김(ID 기준) → 반환 배열에는 여전히 포함
+    $c.gcm.createLabel('label="[구성] GridView sortable=true / RowNum·RowStatus 표시 / MultiLine 병합헤더(그룹A=col1,col2) / col1=개별true, col2=개별false(GridView 무시), col3=미설정+숨김, col4=drilldown, col5=expression."', '', 'label1');
+    $c.gcm.createLabel('label="[예상] 배열 8개(좌상단→우하단): [RowNum=false, RowStatus=false, 그룹A=true, col3=true(숨김포함), col4=true, col5=true, col1=true, col2=false]. 그룹A도 1요소·상단행 먼저·하단행(col1,col2) 나중."', '', 'label2');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (col1~col4 text + amount number + depth number)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "10", "col3": "C1", "col4": "D1", "amount": 1000, "depth": 1 },
+        { "col1": "A2", "col2": "20", "col3": "C2", "col4": "D2", "amount": 2000, "depth": 2 },
+        { "col1": "A3", "col2": "30", "col3": "C3", "col4": "D3", "amount": 3000, "depth": 3 },
+        { "col1": "A4", "col2": "40", "col3": "C4", "col4": "D4", "amount": 4000, "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - sortable="true"        : 개별 미설정 Header(그룹A, col3)의 기본 정렬 가능 → 반환 true (@spec1)
+    //  - rowNumVisible="true"   : RowNum Column 표시 (반환 배열 포함, 값 false @return)
+    //  - rowStatusVisible="true": RowStatus Column 표시 (반환 배열 포함, 값 false @return)
+    //  - columnMove="true"      : 헤더 드래그로 사용자 Column 순서변경 허용 (@return : 표시 위치 기준 배열)
+    let properties = {
+        dataList: "data:dlt_bind",
+        sortable: "true",
+        rowNumVisible: "true",
+        rowStatusVisible: "true",
+        columnMove: "true",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    // target 생성 (Body 5컬럼, MultiLine 병합 헤더 2 Row)
+    //  헤더 상단 Row : [그룹A colspan=2 rowspan=1][col3 rowspan=2][col4 rowspan=2][col5 rowspan=2]
+    //  헤더 하단 Row : [col1][col2]
+    //  개별 sortable : hcol1=true / hcol2=false / hcol4=true / hcol5=true / hcol3·hgrpA=미설정(GridView true 적용)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:640px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getSortableArr 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    // 상단 Row
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column rowspan="1" colspan="2" width="120" style="" inputType="text" id="hgrpA" value="그룹A"></w2:column>';
+    strTarget += '<w2:column rowspan="2" colspan="1" width="120" style="" inputType="text" id="hcol3" value="col3(미설정/숨김)"></w2:column>';
+    strTarget += '<w2:column rowspan="2" colspan="1" width="120" style="" inputType="text" sortable="true" id="hcol4" value="col4(drilldown)"></w2:column>';
+    strTarget += '<w2:column rowspan="2" colspan="1" width="120" style="" inputType="text" sortable="true" id="hcol5" value="col5(expression)"></w2:column>';
+    strTarget += '</w2:row>';
+    // 하단 Row
+    strTarget += '<w2:row style="" id="hrow2">';
+    // col1 : 개별 sortable=true
+    strTarget += '<w2:column width="110" style="" inputType="text" sortable="true" id="hcol1" value="col1(개별true)"></w2:column>';
+    // col2 : 개별 sortable=false (GridView true 무시)
+    strTarget += '<w2:column width="110" style="" inputType="text" sortable="false" id="hcol2" value="col2(개별false)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // col1 (text) - 개별 sortable=true
+    strTarget += '<w2:column width="110" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    // col2 (text) - 개별 sortable=false
+    strTarget += '<w2:column width="110" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    // col3 (text) - 개별 미설정(GridView sortable=true 적용) / comp_init 에서 ID 기준 숨김
+    strTarget += '<w2:column width="120" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    // col4 (drilldown) + sortable=true (정렬 불가하나 sortable=true)
+    strTarget += '<w2:column width="120" style="" inputType="drilldown" depthColumn="depth" depthStartIndex="1" sortable="true" dataType="text" id="col4" dataList="col4"></w2:column>';
+    // col5 (expression) + sortable=true (정렬 불가하나 sortable=true), dataList 없이 amount 로 계산
+    strTarget += '<w2:column width="120" style="" inputType="expression" sortable="true" dataType="number" displayFormat="#,###" id="col5" expression="Number(display(\'col2\'))*2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // col3 숨김 처리 (Column ID 기준 - 인덱스는 drilldown/expression/병합헤더로 어긋날 수 있어 ID 사용)
+    //  → 숨겨도 getSortableArr 반환 배열에는 여전히 포함(@return)
+    target1.setColumnVisible("col3", false);
+}
+
+
+
+// getSortableArr 확인 : 전체 Header Column 의 sortable 속성값을 1차원 배열로 반환
+//  - 반환 배열 각 요소는 true/false (@return)
+//  - RowNum/RowStatus/숨김(col3) Column 포함 (@return)
+//  - MultiLine 헤더는 좌상단→우하단 순서 (@return)
+//  - col1=true(개별) / col2=false(개별, GridView true 무시) / col3·그룹A=true(GridView 적용) (@spec1)
+//  - col4=drilldown / col5=expression : 정렬 불가하나 sortable=true (@spec2)
+scwin.btn_getSortableArr_onclick = function () {
+    let arr = target1.getSortableArr();
+    wf_body_bottom.getObj("scwin").setReturnValue(JSON.stringify(arr));
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getSortableArr_onclick" id="btn_getSortableArr"
+							label="getSortableArr 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

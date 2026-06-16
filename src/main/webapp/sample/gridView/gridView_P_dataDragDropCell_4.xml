@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dataDragDropCell" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dataDragDropCell]<br/>Drag&Drop 으로 Cell 단위의 데이터 이동을 허용할지 설정합니다.",
+    "validation" : [
+        "두 개 이상의 Cell 데이터 이동 시 Drag 된 Cell 의 최소 Row/Column 인덱스값을 기준으로 복수 Cell 의 상대좌표를 계산하여 Drop 위치의 Cell 에 매핑시킵니다.",
+        "Drop 위치의 Cell 을 기준으로 범위 벗어난 Cell 은 데이터가 사라집니다.",
+        "선택 상태의 Cell 과 Drag 한 Cell 이 모두 포함되어 이동됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof target2 !== 'undefined') { target2.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+    if (typeof dlt_dst !== 'undefined') { $p.data.remove("dlt_dst"); }
+
+    // con_dataDragDropCell : 공통 gdl_boolean 바인딩 (getText() 로 '' 미설정 / 'true' / 'false' 판단)
+    //  - '' : 속성 자체를 추가하지 않음(기본 false) → 소스 그리드(target1)에 적용
+    let vDrag = con_dataDragDropCell.getText();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - @spec3 : 두 개 이상의 Cell 이동 시 Drag 된 Cell 들의 최소 Row/Column 인덱스를 기준으로 상대좌표를 계산하여
+    //    Drop 위치 Cell 에 매핑. Drop 위치 기준 범위를 벗어난 Cell 은 데이터가 사라지고, 선택 상태 Cell + Drag Cell 이 모두 함께 이동.
+    $c.gcm.createLabel('label="좌(target1)=소스, 우(target2)=대상(서로 다른 DataList). con=true 후 소스에서 Ctrl+클릭으로 여러 Cell 을 선택해 그 중 하나를 대상 Cell 로 Drag&Drop 하면, 최소 Row/Column 기준 상대좌표로 매핑되어 함께 이동(범위 벗어난 Cell 은 소실)됩니다. [양 그리드 데이터 출력] 으로 확인하세요."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === 소스 DataList(dlt_src) : Column 순서 [text, text, text, text], ID col1~col4 ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // === 대상 DataList(dlt_dst) : Column 순서 동일 [text, text, text, text], ID 는 colA~colD ===
+    let strDst = '';
+    strDst += '<w2:dataList ' + strNameSpace + ' id="dlt_dst" baseNode="list" repeatNode="map">';
+    strDst += '<w2:columnInfo>';
+    strDst += '<w2:column id="colA" name="colA" dataType="text"></w2:column>';
+    strDst += '<w2:column id="colB" name="colB" dataType="text"></w2:column>';
+    strDst += '<w2:column id="colC" name="colC" dataType="text"></w2:column>';
+    strDst += '<w2:column id="colD" name="colD" dataType="text"></w2:column>';
+    strDst += '</w2:columnInfo>';
+    strDst += '<w2:data use="true"></w2:data>';
+    strDst += '</w2:dataList>';
+    $p.data.create(strDst);
+
+    // 소스 데이터 4행 로드 (다중 Cell 선택 + 상대좌표 매핑 확인용, height 300 내 스크롤 없음)
+    let srcData = [
+        { "col1": "행1", "col2": "100", "col3": "Aa", "col4": "10" },
+        { "col1": "행2", "col2": "200", "col3": "Bb", "col4": "20" },
+        { "col1": "행3", "col2": "300", "col3": "Cc", "col4": "30" },
+        { "col1": "행4", "col2": "400", "col3": "Dd", "col4": "40" }
+    ];
+    dlt_src.setJSON(srcData, false);
+
+    // 대상 데이터 4행 로드 (Drop 위치 기준 상대좌표 매핑 / 범위초과 소실 확인용)
+    let dstData = [
+        { "colA": "대상1", "colB": "11", "colC": "Xx", "colD": "1" },
+        { "colA": "대상2", "colB": "22", "colC": "Yy", "colD": "2" },
+        { "colA": "대상3", "colB": "33", "colC": "Zz", "colD": "3" },
+        { "colA": "대상4", "colB": "44", "colC": "Ww", "colD": "4" }
+    ];
+    dlt_dst.setJSON(dstData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // === 소스 그리드(target1) : con 선택값으로 dataDragDropCell 적용 ===
+    //  - '' 미설정이면 dataDragDropCell 속성 자체를 부여하지 않음(기본 false → D&D 미허용)
+    //  - 다중 Cell 선택은 Ctrl+클릭(useCtrlKey 기본 true). focusedCell 에 선택 Cell + Drag Cell 이 누적되어 함께 이동(@spec3)
+    let srcProps = { dataList: "data:dlt_src" };
+    if (vDrag === 'true') {
+        srcProps.dataDragDropCell = true;
+    } else if (vDrag === 'false') {
+        srcProps.dataDragDropCell = false;
+    }
+    let srcCList = $c.gcm.createCList(srcProps);
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:440px;height:300px;display:inline-block;vertical-align:top;" ev:ondatadragstart="scwin.target1_ondatadragstart">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (Drag 소스 / dlt_src)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget1 += '<w2:column width="85" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+
+    // === 대상 그리드(target2) : Drop 대상, dataDragDropCell=true 고정 ===
+    let dstCList = $c.gcm.createCList({ dataList: "data:dlt_dst", dataDragDropCell: true });
+
+    let strTarget2 = '';
+    strTarget2 += '<w2:gridView ' + strNameSpace + ' ' + dstCList + ' id="" style="width:440px;height:300px;display:inline-block;vertical-align:top;margin-left:12px;" ev:ondatadrop="scwin.target2_ondatadrop">';
+    strTarget2 += '<w2:caption style="" id="caption2" value="target2 (Drop 대상 / dlt_dst)"></w2:caption>';
+    strTarget2 += '<w2:header style="" id="header2">';
+    strTarget2 += '<w2:row style="" id="hrow2">';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" id="hcolA" value="colA"></w2:column>';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" id="hcolB" value="colB"></w2:column>';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" id="hcolC" value="colC"></w2:column>';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" id="hcolD" value="colD"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:header>';
+    strTarget2 += '<w2:gBody style="" id="gBody2">';
+    strTarget2 += '<w2:row style="" id="brow2">';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" dataType="text" id="colA" dataList="colA"></w2:column>';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" dataType="text" id="colB" dataList="colB"></w2:column>';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" dataType="text" id="colC" dataList="colC"></w2:column>';
+    strTarget2 += '<w2:column width="85" style="" inputType="text" dataType="text" id="colD" dataList="colD"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:gBody>';
+    strTarget2 += '</w2:gridView>';
+
+    scwin.target2 = await $p.dynamicCreate("target2", "gridView", strTarget2, grp_comp);
+};
+
+
+
+// 소스 Drag 시작 : 출력 영역 초기화 후 시작 알림 (사용자 액션 보조 출력)
+//  - 다중 Cell 선택(Ctrl+클릭) 후 Drag 시작 시 focusedCell 누적 개수를 함께 표시
+scwin.target1_ondatadragstart = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+    let cnt = (target1.focusedCell && target1.focusedCell.length) ? target1.focusedCell.length : 0;
+    b.setReturnValue("target1 다중 Cell Drag 시작 (선택된 Cell 수 = " + cnt + ")");
+};
+
+// 대상 그리드에 Cell Drop 완료 : Cell 단위 이동은 행 수가 변하지 않으므로 데이터 확인 안내
+scwin.target2_ondatadrop = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("다중 Cell Drop 완료 - [양 그리드 데이터 출력] 버튼으로 상대좌표 매핑 / 원본 Cell null / 범위초과 소실 결과를 확인하세요.");
+};
+
+
+
+// 양 그리드 데이터 출력 버튼 : 소스/대상 DataList 의 현재 Cell 데이터를 행별로 출력
+//  - 다중 Cell 이동 결과(상대좌표 매핑, 원본 Cell null, 범위초과 소실)를 Cell 값으로 검증
+scwin.btn_checkResult_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let srcRows = dlt_src.getRowCount();
+    let dstRows = dlt_dst.getRowCount();
+
+    b.setReturnValue("[소스(target1)/dlt_src] " + srcRows + "행");
+    for (let i = 0; i < srcRows; i++) {
+        b.setReturnValue("  행" + i + " : col1=" + dlt_src.getCellData(i, "col1") + ", col2=" + dlt_src.getCellData(i, "col2") + ", col3=" + dlt_src.getCellData(i, "col3") + ", col4=" + dlt_src.getCellData(i, "col4"));
+    }
+
+    b.setReturnValue("[대상(target2)/dlt_dst] " + dstRows + "행");
+    for (let j = 0; j < dstRows; j++) {
+        b.setReturnValue("  행" + j + " : colA=" + dlt_dst.getCellData(j, "colA") + ", colB=" + dlt_dst.getCellData(j, "colB") + ", colC=" + dlt_dst.getCellData(j, "colC") + ", colD=" + dlt_dst.getCellData(j, "colD"));
+    }
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataDragDropCell" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_dataDragDropCell" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkResult_onclick" id="btn_checkResult" label="양 그리드 데이터 출력"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

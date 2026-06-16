@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getSortableStatus" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - description 은 _1 과 동일 (분리 샘플 규칙)
+//  - validation 은 분리 사유 1건만 (MultiLine 정렬 상태 = 정렬이 적용된 Body Column 정보 반환)
+scwin.tData = {
+    "description" : "[gridView > M > getSortableStatus]<br/>sortable=true 일때 GridView 에 실행된 정렬 상태 정보를 1차원 배열로 반환합니다.",
+    "validation" : [
+        "Header 와 Body 가 MultiLine 인 경우 정렬은 동일 Column 단위로 실행되지만 정렬 상태 정보는 정렬이 적용된 Body Column 정보가 반환됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - Header/Body 가 모두 MultiLine (레코드당 2행: 상단 col1,col2 / 하단 col3,col4)
+    //  - 컬럼 헤더 클릭 정렬 시 getSortableStatus 는 헤더가 아닌 정렬이 적용된 Body Column 정보로 반환
+    $c.gcm.createLabel('label="Header/Body 가 MultiLine(레코드당 2행: 상단 col1,col2 / 하단 col3,col4)인 그리드입니다. 컬럼 헤더를 클릭해 정렬하면 정렬 상태(getSortableStatus)는 헤더가 아닌 정렬이 적용된 Body Column 정보(colID/dataType)로 반환됩니다. Ctrl+클릭 다중정렬. col2(개별false)는 정렬 안 됨."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (col1=text, col2=number, col3=text, col4=number)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 정렬 시 순서가 바뀌도록 값을 섞어서 구성
+    let jsonData = [
+        { "col1": "C", "col2": 200, "col3": "Cc", "col4": 30 },
+        { "col1": "A", "col2": 400, "col3": "Aa", "col4": 10 },
+        { "col1": "D", "col2": 100, "col3": "Dd", "col4": 40 },
+        { "col1": "B", "col2": 300, "col3": "Bb", "col4": 20 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - sortable="true"        : 개별 미설정 Header(hcol3, hcol4)의 기본 정렬 가능 (@spec1)
+    //  - rowNumVisible="true"   : RowNum Column 표시
+    //  - rowStatusVisible="true": RowStatus Column 표시
+    //  - groupbyZone/columnMove 미설정 : 헤더 클릭이 정렬로 동작하도록 함 (설정 시 정렬 미동작)
+    let properties = {
+        dataList: "data:dlt_bind",
+        sortable: "true",
+        rowNumVisible: "true",
+        rowStatusVisible: "true",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    // target 생성 (진짜 MultiLine 구조 — 병합 colspan/rowspan 미사용)
+    //  헤더 상단 Row(hrow1) : [hcol1][hcol2]
+    //  헤더 하단 Row(hrow2) : [hcol3][hcol4]
+    //  Body  상단 Row(brow1) : [col1][col2]
+    //  Body  하단 Row(brow2) : [col3][col4]
+    //  → 한 레코드가 상단라인(col1,col2) + 하단라인(col3,col4)으로 2행 표시
+    //  개별 sortable : hcol1=true / hcol2=false / hcol3·hcol4=미설정(GridView true 적용)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' sortEvent="onclick" id="" style="width:480px;height:340px;" ev:onsort="scwin.target1_onsort">';
+    strTarget += '<w2:caption style="" id="caption1" value="getSortableStatus MultiLine 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    // 헤더 상단 Row : [hcol1][hcol2]
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" sortable="true" id="hcol1" value="col1(개별true)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" sortable="false" id="hcol2" value="col2(개별false)"></w2:column>';
+    strTarget += '</w2:row>';
+    // 헤더 하단 Row : [hcol3][hcol4]
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol3" value="col3(GridView)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol4" value="col4(GridView)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    // Body 상단 Row : [col1][col2]
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" dataType="number" id="col2" dataList="col2"></w2:column>';
+    strTarget += '</w2:row>';
+    // Body 하단 Row : [col3][col4]
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="180" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" dataType="number" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// onsort 이벤트 핸들러
+//  - 사용자가 sortable 헤더를 클릭해 정렬하면 발생
+//  - 핸들러 내에서 getSortableStatus() 실행 시 방금 실행된 정렬의 최신 상태 조회
+//  - MultiLine 그리드에서 정렬 시 상태는 헤더가 아닌 정렬이 적용된 Body Column(col1~col4) 기준으로 반환됨
+scwin.target1_onsort = function (info) {
+    let status = target1.getSortableStatus();
+    let lastColID = status.length ? status[status.length - 1].colID : '없음';
+    // 클릭한 Header 셀 id 와 getSortableStatus 가 반환하는 Body Column id 를 대비하여 출력
+    //  → MultiLine 이어도 상태 정보는 헤더가 아닌 Body Column 기준(colID)으로 반환됨을 확인
+    wf_body_bottom.getObj("scwin").setReturnValue("[onsort] 클릭 Header id : " + info.headerId + " / 반환 colID(Body Column) : " + lastColID);
+    wf_body_bottom.getObj("scwin").setReturnValue("[onsort] getSortableStatus() 전체 : " + JSON.stringify(status));
+};
+
+
+
+// getSortableStatus 확인 : 현재 실행된 정렬 상태 정보를 1차원 배열로 반환
+//  - 정렬 전이면 빈 배열
+scwin.btn_getSortableStatus_onclick = function () {
+    let status = target1.getSortableStatus();
+    wf_body_bottom.getObj("scwin").setReturnValue(JSON.stringify(status));
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getSortableStatus_onclick" id="btn_getSortableStatus"
+							label="getSortableStatus 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

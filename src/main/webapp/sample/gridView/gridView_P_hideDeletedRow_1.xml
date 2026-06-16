@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] hideDeletedRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > hideDeletedRow]<br/>DataList 의 deleteRow(), deleteRows() 메소드로 삭제한 Row 데이터를 GridView 에 표시할지 설정합니다.",
+    "validation" : [
+        "true 설정 시 DataList 의 deleteRow(), deleteRows() 메소드로 삭제한 Row 데이터를 GridView 에 표시하지 않습니다.",
+        "false (default) 또는 미설정 시 DataList 의 deleteRow(), deleteRows() 메소드로 삭제한 Row 데이터도 GridView 에 표시합니다.",
+        "hideDeletedRow 속성을 true 로 설정하면 DrillDown 이나 GroupBy 적용 여부와 관계없이 excludeDeletedRows 속성은 true 로 강제 설정됩니다.",
+        "DataList 의 deleteRow(), deleteRows() 메소드로 삭제하면 Row 상태값이 'D', 'V' 로 변경되며 Row 데이터가 표시되지 않습니다.",
+        "Row 상태값을 직접 변경하거나 로딩 시 설정된 경우엔 hideDeletedRow 속성이 적용되지 않습니다.",
+        "DataList 의 undeleteRow() 메소드로 삭제된 Row 를 복원하면 Row 데이터가 GridView 에 다시 표시됩니다.",
+        "hideDeletedRow=true 일때 RowNum Column 의 Row 순번은 재계산되지 않고 삭제된 Row 의 순번은 건너뜁니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 생성 (가장 먼저 생성)
+    //  - hideDeletedRow 효과는 deleteRow()/deleteRows() 로 행을 삭제해야 관찰됨 (상태값 D/V)
+    //  - DrillDown/GroupBy 적용 시 삭제 Row 는 항상 표시됨
+    $c.gcm.createLabel('label="deleteRow/deleteRows 로 삭제 시 hideDeletedRow=true 면 미표시, false/미설정이면 상태값 D/V 로 표시됩니다. (DrillDown/GroupBy 적용 시 항상 표시) RowNum 순번은 삭제 Row 를 건너뜁니다."', '', 'label1');
+
+    // 조건 설정
+    //  - con_hideDeletedRow 는 공통 gdl_boolean 바인딩 → getText() 로 '' 미설정 / 'true' / 'false' 판단
+    //    (gdl_boolean 의 value 는 "1"/"2"/"3" 이므로 boolean 속성에는 getValue 가 아닌 getText 로 판단해야 함)
+    //  - 미설정('') 이면 속성 미부여 (기본값 false 동작)
+    //  - RowNum Column 순번 확인 위해 rowNumVisible 표시
+    let vHide = con_hideDeletedRow.getText();
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: true,
+        rowNumHeaderValue: "No.",
+        rowNumStatusUniqueId: true,
+    };
+    if (vHide === 'true') {
+        properties.hideDeletedRow = true;
+    } else if (vHide === 'false') {
+        properties.hideDeletedRow = false;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // dataList 생성 (기본 4행 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// 현재 GridView 에 표시된 Body Row 정보(표시 행 수 / RowNum 순번)와 excludeDeletedRows 옵션값을 출력
+scwin.btn_checkDisplay_onclick = function (e) {
+    // 표시 중인 Body Row (w2grid_hidedRow 미적용 = 삭제로 숨김 처리되지 않은 행)
+    let rows = document.querySelectorAll("tr.grid_body_row:not(.w2grid_hidedRow)");
+    let rowNums = [];
+    rows.forEach(function (tr) {
+        let cell = tr.querySelector("td[id*='_headerRowNumber_bodyRow_']");
+        if (cell) rowNums.push(cell.textContent);
+    });
+
+    wf_body_bottom.getObj("scwin").setReturnValue("표시된 Row 수 : " + rows.length);
+    wf_body_bottom.getObj("scwin").setReturnValue("표시된 RowNum 순번 : [" + rowNums.join(", ") + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("excludeDeletedRows 강제 적용값 : " + target1.options.excludeDeletedRows);
+}
+
+
+
+// deleteRow : par_rowIndex 로 지정한 Row 를 삭제 (상태값 D/V 로 변경)
+scwin.btn_deleteRow_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+    dlt_bind.deleteRow(idx);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteRow(" + idx + ") 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx));
+    // 엔진은 deleteRow/deleteRows/undeleteRow 후 grid 표시(행 숨김/복원) 갱신을 비동기(~100ms)로 처리하므로,
+    // 표시된 Row 수/RowNum 확인은 동기로 읽으면 삭제 전 값이 나온다. 지연 후 출력한다.
+    setTimeout(scwin.btn_checkDisplay_onclick, 300);
+}
+
+
+
+// deleteRows : Row 1, 2 를 한번에 삭제 (상태값 D/V 로 변경)
+scwin.btn_deleteRows_onclick = function (e) {
+    dlt_bind.deleteRows([1, 2]);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteRows([1, 2]) 실행 → Row 1 상태값 : " + dlt_bind.getRowStatus(1) + ", Row 2 상태값 : " + dlt_bind.getRowStatus(2));
+    // 엔진은 deleteRow/deleteRows/undeleteRow 후 grid 표시(행 숨김/복원) 갱신을 비동기(~100ms)로 처리하므로,
+    // 표시된 Row 수/RowNum 확인은 동기로 읽으면 삭제 전 값이 나온다. 지연 후 출력한다.
+    setTimeout(scwin.btn_checkDisplay_onclick, 300);
+}
+
+
+
+// undeleteRow : par_rowIndex 로 지정한 삭제 Row 를 복원
+scwin.btn_undeleteRow_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+    dlt_bind.undeleteRow(idx);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("undeleteRow(" + idx + ") 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx));
+    // 엔진은 deleteRow/deleteRows/undeleteRow 후 grid 표시(행 숨김/복원) 갱신을 비동기(~100ms)로 처리하므로,
+    // 표시된 Row 수/RowNum 확인은 동기로 읽으면 삭제 전 값이 나온다. 지연 후 출력한다.
+    setTimeout(scwin.btn_checkDisplay_onclick, 300);
+}
+
+
+
+// Row 상태값 직접 변경 : modifyRowStatus 로 par_rowIndex Row 상태를 직접 "D" 로 변경
+//  - deleteRow/deleteRows 가 아닌 직접 상태 변경이므로 hideDeletedRow 가 적용되지 않아 표시 유지됨
+scwin.btn_modifyRowStatus_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+    dlt_bind.modifyRowStatus(idx, "D");
+
+    wf_body_bottom.getObj("scwin").setReturnValue("modifyRowStatus(" + idx + ", 'D') 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx));
+    // 엔진은 deleteRow/deleteRows/undeleteRow 후 grid 표시(행 숨김/복원) 갱신을 비동기(~100ms)로 처리하므로,
+    // 표시된 Row 수/RowNum 확인은 동기로 읽으면 삭제 전 값이 나온다. 지연 후 출력한다.
+    setTimeout(scwin.btn_checkDisplay_onclick, 300);
+}
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideDeletedRow" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_hideDeletedRow" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteRow_onclick" id="btn_deleteRow"
+							label="deleteRow" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteRows_onclick" id="btn_deleteRows"
+							label="deleteRows" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_undeleteRow_onclick" id="btn_undeleteRow"
+							label="undeleteRow" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_modifyRowStatus_onclick" id="btn_modifyRowStatus"
+							label="modifyRowStatus" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkDisplay_onclick" id="btn_checkDisplay"
+							label="표시 행/RowNum/excludeDeletedRows 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

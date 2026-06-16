@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] defaultCellHeight" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260616" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > defaultCellHeight]<br/>GridView 컴포넌트의 Cell 기본 높이를 픽셀(px) 단위로 설정합니다.",
+    "validation" : [
+        "Header 와 Body 영역의 Cell 기본 높이를 픽셀(px) 단위로 설정합니다.",
+        "-1 설정 시, 테마 CSS 등 스타일값이 적용됩니다.",
+        "미설정 시, 테마 CSS 등 스타일값이 적용됩니다.",
+        "Cell 이나 Row 에 직접 설정한 높이값이 defaultCellHeight 속성값보다 우선순위가 높습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+
+    // [중요] defaultCellHeight 는 '#target1 td.gridBodyDefault {height:Npx}' CSS 규칙을 insertRule 로 주입하는데,
+    //  grid 재생성(같은 id)·-1/미설정 전환 시 이 규칙이 제거되지 않아 직전 숫자 높이가 잔존한다(@dynamic N).
+    //  con 전환 검증을 위해 재생성 전 해당 잔존 규칙을 정리한다.
+    scwin._clearDefaultCellHeightRule();
+
+    // con 셀렉트값 : '' 미설정(테마 CSS) / '-1'(테마 CSS) / '40' / '60'
+    let vHeight = con_defaultCellHeight.getValue();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let lblHeight = (vHeight === '') ? '미설정(테마 CSS 기본)' : (vHeight === '-1' ? '-1(테마 CSS 기본)' : (vHeight + 'px'));
+    $c.gcm.createLabel('label="con(defaultCellHeight=' + lblHeight + ') 적용. row0 은 직접 높이 80px(우선), row1~3 은 defaultCellHeight 적용. [셀 높이 확인] 으로 Header·Body·row0 높이와 우선순위를 확인하세요."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === DataList(dlt_src) : 4 Column [text, text, text, text] / 4행 ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // 데이터 4행 로드 (스크롤 없이 모두 보이게)
+    let srcData = [];
+    for (let i = 1; i <= 4; i++) {
+        srcData.push({ "col1": "행" + i, "col2": (i * 100) + "", "col3": "C" + i, "col4": (i * 10) + "" });
+    }
+    dlt_src.setJSON(srcData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // === target1 : defaultCellHeight 만 con 값 적용('' 이면 속성 미부여→테마 CSS, '-1' 이면 -1) ===
+    let props = { dataList: "data:dlt_src" };
+    if (vHeight !== '') { props.defaultCellHeight = Number(vHeight); }
+    let srcCList = $c.gcm.createCList(props);
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:440px;height:260px;">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (defaultCellHeight 테스트)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+
+    // === @spec 검증용 : row0 의 각 Cell 에 직접 높이(80px) 부여 → defaultCellHeight 보다 우선 ===
+    //  (setRowHeight 등 per-row 높이 설정 메소드는 엔진에 미존재 → DOM td 에 직접 height 부여)
+    for (let c = 0; c < 4; c++) {
+        let cell0 = document.querySelector("td[id*='target1_cell_0_" + c + "']");
+        if (cell0) { cell0.style.height = "80px"; }
+    }
+};
+
+
+
+// defaultCellHeight 가 주입한 잔존 CSS 규칙 정리 (재생성/-1/미설정 시 직전 높이 잔존 방지)
+//  - 엔진은 '#{gridId} td.gridBodyDefault {height:Npx}', '#{gridId} th.gridHeaderTDDefault {height:Npx}' 를 insertRule 로 추가
+scwin._clearDefaultCellHeightRule = function () {
+    for (let s = 0; s < document.styleSheets.length; s++) {
+        let sheet = document.styleSheets[s], rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        if (!rules) continue;
+        for (let i = rules.length - 1; i >= 0; i--) {
+            let t = rules[i].cssText || "";
+            if (t.indexOf("target1") >= 0 && /gridBodyDefault|gridHeaderTDDefault/.test(t) && /height/i.test(t)) {
+                try { sheet.deleteRule(i); } catch (e) { /* 삭제 불가 규칙 무시 */ }
+            }
+        }
+    }
+};
+
+// === [셀 높이 확인] : Header th / Body td(row1, defaultCellHeight 적용) / row0(직접 높이 우선) 의 실제 높이 + 적용 옵션값 출력 ===
+scwin.btn_cellHeight_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // 적용된 defaultCellHeight 옵션값 (미설정 시 기본 -1)
+    let optVal = target1.options.defaultCellHeight;
+
+    // Header th (첫 헤더 셀) : 헤더 컬럼 id 기반 th id = {gridId}_hcol1
+    let headerTh = document.querySelector("th[id*='target1_hcol1']");
+    let headerH = headerTh ? headerTh.offsetHeight : -1;
+
+    // Body td : row1(defaultCellHeight 적용 대상) / row0(직접 높이 80px 우선)
+    let bodyTd1 = document.querySelector("td[id*='target1_cell_1_0']");
+    let bodyH1 = bodyTd1 ? bodyTd1.offsetHeight : -1;
+    let bodyTd0 = document.querySelector("td[id*='target1_cell_0_0']");
+    let bodyH0 = bodyTd0 ? bodyTd0.offsetHeight : -1;
+
+    b.setReturnValue("defaultCellHeight=" + optVal + " → Header " + headerH + "px / Body(row1) " + bodyH1 + "px");
+    b.setReturnValue("row0(직접 80px) " + bodyH0 + "px → row0 우선 적용 : " + (bodyH0 !== bodyH1));
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="defaultCellHeight" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 appearance="minimal" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_defaultCellHeight" label="label" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>-1</xf:label>
+												<xf:value>-1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>40</xf:label>
+												<xf:value>40</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>60</xf:label>
+												<xf:value>60</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_cellHeight_onclick" id="btn_cellHeight" label="셀 높이 확인"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

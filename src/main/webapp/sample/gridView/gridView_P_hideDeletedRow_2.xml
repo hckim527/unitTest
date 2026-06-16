@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] hideDeletedRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > hideDeletedRow]<br/>DataList 의 deleteRow(), deleteRows() 메소드로 삭제한 Row 데이터를 GridView 에 표시할지 설정합니다.",
+    "validation" : [
+        "GridView 에 GroupBy 가 적용된 경우엔 삭제한 Row 데이터가 항상 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - GroupBy 가 적용된 GridView 에서는 hideDeletedRow=true 라도 삭제한 Row 데이터가 항상 표시됨을 검증.
+//    (엔진: notifyController.js:986/1026 의 hideDeletedRow 숨김 분기가 !groupbyStatus.grouped 조건이라
+//     GroupBy 적용 시 미적용 → 삭제 행 표시 유지)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 정리
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 생성 (가장 먼저 생성)
+    //  - dept 컬럼 기준 GroupBy 가 적용된 그리드. hideDeletedRow=true 라도 GroupBy 적용 시
+    //    deleteRow()/deleteRows() 로 삭제한 Row 가 숨겨지지 않고 상태값 D/V 로 계속 표시됨.
+    $c.gcm.createLabel('label="dept 컬럼 기준 GroupBy 가 적용된 그리드입니다. GroupBy 적용 시 hideDeletedRow=true 라도 deleteRow()/deleteRows() 로 삭제한 Row 는 숨겨지지 않고 상태값 D 로 계속 표시됩니다."', '', 'label1');
+
+    // 조건 설정
+    //  - con_hideDeletedRow 는 공통 gdl_boolean 바인딩 → getText() 로 '' 미설정 / 'true' / 'false' 판단
+    //    (gdl_boolean 의 value 는 "1"/"2"/"3" 이므로 boolean 속성에는 getValue 가 아닌 getText 로 판단해야 함)
+    //  - 미설정('') 이면 속성 미부여 (기본값 false 동작)
+    let vHide = con_hideDeletedRow.getText();
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // GridView 와 바인딩할 DataList 동적 생성 (GroupBy 기준 dept 컬럼 포함, 9행/3그룹)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 9건 : dept 컬럼 기준 사전 정렬(Sales 3건 + Dev 3건 + QA 3건) → GroupBy 대상
+    //  - GroupBy 가 정상 렌더되려면 그룹 컬럼(dept) 기준으로 같은 값이 연속되도록 사전 정렬되어 있어야 함
+    let jsonData = [
+        { "name": "John", "dept": "Sales" },
+        { "name": "Jane", "dept": "Sales" },
+        { "name": "Jack", "dept": "Sales" },
+        { "name": "Mike", "dept": "Dev" },
+        { "name": "Amy",  "dept": "Dev" },
+        { "name": "Alex", "dept": "Dev" },
+        { "name": "Tom",  "dept": "QA" },
+        { "name": "Tina", "dept": "QA" },
+        { "name": "Tony", "dept": "QA" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    //  - hideDeletedRow 는 con 값에 따라 true/false 만 부여, 미설정('') 이면 속성 미부여
+    //  - RowNum Column 표시
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: true,
+        rowNumHeaderValue: "No.",
+        rowNumStatusUniqueId: true
+    };
+    if (vHide === 'true') {
+        properties.hideDeletedRow = true;
+    } else if (vHide === 'false') {
+        properties.hideDeletedRow = false;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // Header(이름/부서) + gBody(데이터) + SubTotal(dept 그룹 경계) 인라인 구성
+    //  - createBasicGridView 로는 GroupBy 대상 컬럼/SubTotal 지정 불가하므로 인라인 구성
+    //  - SubTotal(targetColumnID="dept") 로 그룹 경계가 명확히 렌더되도록 구성
+    //  - height 300px : 데이터 9건 + SubTotal 3건이 모두 보이도록
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:420px;height:560px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row (dept 값이 바뀌는 지점마다 삽입) → 그룹 경계 명확화
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="scol1" value="소계(SubTotal)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+
+    // GroupBy 적용 : dept 컬럼(인덱스 1) 기준 그룹핑
+    //  - 이 상태에서는 hideDeletedRow=true 라도 삭제 Row 가 숨겨지지 않음
+    //  - hideHeader/hideFooter=true : groupby 가 그룹마다 삽입하는 빈 결과(헤더/푸터) Row 를 숨겨 빈 행이 보이지 않게 함
+    //    (그룹 경계는 subTotal 의 소계 Row 로 표시. grouped 상태는 유지되어 hideDeletedRow 미적용 동작은 동일)
+    scwin.target1.groupby({ sortIndex: [1], sortOrder: [1], hideHeader: true, hideFooter: true });
+}
+
+
+
+// 현재 GridView 에 표시된 Body Row 수를 출력
+//  - GroupBy 적용 상태에서는 삭제 Row 도 숨겨지지 않아 행 수가 유지됨
+scwin.btn_checkDisplay_onclick = function (e) {
+    // 표시 중인 Body Row (w2grid_hidedRow 미적용 = 삭제로 숨김 처리되지 않은 행)
+    let rows = document.querySelectorAll("tr.grid_body_row:not(.w2grid_hidedRow)");
+    wf_body_bottom.getObj("scwin").setReturnValue("표시된 Row 수 : " + rows.length);
+}
+
+
+
+// deleteRow : par_rowIndex 로 지정한 Row 를 삭제 (상태값 D/V 로 변경)
+//  - GroupBy 적용 환경이므로 hideDeletedRow=true 라도 삭제 행은 숨겨지지 않고 계속 표시됨
+scwin.btn_deleteRow_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+    dlt_bind.deleteRow(idx);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteRow(" + idx + ") 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx));
+    // 엔진은 deleteRow/deleteRows/undeleteRow 후 grid 표시(행 숨김/복원) 갱신을 비동기(~100ms)로 처리하므로,
+    // 표시된 Row 수 확인은 동기로 읽으면 삭제 전 값이 나온다. 지연 후 출력한다.
+    setTimeout(scwin.btn_checkDisplay_onclick, 300);
+}
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideDeletedRow" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_hideDeletedRow" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[7]]></xf:label>
+												<xf:value><![CDATA[7]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[8]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteRow_onclick" id="btn_deleteRow"
+							label="deleteRow" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

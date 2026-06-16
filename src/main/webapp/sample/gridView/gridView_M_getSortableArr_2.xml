@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getSortableArr" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260612" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getSortableArr]<br/>전체 Header Column 의 sortable 속성값을 1차원 배열로 반환합니다.",
+    "validation" : [
+        "GridView 컴포넌트에 GroupBy 기능이 적용된 경우 정렬할 수 없지만 sortable 속성값은 true 가 될 수 있습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - groupbyZone="true"  : 상단 GroupBy 드래그 영역 표시 → 사용자가 컬럼 헤더를 드래그하면 GroupBy 적용
+    //  - GroupBy 적용 시 해당 컬럼은 정렬 불가하나 sortable 속성값(true)은 그대로 반환 (@spec2)
+    //  - 개별 sortable : col1=true / col2=false(GridView true 무시) / col3·col4=미설정(GridView true 적용)
+    //  - columnMove 미설정 : GroupBy 는 columnMove 와 동시 사용 불가하므로 절대 설정하지 않음
+    $c.gcm.createLabel('label="상단 GroupBy 영역에 col1 헤더를 드래그하거나 [GroupBy 적용(col1)] 버튼을 누르면 col1 기준으로 그룹화되어 정렬할 수 없게 됩니다. 그래도 [getSortableArr 확인]을 누르면 sortable 속성값(col1=true)은 그대로 반환됩니다(GroupBy 는 정렬만 막고 sortable 속성은 안 바꿈)."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (col1~col4 text)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "G1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "G1", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "G2", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "G2", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - sortable="true"        : 개별 미설정 Header(col3, col4)의 기본 정렬 가능 → 반환 true
+    //  - groupbyZone="true"     : 상단 GroupBy 드래그 영역 표시 (사용자 드래그로 GroupBy 적용, @spec2)
+    //  - rowNumVisible="true"   : RowNum Column 표시
+    //  - rowStatusVisible="true": RowStatus Column 표시
+    //  - columnMove 미설정       : GroupBy 와 동시 사용 불가하므로 설정하지 않음
+    let properties = {
+        dataList: "data:dlt_bind",
+        sortable: "true",
+        groupbyZone: "true",
+        groupbyZoneMessage: "GroupBy 할 컬럼 헤더를 이 영역으로 드래그하세요",
+        rowNumVisible: "true",
+        rowStatusVisible: "true",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼, 단일 Row 헤더)
+    //  개별 sortable : hcol1=true / hcol2=false / hcol3·hcol4=미설정(GridView true 적용)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ev:ongroupby="scwin.target1_ongroupby" id="" style="width:640px;height:400px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getSortableArr GroupBy 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    // col1 : 개별 sortable=true
+    strTarget += '<w2:column width="130" style="" inputType="text" sortable="true" id="hcol1" value="col1(개별true)"></w2:column>';
+    // col2 : 개별 sortable=false (GridView true 무시)
+    strTarget += '<w2:column width="130" style="" inputType="text" sortable="false" id="hcol2" value="col2(개별false)"></w2:column>';
+    // col3 : 개별 미설정 (GridView sortable=true 적용)
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="col3(GridView true)"></w2:column>';
+    // col4 : 개별 미설정 (GridView sortable=true 적용)
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="col4(GridView true)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// getSortableArr 확인 : 전체 Header Column 의 sortable 속성값을 1차원 배열로 반환
+//  - GroupBy 가 적용되어 정렬이 막혀도 sortable=true 인 컬럼은 배열에서 true (@spec2)
+scwin.btn_getSortableArr_onclick = function () {
+    let arr = target1.getSortableArr();
+    wf_body_bottom.getObj("scwin").setReturnValue(JSON.stringify(arr));
+}
+
+
+
+// col1(인덱스 0) 기준 GroupBy 적용 (groupby 메소드 - MCP 실측으로 col1 그룹화 확인)
+scwin.btn_groupby_onclick = function () {
+    // 엔진 드래그 기본 옵션과 동일: rowNumHeader 에 toggle()+depthStr()+count() 로 그룹 헤더(토글+그룹값+건수) 표시
+    let colCnt = target1.getColCnt() + target1.defaultColCnt;
+    target1.groupby({
+        sortIndex: [0],
+        sortOrder: [1],
+        rowNumHeader: { colSpan: colCnt, inputType: "expression", expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: "left" },
+        footerVisible: false,
+        rowNumFooter: { colSpan: colCnt }
+    });
+    wf_body_bottom.getObj("scwin").setReturnValue("groupby 호출 → col1 기준 GroupBy 적용(그룹 헤더/건수 표시, 정렬 불가). [getSortableArr 확인]으로 sortable 값 확인");
+};
+
+
+
+// GroupBy 해제
+scwin.btn_clearGroupby_onclick = function () {
+    target1.clearGroupby();
+    wf_body_bottom.getObj("scwin").setReturnValue("clearGroupby() 호출 → GroupBy 해제");
+};
+
+
+
+// 사용자가 헤더를 groupbyZone 으로 드래그하면 발생. false 반환 시 엔진이 기본 옵션(그룹 헤더+건수)으로 groupby 적용
+//  (핸들러가 없거나 false 를 반환하지 않으면 드래그해도 그룹화가 렌더되지 않음 - layoutController.js:2844)
+scwin.target1_ongroupby = function (options) {
+    wf_body_bottom.getObj("scwin").setReturnValue("ongroupby 발생(헤더 드래그) → GroupBy 적용. [getSortableArr 확인]으로 sortable 값 확인");
+    return false;
+};
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getSortableArr_onclick" id="btn_getSortableArr"
+							label="getSortableArr 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="GroupBy 적용(col1)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearGroupby_onclick" id="btn_clearGroupby" label="GroupBy 해제" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

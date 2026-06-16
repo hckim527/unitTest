@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dataDragSelectAutoScrollLevel" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260616" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dataDragSelectAutoScrollLevel]<br/>dataDragSelectAutoScroll=true 일때 Drag 로 Cell 선택 시 자동 스크롤의 범위가 증가하는 주기를 밀리초(ms)로 설정합니다.",
+    "validation" : [
+        "dataDragSelect=true, useShiftKey=true 이고, dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성이 모두 false 인 경우에 동작합니다.",
+        "Drag 로 Cell 선택 시 세로 자동 스크롤의 범위가 2배로 증가하는 주기를 밀리초(ms)로 설정합니다.",
+        "값이 작을수록 스크롤 범위가 빠르게 증가하고, 값이 클수록 스크롤 범위가 느리게 증가합니다.",
+        "스크롤 범위가 증가하면 한번에 많은 범위가 스크롤 되므로 상대적으로 스크롤 속도가 증가하게 됩니다.",
+        "미설정 시, 1300(1.3초) 이 적용됩니다.",
+        "dataDragSelectAutoScrollLevel 속성은 가로 스크롤에는 적용되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+
+    // con 셀렉트값 : '' 미설정(기본 1300) / '300'(범위 빠르게 증가) / '2600'(범위 느리게 증가)
+    //  - dataDragSelectAutoScrollLevel 은 dataDragSelectAutoScroll=true + dataDragSelect=true +
+    //    useShiftKey=true + dataDragDrop/Self/Other/Cell 모두 false 일 때만 동작
+    //    → target1 에 dataDragDrop 계열은 부여하지 않음(모두 기본 false)
+    let vLevel = con_dataDragSelectAutoScrollLevel.getValue();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  dataDragSelect / useShiftKey / dataDragSelectAutoScroll 은 자동 스크롤 동작 전제이므로 모두 true 로 고정(con 미제공)
+    let lblLevel = (vLevel === '') ? '미설정(기본 1300ms)' : (vLevel + 'ms');
+    $c.gcm.createLabel('label="con(dataDragSelectAutoScrollLevel=' + lblLevel + ') 적용, dataDragSelect=true / useShiftKey=true / dataDragSelectAutoScroll=true 고정. 30행/세로스크롤 구조. 검증 절차 → Body Cell 을 마우스로 Drag 한 채 GridView 하단 밖으로 이동해 유지하면 세로 자동 스크롤이 동작하고, 결과창에 tick 별 [경과ms / scrollTop / Δ] 가 출력됩니다. 출력의 Δ(스크롤 범위)가 설정값(주기)마다 2배로 증가하는지로 검증하세요(Level=300 은 빠르게, 2600 은 느리게 증가). 체감 스크롤 속도는 수동 확인용 보조 지표입니다."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === DataList(dlt_src) : 4 Column [text, text, text, text] / 30행 (뷰포트보다 많게) ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // 데이터 30행 로드 (grid height 보다 많은 행 → 세로 스크롤 발생)
+    let srcData = [];
+    for (let i = 1; i <= 30; i++) {
+        srcData.push({ "col1": "행" + i, "col2": (i * 100) + "", "col3": "C" + i, "col4": (i * 10) + "" });
+    }
+    dlt_src.setJSON(srcData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // === target1 : dataDragSelect/useShiftKey/dataDragSelectAutoScroll 는 true 고정(전제), dataDragSelectAutoScrollLevel 만 con 값 적용('' 이면 속성 미부여→기본 1300) ===
+    //  - dataDragDrop 계열은 전부 미부여(기본 false) → 자동 스크롤 동작 전제 충족
+    let props = { dataList: "data:dlt_src", dataDragSelect: true, useShiftKey: true, dataDragSelectAutoScroll: true };
+    if (vLevel !== '') { props.dataDragSelectAutoScrollLevel = Number(vLevel); }
+    let srcCList = $c.gcm.createCList(props);
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:440px;height:150px;" ev:onscrollstart="scwin.target1_onscrollstart" ev:onscrolly="scwin.target1_onscrolly">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (dataDragSelectAutoScrollLevel 테스트)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+};
+
+
+
+// 세로 스크롤 위치(px) 조회 헬퍼
+scwin.getScrollTopPx = function () {
+    let div = document.querySelector("[id$='target1_scrollY_div']");
+    return div ? Math.round(div.scrollTop) : -1;
+};
+
+// === 자동 스크롤 추적(출력값 검증) ===
+//  자동 스크롤이 시작되면(onscrollstart) 측정 기준시각/위치를 초기화하고,
+//  각 스크롤 tick(onscrolly)마다 [경과ms / scrollTop / Δ(이번 tick 스크롤 범위)] 를 출력한다.
+//  Level 값(주기)마다 Δ 가 2배로 증가하므로, 출력된 Δ 추이로 검증한다.
+//   - Level=300(작은값) : Δ 가 빠르게(짧은 주기로) 2배씩 증가 → scrollTop 이 빠르게 커짐
+//   - Level=2600(큰값)  : Δ 가 느리게(긴 주기로) 증가
+//  (체감 스크롤 속도는 수동 테스트용 보조 지표)
+scwin.target1_onscrollstart = function (e) {
+    let b = wf_body_bottom.getObj("scwin");
+    scwin._lvlT0 = Date.now();
+    scwin._lvlPrevTop = scwin.getScrollTopPx();
+    scwin._lvlTick = 0;
+    b.setReturnValue("===== [자동 스크롤 추적] dataDragSelectAutoScrollLevel = " + target1.options.dataDragSelectAutoScrollLevel + "ms =====");
+    b.setReturnValue("형식: +경과ms / scrollTop / Δ(이번 tick 스크롤 범위) — Δ 가 약 " + target1.options.dataDragSelectAutoScrollLevel + "ms 마다 2배로 커지는지 확인");
+};
+
+scwin.target1_onscrolly = function (e) {
+    scwin._lvlTick = (scwin._lvlTick || 0) + 1;
+    if (scwin._lvlTick > 40) { return; } // 과다 출력 방지(최대 40 tick)
+    let top = scwin.getScrollTopPx();
+    let t = Date.now() - (scwin._lvlT0 || Date.now());
+    let delta = top - (scwin._lvlPrevTop || 0);
+    scwin._lvlPrevTop = top;
+    wf_body_bottom.getObj("scwin").setReturnValue("  +" + t + "ms : scrollTop=" + top + "px, Δ=" + delta + "px");
+};
+
+// 스크롤 위치 출력 : 적용된 Level(미설정 시 기본 1300) + 현재 scrollTop 즉시 확인
+scwin.btn_scrollPos_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("적용된 dataDragSelectAutoScrollLevel : " + target1.options.dataDragSelectAutoScrollLevel + "ms / 현재 scrollTop : " + scwin.getScrollTopPx() + "px");
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataDragSelectAutoScrollLevel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 appearance="minimal" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_dataDragSelectAutoScrollLevel" label="label" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>300</xf:label>
+												<xf:value>300</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2600</xf:label>
+												<xf:value>2600</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_scrollPos_onclick" id="btn_scrollPos" label="스크롤 위치 출력"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

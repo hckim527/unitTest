@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] useDataDragDropGuideLine" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > useDataDragDropGuideLine]<br/>Drag&Drop 으로 Body 영역의 데이터가 동일 GridView 에서 이동하는 경우 가이드라인을 표시할지 설정합니다.",
+    "validation" : [
+        "dataDragDrop=true (데이터 드래그-앤-드롭 활성화)가 전제이며, dataDragDropSelf, dataDragDropOther 등의 속성으로 동일 GridView 에 데이터 Drop 이 허용된 경우 동작합니다.",
+        "true 설정 시 데이터가 Drag 되는 동안 동일 GridView 에 가이드라인을 표시합니다. 가이드라인은 드롭될 위치를 나타내는 수평선으로 표시됩니다.",
+        "false 설정 시 데이터가 Drag 되는 동안 동일 GridView 에 가이드라인을 표시하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_useDataDragDropGuideLine : 공통 gdl_boolean 바인딩 (getText() 로 '' 미설정 / 'true' / 'false' 판단)
+    //  - '' : 속성 자체를 추가하지 않음(기본 false)
+    let vGuide = con_useDataDragDropGuideLine.getText();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  전제(동작 조건) : dataDragDrop=true 로 데이터 드래그-앤-드롭(행 단위 D&D) 활성화 + dataDragDropSelf=true 로 동일 GridView 내 데이터 이동 허용
+    //  데이터 행을 마우스로 Drag 하여 다른 행 위/아래로 옮기면, useDataDragDropGuideLine=true 일때
+    //  드롭될 위치를 나타내는 가이드라인(수평선)이 Drag 중에 표시됩니다. false 면 표시되지 않습니다.
+    $c.gcm.createLabel('label="전제 : dataDragDrop=true (데이터 드래그-앤-드롭 활성화) + dataDragDropSelf=true (동일 GridView 내 데이터 이동 허용). con_useDataDragDropGuideLine = ' + (vGuide === '' ? '미설정(기본 false)' : vGuide) + '. 데이터 행을 마우스로 Drag 하여 다른 행으로 옮기면 true 일때 드롭 위치를 나타내는 수평 가이드라인이 Drag 중 표시(false 면 미표시)되며 표시 여부가 하단에 자동 출력됨."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (col1=text, col2=number, col3=text, col4=number)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 6행 로드 (드래그 이동 확인 위해 여러 행)
+    let jsonData = [
+        { "col1": "행1", "col2": 100, "col3": "Aa", "col4": 10 },
+        { "col1": "행2", "col2": 200, "col3": "Bb", "col4": 20 },
+        { "col1": "행3", "col2": 300, "col3": "Cc", "col4": 30 },
+        { "col1": "행4", "col2": 400, "col3": "Dd", "col4": 40 },
+        { "col1": "행5", "col2": 500, "col3": "Ee", "col4": 50 },
+        { "col1": "행6", "col2": 600, "col3": "Ff", "col4": 60 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - dataDragDrop="true"            : 데이터 드래그-앤-드롭(행 단위 D&D) 활성화 = 가이드라인 동작의 필수 전제
+    //  - dataDragDropSelf="true"        : 동일 GridView 내 데이터 이동(Drop) 허용 제약
+    //  - useDataDragDropGuideLine       : con 선택값 ('' 미설정이면 속성 미부여 → 기본 false)
+    let properties = {
+        dataList: "data:dlt_bind",
+        dataDragDrop: true,
+        dataDragDropSelf: true,
+    };
+    if (vGuide === 'true') {
+        properties.useDataDragDropGuideLine = true;
+    } else if (vGuide === 'false') {
+        properties.useDataDragDropGuideLine = false;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼, 단일 Row 헤더).
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:700px;height:160px;" ev:ondatadragstart="scwin.target1_ondatadragstart" ev:ondatadropself="scwin.target1_ondatadropself" ev:ondatadrop="scwin.target1_ondatadrop">';
+    strTarget += '<w2:caption style="" id="caption1" value="useDataDragDropGuideLine 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="number" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" dataType="number" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 가이드라인(수평선) 표시 감지용 MutationObserver 부착
+    //  - 가이드라인은 엔진 내부에서 _resize_line 요소의 inline style.display 를 "block"/"none" 으로만 토글(이벤트 미노출).
+    //  - 동일 그리드 Drag 중에는 move 이벤트가 없으므로, style 변화를 MutationObserver 로 감지하여 표시 여부를 래치한다.
+    //  - Target 재생성 시 이전 옵저버는 반드시 disconnect (메모리 누수/중복 보고 방지).
+    if (scwin._guideObserver) {
+        scwin._guideObserver.disconnect();
+        scwin._guideObserver = null;
+    }
+    scwin._guideShownDuringDrag = false;
+    let lineEl = document.getElementById("mf_target1_resize_line") || document.getElementById("target1_resize_line");
+    if (lineEl) {
+        scwin._guideObserver = new MutationObserver(function () {
+            if (lineEl.style.display === "block" && !scwin._guideShownDuringDrag) {
+                scwin._guideShownDuringDrag = true;
+                wf_body_bottom.getObj("scwin").setReturnValue("Drag 중 가이드라인 표시됨 (display:block, top=" + lineEl.style.top + ", width=" + lineEl.style.width + ")");
+            }
+        });
+        scwin._guideObserver.observe(lineEl, { attributes: true, attributeFilter: ['style'] });
+    }
+}
+
+
+
+// 데이터 Drag 시작 : 출력 영역을 비우고 가이드라인 표시 여부 감지를 초기화(false) 한다.
+scwin.target1_ondatadragstart = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+    scwin._guideShownDuringDrag = false;
+    b.setReturnValue("데이터 Drag 시작 - 가이드라인 표시 여부 감지 시작");
+};
+
+// 데이터 Drag 종료(동일 그리드 Drop) : Drag 중 가이드라인 표시 여부를 출력.
+//  - useDataDragDropGuideLine=true 면 "표시됨", false/미설정이면 "표시 안됨".
+scwin.target1_ondatadropself = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("Drag 종료 - 가이드라인 표시 여부 : " + (scwin._guideShownDuringDrag ? "표시됨" : "표시 안됨"));
+};
+
+// 데이터 Drag 종료(일반 Drop) : ondatadropself 와 동일 동작.
+scwin.target1_ondatadrop = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("Drag 종료 - 가이드라인 표시 여부 : " + (scwin._guideShownDuringDrag ? "표시됨" : "표시 안됨"));
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useDataDragDropGuideLine" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_useDataDragDropGuideLine" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dragDisplayColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260616" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dragDisplayColumn]<br/>Drag&Drop 으로 데이터를 이동할 때 툴팁으로 표시할 Column 의 ID 를 설정합니다.",
+    "validation" : [
+        "dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성 중 하나 이상 true 여야 동작합니다.",
+        "툴팁으로 표시할 Body Column 의 ID 를 콤마(',')로 구분하여 설정합니다.",
+        "미설정 시, Drag 를 시작한 Cell 의 데이터값이 툴팁으로 표시됩니다.",
+        "속성에 두 개 이상의 Column ID 를 설정한 경우 각 Cell 의 데이터가 콤마(',')로 구분되어 툴팁에 표시됩니다.",
+        "표시도는 툴팁창에는 'w2grid_drag' CSS 클래스가 적용됩니다.",
+        "두 개 이상의 데이터를 Drag 하는 경우 Drag 를 시작한 Cell 을 기준으로 툴팁이 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+
+    // con_dragDisplayColumn : 정적 select1(String 속성) - 미설정 / 단일 컬럼(col1) / 다중 컬럼(col1,col3)
+    //  - 미설정('') : dragDisplayColumn 속성을 부여하지 않음 → Drag 시작 Cell 데이터가 툴팁 표시
+    let vCol = con_dragDisplayColumn.getValue();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 전제: dataDragDrop=true 고정(이 속성들 중 하나 이상 true 여야 dragDisplayColumn 동작).
+    $c.gcm.createLabel('label="단일 그리드(target1, dlt_src 바인딩, dataDragDrop=true 고정). con_dragDisplayColumn = ' + (vCol === '' ? '미설정(Drag 시작 Cell 값 표시)' : vCol) + ' 적용. [검증절차] Body Row 의 셀을 마우스로 Drag 하면 w2grid_drag 클래스 툴팁창에 (미설정=Drag 시작 Cell 값 / col1=해당 컬럼 값 / col1,col3=두 컬럼 값을 콤마로 구분)이 표시되며, Drag 시작 시 결과창에 그 툴팁 표시값이 출력됩니다. 여러 Row 선택 후 Drag 하면 Drag 를 시작한 Cell 기준으로 표시됨. [적용값 확인] 버튼으로 현재 적용된 dragDisplayColumn 값을 확인."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === DataList(dlt_src) : Column col1~col4(텍스트) ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // 데이터 4행 로드
+    let srcData = [
+        { "col1": "행1-A", "col2": "행1-B", "col3": "행1-C", "col4": "행1-D" },
+        { "col1": "행2-A", "col2": "행2-B", "col3": "행2-C", "col4": "행2-D" },
+        { "col1": "행3-A", "col2": "행3-B", "col3": "행3-C", "col4": "행3-D" },
+        { "col1": "행4-A", "col2": "행4-B", "col3": "행4-C", "col4": "행4-D" }
+    ];
+    dlt_src.setJSON(srcData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // === 그리드(target1) : dataDragDrop=true 고정(전제), con 선택값으로 dragDisplayColumn 적용 ===
+    //  - '' 미설정이면 dragDisplayColumn 속성 자체를 부여하지 않음 → Drag 시작 Cell 데이터 표시
+    let srcProps = { dataList: "data:dlt_src", focusMode: "row", dataDragDrop: true };
+    if (vCol !== '') {
+        srcProps.dragDisplayColumn = vCol;
+    }
+    let srcCList = $c.gcm.createCList(srcProps);
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:440px;height:300px;display:inline-block;vertical-align:top;" ev:ondatadragstart="scwin.target1_ondatadragstart">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (Drag 소스 / dlt_src)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+};
+
+
+
+// Drag 시작 시 : 실제 표시되는 드래그 툴팁(w2grid_drag) 의 값을 읽어 출력
+//  - 엔진은 Drag 시작 시 id="{gridId}_drag" (class "w2grid_drag") 툴팁 요소를 생성하며
+//    그 내용(textContent)이 dragDisplayColumn 으로 결정된 표시값(미설정=Drag 시작 Cell 값 / 다중=콤마 구분).
+//  - 툴팁은 drag 시작 직후 렌더되므로 setTimeout 으로 읽는다.
+scwin.target1_ondatadragstart = function (rowIndex) {
+    let b = wf_body_bottom.getObj("scwin");
+    let v = target1.options.dragDisplayColumn;
+    b.setReturnValue("===== [Drag 시작] rowIndex=" + rowIndex + " / dragDisplayColumn=" + (v === '' || v == null ? "미설정" : "'" + v + "'") + " =====");
+    setTimeout(function () {
+        let tip = document.querySelector("[id$='target1_drag']") || document.querySelector(".w2grid_drag");
+        let txt = tip ? (tip.textContent || "").replace(/\s+/g, ' ').trim() : "(툴팁 요소 미발견)";
+        b.setReturnValue("툴팁 표시값(w2grid_drag) : " + txt);
+    }, 50);
+};
+
+// 적용값 확인 : 현재 target1 에 적용된 dragDisplayColumn 옵션값 출력 (미설정 시 '' → '미설정' 표시) - 결정적
+scwin.btn_checkValue_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let v = target1.options.dragDisplayColumn;
+    b.setReturnValue("적용된 dragDisplayColumn : " + (v === '' || v == null ? "미설정 (Drag 시작 Cell 값이 툴팁 표시)" : "'" + v + "'"));
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dragDisplayColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 appearance="minimal" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_dragDisplayColumn" selectedIndex="0" style="">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>col1</xf:label>
+												<xf:value>col1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>col1,col3</xf:label>
+												<xf:value>col1,col3</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkValue_onclick" id="btn_checkValue" label="적용값 확인"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

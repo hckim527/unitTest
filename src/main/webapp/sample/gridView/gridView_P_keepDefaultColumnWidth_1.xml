@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] keepDefaultColumnWidth" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260616" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > keepDefaultColumnWidth]<br/>autoFit='allColumn' 일때 RowNum, RowStatus Column 을 AutoFit 대상에서 제외할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, AutoFit 기능으로 Column 너비 재조정 시 RowNum, RowStatus Column 은 대상에서 제외됩니다.",
+        "true 설정 시, Column 너비 재조정 시 전체 너비에서 RowNum, RowStatus Column 의 너비가 제외된 후 처리됩니다.",
+        "true 설정 시, 사용자가 변경한 RowNum, RowStatus Column 의 너비가 유지됩니다.",
+        "false 설정 시, AutoFit 기능으로 Column 너비 재조정 시 RowNum, RowStatus Column 도 대상에 포함됩니다.",
+        "미설정 시, AutoFit 기능으로 Column 너비 재조정 시 RowNum, RowStatus Column 도 대상에 포함됩니다.",
+        "false 설정 시, RowNum, RowStatus Column 의 너비가 AutoFit 에 의해 좁아지거나 불필요하게 넓어질 수 있습니다.",
+        "화면에 표시된 RowNum, RowStatus Column 만 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 본 Property 는 autoFit='allColumn' + RowNum/RowStatus Column 표시 환경에서만 의미가 있으므로
+//    properties 에 autoFit:'allColumn' / rowNumVisible:true / rowStatusVisible:true 를 항상 함께 설정(전제)
+//  - RowNum/RowStatus Column 의 기본 너비를 명확히 지정(rowNumWidth=80 / rowStatusWidth=80)하여
+//    AutoFit 제외(유지) 여부를 너비 비교로 확인할 수 있게 함
+//  - keepDefaultColumnWidth 는 con_keepDefaultColumnWidth(gdl_boolean) 선택값을 전달
+//    (미설정 / true / false). 미설정('') 이면 properties 에 키 자체를 추가하지 않음(엔진 기본 false)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_ 설정값 수집 (gdl_boolean : 라벨이 실제 값 → getText() 사용, 빈값이면 미설정 / 'true' / 'false')
+    let vKeep = con_keepDefaultColumnWidth.getText();
+
+    // dataList 바인딩 (4행) + 본 속성 동작 전제조건
+    let properties = {
+        dataList: "data:dlt_bind",
+        autoFit: "allColumn",
+        rowNumVisible: true,
+        rowStatusVisible: true,
+        rowNumWidth: "80",
+        rowStatusWidth: "80",
+        rowNumHeaderValue: "No.",
+        rowStatusHeaderValue: "St.",
+    };
+
+    // keepDefaultColumnWidth : 미설정('') 이면 속성 자체를 추가하지 않음(기본 false)
+    if (vKeep !== '' && vKeep !== null && vKeep !== undefined) {
+        properties.keepDefaultColumnWidth = vKeep;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 전제 : autoFit=allColumn / GridView 500px / RowNum,RowStatus 기본 80px / 본문 Column 4개
+    //  - true  : AutoFit 시 RowNum/RowStatus 제외 → 80px 유지, 본문 Column 만 재조정
+    //  - false/미설정 : RowNum/RowStatus 도 AutoFit 대상 → 80px 에서 변동
+    $c.gcm.createLabel('label="[전제] autoFit=allColumn / GridView 500px / RowNum,RowStatus 기본 80px / 본문 4개. 현재 keepDefaultColumnWidth=' + (vKeep === '' ? '(미설정)' : vKeep) + '. true 면 RowNum/RowStatus 80px 유지(AutoFit 제외), false/미설정 이면 AutoFit 대상으로 너비 변동. [컬럼 너비 확인] 으로 비교."', '', 'label1');
+
+    // dataList 생성 (4행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, '');
+}
+
+
+
+// RowNum / RowStatus / 본문 Column 각각의 실제 너비(offsetWidth)를 출력하여
+// keepDefaultColumnWidth 에 따른 AutoFit 제외(유지) 여부를 확인
+//  - keep=true  → RowNum/RowStatus 기본 80px 유지(제외), 본문 Column 만 재조정
+//  - keep=false/미설정 → RowNum/RowStatus 도 AutoFit 대상으로 너비 변동
+//  - RowNum/RowStatus 헤더 th 의 data-header-id 는 각각 _headerRowNumber / _headerRowStatus
+scwin.btn_checkWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let keep = target1.options.keepDefaultColumnWidth;
+    bottom.setReturnValue("[옵션] autoFit : " + target1.options.autoFit + " / keepDefaultColumnWidth : " + (keep === '' || keep === undefined ? "(미설정)" : keep));
+
+    // RowNum / RowStatus Column 헤더 th 의 실제 너비
+    let thRowNum = document.querySelector("th[id*='target1__headerRowNumber']");
+    let thRowStatus = document.querySelector("th[id*='target1__headerRowStatus']");
+    let wRowNum = thRowNum ? thRowNum.offsetWidth : 0;
+    let wRowStatus = thRowStatus ? thRowStatus.offsetWidth : 0;
+    // 기본 80px 유지 = AutoFit 제외 / 변동 = AutoFit 포함 → 제외 여부를 명시
+    let DEF = 80;
+    let rowNumExcluded = (wRowNum === DEF);
+    let rowStatusExcluded = (wRowStatus === DEF);
+    bottom.setReturnValue("RowNum 너비 : " + wRowNum + "px (기본 80) → AutoFit " + (rowNumExcluded ? "제외됨(80px 유지)" : "포함됨(변동)"));
+    bottom.setReturnValue("RowStatus 너비 : " + wRowStatus + "px (기본 80) → AutoFit " + (rowStatusExcluded ? "제외됨(80px 유지)" : "포함됨(변동)"));
+    bottom.setReturnValue("==> RowNum/RowStatus AutoFit 제외 여부 : " + ((rowNumExcluded && rowStatusExcluded) ? "제외됨 (keepDefaultColumnWidth=true 동작)" : "포함됨 (keepDefaultColumnWidth=false/미설정)"));
+
+    // 본문 Column(0~3) 의 실제 너비 (AutoFit 으로 재조정됨)
+    let bodyWidths = [];
+    for (var i = 0; i < 4; i++) {
+        let th = document.querySelector("th[id*='target1_column" + (i + 1) + "']");
+        if (th) {
+            bodyWidths.push("Column(" + i + ") : " + th.offsetWidth + "px");
+        }
+    }
+    bottom.setReturnValue("본문 " + bodyWidths.join(" / "));
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="keepDefaultColumnWidth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_keepDefaultColumnWidth" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkWidth_onclick" id="btn_checkWidth"
+							label="컬럼 너비 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

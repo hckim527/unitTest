@@ -1788,16 +1788,11 @@ scwin.createBasicSlideHide = async function (cList='', eHandler='', cID='target1
 
     let grp_comp = scwin.getTestGroup(cParent);
     
+    // 1) slideHide 컨테이너 생성 (자식 없이)
+    //    dynamicCreate 는 parseChild 설정 OFF 환경에서 inline 자식을 재생성(Target 재생성) 하지 못함.
+    //    → 자식(토글 바 + 텍스트)은 아래에서 slideHideMain(.main) DOM 안에 개별 생성한다.
     let strTarget = '';
-
     strTarget += '&lt;w2:slideHide ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' firstStatus=&quot;slide&quot; hideEvent=&quot;&quot; moveSize=&quot;&quot; showSize=&quot;15&quot; slideDirection=&quot;left&quot; slideEvent=&quot;&quot; style=&quot;position:relative;width:95px;height:182px;&quot;&gt;';
-    strTarget += '&lt;xf:group class=&quot;&quot; ev:onclick=&quot;fn_slideHide&quot; id=&quot;grp_slide_hide&quot; style=&quot;position:absolute;left:0px;height:100%;width: 15px;background-color: #bbb;&quot;&gt;';
-    strTarget += '&lt;/xf:group&gt;';
-    strTarget += '&lt;w2:textbox id=&quot;&quot; label=&quot;Favorite&quot; style=&quot;padding:10px 4px;margin-left:15px;color:#bbb;font-weight:bold;background-color:#fff;border-bottom:4px double #ccc;&quot;&gt;';
-    strTarget += '&lt;/w2:textbox&gt;';
-    strTarget += '&lt;w2:textbox id=&quot;&quot; label=&quot;- Fruits&quot; style=&quot;padding:6px 4px;margin-left:15px;color:#bbb;font-weight:bold;background-color:#fff;&quot;&gt;';
-    strTarget += '&lt;/w2:textbox&gt;';
-    strTarget += '&lt;w2:textbox id=&quot;&quot; label=&quot;- Fish&quot; style=&quot;padding:6px 4px;margin-left:15px;color:#bbb;font-weight:bold;background-color:#fff;&quot;&gt;&lt;/w2:textbox&gt;';
     strTarget += '&lt;/w2:slideHide&gt;';
 
     // target 생성
@@ -1807,6 +1802,21 @@ scwin.createBasicSlideHide = async function (cList='', eHandler='', cID='target1
         strTarget,
         grp_comp
     );
+
+    // 2) slideHideMain(.main) 안에 자식 개별 생성 (부모로 .main DOM 전달 → slideHideMain 내부 배치)
+    let mainEl = scwin[cID].main;
+
+    let strBar = '&lt;xf:group ' + scwin.strNameSpace + ' class=&quot;&quot; ev:onclick=&quot;fn_slideHide&quot; id=&quot;&quot; style=&quot;position:absolute;left:0px;height:100%;width: 15px;background-color: #bbb;&quot;&gt;&lt;/xf:group&gt;';
+    await $p.dynamicCreate('', 'group', strBar, mainEl);
+
+    let strTxt1 = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;Favorite&quot; style=&quot;padding:10px 4px;margin-left:15px;color:#bbb;font-weight:bold;background-color:#fff;border-bottom:4px double #ccc;&quot;&gt;&lt;/w2:textbox&gt;';
+    await $p.dynamicCreate('', 'textbox', strTxt1, mainEl);
+
+    let strTxt2 = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;- Fruits&quot; style=&quot;padding:6px 4px;margin-left:15px;color:#bbb;font-weight:bold;background-color:#fff;&quot;&gt;&lt;/w2:textbox&gt;';
+    await $p.dynamicCreate('', 'textbox', strTxt2, mainEl);
+
+    let strTxt3 = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;- Fish&quot; style=&quot;padding:6px 4px;margin-left:15px;color:#bbb;font-weight:bold;background-color:#fff;&quot;&gt;&lt;/w2:textbox&gt;';
+    await $p.dynamicCreate('', 'textbox', strTxt3, mainEl);
 
     fn_slideHide = function(e) {
         // 컴포넌트의 실제 slide 상태(isOpen)로 토글 판단.
@@ -2275,9 +2285,23 @@ scwin.createLabel = async function (cList='', eHandler='', cID='target1', cParen
 
     let grp_comp = scwin.getTestGroup(cParent);
     
+    // cList 에서 label=&quot;...&quot; 텍스트를 추출해 setLabel 로 주입(XML 속성 파싱 우회)하여
+    //  escape 대상 문자(&lt; &gt; &amp; &quot; ')를 안전하게 표시한다. (createValidation 과 동일 방식)
+    //  - cList 가 label 속성만일 때 적용. label 미포함/추가 속성 동반 시 기존 동작 유지.
+    let labelText = null;
+    let labelMatch = cList.match(/^\s*label\s*=\s*&quot;([\s\S]*)&quot;\s*$/);
+    if (labelMatch !== null)
+        labelText = labelMatch[1];
+
     let strTarget = '';
 
-    strTarget += '&lt;w2:textbox ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' style=&quot;margin:5px;&quot;&gt;&lt;/w2:textbox&gt;';
+    if (labelText !== null) {
+        // 라벨에 escape 문자 포함 여부에 따라 escape 속성 설정 (포함 시 true)
+        let escapeAttr = /[&lt;&gt;&amp;&quot;']/.test(labelText) ? 'true' : 'false';
+        strTarget += '&lt;w2:textbox ' + scwin.strNameSpace + ' ' + eHandler + ' escape=&quot;' + escapeAttr + '&quot; label=&quot;&quot; style=&quot;margin:5px;&quot;&gt;&lt;/w2:textbox&gt;';
+    } else {
+        strTarget += '&lt;w2:textbox ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' style=&quot;margin:5px;&quot;&gt;&lt;/w2:textbox&gt;';
+    }
 
     // target 생성
     scwin[cID] = await $p.dynamicCreate(
@@ -2286,6 +2310,12 @@ scwin.createLabel = async function (cList='', eHandler='', cID='target1', cParen
         strTarget,
         grp_comp
     );
+
+    // 추출한 라벨 텍스트를 setLabel 로 설정 (escape 속성에 따라 안전하게 렌더)
+    //  - Target 재생성 등으로 동일 cID 컴포넌트가 이미 존재하면 dynamicCreate 가 undefined 를 반환하므로
+    //    (기존 라벨은 그대로 유지) setLabel 크래시를 방지하기 위해 생성 성공 여부를 확인한다.
+    if (labelText !== null &amp;&amp; scwin[cID])
+        scwin[cID].setLabel(labelText);
 }
 
 

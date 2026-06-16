@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] hideDeletedRow" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > hideDeletedRow]<br/>DataList 의 deleteRow(), deleteRows() 메소드로 삭제한 Row 데이터를 GridView 에 표시할지 설정합니다.",
+    "validation" : [
+        "GridView 에 DrillDown 이 적용된 경우엔 삭제한 Row 데이터가 항상 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — DrillDown(계층형) GridView 구성
+//  - hideDeletedRow=true 라도 DrillDown 이 적용된 GridView 에서는 삭제한 Row 데이터가 항상 표시됨을 검증한다.
+//    (엔진 notifyController.js:986/1026 의 hideDeletedRow 숨김 분기는 !isDrillDown 조건이라
+//     name 컬럼의 inputType="drilldown" 으로 isDrillDown=true 가 되면 숨김 분기가 적용되지 않는다.)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 생성 (가장 먼저 생성)
+    //  - DrillDown 적용 그리드이므로 hideDeletedRow=true 여도 삭제 Row(상태값 D/V)가 계속 표시됨
+    $c.gcm.createLabel('label="DrillDown(inputType=drilldown) 적용 그리드 - 부모(depth 1) 2건 + 각 자식(depth 2) 2건 = 총 6건. hideDeletedRow=true 라도 DrillDown 이 적용되면 deleteRow/deleteRows 로 삭제한 Row(상태값 D)도 항상 표시됩니다."', '', 'label1');
+
+    // 조건 설정
+    //  - con_hideDeletedRow 는 공통 gdl_boolean 바인딩 → getText() 로 '' 미설정 / 'true' / 'false' 판단
+    //    (gdl_boolean 의 value 는 "1"/"2"/"3" 이므로 boolean 속성에는 getValue 가 아닌 getText 로 판단해야 함)
+    //  - 미설정('') 이면 속성 미부여 (기본값 false 동작)
+    let vHide = con_hideDeletedRow.getText();
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: true,
+        rowNumHeaderValue: "No.",
+        rowNumStatusUniqueId: true,
+        checkAllType: "false",
+    };
+    if (vHide === 'true') {
+        properties.hideDeletedRow = true;
+    } else if (vHide === 'false') {
+        properties.hideDeletedRow = false;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - depth : 계층 깊이 값(number). 1=부모, 2=자식. DrillDown 컬럼의 depthColumn 으로 사용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모(depth 1) 바로 아래에 그 자식(depth 2)들이 위치해야 함 (엔진 drilldown 은 순서 기반)
+    let jsonData = [
+        { "name": "영업본부",   "dept": "Sales", "depth": 1 },
+        { "name": "  김영업",   "dept": "Sales", "depth": 2 },
+        { "name": "  이영업",   "dept": "Sales", "depth": 2 },
+        { "name": "개발본부",   "dept": "Dev",   "depth": 1 },
+        { "name": "  박개발",   "dept": "Dev",   "depth": 2 },
+        { "name": "  최개발",   "dept": "Dev",   "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성
+    //  - name 컬럼을 inputType="drilldown" 으로 설정 + depthColumn="depth" + depthStartIndex="1"
+    //    → isDrillDown=true. showDepth="2" 로 부모/자식 모두 펼친 상태로 표시(삭제 후 표시 유지를 직관적으로 관찰)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="hideDeletedRow DrillDown 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="이름(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // name : DrillDown 컬럼 (계층 토글 컬럼) → isDrillDown=true 트리거
+    strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="2" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="depth" dataList="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 현재 GridView 에 표시된 Body Row 정보(표시 행 수)와 excludeDeletedRows 옵션값을 출력
+scwin.btn_checkDisplay_onclick = function (e) {
+    // 표시 중인 Body Row (w2grid_hidedRow 미적용 = 삭제로 숨김 처리되지 않은 행)
+    let rows = document.querySelectorAll("tr.grid_body_row:not(.w2grid_hidedRow)");
+    let rowNums = [];
+    rows.forEach(function (tr) {
+        let cell = tr.querySelector("td[id*='_headerRowNumber_bodyRow_']");
+        if (cell) rowNums.push(cell.textContent);
+    });
+
+    wf_body_bottom.getObj("scwin").setReturnValue("표시된 Row 수 : " + rows.length);
+    wf_body_bottom.getObj("scwin").setReturnValue("표시된 RowNum 순번 : [" + rowNums.join(", ") + "]");
+    wf_body_bottom.getObj("scwin").setReturnValue("excludeDeletedRows 강제 적용값 : " + target1.options.excludeDeletedRows);
+}
+
+
+
+// deleteRow : par_rowIndex 로 지정한 Row 를 삭제 (상태값 D/V 로 변경)
+//  - DrillDown 적용 그리드이므로 hideDeletedRow=true 라도 삭제 행이 계속 표시됨
+scwin.btn_deleteRow_onclick = function (e) {
+    let idx = parseInt(par_rowIndex.getValue(), 10);
+    dlt_bind.deleteRow(idx);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("deleteRow(" + idx + ") 실행 → Row 상태값 : " + dlt_bind.getRowStatus(idx));
+    // 엔진은 deleteRow/deleteRows/undeleteRow 후 grid 표시(행 숨김/복원) 갱신을 비동기(~100ms)로 처리하므로,
+    // 표시된 Row 수/RowNum 확인은 동기로 읽으면 삭제 전 값이 나온다. 지연 후 출력한다.
+    setTimeout(scwin.btn_checkDisplay_onclick, 300);
+}
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideDeletedRow" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_hideDeletedRow" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteRow_onclick" id="btn_deleteRow"
+							label="deleteRow" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setDrillDownDragDrop" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260616" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setDrillDownDragDrop]<br/>GridView 에 DrillDown 이 적용되었을때 Drag&Drop 으로 데이터 이동을 허용할지 설정합니다.",
+    "validation" : [
+        "inputType='drillDown' 인 Column 이 정의되어 있고, dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성 중 하나 이상 true 여야 동작합니다.",
+        "value(필수) 파라미터를 true 로 설정 시 Drag&Drop 으로 데이터 이동을 허용합니다.",
+        "value(필수) 파라미터를 false 로 설정 시 Drag&Drop 으로 데이터 이동을 허용하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — DrillDown 소스(target1) + 다른 GridView(target2) 2개 구성 (cross-grid 이동 검증)
+//  - target1 : DrillDown(drilldown 컬럼 name + depthColumn=depth, showDepth=1). dataDragDrop=true + dataDragDropOther=true 고정.
+//             → 다른 그리드로 Drop 허용(dataDragDropOther 경로). 단, setDrillDownDragDrop(true) 미호출 시 Drag/Drop 모두 미동작.
+//  - target2 : Drop 대상. 동일 컬럼(name/dept/depth), dataDragDrop=true 로 수용. 자식 동반 cross-grid 이동(엔진 isDrillDown 조건)을 위해 DrillDown 구성(showDepth 크게 → 이동된 하위까지 표시).
+//  - 초기엔 setDrillDownDragDrop 미호출 → DrillDown Drag/Drop 비활성.
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof target2 !== 'undefined') { target2.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+    if (typeof dlt_dst !== 'undefined') { $p.data.remove("dlt_dst"); }
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="좌(target1)=DrillDown 소스, 우(target2)=다른 DrillDown 그리드(Drop 대상). [setDrillDownDragDrop] true 활성 후 target1 의 상위 노드를 target2 로 Drag&Drop 하면 자식 포함 이동됨. [양 그리드 데이터 출력] 으로 target1 감소/target2 증가(자식 포함) 확인. false/미호출 시 이동 안 됨."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === 소스 DataList(dlt_src) : DrillDown 3단계 계층 (depth 1=본부, 2=팀, 3=사원) ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // === 대상 DataList(dlt_dst) : 동일 컬럼 구조 (cross-grid Drop 수용) ===
+    let strDst = '';
+    strDst += '<w2:dataList ' + strNameSpace + ' id="dlt_dst" baseNode="list" repeatNode="map">';
+    strDst += '<w2:columnInfo>';
+    strDst += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDst += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDst += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDst += '</w2:columnInfo>';
+    strDst += '<w2:data use="true"></w2:data>';
+    strDst += '</w2:dataList>';
+    $p.data.create(strDst);
+
+    // 소스 계층 데이터 : 3단계(본부 depth1 > 팀 depth2 > 사원 depth3). 부모 바로 아래에 그 자식이 위치
+    let srcData = [
+        { "name": "영업본부",     "dept": "Sales", "depth": 1 },
+        { "name": "  영업1팀",    "dept": "Sales", "depth": 2 },
+        { "name": "    김영업",   "dept": "Sales", "depth": 3 },
+        { "name": "    이영업",   "dept": "Sales", "depth": 3 },
+        { "name": "개발본부",     "dept": "Dev",   "depth": 1 },
+        { "name": "  개발1팀",    "dept": "Dev",   "depth": 2 },
+        { "name": "    박개발",   "dept": "Dev",   "depth": 3 },
+        { "name": "    최개발",   "dept": "Dev",   "depth": 3 }
+    ];
+    dlt_src.setJSON(srcData, false);
+
+    // 대상 데이터 1행 (이동 결과 행 수 증가 확인용)
+    let dstData = [
+        { "name": "기존행", "dept": "Etc", "depth": 1 }
+    ];
+    dlt_dst.setJSON(dstData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // === 소스 그리드(target1) : DrillDown + dataDragDrop=true + dataDragDropOther=true (다른 그리드 Drop 허용) ===
+    let srcProps = {
+        dataList: "data:dlt_src",
+        dataDragDrop: true,
+        dataDragDropOther: true,
+        checkAllType: "false"
+    };
+    let srcCList = $c.gcm.createCList(srcProps);
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:430px;height:300px;display:inline-block;vertical-align:top;" ev:ondatadragstart="scwin.target1_ondatadragstart" ev:ondatadrop="scwin.target1_ondatadrop">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (DrillDown 소스)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="200" style="" inputType="text" id="hcol1" value="이름(DrillDown)"></w2:column>';
+    strTarget1 += '<w2:column width="110" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget1 += '<w2:column width="*" style="" inputType="text" id="hcol3" value="depth"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    // name : DrillDown 컬럼 (계층 토글 컬럼)
+    strTarget1 += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget1 += '<w2:column width="110" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget1 += '<w2:column width="*" style="" inputType="text" id="depth" dataList="depth"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+
+    // === 대상 그리드(target2) : 다른 GridView(Drop 대상). 자식 동반 cross-grid 이동은 대상도 DrillDown 이어야 하므로(엔진 eventController.js:1616 targetGrid.isDrillDown 조건) target2 도 DrillDown 으로 구성. showDepth 크게(이동된 하위까지 바로 표시) ===
+    let dstCList = $c.gcm.createCList({ dataList: "data:dlt_dst", dataDragDrop: true, dataDragDropOther: true, checkAllType: "false" });
+
+    let strTarget2 = '';
+    strTarget2 += '<w2:gridView ' + strNameSpace + ' ' + dstCList + ' id="" style="width:430px;height:300px;display:inline-block;vertical-align:top;margin-left:12px;" ev:ondatadrop="scwin.target2_ondatadrop">';
+    strTarget2 += '<w2:caption style="" id="caption2" value="target2 (다른 GridView / Drop 대상)"></w2:caption>';
+    strTarget2 += '<w2:header style="" id="header2">';
+    strTarget2 += '<w2:row style="" id="hrow2">';
+    strTarget2 += '<w2:column width="200" style="" inputType="text" id="hcolA" value="이름"></w2:column>';
+    strTarget2 += '<w2:column width="110" style="" inputType="text" id="hcolB" value="부서"></w2:column>';
+    strTarget2 += '<w2:column width="*" style="" inputType="text" id="hcolC" value="depth"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:header>';
+    strTarget2 += '<w2:gBody style="" id="gBody2">';
+    strTarget2 += '<w2:row style="" id="brow2">';
+    strTarget2 += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="9" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget2 += '<w2:column width="110" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget2 += '<w2:column width="*" style="" inputType="text" id="depth" dataList="depth"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:gBody>';
+    strTarget2 += '</w2:gridView>';
+
+    scwin.target2 = await $p.dynamicCreate("target2", "gridView", strTarget2, grp_comp);
+
+    // 설정 결과 확인 출력 (초기: 미호출 상태)
+    scwin.btn_setDrillDownDragDrop_onclick();
+};
+
+
+
+// [setDrillDownDragDrop] : par_value 값(true/false)을 Boolean 으로 양쪽 그리드(target1 소스 / target2 대상)에 적용
+//  - cross-grid DrillDown 이동(자식 동반)은 소스/대상 모두 DrillDown 이고 drillDownDragDrop 이 켜져야 안전(엔진 OR 조건+isDrillDown).
+//  - 쌍 get 메소드가 없으므로(엔진 미제공) 설정 직후 내부 플래그(drillDownDragDrop)로 반영 여부 확인 (§5 set 검증 규칙)
+scwin.btn_setDrillDownDragDrop_onclick = function () {
+    let value = par_value.getText() === "true";
+
+    target1.setDrillDownDragDrop(value);
+    target2.setDrillDownDragDrop(value);
+
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("setDrillDownDragDrop(" + value + ") 호출 (target1/target2)");
+    b.setReturnValue("적용된 drillDownDragDrop 내부 플래그 : target1=" + target1.drillDownDragDrop + " / target2=" + target2.drillDownDragDrop);
+};
+
+
+
+// 전체 펼치기/숨기기 토글 — 현재 전부 펼쳐졌으면 모두 접고, 아니면 모두 펼침 (target1)
+scwin.btn_expandAll_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let guard = 0;
+    if (target1.getRowCount() >= target1.getTotalRow()) {
+        let found = true;
+        while (found && guard < 300) {
+            guard++; found = false;
+            for (let i = 0; i < target1.getRowCount(); i++) {
+                if (target1.getChildrenRowIndexArray(target1.getRealRowIndex(i)).length > 0) {
+                    let cur = Number(target1.getCellData(i, "depth"));
+                    let next = (i + 1 < target1.getRowCount()) ? Number(target1.getCellData(i + 1, "depth")) : -1;
+                    if (next > cur) { target1.toggle(i); found = true; break; }
+                }
+            }
+        }
+        b.setReturnValue("[전체 숨기기] target1 표시 Row 수 : " + target1.getRowCount());
+    } else {
+        let i = 0;
+        while (i < target1.getRowCount() && guard < 300) {
+            guard++;
+            if (target1.getChildrenRowIndexArray(target1.getRealRowIndex(i)).length > 0) {
+                let cur = Number(target1.getCellData(i, "depth"));
+                let next = (i + 1 < target1.getRowCount()) ? Number(target1.getCellData(i + 1, "depth")) : -1;
+                if (next <= cur) { target1.toggle(i); continue; }
+            }
+            i++;
+        }
+        b.setReturnValue("[전체 펼치기] target1 표시 Row 수 : " + target1.getRowCount());
+    }
+};
+
+
+
+// [양 그리드 데이터 출력] : 양 그리드의 '전체' Row(접혀서 화면에 안 보이는 자식 포함)를 DataList 순서대로 출력
+//  - DrillDown 접힘 상태와 무관하게 DataList(dlt_src/dlt_dst) 전체를 트리 순서로 덤프 → 하위 요소까지 이동되었는지 검증 가능
+//  - 이동 성공 시 target1(dlt_src) 행 감소 / target2(dlt_dst) 행 증가(이동된 부모+자식 포함)
+scwin.btn_dumpData_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // getAllJSON() : DrillDown 접힘과 무관하게 전체 데이터(접힌 자식 포함)를 트리 순서로 반환
+    let arr1 = dlt_src.getAllJSON();
+    b.setReturnValue("===== [target1 / DrillDown 소스] 전체 " + arr1.length + "행 (접힌 자식 포함, 트리 순서) =====");
+    for (let i = 0; i < arr1.length; i++) {
+        b.setReturnValue("  " + i + " : name=" + arr1[i].name + ", dept=" + arr1[i].dept + ", depth=" + arr1[i].depth);
+    }
+
+    let arr2 = dlt_dst.getAllJSON();
+    b.setReturnValue("===== [target2 / 다른 GridView] 전체 " + arr2.length + "행 (접힌 자식 포함, 트리 순서) =====");
+    for (let j = 0; j < arr2.length; j++) {
+        b.setReturnValue("  " + j + " : name=" + arr2[j].name + ", dept=" + arr2[j].dept + ", depth=" + arr2[j].depth);
+    }
+};
+
+
+
+// Drag 시작(사용자 액션 보조 출력) : 현재 활성 상태 안내
+scwin.target1_ondatadragstart = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+    b.setReturnValue("Drag 시작 (현재 drillDownDragDrop = " + target1.drillDownDragDrop + ")");
+};
+
+// target1 Drop (동일 그리드 Drop 시) — cross-grid 가 아닌 경우 출력
+scwin.target1_ondatadrop = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("target1 ondatadrop 발생");
+    scwin.btn_dumpData_onclick();
+};
+
+// target2 Drop (다른 GridView 로 cross-grid 이동 성공 시) — 양 그리드 데이터 자동 출력
+scwin.target2_ondatadrop = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("target2 ondatadrop 발생 (cross-grid Drop)");
+    scwin.btn_dumpData_onclick();
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="value" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_value" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setDrillDownDragDrop_onclick" id="btn_setDrillDownDragDrop" label="setDrillDownDragDrop" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_expandAll_onclick" id="btn_expandAll" label="전체 펼치기/숨기기" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_dumpData_onclick" id="btn_dumpData" label="양 그리드 데이터 출력" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

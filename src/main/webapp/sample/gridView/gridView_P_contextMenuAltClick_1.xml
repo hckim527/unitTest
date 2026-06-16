@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] contextMenuAltClick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260615" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > contextMenuAltClick]<br/>contextMenu=true 일때 Body 영역에서 Alt + 마우스 좌클릭으로 컨텍스트 메뉴를 표시할지 설정합니다.",
+    "validation" : [
+        "true 설정 시 Body 영역에서 Alt + 마우스 좌클릭 시 우클릭과 동일하게 WebSquare 컨텍스트 메뉴를 표시합니다.",
+        "Header 영역은 적용되지 않으며 Body 영역에 데이터가 로드된 영역만 적용됩니다.",
+        "미설정 또는 false 설정 시 Body 영역에서 Alt + 마우스 좌클릭 시 WebSquare 컨텍스트 메뉴를 표시하지 않습니다. (기본값 false)",
+        "false 설정 시 일반 마우스 좌클릭과 동일하게 처리되며, 포커스 이동, EditMode 진입, oncellclick 이벤트등의 동작이 Cell 클릭과 동일하게 수행됩니다.",
+        "contextMenuAltClick 속성은 Body 의 데이터 로드 영역에서 Alt + 마우스 좌클릭을 우클릭으로 대체하는 처리를 수행하며 WebSquare 컨텍스트의 표시 여부는 contextMenu 속성에 의해 결정됩니다.",
+        "contextMenu=false 이면 Body 의 데이터 영역에서 Alt + 마우스 좌클릭 시 onrightbuttonclick 이벤트만 발생합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - Alt + 좌클릭 은 사용자 액션으로 수행되므로 안내 라벨로 조작 방법을 표시
+    $c.gcm.createLabel('label="■ Body 데이터 영역의 Cell 을 Alt + 마우스 좌클릭 하여 동작을 확인하세요. (Header 는 미적용)"', '', 'label1');
+
+    // 조건 설정
+    //  - con_contextMenuAltClick / con_contextMenu 가 미설정('') 이면
+    //    createCList 가 빈 문자열 value 를 자동 제외하므로 properties 키 자체가 빠짐 (기본값 동작)
+    //  - contextMenuAltClick 효과(Alt+좌클릭으로 메뉴 표시)는 contextMenu=true 일 때만 메뉴가 뜸 (전제)
+    let properties = {
+        dataList: "data:dlt_bind",
+        contextMenuAltClick: con_contextMenuAltClick.getValue(),
+        contextMenu: con_contextMenu.getValue(),
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // oncontextopen / onrightbuttonclick / oncellclick 이벤트 핸들러 부착
+    let eList = $c.gcm.createEList(["oncontextopen", "onrightbuttonclick", "oncellclick"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// oncontextopen : 컨텍스트 메뉴가 표시될 때 발생
+//  - contextMenuAltClick=true + contextMenu=true 환경에서 Alt+좌클릭 시 우클릭과 동일하게 메뉴 표시
+//  - 컨텍스트 메뉴는 oncontextopen 이후 생성되므로 setTimeout 으로 생성 후 DOM 검증
+scwin.target1_oncontextopen = function (rowIndex, columnIndex, focusedCellInfo, info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen columnIndex : " + columnIndex);
+
+    setTimeout(function () {
+        let menu = document.querySelector("[id$='_contextMenu_list']");
+        if (!menu) {
+            wf_body_bottom.getObj("scwin").setReturnValue("컨텍스트 메뉴 미생성");
+            return;
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue("'w2grid_contextMenu' 클래스 설정 여부 : " + menu.classList.contains("w2grid_contextMenu"));
+    }, 0);
+};
+
+
+
+// onrightbuttonclick : Body 영역에서 우클릭(또는 contextMenuAltClick=true 시 Alt+좌클릭) 시 발생
+//  - contextMenu=false 이면 Alt+좌클릭 시 메뉴는 미표시되고 onrightbuttonclick 만 발생
+scwin.target1_onrightbuttonclick = function (rowIndex, columnIndex, e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("onrightbuttonclick rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("onrightbuttonclick columnIndex : " + columnIndex);
+};
+
+
+
+// oncellclick : false(기본) 환경에서 Alt+좌클릭이 일반 좌클릭처럼 처리되어 Cell 클릭과 동일하게 발생
+scwin.target1_oncellclick = function (rowIndex, columnIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncellclick rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncellclick columnIndex : " + columnIndex);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="contextMenuAltClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_contextMenuAltClick" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="contextMenu" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_contextMenu" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
