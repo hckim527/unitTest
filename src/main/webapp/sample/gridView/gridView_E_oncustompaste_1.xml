@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncustompaste" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > oncustompaste]<br/>GridView 컴포넌트에서 사용자가 붙여넣기(Ctrl+V) 동작을 수행할 때 발생합니다.",
+    "validation" : [
+        "Body Cell 이 편집모드인 경우 checkEditOnPaste=false 이면 이벤트가 발생하지 않습니다.",
+        "이벤트 핸들러에 ClipboardEvent 객체 e 가 전달되며 e.type 은 'paste' 값을 갖습니다.",
+        "e.clipboardData 로 클립보드 데이터에 접근할 수 있는 DataTransfer 객체가 전달되며, getData(format) 로 붙여넣기 데이터를 읽을 수 있습니다. (format 예: 'text/plain', 'text/html')",
+        "핸들러가 true 를 반환하면 사용자의 붙여넣기(Ctrl+V) 동작을 수행합니다.",
+        "핸들러가 false 를 반환하면 사용자의 붙여넣기(Ctrl+V) 동작을 취소합니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    "cCheckEditOnPaste" : ""
+};
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// con 옵션 변경 시 gVar 갱신 (자동 재생성 금지 - 'Target 재생성' 버튼으로 반영)
+scwin.con_checkEditOnPaste_onchange = function () {
+    scwin.gVar.cCheckEditOnPaste = con_checkEditOnPaste.getValue();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 옵션 현재값 반영
+    scwin.gVar.cCheckEditOnPaste = con_checkEditOnPaste.getValue();
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - 붙여넣기(Ctrl+V)는 사용자 액션. 검증 절차/전제 안내.
+    $c.gcm.createLabel('label="[전제] Body Cell(col1~col4)은 편집 가능(inputType=text). 복사 원본 (Ctrl+C) 영역에 다중 셀 형태(탭=Cell 구분, 줄바꿈=Row 구분) 기본값이 있습니다.\n[절차] (1) 복사 원본 (Ctrl+C) 영역의 값을 선택해 Ctrl+C 로 복사한 뒤, 그리드 셀을 클릭하고 Ctrl+V 로 붙여넣어 oncustompaste 를 발생시킵니다(e/e.type/getData 출력). (2) checkEditOnPaste 와 편집모드 + 핸들러 반환값(true/false)에 따라 붙여넣기 수행/취소가 달라집니다.\n[확인] 탭/줄바꿈 포함 값은 Cell 단위로 여러 셀에 나뉘어 붙습니다. con 옵션 변경 후에는 Target 재생성 버튼을 누르세요."', '', 'label1');
+
+    // 복사 원본 (Ctrl+C) textarea 기본값 설정 (inner text 불가 -> setValue)
+    //  - 탭(\t)=Cell 구분, 줄바꿈(\n)=Row 구분 시연용 다중 셀 값
+    par_copySource.setValue("복사A\t복사B\n복사C\t복사D");
+
+    // 조건 설정
+    //  - dataList 바인딩 (편집/붙여넣기 검증용)
+    //  - checkEditOnPaste 는 con selectbox 값 (미설정이면 빈값 -> 속성 미적용)
+    let properties = {
+        dataList: "data:dlt_bind",
+        checkEditOnPaste: scwin.gVar.cCheckEditOnPaste
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // oncustompaste 이벤트 핸들러 부착 (검증 대상)
+    let eList = $c.gcm.createEList(["oncustompaste"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// oncustompaste : 사용자가 붙여넣기(Ctrl+V) 동작을 수행할 때 발생 (검증 대상)
+//  - e : ClipboardEvent 객체 (표준 DOM 이벤트 객체 - 전달 여부 / e.type 만 확인)
+//  - e.clipboardData : DataTransfer 객체. getData(format) 로 붙여넣기 데이터 읽기 (컴포넌트 붙여넣기 동작과 직결 -> 출력)
+//  - 반환값 : true(또는 미반환) -> 붙여넣기 수행 / false -> 붙여넣기 취소
+//    (con_returnValue 셀렉트박스 값으로 제어. 미설정이면 반환 없음 = 수행)
+scwin.target1_oncustompaste = function (e) {
+    var bottom = wf_body_bottom.getObj("scwin");
+
+    // ClipboardEvent 객체 e 전달 여부 + e.type (표준 DOM 이벤트 객체 e 는 한 줄)
+    bottom.setReturnValue("oncustompaste e : " + e + " , e.type : " + e.type);
+
+    // e.clipboardData.getData 로 붙여넣기 데이터 읽기 (text/plain)
+    var pasteText = e.clipboardData ? e.clipboardData.getData("text/plain") : null;
+    if (pasteText !== null) {
+        bottom.setReturnValue("oncustompaste e.clipboardData.getData('text/plain') : " + pasteText);
+    } else {
+        bottom.setReturnValue("oncustompaste e.clipboardData : null");
+    }
+
+    // oncustompaste 는 붙여넣기 '전' 발생 -> 붙여넣기 기준(포커스) 위치를 기억 (Row 인덱스 / Column 인덱스)
+    var fRow = target1.getFocusedRowIndex();
+    var fColIdx = target1.getFocusedColumnIndex();
+
+    // 핸들러 반환값에 따라 붙여넣기 수행(true/미설정)/취소(false)
+    var ret = con_returnValue.getValue();
+
+    // 붙여넣기 영역 셀 값 출력 (엔진 적용 후 setTimeout) :
+    //  - true/미설정 -> 붙여넣기 적용된 값 / false -> 취소되어 기존 값 그대로 유지됨을 확인
+    if (pasteText) {
+        var cellLabel = (ret === "false") ? "붙여넣기 취소 - 셀 값 유지" : "붙여넣기 후 셀 값";
+        setTimeout(function () {
+            var colCnt = target1.getColumnOrder().length;   // Body 컬럼 수
+            var rows = pasteText.replace(/\r/g, "").split("\n");
+            for (var r = 0; r < rows.length; r++) {
+                var cells = rows[r].split("\t");
+                for (var c = 0; c < cells.length; c++) {
+                    var cIdx = fColIdx + c;
+                    if (cIdx >= colCnt) continue;            // 그리드 컬럼 범위를 벗어나면 건너뜀
+                    var rIdx = fRow + r;
+                    bottom.setReturnValue(cellLabel + " [row " + rIdx + ", col " + cIdx + "] : " + target1.getCellData(rIdx, cIdx));
+                }
+            }
+        }, 0);
+    }
+
+    if (ret === "true") {
+        bottom.setReturnValue("핸들러 반환값 : true -> 붙여넣기 수행");
+        return true;
+    } else if (ret === "false") {
+        bottom.setReturnValue("핸들러 반환값 : false -> 붙여넣기 취소");
+        return false;
+    }
+    // 미설정 : 반환 없음 -> 붙여넣기 수행
+    bottom.setReturnValue("핸들러 반환값 : 미설정(반환 없음) -> 붙여넣기 수행");
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkEditOnPaste" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkEditOnPaste" nodeSet="data:gdl_boolean" ref="" style=""
+										submenuSize="auto" value="value" ev:onchange="scwin.con_checkEditOnPaste_onchange">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="핸들러 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_returnValue" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true (붙여넣기 수행)]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false (붙여넣기 취소)]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="복사 원본 (Ctrl+C)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="par_copySource" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="이 영역의 값을 드래그 선택 후 Ctrl+C → 그리드 셀 클릭 후 Ctrl+V 하면 oncustompaste 가 발생합니다. (탭=Cell 구분, 줄바꿈=Row 구분)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

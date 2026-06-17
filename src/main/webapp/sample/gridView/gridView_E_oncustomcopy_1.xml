@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncustomcopy" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > oncustomcopy]<br/>GridView 컴포넌트에서 사용자가 복사(Ctrl+C) 동작을 수행할 때 발생합니다.",
+    "validation" : [
+        "Body Cell 이 편집모드인 경우 이벤트가 발생하지 않습니다.",
+        "이벤트 핸들러에 ClipboardEvent 객체 e 가 전달되며 e.type 은 'copy' 값을 갖습니다.",
+        "e.clipboardData 로 클립보드 데이터에 접근할 수 있는 DataTransfer 객체가 전달됩니다.",
+        "e.clipboardData.setData(format, data) 로 복사 데이터를 설정할 수 있습니다. (format 예: 'text/plain', 'text/html')",
+        "true 를 반환하면 사용자의 복사(Ctrl+C) 동작을 수행하고 복사된 값을 클립보드에 저장합니다.",
+        "false 를 반환하면 사용자의 복사(Ctrl+C) 동작을 취소하고 복사된 값을 클립보드에 저장하지 않습니다.",
+        "e.clipboardData.setData() 메소드로 새로운값을 설정한 경우 해당 값을 클립보드에 저장합니다.",
+        "oncustomcopy 이벤트는 GridView 컴포넌트의 내부 복사 로직(Cell 데이터 수집, 클립보드 설정)이 실행되기 전에 발생하므로, 복사 동작을 가로채거나 커스텀 복사 로직을 구현할 수 있는 훅 역할을 합니다.",
+        "copyType='native' 이면 웹브라우저가 복사 동작을 처리하므로 oncustomcopy 이벤트가 발생하지 않습니다. 단, Safari 브라우저의 경우 oncustomcopy 이벤트가 발생할 수 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 핸들러 반환값 selectbox 변경 시 안내 (재생성 불필요, 핸들러가 매번 현재값을 읽음)
+scwin.con_returnValue_onchange = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("핸들러 반환값 변경 : " + con_returnValue.getValue() + " (셀 선택 후 Ctrl+C 하여 확인하세요)");
+};
+
+
+
+// comp 생성
+//  - con_copyType : 미설정 / native 변경 시 Target 재생성 버튼으로 적용
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 옵션 값 수집 (copyType)
+    let copyType = con_copyType.getValue();
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - 트리거(Ctrl+C 복사)는 사용자 액션. 핸들러 반환값(true/false) selectbox 로 복사 수행/취소 확인
+    $c.gcm.createLabel('label="[전제] Body 셀은 inputType=text 라 더블클릭 시 편집모드 진입.\n[절차] Body 셀 클릭 후 Ctrl+C 복사 -> oncustomcopy 발생 (e.type / e.clipboardData 출력). con_copyType / 핸들러 반환값 셀렉트박스 변경 후 [Target 재생성].\n[확인] 복사 후 아래 붙여넣기 확인 (Ctrl+V) 영역에 Ctrl+V 하여 실제 클립보드 저장값을 확인."', '', 'label1');
+
+    // 조건 설정
+    //  - copyType : con selectbox 값 (미설정 / native). native 면 oncustomcopy 미발생
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    if (copyType !== "") {
+        properties.copyType = copyType;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // oncustomcopy 이벤트 핸들러 부착
+    let eList = $c.gcm.createEList(["oncustomcopy"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    //  - createBasicGridView 의 Body 컬럼은 inputType=text(편집 가능) -> 셀 더블클릭 시 편집모드 진입
+    //    (편집모드 셀 복사 시 oncustomcopy 미발생 검증 가능)
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// oncustomcopy : 사용자가 복사(Ctrl+C) 동작을 수행할 때 발생
+//  - e : ClipboardEvent 객체 (e.type='copy', e.clipboardData=DataTransfer)
+//  - 반환값(con_returnValue selectbox) :
+//      true    : 복사 수행 + 클립보드 저장
+//      false   : 복사 취소 + 클립보드 미저장
+//      setData : e.clipboardData.setData() 로 커스텀값 설정 후 저장
+scwin.target1_oncustomcopy = function (e) {
+    // e (ClipboardEvent) 전달 여부 + e.type 출력
+    wf_body_bottom.getObj("scwin").setReturnValue("oncustomcopy e : " + e);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncustomcopy e.type : " + e.type);
+
+    // e.clipboardData : DataTransfer 객체
+    wf_body_bottom.getObj("scwin").setReturnValue("oncustomcopy e.clipboardData : " + e.clipboardData);
+
+    let mode = con_returnValue.getValue();
+
+    if (mode === "false") {
+        // false 반환 -> 복사 취소 + 클립보드 미저장
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 : false -> 복사 동작 취소 (클립보드 미저장)");
+        return false;
+    } else if (mode === "setData") {
+        // 가이드 @sample 패턴 : setData 로 커스텀값 설정 + preventDefault + false 반환 시 해당 값이 클립보드에 저장됨
+        //  - true 반환 시에는 엔진이 이후 셀 데이터로 클립보드를 덮어써(eventController.js:3937) custom data 가 저장되지 않음
+        if (e.clipboardData && e.clipboardData.setData) {
+            e.clipboardData.setData("text/plain", "custom data");
+            if (e.preventDefault) e.preventDefault();
+            wf_body_bottom.getObj("scwin").setReturnValue("반환 : false + setData('text/plain','custom data') + preventDefault -> 커스텀값 클립보드 저장");
+        }
+        return false;
+    }
+
+    // true (또는 미설정) -> 복사 수행 + 클립보드 저장
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 : true -> 복사 동작 수행 (복사값 클립보드 저장)");
+    return true;
+};
+
+
+
+// 붙여넣기 확인(par_pasteArea) : 그리드에서 Ctrl+C 한 값을 이 영역에 Ctrl+V 로 붙여넣으면 onchange 발생
+//  - 실제 클립보드에 저장된 값(=핸들러 반환값 true=셀값 / false=빈값·미변경 / setData=custom data)을 결과창에 한 줄 출력
+scwin.par_pasteArea_onchange = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let pasted = par_pasteArea.getValue();
+    bottom.setReturnValue("붙여넣기된 클립보드 값 : " + pasted);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="copyType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_copyType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[native]]></xf:label>
+												<xf:value><![CDATA[native]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="핸들러 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_returnValue" ref="" style="" submenuSize="auto"
+										ev:onchange="scwin.con_returnValue_onchange">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true (복사 수행 + 클립보드 저장)]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false (복사 취소 + 미저장)]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[setData (커스텀값 클립보드 저장)]]></xf:label>
+												<xf:value><![CDATA[setData]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 확인 (Ctrl+V)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="par_pasteArea" ev:onchange="scwin.par_pasteArea_onchange" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="셀 선택 후 Ctrl+C → 이 영역 클릭 후 Ctrl+V 하면 실제 클립보드에 저장된 값이 결과창에 표시됩니다." ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

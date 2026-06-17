@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncolumnwidthchange" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > oncolumnwidthchange]<br/>GridView 컴포넌트에서 Column 너비가 변경되면 발생합니다.",
+    "validation" : [
+        "Header Column 경계를 더블클릭하여 Column 너비가 변경된 경우엔 발생하지 않습니다.",
+        "info.columnIndex 는 너비가 변경된 Column 의 인덱스값으로, RowNum, RowStatus Column 은 인덱스에 포함되지 않습니다.",
+        "Drag 로 Column 의 너비 변경 시 oncolumnwidthchange > onaftercolumnresize 순서로 이벤트가 발생합니다.",
+        "setColumnWidth() 메소드로 Column 의 너비가 변경되는 경우엔 oncolumnwidthchange 이벤트만 발생합니다.",
+        "AutoFit 기능이나 setRowNumColumnWidth() 등의 메소드에 의한 Column 너비 변경 시에는 oncolumnwidthchange 가 발생하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - rowNumVisible, rowStatusVisible = true 고정 (info.columnIndex 는 RowNum/RowStatus 제외 검증)
+//    (info.columnIndex 는 RowNum/RowStatus 를 인덱스에서 제외 -> Body Column 만 0 부터 시작)
+//  - 이벤트(oncolumnwidthchange / onaftercolumnresize) 는 createEList 로 바인딩
+//    각 핸들러는 발생 즉시 한 줄(▶) 출력 -> 출력 라인 순서 = 실제 발생 순서 (setTimeout 미사용)
+//  - Property 는 createCList 로 구성 (공통 패턴)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="Header Column 경계를 Drag 하면 oncolumnwidthchange > onaftercolumnresize 순서로 발생. Header 경계 더블클릭(AutoFit)은 oncolumnwidthchange 미발생(onaftercolumnresize 만). info.columnIndex 는 RowNum/RowStatus 제외(Body Column 0 부터)."', '', 'label1');
+    $c.gcm.createLabel('label="Header 경계를 Drag 하면 oncolumnwidthchange > onaftercolumnresize 순서 발생, 경계 더블클릭(AutoFit)은 oncolumnwidthchange 미발생(onaftercolumnresize 만) — 둘 다 확인 가능. [setColumnWidth 실행]=oncolumnwidthchange 발생(양성), [setRowNumColumnWidth 실행]=미발생(음성) 버튼으로 검증."', '', 'label2');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 4 Row)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "A2", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "A3", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "A4", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수) : RowNum/RowStatus 표시
+    let properties = {
+        dataList: "data:dlt_bind",
+        rowNumVisible: "true",
+        rowNumHeaderValue: "No.",
+        rowStatusVisible: "true",
+        rowStatusHeaderValue: "St."
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 바인딩 (createEList 공통 함수)
+    //  - 발생 순서(@spec1) 검증을 위해 oncolumnwidthchange + onaftercolumnresize 바인딩
+    let eList = $c.gcm.createEList(["oncolumnwidthchange", "onaftercolumnresize"]);
+
+    // target 생성 (Header 4컬럼 + gBody 4 Row, Body Column col1~col4)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:600px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="oncolumnwidthchange 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="col1(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="col2(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="col3(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="col4(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// oncolumnwidthchange : Column 너비 변경 시 발생 (Drag / setColumnWidth)
+//  - 발생 즉시 한 줄 출력 (출력 순서 = 실제 발생 순서)
+//  - info 객체 속성 개별 출력 (info.columnIndex 는 RowNum/RowStatus 제외)
+scwin.target1_oncolumnwidthchange = function (info) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("▶ oncolumnwidthchange");
+    bottom.setReturnValue("info.columnIndex : " + info.columnIndex + " (RowNum/RowStatus 제외)");
+    bottom.setReturnValue("info.columnID : " + info.columnID);
+    bottom.setReturnValue("info.oldWidth : " + info.oldWidth);
+    bottom.setReturnValue("info.newWidth : " + info.newWidth);
+}
+
+
+
+// onaftercolumnresize : 사용자 액션(Drag/더블클릭)으로 Column 너비 변경 직후 발생
+//  - Drag 시 oncolumnwidthchange 다음에 발생(@spec1). setColumnWidth() 메소드 변경 시에는 미발생(@spec1|)
+//  - 발생 즉시 한 줄 출력
+scwin.target1_onaftercolumnresize = function (columnIndex, oldColumnWidth, newWidth) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onaftercolumnresize");
+}
+
+
+
+// [setColumnWidth 실행] 버튼 (@spec1| 양성 검증)
+//  - 메소드로 너비 변경 시 oncolumnwidthchange 만 발생하고 onaftercolumnresize 는 발생하지 않음을 확인
+scwin.btn_setColumnWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====setColumnWidth(0, 200) 실행=====");
+
+    // 메소드로 너비 변경 → oncolumnwidthchange 만 ▶ 출력(onaftercolumnresize 는 미발생이라 ▶ 출력 없음 = @spec1| 확인)
+    target1.setColumnWidth(0, 200);
+}
+
+
+
+// [setRowNumColumnWidth 실행] 버튼 (@spec2 음성 검증)
+//  - 메소드에 의한 Column 너비 변경 시 oncolumnwidthchange 가 발생하지 않음을 확인
+scwin.btn_setRowNumColumnWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====setRowNumColumnWidth(100) 실행=====");
+
+    // 메소드로 RowNum 너비 변경 → oncolumnwidthchange 미발생(▶ 출력 없음으로 확인, @spec2)
+    target1.setRowNumColumnWidth(100);
+}
+
+
+
+// [AutoFit 실행] 버튼 (@spec2 음성 검증 - AutoFit 기능)
+//  - AutoFit 기능에 의한 Column 너비 변경 시 oncolumnwidthchange 가 발생하지 않음을 확인
+scwin.btn_setAutoFit_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====setAutoFit({type:'allColumn'}) 실행=====");
+
+    // AutoFit 으로 너비 변경 → oncolumnwidthchange 미발생(▶ 출력 없음으로 확인, @spec2)
+    target1.setAutoFit({ type: "allColumn" });
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnWidth_onclick" id="btn_setColumnWidth"
+							label="setColumnWidth 실행" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setRowNumColumnWidth_onclick" id="btn_setRowNumColumnWidth"
+							label="setRowNumColumnWidth 실행" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setAutoFit_onclick" id="btn_setAutoFit"
+							label="AutoFit 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

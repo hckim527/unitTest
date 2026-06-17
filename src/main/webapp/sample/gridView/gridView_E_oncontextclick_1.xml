@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncontextclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > oncontextclick]<br/>WebSquare 컨텍스트 메뉴에서 항목을 선택할 때 발생합니다.",
+    "validation" : [
+        "WebSquare 컨텍스트 메뉴는 contextMenu=true 이거나 useHeaderContextMenu=true 일때 표시할 수 있습니다.",
+        "Header 영역이거나 Cell 영역이 아닌 경우 rowIndex 는 -1 값을 갖습니다.",
+        "우클릭된 Cell 이 RowNum, RowStatus Column 인 경우 columnIndex 는 'rowNum', 'rowStatus' 등의 문자열값을 갖습니다.",
+        "사용자 항목을 클릭한 경우 oncontextopen 이벤트에서 설정한 appendMenu.userMenuId 값이 userMenuId 로 전달됩니다.",
+        "기본 WebSquare 컨텍스트 메뉴를 클릭한 경우 systemMenu 가 true, 사용자 항목을 클릭한 경우 false 값을 갖습니다.",
+        "기본 WebSquare 컨텍스트 메뉴를 클릭한 경우 systemMenuId 에 메뉴의 ID 값이 전달됩니다.",
+        "Cell 영역이 아닌 경우 focusedCell 은 null 값을 갖습니다.",        
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - contextMenu=true / rowNum,rowStatus 컬럼 표시 전제 안내 및 검증 절차 안내
+    $c.gcm.createLabel('label="(전제) contextMenu=true + useHeaderContextMenu=true / RowNum,RowStatus 컬럼 표시. [절차] Body 셀을 우클릭 -> 컨텍스트 메뉴에서 (1) 기본(시스템) 항목 클릭 시 systemMenu=true + systemMenuId 전달, (2) 사용자 항목(맨 아래 2개) 클릭 시 systemMenu=false + userMenuId 전달. Header / RowNum / RowStatus 우클릭 시 rowIndex/columnIndex 변화도 확인하세요."', '', 'label1');
+
+    // 조건 설정
+    //  - contextMenu=true : Body 우클릭 시 WebSquare 컨텍스트 메뉴 표시 (이벤트 발생 전제)
+    //  - useHeaderContextMenu=true : Header 우클릭 시에도 메뉴 표시 → 메뉴 항목 클릭 시 rowIndex=-1 / columnIndex=Header Column 인덱스 확인 가능
+    //  - rowNumVisible / rowStatusVisible=true : RowNum/RowStatus 영역 우클릭 시 columnIndex 가 'rowNum'/'rowStatus' 문자열로 전달되는지 확인 가능
+    let properties = {
+        dataList: "data:dlt_bind",
+        contextMenu: "true",
+        useHeaderContextMenu: "true",
+        rowNumVisible: "true",
+        rowStatusVisible: "true"
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // oncontextopen / oncontextclick 이벤트 핸들러 부착
+    //  - oncontextopen : 사용자 항목(appendMenu) 추가 (userMenuId 케이스 검증용)
+    //  - oncontextclick : 항목 선택 시 파라미터 출력 (검증 대상)
+    let eList = $c.gcm.createEList(["oncontextopen", "oncontextclick"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// oncontextopen : 컨텍스트 메뉴가 표시될 때 발생
+//  - appendMenu 로 사용자 항목 2개 추가하여 반환 -> 사용자 항목 클릭 시 systemMenu=false + 해당 userMenuId 전달 검증 가능
+//  - 기본 시스템 항목은 그대로 두어 시스템 항목 클릭 시 systemMenu=true + systemMenuId 전달도 검증
+scwin.target1_oncontextopen = function (rowIndex, columnIndex, focusedCellInfo, info) {
+    return {
+        "appendMenu" : [
+            { "label" : "사용자 항목 A", "userMenuId" : "userMenuA" },
+            { "label" : "사용자 항목 B", "userMenuId" : "userMenuB" }
+        ]
+    };
+};
+
+
+
+// oncontextclick : WebSquare 컨텍스트 메뉴에서 항목을 선택(클릭)할 때 발생 (검증 대상)
+//  - 파라미터(payload) 개별 출력 :
+//    rowIndex      : 우클릭된 Cell 의 Row 인덱스 (Header/비Cell 영역 시 -1)
+//    columnIndex   : 우클릭된 Cell 의 Column 인덱스 (Header 면 Header Column 인덱스 / 비Cell -1 / RowNum,RowStatus 면 'rowNum','rowStatus' 문자열)
+//    userMenuId    : 사용자 항목 클릭 시 oncontextopen 의 appendMenu.userMenuId 값 (기본 메뉴 클릭 시 undefined)
+//    systemMenu    : 기본 메뉴 클릭 시 true / 사용자 항목 클릭 시 false
+//    systemMenuId  : 기본 메뉴 클릭 시 메뉴 ID(Group/Ungroup/ColumnHide/ColumnShowAll/ColumnFix/ColumnUnfixAll/ColumnAdjustWidth/ColumnAdjustAuto/ColumnAdjustAutoNone/FoldAll/UnfoldAll/UngroupAll) / 사용자 항목 클릭 시 undefined
+//    focusedCell   : 현재 포커스된 Cell 정보 배열 (비Cell 영역 시 null) - focusedCell.rowIndex / focusedCell.colIndex
+scwin.target1_oncontextclick = function (rowIndex, columnIndex, userMenuId, systemMenu, systemMenuId, focusedCell) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick columnIndex : " + columnIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick userMenuId : " + userMenuId);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick systemMenu : " + systemMenu);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick systemMenuId : " + systemMenuId);
+
+    //  - focusedCell 은 포커스 Cell 정보 배열 ([{rowIndex, colIndex}]). 첫 요소의 rowIndex/colIndex 출력. 비Cell 영역 시 null
+    if (focusedCell && focusedCell[0]) {
+        wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick focusedCell.rowIndex : " + focusedCell[0].rowIndex);
+        wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick focusedCell.colIndex : " + focusedCell[0].colIndex);
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick focusedCell : null");
+    }
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

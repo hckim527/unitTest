@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onbeforetoggleclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > onbeforetoggleclick]<br/>inputType='drilldown' 인 Body Cell 에서 토글 버튼을 마우스 왼쪽 버튼으로 클릭할 때 발생합니다.",
+    "validation" : [
+        "drilldownToggle='enter' 이면 Enter 키 입력으로 이벤트가 발생합니다.",
+        "drilldownToggle='enter' 일때 Enter 키를 입력한 경우 onbeforetoggleclick 이벤트 없이 ontoggleclick 가 바로 발생합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — DrillDown(계층형) 그리드 + onbeforetoggleclick/ontoggleclick 바인딩
+//  - name 컬럼을 inputType="drilldown" + depthColumn="depth" + showDepth="1" + depthStartIndex="1"
+//  - 3단계(본부 depth1 > 팀 depth2 > 사원 depth3)
+//  - con_drilldownToggle : 미설정(기본 클릭 토글) / "enter"(Enter 키로 토글). Target 재생성으로 적용
+//  - drilldownToggle="enter" 일때 셀 포커스 후 Enter 입력 시 토글은 실행되나
+//    onbeforetoggleclick 없이 ontoggleclick 만 발생함을 이벤트 순서 로그로 확인
+scwin.gVar = { logArr: [] };
+
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof dlt_bind !== 'undefined') { $p.data.remove("dlt_bind"); }
+
+    scwin.gVar.logArr = [];
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="DrillDown 그리드(본부>팀>사원). con_drilldownToggle=enter 적용 후 부모(이름) 셀을 클릭해 포커스를 둔 뒤 Enter 입력. 미설정이면 토글버튼 클릭으로 동작. enter 시 onbeforetoggleclick 없이 ontoggleclick 만 발생(이벤트 순서 로그 확인). con 변경 후 [Target 재생성]."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === 바인딩 DataList(dlt_bind) ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모(자식 보유)와 Leaf(자식 없음)를 모두 포함
+    let jsonData = [
+        { "name": "영업본부",   "dept": "Sales", "depth": 1 },
+        { "name": "영업1팀",    "dept": "Sales", "depth": 2 },
+        { "name": "김영업",     "dept": "Sales", "depth": 3 },
+        { "name": "이영업",     "dept": "Sales", "depth": 3 },
+        { "name": "개발본부",   "dept": "Dev",   "depth": 1 },
+        { "name": "개발1팀",    "dept": "Dev",   "depth": 2 },
+        { "name": "박개발",     "dept": "Dev",   "depth": 3 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // con 값 수집 — 미설정이면 빈문자(속성 미적용)
+    let properties = { dataList: "data:dlt_bind" };
+    let drilldownToggle = con_drilldownToggle.getValue();
+    if (drilldownToggle !== "") { properties.drilldownToggle = drilldownToggle; }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onbeforetoggleclick", "ontoggleclick"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:520px;height:280px;" ' + eList + '>';
+    strTarget += '<w2:caption style="" id="caption1" value="onbeforetoggleclick(drilldownToggle=enter) DrillDown 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="280" style="" inputType="text" id="hcol1" value="이름(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="280" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="depth" dataList="depth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+};
+
+
+
+// [onbeforetoggleclick] : 토글 버튼을 마우스 왼쪽 버튼으로 클릭할 때 발생. 토글 동작 전.
+//  - drilldownToggle="enter" + Enter 입력 경로에서는 호출되지 않음(이벤트 순서 로그로 확인)
+scwin.target1_onbeforetoggleclick = function (rowIndex) {
+    let b = wf_body_bottom.getObj("scwin");
+    scwin.gVar.logArr.push("onbeforetoggleclick");
+
+    b.setReturnValue("===== target1_onbeforetoggleclick =====");
+    b.setReturnValue("rowIndex(payload) : " + rowIndex);
+    b.setReturnValue("[이벤트 발생 순서] " + scwin.gVar.logArr.join(" > "));
+};
+
+
+
+// [ontoggleclick] : DrillDown 토글 동작 시 발생. drilldownToggle="enter" + Enter 입력 시
+//  onbeforetoggleclick 없이 이 이벤트가 바로 발생함을 확인
+scwin.target1_ontoggleclick = function (collapsed, rowIndex) {
+    let b = wf_body_bottom.getObj("scwin");
+    scwin.gVar.logArr.push("ontoggleclick");
+
+    b.setReturnValue("----- target1_ontoggleclick -----");
+    b.setReturnValue("rowIndex(payload) : " + rowIndex);
+    b.setReturnValue("[이벤트 발생 순서] " + scwin.gVar.logArr.join(" > "));
+    // enter 경로면 [ontoggleclick] 단독, 클릭 경로면 [onbeforetoggleclick > ontoggleclick]
+};
+
+
+
+// 직전 이벤트 발생 순서 로그 초기화 (다음 토글 동작 관찰 전 초기화용)
+scwin.btn_clearLog_onclick = function () {
+    scwin.gVar.logArr = [];
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+    b.setReturnValue("[이벤트 순서 로그 초기화] 셀 클릭으로 포커스 후 Enter(또는 토글버튼 클릭)하여 이벤트 순서를 확인하세요.");
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="drilldownToggle" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_drilldownToggle" label="label" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>enter</xf:label>
+												<xf:value>enter</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<w2:button id="btn_clearLog" label="이벤트 순서 로그 초기화" ev:onclick="scwin.btn_clearLog_onclick"></w2:button>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

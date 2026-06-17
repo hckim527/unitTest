@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onaftercolumnmove" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > onaftercolumnmove]<br/>columnMove=true 일때 Header Column 을 Drag&Drop 으로 이동한 후 발생합니다.",
+    "validation" : [
+        "onbeforecolumnmove 이벤트에서 false 값을 반환하지 않았을때 이어서 발생합니다.",
+        "setColumnOrder() 와 같은 메소드로 Column 위치가 이동된 경우엔 발생하지 않습니다.",
+        "파라미터로 전달되는 Column 정보는 Header Column 이 아닌 Body Column 정보입니다.",
+        "onaftercolumnmove 이벤트 핸들러 내부에서 getColumnOrder() 메소드를 실행하면 이동 후의 Column 순서가 반환됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - columnMove="true" + Body Column 4개(col1~col4, ID 명확) 로 헤더 Drag&Drop 이동 가능 구성
+//  - onaftercolumnmove 는 createEList 로 바인딩, Property 는 createCList 로 구성(공통 패턴)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - endColumnID/endColumnIndex 의 오른쪽/왼쪽 규칙을 라벨로 안내
+    $c.gcm.createLabel('label="columnMove=true / Body 컬럼 col1~col4 (인덱스 0~3). 헤더를 Drag&Drop 으로 이동하면 onaftercolumnmove 발생 -> info 속성과 이동 후 컬럼 순서를 하단에 출력. (info.endColumn 은 Drop 기준 원래 위치가 오른쪽이면 오른쪽, 왼쪽이면 왼쪽 Body Column 정보) / [setColumnOrder 실행] 버튼은 프로그램 이동 시 onaftercolumnmove 가 발생하지 않음을 확인하는 용도."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 4 Row)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "A2", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "A3", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "A4", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수) : columnMove="true"
+    let properties = {
+        dataList: "data:dlt_bind",
+        columnMove: "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 바인딩 (createEList 공통 함수) : onaftercolumnmove (전제인 onbeforecolumnmove 도 바인딩)
+    let eList = $c.gcm.createEList(["onbeforecolumnmove", "onaftercolumnmove"]);
+
+    // target 생성 (Header 4컬럼 + gBody 1 Row)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:560px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="onaftercolumnmove 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="col1(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="col2(H)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="col3(H)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="col4(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : col1
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    // index 1 : col2
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    // index 2 : col3
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    // index 3 : col4 , width="*"
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // setColumnOrder 미발생 확인용 플래그 초기화
+    scwin.afterFired = false;
+}
+
+
+
+// onbeforecolumnmove : false 를 반환하지 않아야 onaftercolumnmove 가 이어서 발생함(validation #1)
+scwin.target1_onbeforecolumnmove = function (info) {
+    // false 를 반환하지 않음(undefined 반환) -> onaftercolumnmove 로 이어짐
+}
+
+
+
+// onaftercolumnmove : Header Drag&Drop 이동 후 발생
+//  - info 객체의 속성을 개별 출력 (Body Column 정보 / 시작·종료 ID·인덱스)
+//  - @spec3 : 핸들러 내부에서 getColumnOrder() 실행 시 이동 후 Column 순서 반환
+scwin.target1_onaftercolumnmove = function (info) {
+    scwin.afterFired = true;
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====target1_onaftercolumnmove=====");
+    // info 속성 개별 출력 (Body Column 정보)
+    bottom.setReturnValue("info.startColumnID : " + info.startColumnID);
+    bottom.setReturnValue("info.startColumnIndex : " + info.startColumnIndex);
+    bottom.setReturnValue("info.endColumnID : " + info.endColumnID);
+    bottom.setReturnValue("info.endColumnIndex : " + info.endColumnIndex);
+    // @spec3 : 이동 후 Column 순서
+    bottom.setReturnValue("[getColumnOrder(true) 이동 후 표시 순서 ID] " + JSON.stringify(target1.getColumnOrder(true)));
+    bottom.setReturnValue("[getColumnOrder(false) 이동 후 표시 순서 인덱스] " + JSON.stringify(target1.getColumnOrder(false)));
+}
+
+
+
+// [setColumnOrder 실행] 버튼 : 프로그램 이동(메소드)으로 순서를 바꿔도 onaftercolumnmove 가 발생하지 않음을 확인(validation #2)
+scwin.btn_setColumnOrder_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====setColumnOrder 실행=====");
+
+    // 발생 여부 확인을 위해 플래그 초기화
+    scwin.afterFired = false;
+
+    // 표시 순서를 역순(col4,col3,col2,col1)으로 변경
+    target1.setColumnOrder(["col4", "col3", "col2", "col1"]);
+
+    bottom.setReturnValue("[setColumnOrder 후 표시 순서 ID] " + JSON.stringify(target1.getColumnOrder(true)));
+    // setColumnOrder 로 이동했을 때 onaftercolumnmove 가 발생하지 않았는지 확인
+    bottom.setReturnValue("[setColumnOrder 실행 -> onaftercolumnmove] " + (scwin.afterFired ? "발생" : "미발생"));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnMove" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="true (고정)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnOrder_onclick" id="btn_setColumnOrder"
+							label="setColumnOrder 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

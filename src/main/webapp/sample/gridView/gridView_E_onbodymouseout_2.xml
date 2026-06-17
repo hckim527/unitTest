@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onbodymouseout" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : Body 가 MultiLine 일때 info.rowIndex / info.colIndex 의 동작을 분리 검증하는 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : col1 | col2 | col3   (colIndex 0,1,2)
+//       Line2 : col4 | col5 | col6   (colIndex 3,4,5)
+//     · 같은 레코드의 Line1 셀과 Line2 셀에서 각각 mouseout → rowIndex 동일(레코드 단위).
+//     · Line1/Line2 의 서로 다른 Column → colIndex 는 두 Line 통틀어 0~5 로 고유.
+scwin.tData = {
+    "description" : "[gridView > E > onbodymouseout]<br/>Body, Footer Cell 영역에서 마우스 포인터가 나갔을때 발생합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+        "Body 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line) 구성.
+//  한 레코드는 화면상 2개의 Line(TR)으로 렌더됨.
+//   Line1 : col1 | col2 | col3   (colIndex 0,1,2)
+//   Line2 : col4 | col5 | col6   (colIndex 3,4,5)
+scwin.GRID_DATA = [
+    { "col1": "A1", "col2": "A2", "col3": "A3", "col4": "A4", "col5": "A5", "col6": "A6" },
+    { "col1": "B1", "col2": "B2", "col3": "B3", "col4": "B4", "col5": "B5", "col6": "B6" },
+    { "col1": "C1", "col2": "C2", "col3": "C3", "col4": "C4", "col5": "C5", "col6": "C6" }
+];
+
+
+
+// comp 생성 : MultiLine(레코드당 2 Line) 그리드 1개를 동적 생성.
+//  header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="MultiLine 구성(레코드당 2 Line): Line1=col1·col2·col3(colIndex 0~2) / Line2=col4·col5·col6(colIndex 3~5). 같은 레코드의 Line1 셀과 Line2 셀 위로 마우스를 올렸다 빼면 rowIndex 동일(레코드 단위) / colIndex 는 0~5 고유 (결과창 확인)"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (6개 컬럼)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col5" name="col5" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col6" name="col6" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (이벤트 바인딩은 createEList 공통 함수 사용)
+    let eList = $c.gcm.createEList(["onbodymouseout"]);
+
+    let strTarget = '';
+    // MultiLine : header/gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" defaultCellHeight="30" ' + eList + ' checkAllType="false" id="" style="width:300px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="onbodymouseout MultiLine 테스트 그리드"></w2:caption>';
+    // Header : Line1(col1,col2,col3) / Line2(col4,col5,col6)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_col1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_col2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_col3" value="col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_col4" value="col4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_col5" value="col5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_col6" value="col6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(col1,col2,col3) / Line2(col4,col5,col6) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col5" dataList="col5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="col6" dataList="col6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        'target1',
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Body Cell 영역에서 마우스가 나갈 때 발생
+//  - 발생 즉시 한 줄(▶) 출력 → 결과창 라인 순서 = 실제 이벤트 발생 순서
+//  - info 는 커스텀 객체이므로 속성 개별 출력
+//    · info.rowIndex : MultiLine 이어도 레코드 단위(같은 레코드의 Line1/Line2 동일)
+//    · info.colIndex : Line1=0,1,2 / Line2=3,4,5 (두 Line 통틀어 고유)
+scwin.target1_onbodymouseout = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onbodymouseout");
+    wf_body_bottom.getObj("scwin").setReturnValue("info.rowIndex : " + info.rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("info.colIndex : " + info.colIndex);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

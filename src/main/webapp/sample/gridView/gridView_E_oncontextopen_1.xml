@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncontextopen" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > oncontextopen]<br/>WebSquare 컨텍스트 메뉴가 표시될 때 발생합니다.",
+    "validation" : [
+        "WebSquare 컨텍스트 메뉴는 contextMenu=true 이거나 useHeaderContextMenu=true 일때 표시할 수 있습니다.",
+        "Header 영역이거나 Cell 영역이 아닌 경우 rowIndex 는 -1 값을 갖습니다.",
+        "우클릭된 Cell 이 RowNum, RowStatus Column 인 경우 columnIndex 는 'rowNum', 'rowStatus' 등의 문자열값을 갖습니다.",
+        "Cell 영역이 아닌 경우 focusedCellInfo 는 null 값을 갖습니다.",
+        "우클릭된 Cell 이 Header 영역인지 여부가 info.isHeader 에 true/false 로 전달됩니다.",
+        "Header 영역인 경우 info.headerId 에 우클릭된 Cell 의 ID 값이 전달됩니다.",
+        "반환값이 없거나 false 를 반환하면 기본 WebSquare 컨텍스트 메뉴가 표시됩니다.",
+        "hideSystemMenu 에 true 설정 시 WebSquare 컨텍스트 메뉴 자체를 표시하지 않습니다.",
+        "hideSystemMenu 에 메뉴 ID 배열을 설정하면 해당 기본 메뉴 항목을 숨김 처리합니다.",
+        "appendMenu 로 추가한 사용자 메뉴의 userMenuId 는 사용자 메뉴 클릭 시 oncontextclick 이벤트에 전달됩니다.",
+        "이벤트 핸들러에서 객체를 반환하면 매번 WebSquare 컨텍스트 메뉴를 새로 생성합니다.",
+        "oncontextopen 이벤트 발생 후 WebSquare 컨텍스트 메뉴 선택 시 oncontextclick 이벤트가 발생합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 반환 모드 기본값 명시 (정적 item select1 은 selectedIndex 초기 미적용)
+    con_returnMode.setValue("none");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 반환 모드 selectbox 변경 시 적용 (재생성 불필요, 핸들러가 매번 현재 모드를 읽음)
+scwin.con_returnMode_onchange = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 모드 변경 : " + con_returnMode.getValue() + " (그리드를 우클릭하여 확인하세요)");
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - 트리거(우클릭)는 사용자 액션, 반환 모드 selectbox 로 커스터마이징 형태를 바꿔 확인
+    $c.gcm.createLabel('label="contextMenu=true / useHeaderContextMenu=true 고정. Body/Header 셀을 마우스 우클릭하면 oncontextopen 발생(파라미터 출력, Header 는 info.isHeader=true / rowIndex=-1) + 반환 모드 selectbox 값에 따라 메뉴 커스터마이징. (none=기본메뉴 / customize=항목숨김+사용자메뉴추가 / hideAll=메뉴전체미표시)"', '', 'label1');
+
+    // 조건 설정
+    //  - contextMenu=true 고정 (이벤트 전제). rowNumVisible/rowStatusVisible 로 RowNum/RowStatus 영역 우클릭도 확인 가능
+    //  - useHeaderContextMenu=true : Header 우클릭 시에도 oncontextopen 이 발생하도록 (info.isHeader=true / rowIndex=-1 / headerId 확인용)
+    let properties = {
+        dataList: "data:dlt_bind",
+        contextMenu: "true",
+        useHeaderContextMenu: "true",
+        rowNumVisible: "true",
+        rowStatusVisible: "true"
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // oncontextopen / oncontextclick 이벤트 핸들러 부착
+    //  - oncontextclick : appendMenu 의 userMenuId 가 전달되는지 검증
+    let eList = $c.gcm.createEList(["oncontextopen", "oncontextclick"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// oncontextopen : WebSquare 컨텍스트 메뉴가 표시될 때 발생
+//  - 파라미터(payload) 개별 출력 : rowIndex / columnIndex / focusedCellInfo / info.isHeader / info.headerId
+//  - 반환값으로 메뉴 커스터마이징 (engine: layoutController.createContextMenu 가 평면 구조 hideSystemMenu/appendMenu 소비)
+//      none      : 반환 없음 -> 기본 메뉴 표시
+//      customize : { hideSystemMenu:["ColumnHide","ColumnFix"], appendMenu:[{label, userMenuId, className}] }
+//      hideAll   : { hideSystemMenu:true } -> 메뉴 전체 미표시
+scwin.target1_oncontextopen = function (rowIndex, columnIndex, focusedCellInfo, info) {
+    // 파라미터 개별 출력
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen columnIndex : " + columnIndex);
+    if (focusedCellInfo === null) {
+        wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen focusedCellInfo : null");
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen focusedCellInfo.rowIndex : " + focusedCellInfo.rowIndex + " , focusedCellInfo.colIndex : " + focusedCellInfo.colIndex);
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen info.isHeader : " + info.isHeader);
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextopen info.headerId : " + info.headerId);
+
+    let mode = con_returnMode.getValue();
+
+    // 반환 모드별 커스터마이징
+    if (mode === "hideAll") {
+        // hideSystemMenu:true -> 메뉴 자체 미표시
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 : { hideSystemMenu: true } -> 메뉴 전체 미표시");
+        return { hideSystemMenu: true };
+    } else if (mode === "customize") {
+        // 기본 항목 숨김 + 사용자 메뉴 추가
+        let userMenu = {
+            hideSystemMenu: ["ColumnHide", "ColumnFix"],
+            appendMenu: [
+                { label: "사용자 메뉴 (행 새로고침)", userMenuId: "userRefresh", className: "tc_user_menu" },
+                { label: "사용자 메뉴 (행 정보)", userMenuId: "userRowInfo", className: "tc_user_menu" }
+            ]
+        };
+        wf_body_bottom.getObj("scwin").setReturnValue("반환 : hideSystemMenu=[ColumnHide,ColumnFix] 숨김 + appendMenu(userRefresh,userRowInfo) 추가");
+
+        // 메뉴 DOM 은 반환 후 생성되므로 setTimeout 으로 생성 후 검증
+        setTimeout(function () {
+            let menu = document.querySelector("[id$='_contextMenu_list']");
+            if (!menu) {
+                wf_body_bottom.getObj("scwin").setReturnValue("컨텍스트 메뉴 미생성");
+                return;
+            }
+            let rows = menu.querySelectorAll(".w2grid_contextMenu_row");
+            let labels = [];
+            for (let i = 0; i < rows.length; i++) {
+                labels.push((rows[i].textContent || "").replace(/\s+/g, " ").trim());
+            }
+            wf_body_bottom.getObj("scwin").setReturnValue("표시된 메뉴 항목 : " + labels.join(" / "));
+        }, 0);
+
+        return userMenu;
+    }
+
+    // none : 반환 없음 -> 기본 메뉴 표시
+    wf_body_bottom.getObj("scwin").setReturnValue("반환 : 없음 -> 기본 WebSquare 컨텍스트 메뉴 표시");
+    setTimeout(function () {
+        let menu = document.querySelector("[id$='_contextMenu_list']");
+        if (!menu) {
+            wf_body_bottom.getObj("scwin").setReturnValue("컨텍스트 메뉴 미생성");
+            return;
+        }
+        let rows = menu.querySelectorAll(".w2grid_contextMenu_row");
+        wf_body_bottom.getObj("scwin").setReturnValue("기본 메뉴 항목 수 : " + rows.length);
+    }, 0);
+};
+
+
+
+// oncontextclick : 컨텍스트 메뉴 항목 클릭 시 발생
+//  - appendMenu 의 userMenuId 가 전달되는지 확인
+scwin.target1_oncontextclick = function (rowIndex, columnIndex, userMenuId, isSystemMenu, systemMenu) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncontextclick userMenuId : " + userMenuId + " , systemMenu : " + systemMenu);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="핸들러 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_returnMode" ref="" style="" submenuSize="auto"
+										ev:onchange="scwin.con_returnMode_onchange">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[none (반환 없음 - 기본 메뉴)]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[customize (항목숨김 + 사용자메뉴추가)]]></xf:label>
+												<xf:value><![CDATA[customize]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[hideAll (메뉴 전체 미표시)]]></xf:label>
+												<xf:value><![CDATA[hideAll]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onaftercolumnresize" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260617" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > onaftercolumnresize]<br/>GridView 컴포넌트에서 사용자의 액션에 의해 Column 너비가 변경되면 발생합니다.",
+    "validation" : [
+        "resize=false 이면 onaftercolumnresize 이벤트가 발생하지 않습니다.",
+        "Column 너비를 변경한 방식에 따라 파라미터값이 달라지므로 주의해야 합니다.",
+        "Drag 로 Column 의 너비 변경 시 oncolumnwidthchange > onaftercolumnresize 순서로 이벤트가 발생합니다.",
+        "더블클릭으로 Column 의 너비 변경 시 dblclick > onheaderdblclick > onaftercolumnresize 순서로 이벤트가 발생하며 oncolumnwidthchange 이벤트는 발생하지 않습니다.",
+        "사용자의 액션이 아닌 setColumnWidth() 등의 메소드 또는 AutoFit 기능으로 Column 의 너비가 변경된 경우 onaftercolumnresize 는 발생하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - resize 는 con_resize(gdl_boolean) 로 토글 / rowNumVisible, rowStatusVisible = true 고정
+//    (Drag 는 RowNum/RowStatus 인덱스 제외, 더블클릭은 포함 -> columnIndex 파라미터 차이 확인)
+//  - 이벤트(onaftercolumnresize / oncolumnwidthchange / onheaderdblclick) 는 createEList 로 바인딩
+//  - Property 는 createCList 로 구성 (공통 패턴)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 발생 플래그 초기화 (이벤트는 발생 즉시 각 핸들러가 한 줄씩 출력 -> 출력 라인 순서 = 실제 발생 순서)
+    scwin.gVar = { "afterResizeFired": false };
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // resize 옵션 (gdl_boolean -> getText 로 true/false 라벨 사용)
+    let resize = con_resize.getText();
+
+    // 사용법 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="resize=' + resize + ' / Header Column 경계를 Drag(또는 더블클릭)하면 너비 변경 -> onaftercolumnresize 발생. Drag 는 RowNum/RowStatus 인덱스 제외, 더블클릭은 포함. Drag 는 newWidth 정의(oldColumnWidth=변경전), 더블클릭은 newWidth=undefined(oldColumnWidth=변경후). resize=false 면 변경/이벤트 미발생. [setColumnWidth 실행] 버튼은 메소드 변경 시 이벤트 미발생 확인용."', '', 'label1');
+    $c.gcm.createLabel('label="[엔진 실제 발생 순서] Drag : oncolumnwidthchange > onaftercolumnresize. 경계 더블클릭(autofit) : onaftercolumnresize > onheaderdblclick (가이드 @spec2 의 onheaderdblclick > onaftercolumnresize 와 반대 — 엔진은 onaftercolumnresize 가 먼저 발생). 출력의 ▶ 라인 순서가 실제 발생 순서임."', '', 'label2');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 4 Row)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "A2", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "A3", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "A4", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수) : resize 토글 + RowNum/RowStatus 표시
+    let properties = {
+        dataList: "data:dlt_bind",
+        resize: resize,
+        rowNumVisible: "true",
+        rowNumHeaderValue: "No.",
+        rowStatusVisible: "true",
+        rowStatusHeaderValue: "St."
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 바인딩 (createEList 공통 함수)
+    //  - 발생 순서(@spec1,2) 검증을 위해 3개 이벤트 모두 바인딩
+    let eList = $c.gcm.createEList(["onheaderdblclick", "onaftercolumnresize", "oncolumnwidthchange"]);
+
+    // target 생성 (Header 4컬럼 + gBody 4 Row, Body Column col1~col4)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:600px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="onaftercolumnresize 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="col1(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="col2(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="col3(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="col4(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// oncolumnwidthchange : Drag 로 너비 변경 시 onaftercolumnresize 보다 먼저 발생(@spec1) / 더블클릭 시에는 발생하지 않음(@spec2)
+//  - 발생 즉시 한 줄 출력 (출력 순서 = 실제 발생 순서)
+scwin.target1_oncolumnwidthchange = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ oncolumnwidthchange");
+}
+
+
+
+// onheaderdblclick : 더블클릭으로 너비 변경 시 발생
+//  - 발생 즉시 한 줄 출력
+scwin.target1_onheaderdblclick = function (headerId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onheaderdblclick");
+}
+
+
+
+// onaftercolumnresize : 사용자 액션(Drag/더블클릭)으로 Column 너비 변경 직후 발생
+//  - Drag(파라미터 3개, newWidth 정의) vs 더블클릭(newWidth=undefined, oldColumnWidth=변경후너비) 구분 출력
+//  - 발생 순서 로그(eventLog) 를 누적해 @spec1,2 순서 검증
+scwin.target1_onaftercolumnresize = function (columnIndex, oldColumnWidth, newWidth) {
+    scwin.gVar.afterResizeFired = true;
+
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("▶ onaftercolumnresize");
+
+    // 변경 방식 판별 : 파라미터 3개(newWidth 정의) 이면 Drag, 아니면 더블클릭
+    let isDrag = (arguments.length === 3 && typeof newWidth !== 'undefined');
+    bottom.setReturnValue("변경 방식 : " + (isDrag ? "Drag" : "더블클릭"));
+
+    // 파라미터 개별 출력 (이벤트 payload -> validation 비대상)
+    bottom.setReturnValue("columnIndex : " + columnIndex + (isDrag ? " (RowNum/RowStatus 제외)" : " (RowNum/RowStatus 포함)"));
+    if (isDrag) {
+        bottom.setReturnValue("oldColumnWidth : " + oldColumnWidth + " (변경 전 너비)");
+        bottom.setReturnValue("newWidth : " + newWidth + " (변경 후 너비)");
+    } else {
+        bottom.setReturnValue("oldColumnWidth : " + oldColumnWidth + " (더블클릭은 변경 후 너비)");
+        bottom.setReturnValue("newWidth : " + newWidth + " (더블클릭은 undefined)");
+    }
+}
+
+
+
+// [setColumnWidth 실행] 버튼 (@spec3 음성 검증)
+//  - 메소드로 너비를 변경해도 onaftercolumnresize 가 발생하지 않음을 플래그로 확인
+scwin.btn_setColumnWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====setColumnWidth 실행=====");
+
+    // 발생 여부 확인을 위해 플래그 초기화
+    scwin.gVar.afterResizeFired = false;
+
+    // 첫번째 Body Column(인덱스 0) 의 너비를 200px 로 변경 (사용자 액션 아님)
+    target1.setColumnWidth(0, 200);
+
+    bottom.setReturnValue("[setColumnWidth(0, 200) 실행 -> onaftercolumnresize] " + (scwin.gVar.afterResizeFired ? "발생" : "미발생"));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="resize" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_resize" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnWidth_onclick" id="btn_setColumnWidth"
+							label="setColumnWidth 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
