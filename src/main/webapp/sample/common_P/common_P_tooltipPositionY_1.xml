@@ -86,7 +86,7 @@ objParent.scwin.target1_onclick = function (id, text) {
     // if (objTooltipDisplay) {
     //     wf_body_bottom.getObj("scwin").setReturnValue("tooltipDisplay : " + objTooltipDisplay[0].textContent);
     // }  
-    $c.gcm.getTooltipInfo(wf_body_bottom);       
+    $c.gcm.getTooltipInfo(wf_body_bottom);
 
     let rtn = '';
 
@@ -94,7 +94,30 @@ objParent.scwin.target1_onclick = function (id, text) {
     wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionX : " + rtn);
 
     rtn = objParent.target1.options.tooltipPositionY;
-    wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionY : " + rtn);    
+    wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionY : " + rtn);
+
+    // 실제 렌더된 balloon 툴팁의 Y 오프셋(실측)을 결정적으로 출력한다.
+    //  - balloon 툴팁(.w2balloonTip)은 엔진(body.js showToolTip)이
+    //      top    = WebSquare.style.getAbsoluteTop(compEl) + tooltipPositionY
+    //      style.top = top - balloon.offsetHeight   (툴팁 좌하단을 컴포넌트 좌상단에 맞춤)
+    //    로 인라인 style.top 을 설정한다. (compEl = 컴포넌트 render 엘리먼트)
+    //    즉 balloon.style.top 에는 툴팁 높이만큼 빠진 값이 들어가므로, 설정값을 복원하려면
+    //    툴팁 높이를 다시 더해야 한다:
+    //      offsetY = round(parseFloat(balloon.style.top) + balloon.offsetHeight - getAbsoluteTop(compEl))
+    //            = tooltipPositionY (미설정=0)
+    //    getAbsoluteTop = getBoundingClientRect().top + scrollTop (문서 기준) 이므로
+    //    스크롤/뷰포트와 무관(불변)하다. 같은 config 면 반복해도 동일 정수다.
+    //  - setTimeout 미사용 / Math.round 사용 / getBoundingClientRect 단독 사용 금지.
+    let balloon = document.querySelector('.w2balloonTip');
+    if (balloon && objParent.target1) {
+        // 컴포넌트의 render 엘리먼트 (엔진 showToolTip 이 좌표 기준으로 쓰는 element).
+        // 일부 컴포넌트만 getElement() 를 제공하므로 render 를 우선 사용한다.
+        let compEl = objParent.target1.getElement ? objParent.target1.getElement() : objParent.target1.render;
+        if (compEl) {
+            let offsetY = Math.round(parseFloat(balloon.style.top) + balloon.offsetHeight - WebSquare.style.getAbsoluteTop(compEl));
+            wf_body_bottom.getObj("scwin").setReturnValue("툴팁 Y오프셋(실측): " + offsetY + "px");
+        }
+    }
 }]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">

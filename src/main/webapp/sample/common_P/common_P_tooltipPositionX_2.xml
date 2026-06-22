@@ -59,40 +59,90 @@ scwin.comp_init = async function () {
     objParent.scwin.gVar["cTooltipPositionY"] = cTooltipPositionY;
 
     // comp 생성 호출
-    objParent.scwin.comp_init();
+    await objParent.scwin.comp_init();
+
+    // balloon 출현(hover) 시점에 바로 출력하도록 observer 부착
+    // (헤드리스에서 클릭 시 scroll/mouseout 으로 balloon 이 숨겨지는 문제 원천 제거)
+    scwin.attachTipHoverOutput();
+}
+
+
+
+// document.body 에 MutationObserver 를 달아 balloon(.w2balloonTip) 이 보이는
+// 상태로 "출현"(숨김→표시) 하는 엣지에 1회만 출력한다.
+// 헤드리스에서 클릭(포커스→scroll→mouseout)이 balloon 을 숨겨 라이브 측정이
+// 깨지는 문제를, hover 출현 시 즉시 출력으로 우회한다.
+scwin.attachTipHoverOutput = function () {
+    if (!objParent.textbox1) {
+        return;
+    }
+
+    // 재생성 시 이전 observer 정리
+    if (scwin._tipObserver) {
+        scwin._tipObserver.disconnect();
+        scwin._tipObserver = null;
+    }
+    scwin.tooltipWasVisible = false;
+
+    let emit = function () {
+        let balloon = document.querySelector('.w2balloonTip');
+        let label = document.querySelector('.w2balloonTip_label');
+
+        let visible = balloon && label && label.textContent &&
+            window.getComputedStyle(balloon).display !== 'none';
+
+        if (!visible) {
+            // 숨김 시 플래그 리셋 (다음 출현에 다시 출력 가능)
+            scwin.tooltipWasVisible = false;
+            return;
+        }
+
+        // 출현 엣지(숨김→표시) 1회만 출력
+        if (scwin.tooltipWasVisible) {
+            return;
+        }
+        scwin.tooltipWasVisible = true;
+
+        // balloon 이 보이므로 textContent + display:block 출력
+        $c.gcm.getTooltipInfo(wf_body_bottom);
+
+        wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionX : " + objParent.textbox1.options.tooltipPositionX);
+        wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionY : " + objParent.textbox1.options.tooltipPositionY);
+
+        // 실제 렌더된 balloon 툴팁의 X 오프셋(실측)
+        //  - balloon 툴팁(.w2balloonTip)은 엔진(body.js showToolTip)이
+        //      left = WebSquare.style.getAbsoluteLeft(compEl) + tooltipPositionX
+        //    로 인라인 style.left 를 설정한다. (compEl = 컴포넌트 render 엘리먼트)
+        //    getAbsoluteLeft 는 문서 기준이라 스크롤/뷰포트와 무관(불변)하다. 따라서
+        //      offsetX = round(parseFloat(balloon.style.left) - getAbsoluteLeft(compEl))
+        //    는 설정값(미설정=0)과 정확히 일치한다.
+        let compEl = objParent.textbox1.getElement ? objParent.textbox1.getElement() : objParent.textbox1.render;
+        if (compEl) {
+            let offsetX = Math.round(parseFloat(balloon.style.left) - WebSquare.style.getAbsoluteLeft(compEl));
+            wf_body_bottom.getObj("scwin").setReturnValue("툴팁 X오프셋(실측): " + offsetX + "px");
+        }
+    };
+
+    scwin._tipObserver = new MutationObserver(emit);
+    scwin._tipObserver.observe(document.body, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["style", "class"]
+    });
 }
 
 
 
 objParent.scwin.fn_tooltip = function (id, text) {
-    return "id - " + id + ", tooltip - " + text;   
+    return "id - " + id + ", tooltip - " + text;
 }
 
 
 
-objParent.scwin.textbox1_onclick = function (id, text) { 
-    // let objTooltip = document.querySelector('.w2balloonTip_label');    
-
-    // // tooltip 확인
-    // if (objTooltip) {
-    //     wf_body_bottom.getObj("scwin").setReturnValue("tooltip : " + objTooltip.textContent);
-    // }       
-
-    // let objTooltipDisplay = $('[class*="_tooltip"]');
-    
-    // // tooltipDisplay 확인
-    // if (objTooltipDisplay) {
-    //     wf_body_bottom.getObj("scwin").setReturnValue("tooltipDisplay : " + objTooltipDisplay[0].textContent);
-    // }     
-    $c.gcm.getTooltipInfo(wf_body_bottom);   
-
-    let rtn = '';
-
-    rtn = objParent.textbox1.options.tooltipPositionX;
-    wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionX : " + rtn);
-
-    rtn = objParent.textbox1.options.tooltipPositionY;
-    wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionY : " + rtn);
+objParent.scwin.textbox1_onclick = function (id, text) {
+    // 출력은 hover(balloon 출현) 시점에 발생하므로 클릭 핸들러는 비워둔다.
 }]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">

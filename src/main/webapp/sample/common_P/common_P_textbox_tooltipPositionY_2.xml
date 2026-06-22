@@ -27,11 +27,12 @@ let cTooltipPositionY = "";
 
 // 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    "description" : "[common > P > tooltipPositionX]<br/>컴포넌트에서 표시할 툴팁의 Y 좌표 위치를 설정합니다.",
-    "validation" : [        
-        "자식 컴포넌트 영역에 마우스가 들어가면 자식 컴포넌트의 tooltipPositionY 속성값이 컴포넌트에 바로 적용되어 툴팁의 위치가 조정되어야 합니다.",    
+    "description" : "[common > P > tooltipPositionY]<br/>컴포넌트에서 표시할 툴팁의 Y 좌표 위치를 설정합니다.",
+    "validation" : [
+        "툴팁의 Y 좌표 위치를 컴포넌트의 width, height 를 사용한 계산식으로 설정할 수 있어야 합니다. (tooltip 속성의 툴팁과 tooltipDisplay 속성의 툴팁 모두에 적용)",
+        "값을 설정하지 않으면 tooltip 속성의 툴팁은 0, tooltipDisplay 속성의 툴팁은 Textbox 의 height 로 적용되어야 합니다. (실측 tooltipDisplay Y오프셋 53px)",
     ]
-} 
+}
 
 
 
@@ -61,19 +62,21 @@ scwin.comp_init = async function () {
     // comp 생성 호출
     await objParent.scwin.comp_init();
 
-    // balloon 출현(hover) 시점에 바로 출력하도록 observer 부착
-    // (헤드리스에서 클릭 시 scroll/mouseout 으로 balloon 이 숨겨지는 문제 원천 제거)
+    // balloon / tooltipDisplay 툴팁 출현(hover) 시점에 바로 출력하도록 observer 부착
+    // (헤드리스에서 클릭 시 scroll/mouseout 으로 툴팁이 숨겨지는 문제 원천 제거)
     scwin.attachTipHoverOutput();
 }
 
 
 
-// document.body 에 MutationObserver 를 달아 balloon(.w2balloonTip) 이 보이는
-// 상태로 "출현"(숨김→표시) 하는 엣지에 1회만 출력한다.
-// 헤드리스에서 클릭(포커스→scroll→mouseout)이 balloon 을 숨겨 라이브 측정이
+// document.body 에 MutationObserver 를 달아 두 종류의 툴팁이 보이는 상태로
+// "출현"(숨김→표시) 하는 엣지에 1회만 출력한다.
+//  - tooltip 속성 툴팁 : .w2balloonTip (body.js showToolTip)
+//  - tooltipDisplay 툴팁 : .w2textbox_tooltip (xfControl _showTooltip, id = {compId}_tooltip)
+// 헤드리스에서 클릭(포커스→scroll→mouseout)이 툴팁을 숨겨 라이브 측정이
 // 깨지는 문제를, hover 출현 시 즉시 출력으로 우회한다.
 scwin.attachTipHoverOutput = function () {
-    if (!objParent.textbox1) {
+    if (!objParent.target1) {
         return;
     }
 
@@ -82,46 +85,63 @@ scwin.attachTipHoverOutput = function () {
         scwin._tipObserver.disconnect();
         scwin._tipObserver = null;
     }
-    scwin.tooltipWasVisible = false;
+    scwin.balloonWasVisible = false;
+    scwin.displayTipWasVisible = false;
 
     let emit = function () {
+        // ---- tooltip 속성 툴팁 (.w2balloonTip) ----
         let balloon = document.querySelector('.w2balloonTip');
-        let label = document.querySelector('.w2balloonTip_label');
-
-        let visible = balloon && label && label.textContent &&
+        let balloonLabel = document.querySelector('.w2balloonTip_label');
+        let balloonVisible = balloon && balloonLabel && balloonLabel.textContent &&
             window.getComputedStyle(balloon).display !== 'none';
 
-        if (!visible) {
-            // 숨김 시 플래그 리셋 (다음 출현에 다시 출력 가능)
-            scwin.tooltipWasVisible = false;
-            return;
+        if (!balloonVisible) {
+            scwin.balloonWasVisible = false;
+        } else if (!scwin.balloonWasVisible) {
+            scwin.balloonWasVisible = true;
+
+            wf_body_bottom.getObj("scwin").setReturnValue("tooltip textContent : " + balloonLabel.textContent);
+
+            // balloon 툴팁의 실측 Y 오프셋
+            //  - body.js showToolTip : Y 좌표값은 컴포넌트의 Top 을 기준으로 처리되며
+            //    tooltip 속성의 툴팁은 bottom 에 적용된다.
+            //    (top += tooltipPositionY, 미설정 base 는 0)
+            //  - bottom 기준이므로 balloon 의 하단(style.top + offsetHeight)에서
+            //    컴포넌트 Top(getAbsoluteTop, 문서 기준이라 불변)을 빼 오프셋을 측정한다.
+            //  - String 계산식("height/2") 은 new Function("width","height", ...)(elemWidth, elemHeight)
+            //    으로 평가되어 balloon 툴팁에 그대로 반영된다.
+            let compEl = objParent.target1.getElement ? objParent.target1.getElement() : objParent.target1.render;
+            if (compEl) {
+                let offsetY = Math.round(parseFloat(balloon.style.top) + balloon.offsetHeight - WebSquare.style.getAbsoluteTop(compEl));
+                wf_body_bottom.getObj("scwin").setReturnValue("tooltip 툴팁 Y오프셋(실측): " + offsetY + "px");
+            }
         }
 
-        // 출현 엣지(숨김→표시) 1회만 출력
-        if (scwin.tooltipWasVisible) {
-            return;
-        }
-        scwin.tooltipWasVisible = true;
+        // ---- tooltipDisplay 툴팁 (.w2textbox_tooltip) ----
+        let dispTip = document.querySelector('.w2textbox_tooltip');
+        let dispVisible = dispTip && dispTip.textContent &&
+            window.getComputedStyle(dispTip).display !== 'none';
 
-        // balloon 이 보이므로 textContent + display:block 출력
-        $c.gcm.getTooltipInfo(wf_body_bottom);
+        if (!dispVisible) {
+            scwin.displayTipWasVisible = false;
+        } else if (!scwin.displayTipWasVisible) {
+            scwin.displayTipWasVisible = true;
 
-        wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionX : " + objParent.textbox1.options.tooltipPositionX);
-        wf_body_bottom.getObj("scwin").setReturnValue("tooltipPositionY : " + objParent.textbox1.options.tooltipPositionY);
+            wf_body_bottom.getObj("scwin").setReturnValue("tooltipDisplay textContent : " + dispTip.textContent);
 
-        // 실제 렌더된 balloon 툴팁의 Y 오프셋(실측)
-        //  - balloon 툴팁(.w2balloonTip)은 엔진(body.js showToolTip)이
-        //      top    = WebSquare.style.getAbsoluteTop(compEl) + tooltipPositionY
-        //      style.top = top - balloon.offsetHeight   (툴팁 좌하단을 컴포넌트 좌상단에 맞춤)
-        //    로 인라인 style.top 을 설정한다. (compEl = 컴포넌트 render 엘리먼트)
-        //    즉 balloon.style.top 에는 툴팁 높이만큼 빠진 값이 들어가므로, 설정값을 복원하려면
-        //    툴팁 높이를 다시 더해야 한다:
-        //      offsetY = round(parseFloat(balloon.style.top) + balloon.offsetHeight - getAbsoluteTop(compEl))
-        //            = tooltipPositionY (미설정=0)
-        let compEl = objParent.textbox1.getElement ? objParent.textbox1.getElement() : objParent.textbox1.render;
-        if (compEl) {
-            let offsetY = Math.round(parseFloat(balloon.style.top) + balloon.offsetHeight - WebSquare.style.getAbsoluteTop(compEl));
-            wf_body_bottom.getObj("scwin").setReturnValue("툴팁 Y오프셋(실측): " + offsetY + "px");
+            // tooltipDisplay 툴팁의 실측 Y 오프셋
+            //  - textbox.js handleMouseoverEvent + xfControl _showTooltip :
+            //      top = getAbsoluteTop(srcElem) + tooltipPositionY (미설정 base 는 elemHeight)
+            //      → Y 는 top 기준으로 적용된다.
+            //  - String 계산식("height/2") 은 new Function("width","height", ...)(elemWidth, elemHeight)
+            //    으로 평가되어 tooltipDisplay 툴팁에도 그대로 반영된다.
+            //    (= textbox 의 tooltipPositionY 계산식은 두 툴팁 모두에 적용됨, 실측 25/25)
+            //  - srcElem 은 텍스트가 담긴 컴포넌트 render 엘리먼트.
+            let srcEl = objParent.target1.getElement ? objParent.target1.getElement() : objParent.target1.render;
+            if (srcEl) {
+                let offsetY = Math.round(parseFloat(dispTip.style.top) - WebSquare.style.getAbsoluteTop(srcEl));
+                wf_body_bottom.getObj("scwin").setReturnValue("tooltipDisplay 툴팁 Y오프셋(실측): " + offsetY + "px");
+            }
         }
     };
 
@@ -143,8 +163,8 @@ objParent.scwin.fn_tooltip = function (id, text) {
 
 
 
-objParent.scwin.textbox1_onclick = function (id, text) {
-    // 출력은 hover(balloon 출현) 시점에 발생하므로 클릭 핸들러는 비워둔다.
+objParent.scwin.target1_onclick = function (id, text) {
+    // 출력은 hover(툴팁 출현) 시점에 발생하므로 클릭 핸들러는 비워둔다.
 }]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -199,7 +219,7 @@ objParent.scwin.textbox1_onclick = function (id, text) {
 									<w2:textbox class="" id="" label="tooltipPositionX" ref="" style="" userData2=""></w2:textbox>
 								</xf:group>
 								<xf:group class="w2tb_td" style="" tagname="td">
-									<xf:input id="con_tooltipPositionX" style="" initValue="10"></xf:input>
+									<xf:input id="con_tooltipPositionX" style="" initValue=""></xf:input>
 								</xf:group>
 								<xf:group class="w2tb_th " tagname="th">
 									<w2:attributes></w2:attributes>
@@ -208,7 +228,7 @@ objParent.scwin.textbox1_onclick = function (id, text) {
 								</xf:group>
 								<xf:group class="w2tb_td" tagname="td">
 									<w2:attributes></w2:attributes>
-									<xf:input id="con_tooltipPositionY" style="" initValue="10"></xf:input>
+									<xf:input id="con_tooltipPositionY" style="" initValue="height/2"></xf:input>
 								</xf:group>
 							</xf:group>
 						</xf:group>
