@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] tooltipFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260622" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > tooltipFormatter]<br/>tooltipDisplay=true 일때 Body, Footer 영역의 툴팁 내용을 동적으로 생성하기 위한 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "사용자 정의 함수를 설정하면, 마우스가 오버된 Cell 의 정보를 파라미터로 전달 받아 함수의 반환값이 새로운 툴팁 텍스트로 적용됩니다.",
+        "사용자 정의 함수에서 값을 반환하지 않으면 undefined 가 적용됩니다.",
+        "사용자 정의 함수에서 ''(Empty String)을 반환하면 툴팁이 표시되지 않습니다.",
+        "사용자 정의 함수의 rowIndex 파라미터로 마우스가 오버된 Cell 의 Row 인덱스값이 전달됩니다.",
+        "사용자 정의 함수의 colIndex 파라미터로 마우스가 오버된 Cell 의 Column 인덱스값이 전달됩니다. (RowNum, RowStatus Column 은 인덱스에 포함되지 않습니다.)",
+        "사용자 정의 함수의 label 파라미터로 마우스가 오버된 Cell 에 표시된 값이 전달됩니다.",
+        "사용자 정의 함수의 isOverflow 파라미터로 마우스가 오버된 Cell 값이 잘려서 표시되고 있는지 여부가 true/false 값으로 전달됩니다.",
+        "사용자 정의 함수의 type 파라미터로 마우스가 오버된 Cell 의 영역 정보가 'body' 값으로 전달됩니다. (Body 영역 Cell)",
+        "사용자 정의 함수의 type 파라미터로 마우스가 오버된 Cell 의 영역 정보가 'subtotal' 값으로 전달됩니다. (SubTotal 영역 Cell)",
+        "사용자 정의 함수의 type 파라미터로 마우스가 오버된 Cell 의 영역 정보가 'footer' 값으로 전달됩니다. (Footer 영역 Cell)",
+        "사용자 정의 함수의 반환값에 HTML 마크업을 포함할 수 있습니다.",
+        "툴팁이 표시되지 않는 Cell 은 마우스를 오버해도 사용자 정의 함수가 실행되지 않습니다.",
+        "Header 영역의 툴팁 내용을 동적 생성하려면 tooltipFormatterHeader 속성을 설정해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 고정 전제 : tooltipDisplay=true, tooltipFormatter=scwin.target1_tooltipFormatter (Body/Footer 툴팁 내용 동적 생성)
+//  - 구성 : RowNum/RowStatus + Header(4컬럼) + gBody(긴 값 -> 잘림) + SubTotal(dept 소계) + Footer(전체 합계)
+//      -> formatter 가 type("body"/"subtotal"/"footer") 별로 분기하여 파라미터(rowIndex/colIndex/label/isOverflow)를 툴팁에 출력
+//  - 미표시 케이스 : Body 첫 컬럼(name, colIndex===0)에서 formatter 가 ""(Empty String) 반환 -> 툴팁 미표시 + 함수 미실행 검증 대상
+//  - 미반환 케이스 : Body note 컬럼(colIndex===3)에서 formatter 가 값을 반환하지 않음(return;) -> 엔진이 undefined 적용 -> 툴팁에 "undefined" 표시
+//                    ('' 반환(미표시) 셀과 미반환(undefined 표시) 셀을 별도 컬럼으로 분리하여 둘 다 실증)
+//  [보강 1] RowNum/RowStatus Cell 툴팁 미표시 + formatter 미호출 검증
+//    - RowNum   : rowNumWidth 를 좁게(20) + setStartRowNumber 로 자릿수 큰 번호(99998~) -> RowNum Cell 이 잘려서 표시될 조건 성립.
+//                 그래도 hover 시 툴팁 미표시 + formatter 미호출(scwin.gVar.lastCall 미변경)이어야 함.
+//    - RowStatus: rowStatusVisible 는 행 상태를 "아이콘"으로만 렌더(텍스트 아님) -> 텍스트 잘림(clientW<scrollW) 조건을
+//                 구조적으로 만들 수 없음(형제 tooltipDisplay 와 동일). rowStatusWidth 최소폭 + 행을 수정/삽입 상태(U/C)로
+//                 만들어 상태 아이콘이 실제 렌더되게 한 뒤 hover -> 툴팁 미표시 + formatter 미호출 확인.
+//    - colIndex 는 RowNum/RowStatus 를 제외한 데이터 컬럼 기준(name=0, dept=1, amount=2, note=3) -> 기존 colIndex validation 과 정합.
+scwin.comp_init = async function () {
+    // 동적 생성용 네임스페이스 (페이지 scope 안전)
+    let ns = 'xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms"';
+
+    // 기존 target / dataList 정리
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 함수 실행 추적 초기화 (미표시 Cell 마우스오버 시 함수 미실행 검증용)
+    scwin.gVar = { lastCall: "(없음)" };
+
+    // 안내 라벨 (가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] tooltipDisplay=true / tooltipFormatter 설정. RowNum/RowStatus 표시. Body 는 좁은 컬럼+긴 값으로 잘림. SubTotal(부서 소계)+Footer(합계) 포함.\n[절차] Body/SubTotal/Footer 셀에 마우스를 오버하면 formatter 가 만든 툴팁(영역타입+rowIndex+colIndex+label+isOverflow)이 표시됩니다.\n[확인] 이름(name) 컬럼은 formatter 가 빈문자열() 반환 -> 툴팁 미표시(함수는 실행). 비고(note) 컬럼은 formatter 가 미반환(undefined) -> @spec 상 undefined 적용 대상이나 엔진 결함으로 미표시(콘솔 TypeError, formatter 는 호출됨). 금액 셀 툴팁은 HTML 마크업(굵게)으로 표시됩니다. RowNum/RowStatus 셀은 잘려도 툴팁 미표시 + formatter 미호출. [함수 실행 추적 확인] 버튼으로 마지막 실행 파라미터를 확인하세요."', '', 'label1');
+
+    // dataList 생성 ($p.data.create 사용)
+    //  - SubTotal 은 dept 값이 바뀌는 지점마다 소계 Row 삽입 -> 같은 dept 가 연속되도록 정렬된 데이터
+    let dlt = '<w2:dataList ' + ns + ' baseNode="list" id="dlt_bind" repeatNode="map">';
+    dlt += '<w2:columnInfo>';
+    dlt += '<w2:column dataType="text" id="name" name="name"></w2:column>';
+    dlt += '<w2:column dataType="text" id="dept" name="dept"></w2:column>';
+    dlt += '<w2:column dataType="number" id="amount" name="amount"></w2:column>';
+    dlt += '<w2:column dataType="text" id="note" name="note"></w2:column>';
+    dlt += '</w2:columnInfo>';
+    dlt += '<w2:data use="true"></w2:data>';
+    dlt += '</w2:dataList>';
+    $p.data.create(dlt);
+    let arrDC = $p.data.getAllDataCollection("object");
+    scwin.dlt_bind = arrDC[arrDC.length - 1];
+    scwin.dlt_bind.setJSON([
+        { "name": "홍길동 책임연구원", "dept": "기업금융사업본부 디지털전략기획팀", "amount": 1234567890, "note": "분기실적 검토대상 비고메모입니다" },
+        { "name": "김철수 선임매니저", "dept": "기업금융사업본부 디지털전략기획팀", "amount": 2345678901, "note": "연간목표 초과달성 비고메모입니다" },
+        { "name": "이영희 수석컨설턴트", "dept": "리테일고객사업본부 채널혁신추진팀", "amount": 3456789012, "note": "신규채널 확대 비고메모입니다" }
+    ], false);
+
+    // tooltipFormatter 는 함수명 문자열로 설정된다(엔진: util.getGlobalFunction 으로 scope 에서 해석).
+    // 고정 전제 tooltipDisplay=true 와 함께 인라인 정의.
+    // 좁은 컬럼 폭(width=80) + 긴 값으로 Body/SubTotal/Footer 모든 Cell 이 잘리도록(overflow) 구성
+    //  -> 잘림 시에만 툴팁이 표시되므로(tooltipDisplay 전제), 모든 영역에서 formatter 가 실행되도록 한다.
+    //  [보강 1] rowNumVisible/rowStatusVisible=true + RowNum 좁은 폭(20) + RowStatus 최소폭(14)
+    //    -> RowNum 은 setStartRowNumber 로 큰 번호를 주어 자릿수가 폭을 넘어 잘림 조건 성립.
+    let strTarget = '<w2:gridView ' + ns + ' dataList="data:dlt_bind" tooltipDisplay="true" tooltipFormatter="scwin.target1_tooltipFormatter" rowNumVisible="true" rowNumWidth="20" rowNumHeaderValue="번호" rowStatusVisible="true" rowStatusWidth="14" id="" style="width:420px;height:440px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="tooltipFormatter 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol4" value="비고"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    // note(colIndex===3) : formatter 가 값을 반환하지 않음(return;) -> 엔진 undefined 적용 검증용 (좁은 폭+긴 값으로 잘림 유도)
+    strTarget += '<w2:column width="80" style="" inputType="text" id="note" dataList="note"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // Footer : 전체 합계 Row (type="footer") - 라벨/금액 모두 긴 값으로 잘림 유도
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="fcol1" value="전사 영업이익 누계 합계"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="fcol2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="expression" dataType="number" displayFormat="#,###" id="fcol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="fcol4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    // SubTotal : dept 기준 소계 Row (type="subtotal") - 라벨/금액 모두 긴 값으로 잘림 유도
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="scol1" value="사업본부별 영업이익 소계"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="scol4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    let grp_comp = document.querySelector('.tc_group_basic');
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    //  [보강 1] RowNum 시작번호를 큰 값으로 올려 행번호 자릿수가 rowNumWidth(20px) 폭을 넘게 함 -> RowNum Cell 잘림 조건 성립.
+    //           행을 수정/삽입 상태로 만들어 RowStatus 아이콘이 실제 렌더되게 함(1행 setCellData -> U, 끝행 insertRow -> C).
+    //           RowStatus 는 아이콘만이라 텍스트 잘림은 구조적으로 불가하나, 아이콘이 표시된 Cell 에서도 hover 시 툴팁 미표시 + formatter 미호출임을 확인.
+    scwin.target1.setStartRowNumber(99998);
+    scwin.dlt_bind.setCellData(0, "note", "상태변경확인용 비고");   // 1행 값 변경 -> rowStatus "U"
+    let newIdx = scwin.dlt_bind.insertRow();                          // 끝에 행 삽입 -> rowStatus "C"
+    scwin.dlt_bind.setRowJSON(newIdx, { "name": "박민수 책임연구원", "dept": "리테일고객사업본부 채널혁신추진팀", "amount": 4567890123, "note": "신설행 비고메모입니다" }, true);
+
+    // R1 : 마우스오버로 툴팁이 표시된 셀을 클릭하면 현재 표시된 툴팁 정보를 return 영역에 출력
+    scwin.attachTooltipClick();
+}
+
+
+
+// R1 : 표시된 툴팁 정보를 return 영역에 출력 (마우스오버 후 그 셀 클릭 시)
+//  - 엔진은 셀 클릭의 기본/버블 처리 단계에서 hover 툴팁을 닫는다(display:none).
+//    따라서 클릭의 캡처(capture) 단계 리스너로 잡아야 툴팁이 아직 살아있어 정상 출력된다.
+//  - 리스너를 그리드 DOM 엘리먼트에 걸어 Body/SubTotal/Footer 클릭을 모두 커버한다.
+//  - 마우스오버만 해서는 출력되지 않으며, 클릭 시점에 현재 hover 로 표시된 툴팁 값이 캡처된다.
+scwin.attachTooltipClick = function () {
+    let gridEl = scwin.target1.getElement ? scwin.target1.getElement() : document.getElementById(scwin.target1.getID());
+    if (!gridEl) { return; }
+    if (scwin.tooltipClickFn && scwin.tooltipClickEl) {
+        scwin.tooltipClickEl.removeEventListener("click", scwin.tooltipClickFn, true);
+    }
+    scwin.tooltipClickFn = function () { $c.gcm.getTooltipInfo(wf_body_bottom); };
+    scwin.tooltipClickEl = gridEl;
+    gridEl.addEventListener("click", scwin.tooltipClickFn, true);
+};
+
+
+
+// tooltipFormatter 사용자 정의 함수
+//  - 파라미터 : rowIndex, colIndex, label, isOverflow, type ("body"/"subtotal"/"footer")
+//  - 반환값이 새로운 툴팁 텍스트로 적용된다.
+//  - name(colIndex===0 && type==="body") 컬럼은 ""(Empty String) 반환 -> 툴팁 미표시(이때 함수가 실행되었는지 추적값으로 확인)
+//  - amount 컬럼(colIndex===2)은 HTML 마크업(<b>) 포함 반환 -> 마크업 적용 확인
+//  - note 컬럼(colIndex===3 && type==="body")은 값을 반환하지 않음(return;) -> 엔진이 undefined 적용 -> 툴팁에 "undefined" 표시
+//    (''(Empty String) 반환(미표시) 케이스와 구분되는 별도 셀)
+scwin.target1_tooltipFormatter = function (rowIndex, colIndex, label, isOverflow, type) {
+    // 마지막 실행 파라미터 추적 (미표시 Cell/RowNum/RowStatus 마우스오버 시 함수 미실행 검증에 사용)
+    scwin.gVar.lastCall = "type=" + type + " / rowIndex=" + rowIndex + " / colIndex=" + colIndex + " / label=" + label + " / isOverflow=" + isOverflow;
+
+    // Body 의 이름(name) 컬럼은 빈문자열 반환 -> 툴팁 미표시
+    if (type === "body" && colIndex === 0) {
+        return "";
+    }
+
+    // Body 의 비고(note, colIndex===3) 컬럼은 값을 반환하지 않음(return;) -> @spec '미반환 시 undefined 적용'
+    //  [엔진 결함] formatter 가 undefined 를 반환하면 _showTooltopFormatter 가 그대로 undefined 를 반환하고,
+    //   bodyOver 의 `if (label != "")` 가 통과되어 undefined 라벨로 showTooltip 경로 진입 ->
+    //   eventController.bodyOver 에서 TypeError("Cannot read properties of undefined (reading 'match')") 발생.
+    //   -> 가이드대로 "undefined" 가 툴팁에 표시되지 않고 툴팁 미표시 + 콘솔 에러. (undefined 가드 누락)
+    //   formatter 는 정상 호출됨(lastCall 의 colIndex=3 으로 확인) = 미반환 경로 자체는 실증됨.
+    if (type === "body" && colIndex === 3) {
+        return;
+    }
+
+    // 금액 컬럼(Body/SubTotal/Footer) 은 HTML 마크업(<b>) 포함 반환 -> 마크업 적용 확인
+    if (colIndex === 2) {
+        return "rowIndex: " + rowIndex + " / colIndex: " + colIndex + " / label: <b>" + label + "</b> / isOverflow: " + isOverflow + " / type: " + type;
+    }
+
+    // 그 외 Cell : 파라미터(rowIndex/colIndex/label/isOverflow/type)를 "키: 값" 라벨 형태로 출력
+    return "rowIndex: " + rowIndex + " / colIndex: " + colIndex + " / label: " + label + " / isOverflow: " + isOverflow + " / type: " + type;
+}
+
+
+
+// 함수 실행 추적 확인 : 직전 마우스오버에서 formatter 가 받은 파라미터(미실행 시 (없음)) 출력
+//  - 미표시 Cell(이름 컬럼은 ''반환) 마우스오버 후 눌러도 그 호출의 파라미터가 보이는지로 '실행 여부' 와 별개로,
+//    @spec '툴팁 미표시 Cell 은 함수 미실행' 검증은 MCP 에서 추적값 미변경(=미실행)으로 확인한다.
+scwin.btn_checkLastCall_onclick = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("formatter 마지막 실행 파라미터 : " + scwin.gVar.lastCall);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkLastCall_onclick" id="btn_checkLastCall"
+							label="함수 실행 추적 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

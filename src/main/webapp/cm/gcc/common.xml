@@ -1561,22 +1561,28 @@ scwin.createBasicPageControl = async function (cList='', eHandler='', cID='targe
 
 
 scwin.createBasicPageList = async function (cList='', eHandler='', cID='target1', cParent='') {
-    if (cID === '') 
-        cID = 'target1';    
+    if (cID === '')
+        cID = 'target1';
 
     let grp_comp = scwin.getTestGroup(cParent);
-    
+
     let strTarget = '';
 
-    strTarget += '&lt;w2:pageList ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' pageSize=&quot;10&quot; displayButtonType=&quot;display&quot; id=&quot;pageList&quot; displayFormat=&quot;#&quot; style=&quot;width:350px; height:21px; &quot;&gt;&lt;/w2:pageList&gt;';
+    strTarget += '&lt;w2:pageList ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' pageSize=&quot;10&quot; displayButtonType=&quot;display&quot; id=&quot;&quot; displayFormat=&quot;#&quot; style=&quot;width:350px; height:21px; &quot;&gt;&lt;/w2:pageList&gt;';
 
-    // target 생성
+    // pageList target 생성
     scwin[cID] = await $p.dynamicCreate(
         cID,
         &quot;pageList&quot;,
         strTarget,
         grp_comp
     );
+
+    // 전체 페이지 수 설정(페이지 표시용). gridView 연동/데이터 페이징이 필요한 샘플은 샘플에서 직접 gridView 를 생성·연동한다.
+    scwin[cID].setCount(10);
+
+    // 생성된 pageList 반환 -> 래퍼가 scwin.target1 로 캡처(커스텀 id 등 대응)
+    return scwin[cID];
 }
 
 
@@ -2296,8 +2302,17 @@ scwin.createLabel = async function (cList='', eHandler='', cID='target1', cParen
     let strTarget = '';
 
     if (labelText !== null) {
-        // 라벨에 escape 문자 포함 여부에 따라 escape 속성 설정 (포함 시 true)
-        let escapeAttr = /[&lt;&gt;&amp;&quot;']/.test(labelText) ? 'true' : 'false';
+        // 라벨에 줄바꿈(\n) 포함 시 : 특수문자를 엔티티로 escape 후 \n 을 줄바꿈 태그로 변환하여 escape=false 로 렌더(줄바꿈 적용)
+        //  - 미포함 시 : 기존 방식(특수문자 포함 여부로 escape 속성 결정)
+        //  - 이 스크립트는 CDATA 가 아니므로 특수문자(&lt; &gt; &amp; &quot;)는 String.fromCharCode 로 생성해 엔티티 인코딩을 피한다.
+        let escapeAttr;
+        if (labelText.indexOf('\n') !== -1) {
+            let amp = String.fromCharCode(38), lt = String.fromCharCode(60), gt = String.fromCharCode(62), quot = String.fromCharCode(34), apos = String.fromCharCode(39);
+            labelText = labelText.split(amp).join(amp + 'amp;').split(lt).join(amp + 'lt;').split(gt).join(amp + 'gt;').split(quot).join(amp + 'quot;').split(apos).join(amp + '#39;').split('\n').join(lt + 'br/' + gt);
+            escapeAttr = 'false';
+        } else {
+            escapeAttr = /[&lt;&gt;&amp;&quot;']/.test(labelText) ? 'true' : 'false';
+        }
         strTarget += '&lt;w2:textbox ' + scwin.strNameSpace + ' ' + eHandler + ' escape=&quot;' + escapeAttr + '&quot; label=&quot;&quot; style=&quot;margin:5px;&quot;&gt;&lt;/w2:textbox&gt;';
     } else {
         strTarget += '&lt;w2:textbox ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' style=&quot;margin:5px;&quot;&gt;&lt;/w2:textbox&gt;';

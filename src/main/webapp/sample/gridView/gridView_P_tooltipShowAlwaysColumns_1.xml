@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] tooltipShowAlwaysColumns" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260622" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > tooltipShowAlwaysColumns]<br/>tooltipDisplay=true 일때 Cell 값 잘림과 관계없이 항상 툴팁을 표시할 Column 을 설정합니다.",
+    "validation" : [
+        "지정한 Column 에서는 Cell 값이 잘리지 않아도(모두 표시되어도) 마우스 오버 시 항상 Cell 값을 툴팁으로 표시합니다.",
+        "지정하지 않은 Column 에서는 Cell 값이 잘림(모두 표시되지 않을때) 시에만 Cell 값을 툴팁으로 표시합니다.",
+        "콤마(',') 로 구분하여 Column ID 를 한 개 이상 설정합니다.",
+        "미설정 시, 항상 툴팁을 표시할 Column 이 없으므로 모든 Column 은 Cell 값 잘림 시에만 툴팁을 표시합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con_tooltipShowAlwaysColumns 초기값 보관 (col_short 지정 케이스로 시작)
+    scwin.gVar = { "cTooltipShowAlwaysColumns": "col_short" };
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - tooltipShowAlwaysColumns 검증용 커스텀 GridView 를 인라인 정의로 생성한다.
+//  - 고정 전제 : tooltipDisplay=true (tooltipShowAlwaysColumns 는 tooltipDisplay=true 전제에서만 동작)
+//  - Body 컬럼 구성
+//      col_short : 짧은(미잘림) 값 text -> 지정 Column 이면 잘리지 않아도 항상 툴팁 표시 / 미지정이면 미표시(잘림 아님)
+//      col_long  : 긴(잘림) 값 text     -> 지정 여부와 무관하게 잘림 시 표시(대비용)
+//  - 핵심 대비 : 지정 Column(짧은 값)은 항상 툴팁 / 미지정 Column(짧은 값)은 미표시 / 미지정 Column(긴 잘림 값)은 표시.
+scwin.comp_init = async function () {
+    // con 현재값 반영 (Target 재생성 버튼이 comp_init 재호출)
+    scwin.gVar.cTooltipShowAlwaysColumns = con_tooltipShowAlwaysColumns.getValue();   // "col_short" / "" (미설정)
+
+    // 동적 생성용 네임스페이스 (페이지 scope 에서 공통 strNameSpace 가 비어있을 수 있어 로컬 정의)
+    let ns = 'xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms"';
+
+    // 기존 target / dataList 정리
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    let colMsg = (scwin.gVar.cTooltipShowAlwaysColumns === "") ? "미설정(지정 Column 없음)" : scwin.gVar.cTooltipShowAlwaysColumns;
+    $c.gcm.createLabel('label="[전제] tooltipDisplay=true 고정. tooltipShowAlwaysColumns=' + colMsg + ' (지정 시 col_short=지역 Column).\n[절차] 짧은(미잘림) 지역 Column Cell, 긴(잘림) 주소 Column Cell 에 각각 마우스를 오버하여 툴팁을 표시한 뒤 해당 Cell 을 클릭하면 표시된 툴팁 정보가 출력됩니다.\n[확인] 지정 Column(지역, 짧은 값): 잘리지 않아도 항상 툴팁 표시. 미지정 Column(주소, 긴 값): 잘림 시에만 표시. 미설정 시: 두 Column 모두 잘림 시에만 표시."', '', 'label1');
+
+    // dataList 생성 ($p.data.create 로 생성)
+    let dlt = '<w2:dataList ' + ns + ' baseNode="list" id="dlt_bind" repeatNode="map">';
+    dlt += '<w2:columnInfo>';
+    dlt += '<w2:column dataType="text" id="col_short" name="col_short"></w2:column>';
+    dlt += '<w2:column dataType="text" id="col_long" name="col_long"></w2:column>';
+    dlt += '</w2:columnInfo>';
+    dlt += '<w2:data use="true"></w2:data>';
+    dlt += '</w2:dataList>';
+    $p.data.create(dlt);
+    let arrDC = $p.data.getAllDataCollection("object");
+    scwin.dlt_bind = arrDC[arrDC.length - 1];
+    scwin.dlt_bind.setJSON([
+        { "col_short": "서울", "col_long": "서울특별시 강남구 테헤란로 152 강남파이낸스센터 23층" },
+        { "col_short": "부산", "col_long": "부산광역시 해운대구 센텀중앙로 79 센텀사이언스파크 18층" }
+    ], false);
+
+    // tooltipShowAlwaysColumns : con 값에 따라 설정/미설정 (미설정 시 속성 자체를 제외하여 기본값 동작 확인)
+    let showColsAttr = (scwin.gVar.cTooltipShowAlwaysColumns === "") ? "" : 'tooltipShowAlwaysColumns="' + scwin.gVar.cTooltipShowAlwaysColumns + '" ';
+
+    // 커스텀 GridView 인라인 정의 (tooltipDisplay=true 고정, 좁은 폭으로 긴 값 잘림 유도)
+    let strTarget = '<w2:gridView ' + ns + ' tooltipDisplay="true" ' + showColsAttr + 'dataList="data:dlt_bind" checkAllType="false" id="" style="width:300px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="80" inputType="text" id="col_short" value="지역"></w2:column>';
+    strTarget += '<w2:column width="80" inputType="text" id="col_long" value="주소"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="80" inputType="text" id="col_short" dataList="col_short"></w2:column>';
+    strTarget += '<w2:column width="80" inputType="text" id="col_long" dataList="col_long"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    let grp_comp = document.querySelector('.tc_group_basic');
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 클릭 시 현재 표시된 툴팁 정보를 return 영역에 출력하기 위한 클릭 리스너 설치
+    scwin.attachTooltipClick();
+}
+
+
+
+// Body Cell 클릭 시 "현재 표시된" 툴팁 정보를 return 영역에 출력
+//  - 셀에 마우스를 오버해 툴팁(Cell 값)이 표시된 상태에서 그 영역을 클릭하면 호출된다.
+//  - 타이밍 주의 : 엔진은 셀 클릭의 기본/버블 처리 단계에서 hover 툴팁을 닫는다(display:none).
+//    따라서 클릭의 "캡처(capture) 단계" 리스너로 잡아야 툴팁이 아직 살아있어 정상 출력된다.
+//  - 리스너를 그리드 DOM 엘리먼트에 걸어 Cell 클릭을 커버한다.
+//  - 마우스오버만 해서는 출력되지 않으며, 클릭 시점에 현재 hover 로 표시된 툴팁 값이 캡처된다.
+scwin.attachTooltipClick = function () {
+    let gridEl = scwin.target1.getElement ? scwin.target1.getElement() : document.getElementById(scwin.target1.getID());
+    if (!gridEl) { return; }
+    if (scwin.tooltipClickFn && scwin.tooltipClickEl) {
+        scwin.tooltipClickEl.removeEventListener("click", scwin.tooltipClickFn, true);
+    }
+    scwin.tooltipClickFn = function () { $c.gcm.getTooltipInfo(wf_body_bottom); };
+    scwin.tooltipClickEl = gridEl;
+    gridEl.addEventListener("click", scwin.tooltipClickFn, true);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="tooltipShowAlwaysColumns" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_tooltipShowAlwaysColumns" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[col_short]]></xf:label>
+												<xf:value><![CDATA[col_short]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

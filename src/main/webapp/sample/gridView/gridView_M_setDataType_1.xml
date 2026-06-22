@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setDataType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260622" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setDataType]<br/>Body Column 정보를 사용하여 특정 Body Column 의 dataType 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 dataType 속성을 설정할 Body Column 의 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "columnInfo(필수) 파라미터는 Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.",
+        "dataType(필수) 파라미터로 'number' 를 설정하여 dataType 속성을 변경할 수 있어야 합니다.",
+        "dataType(필수) 파라미터로 'text' 를 설정하여 dataType 속성을 변경할 수 있어야 합니다.",
+        "dataType(필수) 파라미터로 'float' 를 설정하여 dataType 속성을 변경할 수 있어야 합니다.",
+        "dataType(필수) 파라미터로 'date' 를 설정하여 dataType 속성을 변경할 수 있어야 합니다.",
+        "dataType(필수) 파라미터에 4개 값('number','text','float','date') 이외의 값이나 빈 문자열(''), null, undefined 을 설정하면 메소드가 실행되지 않습니다.",
+        "options(선택) 파라미터로 추가 옵션을 객체로 설정할 수 있어야 합니다.",
+        "options.displayFormat(선택) 파라미터로 Body Column 값이 표시되는 포맷을 마스크 문자로 설정할 수 있어야 합니다. (Body Column 의 displayFormat 속성에 설정됩니다.)",
+        "options.displayFormat(선택) 파라미터는 dataType 파라미터값에 따라 설정할 수 있는 마스크 문자가 달라집니다. (dataType='text' : '#' / dataType='date' : 'y','M','d','E' / 그외 : '#','0',',','.')",
+        "options.displayFormat 파라미터를 설정하지 않으면 Column 의 displayFormat 속성이 ''(Empty String)으로 강제 설정됩니다.",
+        "'euro', 'rupee', 'tenge' 등의 통화 계열 dataType 속성값은 setDataType() 메소드로 설정할 수 없습니다. (통화 타입을 설정하려면 changeCurrency() 메소드를 사용해야 합니다.)",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] col1~col4 컬럼은 Body Column dataType 미설정(바인딩 DataList 의 text 가 반영됨), 두번째 컬럼(인덱스 1, col2)은 숨김 처리\n[절차] columnInfo(인덱스) + dataType (+ displayFormat) 선택 후 setDataType 실행\n[확인] getDataType 으로 변경 전/후 dataType 을, Row 0 표시값으로 displayFormat 반영을 확인"', '', 'label1');
+
+    // dataList 생성 + 바인딩
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // 검증용 초기 데이터 설정 (number/float/date 변환 확인용)
+    dlt_bind.setJSON([
+        { "col1": "12345", "col2": "67890", "col3": "11.22", "col4": "20251225" }
+    ]);
+
+    let properties = { dataList: "data:dlt_bind" };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 (기본 4컬럼 col1~col4, Body Column dataType 미설정)
+    await $c.gcm.createBasicGridView(cList);
+
+    // 숨겨진 Column 포함 인덱스 검증용으로 두번째 컬럼(인덱스 1) 숨김
+    target1.setColumnVisible(1, false);
+}
+
+
+
+scwin.btn_setDataType_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let dataTypeText = par_dataType.getValue();
+    let displayFormat = par_displayFormat.getValue();
+
+    // 변경 전 dataType
+    let beforeType = target1.getDataType(columnInfo);
+
+    let dataTypeArg;
+    if (dataTypeText === '__empty') {
+        dataTypeArg = "";
+    } else if (dataTypeText === '__null') {
+        dataTypeArg = null;
+    } else if (dataTypeText === '__undefined') {
+        dataTypeArg = undefined;
+    } else {
+        dataTypeArg = dataTypeText;
+    }
+
+    let callDesc;
+    if (displayFormat !== '') {
+        // options.displayFormat 설정
+        target1.setDataType(columnInfo, dataTypeArg, { displayFormat: displayFormat });
+        callDesc = "setDataType(" + columnInfo + ", '" + dataTypeText + "', {displayFormat:'" + displayFormat + "'})";
+    } else {
+        // options 생략
+        target1.setDataType(columnInfo, dataTypeArg);
+        callDesc = "setDataType(" + columnInfo + ", '" + dataTypeText + "')";
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue(callDesc + " | 변경 전 dataType : " + beforeType);
+
+    // 변경 후 확인
+    scwin.btn_getDataType_onclick();
+}
+
+
+
+scwin.btn_getDataType_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+
+    // 변경된 dataType 확인 + displayFormat 반영 결과(셀 표시값)로 확인
+    let afterType = target1.getDataType(columnInfo);
+    let displayData = target1.getCellDisplayData(0, columnInfo);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("getDataType(" + columnInfo + ") : " + afterType + " | Row 0 표시값 : '" + displayData + "'");
+}
+
+
+
+scwin.btn_changeCurrency_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+
+    // 통화 계열 dataType('euro') 을 setDataType 으로 설정 시도 -> 미반영
+    let beforeType = target1.getDataType(columnInfo);
+    target1.setDataType(columnInfo, "euro");
+    let afterType = target1.getDataType(columnInfo);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("setDataType(" + columnInfo + ", 'euro') 시도 -> 변경 전 : " + beforeType + " / 변경 후 : " + afterType + " (통화 타입 미반영)");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (숨김 col2)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_dataType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[float]]></xf:label>
+												<xf:value><![CDATA[float]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[""(Empty String)]]></xf:label>
+												<xf:value><![CDATA[__empty]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[null]]></xf:label>
+												<xf:value><![CDATA[__null]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[undefined]]></xf:label>
+												<xf:value><![CDATA[__undefined]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_displayFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#,##0 (number/float)]]></xf:label>
+												<xf:value><![CDATA[#,##0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yyyy-MM-dd (date)]]></xf:label>
+												<xf:value><![CDATA[yyyy-MM-dd]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[### (text)]]></xf:label>
+												<xf:value><![CDATA[###]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setDataType_onclick" id="btn_setDataType"
+							label="setDataType" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDataType_onclick" id="btn_getDataType"
+							label="getDataType" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_changeCurrency_onclick" id="btn_changeCurrency"
+							label="setDataType(euro) 시도" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
