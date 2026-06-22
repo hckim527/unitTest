@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onrightbuttonclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > onrightbuttonclick]<br/>Body 영역에서 마우스 오른쪽 버튼을 클릭할 때 발생합니다.",
+    "validation" : [
+        "contextMenuAltClick=true 인 경우 Body Cell 영역에서 Alt + 마우스 좌클릭 시에도 발생합니다.",
+        "우클릭된 Cell 이 Body Cell 영역이 아닌 경우 rowIndex 는 -1 값을 갖습니다.",
+        "우클릭된 Cell 이 Body Cell 영역이 아닌 경우 columnIndex 는 -1, RowNum, RowStatus Column 인 경우 columnIndex 는 'rowNum', 'rowStatus' 등의 문자열값을 갖습니다.",
+        "이벤트 핸들러에 우클릭 시점의 PointerEvent 객체가 e 로 전달됩니다.",
+        "contextMenu=true 이면 onrightbuttonclick 이벤트 발생 후 oncontextopen, oncontextclick 이벤트가 발생합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - 우클릭 / Alt+좌클릭 은 사용자 액션으로 수행되므로 라벨로 조작 방법을 안내
+    $c.gcm.createLabel('label="[전제] contextMenu=true / RowNum,RowStatus 표시.\n[절차] Body 셀을 마우스 우클릭 -> onrightbuttonclick 발생(rowIndex/columnIndex/e 출력). RowNum/RowStatus/빈 영역 우클릭으로 columnIndex 변화를 확인하세요. contextMenuAltClick=true 면 Body 셀 Alt + 마우스 좌클릭으로도 발생합니다.\n[확인] contextMenu=true 시 ▶ onrightbuttonclick > oncontextopen > oncontextclick 순서로 발생."', '', 'label1');
+
+    // 조건 설정
+    //  - contextMenu=true : 우클릭 시 WebSquare 컨텍스트 메뉴 표시 (@spec2 순서 검증 전제)
+    //  - contextMenuAltClick : con selectbox 값에 따라 적용 (true 면 Alt+좌클릭도 onrightbuttonclick 발생)
+    //  - rowNumVisible / rowStatusVisible=true : RowNum/RowStatus 우클릭 시 columnIndex 가 'rowNum'/'rowStatus' 문자열로 전달되는지 확인
+    let properties = {
+        dataList: "data:dlt_bind",
+        contextMenu: "true",
+        contextMenuAltClick: con_contextMenuAltClick.getValue(),
+        rowNumVisible: "true",
+        rowStatusVisible: "true"
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 핸들러 부착
+    //  - onrightbuttonclick : 검증 대상 (rowIndex / columnIndex / e 출력)
+    //  - oncontextopen / oncontextclick : @spec2 순서 검증용 (발생 즉시 한 줄 출력)
+    let eList = $c.gcm.createEList(["onrightbuttonclick", "oncontextopen", "oncontextclick"]);
+
+    // dataList 생성 (기본 데이터 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+}
+
+
+
+// onrightbuttonclick : Body 영역에서 마우스 우클릭 시 발생 (검증 대상)
+//  - contextMenuAltClick=true 인 경우 Body Cell 영역에서 Alt+좌클릭 시에도 발생
+//  - 엔진 시그니처 : event.fireEvent(this, "onrightbuttonclick", rowIndex, columnIndex, e)
+//      rowIndex    : 우클릭된 Body Cell 의 Row 인덱스 (비Cell 영역 -1)
+//      columnIndex : 우클릭된 Body Cell 의 Column 인덱스 (비Cell -1 / RowNum,RowStatus 면 'rowNum','rowStatus' 문자열)
+//      e           : 우클릭 시점의 표준 DOM PointerEvent 객체
+scwin.target1_onrightbuttonclick = function (rowIndex, columnIndex, e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onrightbuttonclick rowIndex : " + rowIndex + " , columnIndex : " + columnIndex);
+    // e 는 표준 DOM PointerEvent 객체 (개별 속성은 표준이므로 한 줄로만 출력)
+    wf_body_bottom.getObj("scwin").setReturnValue("onrightbuttonclick e : " + (e && e.type));
+};
+
+
+
+// oncontextopen : contextMenu=true 일 때 onrightbuttonclick 이후 컨텍스트 메뉴 표시 시 발생 (@spec2 순서)
+scwin.target1_oncontextopen = function (rowIndex, columnIndex, focusedCellInfo, info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ oncontextopen rowIndex : " + rowIndex + " , columnIndex : " + columnIndex);
+};
+
+
+
+// oncontextclick : 컨텍스트 메뉴 항목 클릭 시 발생 (@spec2 순서 - 마지막)
+scwin.target1_oncontextclick = function (rowIndex, columnIndex, userMenuId, systemMenu, systemMenuId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ oncontextclick rowIndex : " + rowIndex + " , columnIndex : " + columnIndex);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="contextMenuAltClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_contextMenuAltClick" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

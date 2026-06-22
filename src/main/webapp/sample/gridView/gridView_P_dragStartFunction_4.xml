@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dragStartFunction" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dragStartFunction]<br/>Drag 된 데이터가 GridView 에 Drop 되었을때 호출할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "Drag&Drop 관련 이벤트는 ondatadragstart > ondatadragover > [dragStartFunction] > [ondatadrop|dragEndFunction] 순서로 발생합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (DrillDown 이벤트 발생 순서 전용)
+//  - 좌 target1(Drag 소스) : DrillDown + dataDragDrop=true + dragStartFunction 정의
+//  - 우 target2(Drop 대상) : DrillDown + dataDragDrop=true + dragEndFunction 정의
+//  - 발생 순서 : ondatadragstart(좌) > ondatadragover(우) > dragStartFunction(좌) > [ondatadrop(우) 대신 dragEndFunction(우)]
+//    DrillDown 분기도 일반과 동일한 호출 순서를 따른다(엔진에서 dragEndFunction 정의 시 ondatadrop 미발생).
+//    DrillDown 은 별도로 setDrillDownDragDrop(true) 를 양 그리드에 적용해야 Drag&Drop 이 활성화된다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제 (2개 그리드 + 2개 dataList)
+    if (typeof dlt_bind1 !== 'undefined') { $p.data.remove("dlt_bind1"); }
+    if (typeof dlt_bind2 !== 'undefined') { $p.data.remove("dlt_bind2"); }
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof target2 !== 'undefined') { target2.remove(); }
+    // 이전에 만든 flex wrapper 도 제거 (Target 재생성 시 중복 누적 방지)
+    if (scwin.gridFlexWrap && scwin.gridFlexWrap.parentNode) {
+        scwin.gridFlexWrap.parentNode.removeChild(scwin.gridFlexWrap);
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] DrillDown 환경. 왼쪽 target1=Drag 소스, 오른쪽 target2=Drop 대상.\n[절차] target1 행을 target2 로 드래그하면 Drag&Drop 관련 이벤트가 순서대로 발생합니다."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 좌우 배치용 flex wrapper 와 좌/우 셀(원시 DOM div) 생성
+    let grpBasic = document.querySelector('.tc_group_basic');
+    scwin.gridFlexWrap = document.createElement('div');
+    scwin.gridFlexWrap.style.cssText = 'display:flex; gap:20px; align-items:flex-start;';
+    let cellLeft = document.createElement('div');
+    let cellRight = document.createElement('div');
+    scwin.gridFlexWrap.appendChild(cellLeft);
+    scwin.gridFlexWrap.appendChild(cellRight);
+    grpBasic.appendChild(scwin.gridFlexWrap);
+
+    // === 계층 DataList 2개 (본부 depth1 > 팀 depth2 > 사원 depth3) ===
+    scwin._createDrillDataList("dlt_bind1", strNameSpace);
+    scwin._createDrillDataList("dlt_bind2", strNameSpace);
+    $p.getComponentById("dlt_bind1").setJSON(scwin._getDrillJSON(), false);
+    // 우 target2 는 소수(부모 1개)로 시작 -> Drop 후 우측 행 증가가 명확히 보이도록 함
+    $p.getComponentById("dlt_bind2").setJSON(scwin._getDrillJSONRight(), false);
+
+    // ondatadragover 발생 횟수 카운터 초기화 (연속 발생 -> 3회까지만 출력)
+    scwin.overCnt = 0;
+
+    // target1(좌, Drag 소스) : DrillDown + dataDragDrop=true + dragStartFunction 정의 + ondatadragstart 바인딩
+    scwin.target1 = await scwin._createDrillGrid("target1", "dlt_bind1", "좌(Drag 소스)", ' dragStartFunction="scwin.target1_dragStartFunc"',
+        ' ev:ondatadragstart="scwin.target1_ondatadragstart"', strNameSpace, cellLeft);
+
+    // target2(우, Drop 대상) : DrillDown + dataDragDrop=true + dragEndFunction 정의 + ondatadragover/ondatadrop 바인딩
+    scwin.target2 = await scwin._createDrillGrid("target2", "dlt_bind2", "우(Drop 대상)", ' dragEndFunction="scwin.target2_dragEndFunc"',
+        ' ev:ondatadragover="scwin.target2_ondatadragover" ev:ondatadrop="scwin.target2_ondatadrop"', strNameSpace, cellRight);
+
+    // DrillDown 그리드는 기본적으로 Drag&Drop 미동작 -> setDrillDownDragDrop(true) 로 활성화 (양 그리드)
+    target1.setDrillDownDragDrop(true);
+    target2.setDrillDownDragDrop(true);
+};
+
+
+
+// 계층(DrillDown) DataList 생성 헬퍼
+scwin._createDrillDataList = function (dltId, strNameSpace) {
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="' + dltId + '" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+};
+
+// 계층 데이터 (본부 depth1 > 팀 depth2 > 사원 depth3)
+scwin._getDrillJSON = function () {
+    return [
+        { "name": "영업본부", "dept": "Sales", "depth": 1 },
+        { "name": "영업1팀",  "dept": "Sales", "depth": 2 },
+        { "name": "김영업",   "dept": "Sales", "depth": 3 },
+        { "name": "이영업",   "dept": "Sales", "depth": 3 },
+        { "name": "개발본부", "dept": "Dev",   "depth": 1 },
+        { "name": "개발1팀",  "dept": "Dev",   "depth": 2 },
+        { "name": "박개발",   "dept": "Dev",   "depth": 3 }
+    ];
+};
+
+// 우측 target2 시작 데이터 (소수 시작 : 부모 1개) -> Drop 후 행 증가가 잘 보이도록 함
+scwin._getDrillJSONRight = function () {
+    return [
+        { "name": "관리본부", "dept": "Admin", "depth": 1 }
+    ];
+};
+
+
+
+// 계층(DrillDown) GridView 생성 헬퍼 (name 컬럼 inputType="drilldown")
+scwin._createDrillGrid = async function (gid, dltId, captionText, extraAttr, evAttr, strNameSpace, cParent) {
+    let properties = { dataList: "data:" + dltId, dataDragDrop: "true" };
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + extraAttr + ' id="" style="width:340px;height:280px;"' + evAttr + '>';
+    strTarget += '<w2:caption style="" id="" value="' + captionText + '"></w2:caption>';
+    strTarget += '<w2:header style="" id="">';
+    strTarget += '<w2:row style="" id="">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="" value="이름(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="" value="부서"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="">';
+    strTarget += '<w2:row style="" id="">';
+    strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    let grp_comp = cParent;   // 좌/우 셀(원시 DOM div) 그대로 parent 로 사용
+    return await $p.dynamicCreate(gid, "gridView", strTarget, grp_comp);
+};
+
+
+
+// 1단계 ondatadragstart : Drag 가 시작된 GridView(target1=좌)에서 발생
+scwin.target1_ondatadragstart = function (rowIndex) {
+    scwin.overCnt = 0;
+    var bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    bottom.setReturnValue("▶ 1. ondatadragstart 발생 (발생 GridView : target1=좌, rowIndex=" + rowIndex + ")");
+};
+
+
+
+// 2단계 ondatadragover : Drag 시작 GridView(좌)에선 미발생, 다른 GridView(target2=우)로 이동 시 발생 (연속 발생 -> 3회까지만 출력)
+scwin.target2_ondatadragover = function (fromId, fromRowIndex) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    if (scwin.overCnt < 3) {
+        bottom.setReturnValue("▶ 2. ondatadragover 발생 (발생 GridView : target2=우, fromRowIndex=" + fromRowIndex + ")");
+        if (scwin.overCnt === 2) {
+            bottom.setReturnValue("... (이후 ondatadragover 출력 생략)");
+        }
+    }
+    scwin.overCnt += 1;
+};
+
+
+
+// 3단계 dragStartFunction : Drag 가 시작된 GridView(target1=좌)에 정의된 사용자 정의 함수 -> Drop 시점에 호출 (ondatadrop/dragEndFunction 보다 먼저)
+//  - DrillDown 분기에서는 첫번째 인자로 info 객체 1개만 전달됨
+//  - this : Drag 가 시작된 GridView(target1=좌)
+//  - true 를 반환해야 Drop 진행 + dragEndFunction 호출 (DrillDown 은 false/미반환 시 Drop 취소)
+scwin.target1_dragStartFunc = function (info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    var thisId = (this && this.id) ? this.id : "";
+    bottom.setReturnValue("▶ 3. dragStartFunction 호출 (정의 위치 GridView : " + thisId + "=좌)");
+    return true;
+};
+
+
+
+// ondatadrop : Drop 된 GridView(target2=우)에서 발생 -> 단, dragEndFunction 이 정의되어 있으면 엔진이 ondatadrop 대신 dragEndFunction 을 호출(미발생)
+scwin.target2_ondatadrop = function (info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("▶ (대체됨) ondatadrop 발생 (발생 GridView : target2=우) - dragEndFunction 정의 시 미발생");
+};
+
+
+
+// 4단계 dragEndFunction : Drop 된 GridView(target2=우)에 정의 -> ondatadrop 대신 마지막 단계로 호출
+//  - 엔진은 DrillDown 크로스그리드 + dragEndFunction 정의 분기에서는 target2 에 자동 삽입을 하지 않으며,
+//    dragEndFunc 가 truthy 반환 시에만 좌 target1 의 부모행 1개(자손 미제거)를 removeRow 한다(eventController.js:1320~1322).
+//  - 따라서 "실제 이동"은 여기서 직접 구현한다(엔진 자동이동 경로 1644~1650 을 재현하되, 아래 엔진 결함을 우회) :
+//      (1) 우측 삽입 : target2.drilldown.appendNode(toIndex, flatArr) 사용.
+//          appendNode(drilldown.js:685)는 [name,dept,depth, name,dept,depth ...] 형태의 "전체 컬럼(depth 포함)"
+//          1차원 평면배열을 _dataList.getColumnCount()(=3) 스트라이드로 읽는다.
+//          ※ 엔진 결함 : info.removedData / 엔진 자동이동이 쓰는 _getDrillDownRowData 는 this.dataList(매핑 dataList,
+//            화면 바인딩 컬럼 name/dept 2개만) 기준이라 data-only 컬럼 depth 가 누락된 2-컬럼 배열을 만든다.
+//            그 배열을 3-컬럼 스트라이드로 읽는 appendNode 가 오프셋 어긋남 → 값 뒤섞임 + depth=NaN(계층 깨짐).
+//          ⇒ info.removedData 대신 target1._dataList._getRowData(idx)(depth 포함 전체 컬럼)로 평면배열을 직접 구성.
+//          (rowJSON(객체배열)/insertData 는 평면배열을 요구하므로 부적합. insertData/removeRow 는 grid 객체가 아닌
+//           dataList 에만 존재 → grid 직접 호출은 undefined.)
+//      (2) 좌측 제거 : 부모+자손 전체(info.removedRowIndex)를 내림차순 제거(target1.dataList.removeRow).
+//  - 엔진의 단일 부모 자동 제거(1321)와 이중 제거를 막기 위해 false 를 반환한다(false 시 1321 미실행).
+//  - this : Drag 가 시작된 GridView(좌 target1). 인자 : (toIndex, rowXml, info)
+//    info = { removedData(매핑 평면배열-depth누락), removedRowIndex(부모+자손 realRowIndex 배열), fromRowIndex, toRowIndex(=toIndex), rowJSON, ... }
+scwin.target2_dragEndFunc = function (toIndex, rowXml, info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    // 순서 출력은 이동 처리 전에 먼저 (순서 검증용)
+    bottom.setReturnValue("▶ 4. dragEndFunction 호출 (정의 위치 GridView : target2=우, ondatadrop 대신 호출)");
+
+    var removedRowIndex = (info && info.removedRowIndex) ? info.removedRowIndex : [];
+
+    // (1) 우 target2 에 toIndex 위치부터 행 삽입 (depth 포함 전체컬럼 평면배열을 직접 구성 -> 계층 복원)
+    //     소스 _dataList._getRowData(idx) 는 [name,dept,depth] 전체컬럼을 반환(매핑 dataList 의 depth 누락 결함 우회).
+    var flatArr = [];
+    for (var k = 0; k < removedRowIndex.length; k++) {
+        flatArr = flatArr.concat(target1._dataList._getRowData(removedRowIndex[k]));
+    }
+    var colCnt = target2._dataList.getColumnCount();
+    var addCnt = 0;
+    if (flatArr.length > 0 && colCnt > 0) {
+        target2.drilldown.appendNode(toIndex, flatArr);
+        addCnt = flatArr.length / colCnt;   // 평면배열 길이 / 컬럼수 = 행수
+    }
+
+    // (2) 좌 target1 의 소스 행(부모+자손) 제거 : removedRowIndex 를 내림차순 정렬 후 제거 (인덱스 밀림 방지)
+    //     removeRow 는 grid 객체가 아닌 dataList 메소드.
+    var rmIdx = removedRowIndex.slice().sort(function (a, b) { return b - a; });
+    var rmCnt = 0;
+    for (var i = 0; i < rmIdx.length; i++) {
+        target1.dataList.removeRow(rmIdx[i]);
+        rmCnt++;
+    }
+
+    bottom.setReturnValue("▶ 실제 Drop 이동 완료 (우측 " + addCnt + "행 추가 / 좌측 " + rmCnt + "행 제거)");
+
+    // false 반환 -> 엔진 자동 부모 단일 제거(eventController.js:1321) 차단 (이중 제거 방지)
+    return false;
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

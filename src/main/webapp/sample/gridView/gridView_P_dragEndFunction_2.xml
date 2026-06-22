@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dragEndFunction" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260622" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dragEndFunction]<br/>Drag 된 데이터가 GridView 에 Drop 되었을때 호출할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성 중 하나 이상 true 여야 사용자 정의 함수가 호출됩니다.",
+        "Drag 가 시작된 GridView 가 아닌 데이터가 Drop 된 GridView 의 사용자 정의 함수가 호출됩니다.",
+        "사용자 함수 내에서 this 키워드를 사용하여 Drag 가 시작된 GridView 에 접근할 수 있습니다.",
+        "Cell 단위의 복수 데이터는 선택 된 Cell 데이터와 Drag 된 Cell 의 정보가 각각 파라미터로 전달됩니다.",
+        "사용자 함수에서 Drop 된 데이터를 처리하는 과정을 직접 구현해야 합니다.",
+        "사용자 함수에서 true/false 를 반환하여 cellDataArray 로 전달된 Drag 된 원본 Cell 데이터의 삭제 여부를 결정합니다. (true 반환 시 삭제)",
+        "dragEndFunction 사용자 함수는 Drag 가 시작된 GridView 에 정의된 dragStartFunction 사용자 함수 실행 후 실행됩니다.",
+        "Cell 단위 데이터가 Drop 되었을때 dragEndFunction 사용자 함수에 targetRowIndex, rowIndex, info 파라미터가 전달됩니다.",
+        "targetRowIndex 에는 데이터가 Drop 된 위치의 Row 인덱스값이 전달됩니다.",
+        "rowIndex 에는 Drag 가 시작된 Cell 의 Row 인덱스값이 전달됩니다.",
+        "info.fromColumnId 에는 Drag 가 시작된 Cell 의 Column ID 값을 갖습니다.",
+        "info.fromColumnIndex 에는 Drag 가 시작된 Cell 의 Column 인덱스값을 갖습니다.",
+        "info.fromGridViewId 에는 Drag 가 시작된 GridView 의 렌더링 ID 값을 갖습니다.",
+        "info.cellDataArray 에는 선택 상태로 함께 Drag 된 Cell 데이터를 배열로 갖습니다.",
+        "info.cellDataArray.rowIndex 에는 선택 상태인 Cell 의 Row 인덱스값을 갖습니다.",
+        "info.cellDataArray.colIndex 에는 선택 상태인 Cell 의 Column 인덱스값을 갖습니다.",
+        "info.cellDataArray.colId 에는 선택 상태인 Cell 의 Column ID 값을 갖습니다.",
+        "info.cellDataArray.data 에는 선택 상태인 Cell 의 데이터 값을 갖습니다.",
+        "info.toColumnId 에는 데이터가 Drop 된 위치의 Column ID 값을 갖습니다.",
+        "info.toColumnIndex 에는 데이터가 Drop 된 위치의 Column 인덱스값을 갖습니다.",
+        "info.toGridViewId 에는 데이터가 Drop 된 GridView 의 렌더링 ID 값을 갖습니다.",
+        "속성값을 설정하지 않으면 ondatadrop 이벤트가 발생합니다.",
+        "Drag&Drop 관련 이벤트는 ondatadragstart > ondatadragover > [dragStartFunction] > [ondatadrop|dragEndFunction] 순서로 발생하며, dragEndFunction 정의 시 ondatadrop 대신 호출됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Cell 단위 dragEndFunction 검증 전용)
+//  - 좌 target1(Drag 소스) : dataDragDropCell=true + dragStartFunction 정의
+//  - 우 target2(Drop 대상) : dataDragDropCell=true + dragEndFunction 정의
+//  - Cell 을 Drop 하면 Drop 대상(target2)에 정의된 dragEndFunction 이 호출된다.
+//    (엔진 eventController.js:1328~1344 dataDragDropCell 분기 : dragEndFunc.call(소스, targetRowIndex, rowIndex, infoObj))
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+    if (typeof target2 !== 'undefined') { target2.remove(); }
+    if (typeof dlt_src !== 'undefined') { $p.data.remove("dlt_src"); }
+    if (typeof dlt_dst !== 'undefined') { $p.data.remove("dlt_dst"); }
+    // 이전에 만든 flex wrapper 도 제거 (Target 재생성 시 중복 누적 방지)
+    if (scwin.gridFlexWrap && scwin.gridFlexWrap.parentNode) {
+        scwin.gridFlexWrap.parentNode.removeChild(scwin.gridFlexWrap);
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 좌(target1)=Drag 소스, 우(target2)=Drop 대상. 양쪽 dataDragDropCell=true, 소스에 dragStartFunction, 대상(우)에 dragEndFunction 정의.\n[절차] 소스에서 셀 여러 개를 선택(클릭 후 Shift/Ctrl 클릭)한 뒤 그 중 한 셀을 잡고 대상(우) 셀 위로 Drag&Drop 합니다.\n[확인] 대상(우)에 정의된 dragEndFunction 이 호출되어 targetRowIndex / rowIndex / info(cellDataArray 등)가 출력되고, true 반환 시 소스의 선택 셀 원본 데이터가 null 로 삭제됩니다."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // === 소스 DataList(dlt_src) : Column ID col1~col4 ===
+    let strSrc = '';
+    strSrc += '<w2:dataList ' + strNameSpace + ' id="dlt_src" baseNode="list" repeatNode="map">';
+    strSrc += '<w2:columnInfo>';
+    strSrc += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strSrc += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strSrc += '</w2:columnInfo>';
+    strSrc += '<w2:data use="true"></w2:data>';
+    strSrc += '</w2:dataList>';
+    $p.data.create(strSrc);
+
+    // === 대상 DataList(dlt_dst) : Column ID colA~colD (서로 다른 DataList) ===
+    let strDst = '';
+    strDst += '<w2:dataList ' + strNameSpace + ' id="dlt_dst" baseNode="list" repeatNode="map">';
+    strDst += '<w2:columnInfo>';
+    strDst += '<w2:column id="colA" name="colA" dataType="text"></w2:column>';
+    strDst += '<w2:column id="colB" name="colB" dataType="text"></w2:column>';
+    strDst += '<w2:column id="colC" name="colC" dataType="text"></w2:column>';
+    strDst += '<w2:column id="colD" name="colD" dataType="text"></w2:column>';
+    strDst += '</w2:columnInfo>';
+    strDst += '<w2:data use="true"></w2:data>';
+    strDst += '</w2:dataList>';
+    $p.data.create(strDst);
+
+    // 소스 데이터 4행 로드
+    let srcData = [
+        { "col1": "행1", "col2": "100", "col3": "Aa", "col4": "10" },
+        { "col1": "행2", "col2": "200", "col3": "Bb", "col4": "20" },
+        { "col1": "행3", "col2": "300", "col3": "Cc", "col4": "30" },
+        { "col1": "행4", "col2": "400", "col3": "Dd", "col4": "40" }
+    ];
+    dlt_src.setJSON(srcData, false);
+
+    // 대상 데이터 4행 로드 (Drop 위치 매칭용)
+    let dstData = [
+        { "colA": "대상1", "colB": "11", "colC": "Xx", "colD": "1" },
+        { "colA": "대상2", "colB": "22", "colC": "Yy", "colD": "2" },
+        { "colA": "대상3", "colB": "33", "colC": "Zz", "colD": "3" },
+        { "colA": "대상4", "colB": "44", "colC": "Ww", "colD": "4" }
+    ];
+    dlt_dst.setJSON(dstData, false);
+
+    // 좌우 배치용 flex wrapper 와 좌/우 셀 생성
+    let grpBasic = document.querySelector('.tc_group_basic');
+    scwin.gridFlexWrap = document.createElement('div');
+    scwin.gridFlexWrap.style.cssText = 'display:flex; gap:20px; align-items:flex-start;';
+    let cellLeft = document.createElement('div');
+    let cellRight = document.createElement('div');
+    scwin.gridFlexWrap.appendChild(cellLeft);
+    scwin.gridFlexWrap.appendChild(cellRight);
+    grpBasic.appendChild(scwin.gridFlexWrap);
+
+    // === 소스 그리드(target1) : dataDragDropCell=true + dragStartFunction 정의 ===
+    //  - dataDragDropCell 환경에서 cellDataArray 는 소스의 focusedCell(선택 셀)로 구성되므로
+    //    여러 셀을 선택 상태로 만든 뒤 Drag 해야 복수 cellDataArray 가 채워진다.
+    let srcCList = $c.gcm.createCList({
+        dataList: "data:dlt_src",
+        dataDragDropCell: true,
+        dragStartFunction: "scwin.target1_dragStartFunc"
+    });
+
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' ' + srcCList + ' id="" style="width:440px;height:300px;" ev:ondatadragstart="scwin.target1_ondatadragstart">';
+    strTarget1 += '<w2:caption style="" id="caption1" value="target1 (Drag 소스 / dlt_src)"></w2:caption>';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol1" value="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol3" value="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget1 += '<w2:column width="100" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, cellLeft);
+
+    // === 대상 그리드(target2) : Drop 대상, dataDragDropCell=true + dragEndFunction 정의 ===
+    //  - dragEndFunction 은 Drop 된 GridView(대상=target2)에 정의되어야 호출된다 (validation 2번).
+    //  - ondatadrop 도 함께 부착하여 dragEndFunction 정의 시 ondatadrop 이 미발생함을 확인 (이벤트 순서/대신 호출 validation).
+    let dstCList = $c.gcm.createCList({
+        dataList: "data:dlt_dst",
+        dataDragDropCell: true,
+        dragEndFunction: "scwin.target2_dragEndFunc"
+    });
+
+    let strTarget2 = '';
+    strTarget2 += '<w2:gridView ' + strNameSpace + ' ' + dstCList + ' id="" style="width:440px;height:300px;" ev:ondatadrop="scwin.target2_ondatadrop">';
+    strTarget2 += '<w2:caption style="" id="caption2" value="target2 (Drop 대상 / dlt_dst)"></w2:caption>';
+    strTarget2 += '<w2:header style="" id="header2">';
+    strTarget2 += '<w2:row style="" id="hrow2">';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" id="hcolA" value="colA"></w2:column>';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" id="hcolB" value="colB"></w2:column>';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" id="hcolC" value="colC"></w2:column>';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" id="hcolD" value="colD"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:header>';
+    strTarget2 += '<w2:gBody style="" id="gBody2">';
+    strTarget2 += '<w2:row style="" id="brow2">';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" dataType="text" id="colA" dataList="colA"></w2:column>';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" dataType="text" id="colB" dataList="colB"></w2:column>';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" dataType="text" id="colC" dataList="colC"></w2:column>';
+    strTarget2 += '<w2:column width="100" style="" inputType="text" dataType="text" id="colD" dataList="colD"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:gBody>';
+    strTarget2 += '</w2:gridView>';
+
+    scwin.target2 = await $p.dynamicCreate("target2", "gridView", strTarget2, cellRight);
+};
+
+
+
+// 소스 Drag 시작 : 출력 영역을 비우고 Drag 시작 + 순서 1단계 알림.
+scwin.target1_ondatadragstart = function (rowIndex) {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+    b.setReturnValue("1) ondatadragstart 발생 (발생 GridView : target1=소스, rowIndex=" + rowIndex + ")");
+};
+
+
+
+// dragStartFunction : Drag 가 시작된 GridView(target1=소스)에 정의 -> dragEndFunction 보다 먼저 실행 (validation 7번)
+//  - this : Drag 가 시작된 GridView(소스)
+scwin.target1_dragStartFunc = function (rowIndex, info) {
+    let b = wf_body_bottom.getObj("scwin");
+    let thisId = (this && this.id) ? this.id : "";
+    b.setReturnValue("2) dragStartFunction 호출 (정의 위치 GridView : " + thisId + "=소스, rowIndex=" + rowIndex + ") - dragEndFunction 보다 먼저 실행");
+};
+
+
+
+// ondatadrop : Drop 된 GridView(target2=대상)에서 발생 -> 단, dragEndFunction 이 정의되어 있으면 미발생 (이벤트 순서/미설정 시 발생 validation)
+scwin.target2_ondatadrop = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("(미발생 예상) ondatadrop 발생 - dragEndFunction 정의 시 호출되면 안 됨");
+};
+
+
+
+// dragEndFunction : Drop 된 GridView(target2=대상)에 정의 -> Cell Drop 시 ondatadrop 대신 호출 (체인 마지막)
+//  - 파라미터 : targetRowIndex(Drop 위치 Row), rowIndex(Drag 시작 Cell 의 Row), info(추가 정보 객체)
+//  - this : Drag 가 시작된 GridView(소스=target1) (validation 3번)
+//  - 명시적으로 true 반환 시 cellDataArray 의 원본 Cell 데이터가 null 로 삭제됨 (true 반환 시 원본 삭제 validation)
+scwin.target2_dragEndFunc = function (targetRowIndex, rowIndex, info) {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // this 가 Drag 가 시작된 GridView(소스) 인지 확인 (validation 3번)
+    let thisId = (this && this.id) ? this.id : "";
+
+    b.setReturnValue("3) dragEndFunction 호출 (정의 위치 GridView : target2=대상, ondatadrop 대신 호출)");
+    b.setReturnValue("this.id (Drag 시작 GridView) : " + thisId);
+    b.setReturnValue("targetRowIndex (Drop 위치 Row 인덱스) : " + targetRowIndex);
+    b.setReturnValue("rowIndex (Drag 시작 Cell 의 Row 인덱스) : " + rowIndex);
+
+    // info 객체 속성 개별 출력 (validation 12~14, 20~22번)
+    b.setReturnValue("info.fromColumnId : " + info.fromColumnId);
+    b.setReturnValue("info.fromColumnIndex : " + info.fromColumnIndex);
+    b.setReturnValue("info.fromGridViewId : " + info.fromGridViewId);
+    b.setReturnValue("info.toColumnId : " + info.toColumnId);
+    b.setReturnValue("info.toColumnIndex : " + info.toColumnIndex);
+    b.setReturnValue("info.toGridViewId : " + info.toGridViewId);
+
+    // cellDataArray : 선택 상태로 함께 Drag 된 Cell 데이터 배열 (validation 4/15~19번)
+    let arr = info.cellDataArray;
+    b.setReturnValue("info.cellDataArray.length (선택 Cell 수) : " + (arr ? arr.length : 0));
+    if (arr && arr.length > 0) {
+        for (let i = 0; i < arr.length; i++) {
+            let c = arr[i];
+            b.setReturnValue("  cellDataArray[" + i + "] : rowIndex=" + c.rowIndex + ", colIndex=" + c.colIndex + ", colId=" + c.colId + ", data=" + c.data);
+        }
+    }
+
+    // 사용자 함수에서 Drop 처리 직접 구현 (validation 5번)
+    //  - cellDataArray 의 각 Cell 데이터를 대상(target2)의 Drop 위치 Row 부터 동일 컬럼 순서로 채워 넣는다.
+    let dstCols = ["colA", "colB", "colC", "colD"];
+    if (arr && arr.length > 0) {
+        for (let i = 0; i < arr.length; i++) {
+            let c = arr[i];
+            let toRow = targetRowIndex + i;
+            if (toRow < dlt_dst.getRowCount()) {
+                // Drop 시작 컬럼(toColumnIndex)부터 채우되, 범위를 벗어나면 마지막 컬럼에 채움
+                let colIdx = info.toColumnIndex + i;
+                if (colIdx >= dstCols.length) { colIdx = dstCols.length - 1; }
+                dlt_dst.setCellData(targetRowIndex, dstCols[colIdx], c.data);
+            }
+        }
+    }
+
+    // true 반환 -> 소스(target1)의 선택 셀 원본 데이터가 null 로 삭제됨 (true 반환 시 원본 삭제 validation)
+    return true;
+};
+
+
+
+// 양 그리드 데이터 출력 : 소스/대상 DataList 의 현재 Cell 데이터를 행별로 출력
+//  - true 반환으로 소스의 선택 셀이 null 로 삭제된 결과를 Cell 값으로 검증
+scwin.btn_checkResult_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let srcRows = dlt_src.getRowCount();
+    let dstRows = dlt_dst.getRowCount();
+
+    b.setReturnValue("[소스(target1)/dlt_src] " + srcRows + "행");
+    for (let i = 0; i < srcRows; i++) {
+        b.setReturnValue("  행" + i + " : col1=" + dlt_src.getCellData(i, "col1") + ", col2=" + dlt_src.getCellData(i, "col2") + ", col3=" + dlt_src.getCellData(i, "col3") + ", col4=" + dlt_src.getCellData(i, "col4"));
+    }
+
+    b.setReturnValue("[대상(target2)/dlt_dst] " + dstRows + "행");
+    for (let j = 0; j < dstRows; j++) {
+        b.setReturnValue("  행" + j + " : colA=" + dlt_dst.getCellData(j, "colA") + ", colB=" + dlt_dst.getCellData(j, "colB") + ", colC=" + dlt_dst.getCellData(j, "colC") + ", colD=" + dlt_dst.getCellData(j, "colD"));
+    }
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkResult_onclick" id="btn_checkResult" label="양 그리드 데이터 출력"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

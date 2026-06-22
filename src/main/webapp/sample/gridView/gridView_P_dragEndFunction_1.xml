@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dragEndFunction" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260622" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dragEndFunction]<br/>Drag 된 데이터가 GridView 에 Drop 되었을때 호출할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성 중 하나 이상 true 여야 사용자 정의 함수가 호출됩니다.",
+        "Drag 가 시작된 GridView 가 아닌 데이터가 Drop 된 GridView 의 사용자 정의 함수가 호출됩니다.",
+        "동일 GridView 인 경우에도 Drop 된 GridView 의 사용자 정의 함수가 호출됩니다.",
+        "사용자 함수 내에서 this 키워드를 사용하여 Drag 가 시작된 GridView 에 접근할 수 있습니다.",
+        "Row 단위의 복수 데이터는 선택 상태와 관계없이 Drag 를 시작한 Row 의 데이터만 파라미터로 전달되어 한 건만 처리할 수 있습니다.",
+        "사용자 함수에서 RowStaus 값을 포함하여 Drop 된 데이터를 처리하는 과정을 직접 구현해야 합니다.",
+        "사용자 함수에서 true/false 를 반환하여 Drag 된 원본 데이터의 삭제 여부를 결정하며 명시적으로 true 를 반환하면 Drag 가 시작된 원본 Row 가 삭제됩니다.",
+        "속성값을 설정하지 않으면 ondatadrop 이벤트가 발생합니다.",
+        "dragEndFunction 사용자 함수가 실행되면 ondatadrop 이벤트는 발생하지 않습니다.",
+        "Drag&Drop 관련 이벤트는 Drag 가 시작된 GridView 에 정의된 dragStartFunction 사용자 함수 실행 후 dragEndFunction 사용자 함수가 실행되며, ondatadragstart > ondatadragover > [dragStartFunction] > [ondatadrop|dragEndFunction] 순서로 발생합니다.",
+        "Row 단위 데이터 Drop 시 targetRowIndex 파라미터로 데이터가 Drop 된 위치의 Row 인덱스값이 전달됩니다.",
+        "Row 단위 데이터 Drop 시 rowXml 파라미터로 Drag 가 시작된 Row 의 전체 데이터가 XML 객체로 전달됩니다 (dragStartFunction 사용자 함수에서 XML 객체를 반환한 경우 해당 값이 전달됩니다).",
+        "Row 단위 데이터 Drop 시 info 파라미터로 Drag 가 시작된 Row 와 Drop 위치의 추가 정보가 객체로 전달됩니다.",
+        "info.fromColumnId : Drag 가 시작된 Row 의 Column ID 값을 갖습니다.",
+        "info.fromColumnIndex : Drag 가 시작된 Row 의 Column 인덱스값을 갖습니다.",
+        "info.fromGridViewId : Drag 가 시작된 GridView 의 렌더링 ID 값을 갖습니다.",
+        "info.rowJSON : Drag 가 시작된 Row 의 데이터를 JSON 객체로 갖습니다.",
+        "info.toColumnId : 데이터가 Drop 된 위치의 Column ID 값을 갖습니다.",
+        "info.toColumnIndex : 데이터가 Drop 된 위치의 Column 인덱스값을 갖습니다.",
+        "info.toGridViewId : 데이터가 Drop 된 GridView 의 렌더링 ID 값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 좌 target1(Drag 소스) : dataDragDrop=true + dataDragDropOther=true + dragStartFunction 정의
+//  - 우 target2(Drop 대상) : dataDragDropOther=true + dragEndFunction 정의(검증 대상)
+//  - dragEndFunction 은 Drop 된 GridView(target2)에 정의 -> target1->target2 로 Row Drag 시 호출
+//    엔진은 dragEndFunction 정의 시 ondatadrop 대신 dragEndFunction 호출(eventController.js)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제 (2개 그리드 + 2개 dataList)
+    if (typeof dlt_bind1 !== 'undefined') {
+        $p.data.remove("dlt_bind1");
+    }
+    if (typeof dlt_bind2 !== 'undefined') {
+        $p.data.remove("dlt_bind2");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof target2 !== 'undefined') {
+        target2.remove();
+    }
+    // 이전에 만든 flex wrapper 도 제거 (Target 재생성 시 중복 누적 방지)
+    if (scwin.gridFlexWrap && scwin.gridFlexWrap.parentNode) {
+        scwin.gridFlexWrap.parentNode.removeChild(scwin.gridFlexWrap);
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 왼쪽 target1=Drag 소스(dragStartFunction 정의), 오른쪽 target2=Drop 대상(dragEndFunction 정의=검증 대상).\n[절차] target1 의 Row 를 target2 로 드래그하여 Drop 하면 target2 의 dragEndFunction 이 호출되고 행이 실제 이동합니다.\n[확인] 결과창에서 발생 순서(dragStartFunction -> dragEndFunction), 전달 파라미터(targetRowIndex / rowXml / info.*), 원본 삭제(true 반환)를 확인합니다."', '', 'label1');
+
+    // 좌우 배치용 flex wrapper 와 좌/우 셀(원시 DOM div) 생성
+    let grpBasic = document.querySelector('.tc_group_basic');
+    scwin.gridFlexWrap = document.createElement('div');
+    scwin.gridFlexWrap.style.cssText = 'display:flex; gap:20px; align-items:flex-start;';
+    let cellLeft = document.createElement('div');
+    let cellRight = document.createElement('div');
+    scwin.gridFlexWrap.appendChild(cellLeft);
+    scwin.gridFlexWrap.appendChild(cellRight);
+    grpBasic.appendChild(scwin.gridFlexWrap);
+
+    // target1(소스) : dataDragDrop=true + dataDragDropOther=true + dragStartFunction 정의
+    //  - dataDragDrop=true : 실제 마우스 Drag&Drop 시 dragEndFunction 호출 경로 활성화(소스 dataDragDrop=true 필요)
+    //  - dataDragDropOther=true : 다른 그리드(target2)로만 Drop 허용(자기자신 Drop 차단)
+    //  - dragStartFunction : XML 객체(rowXml) 반환 -> target2 dragEndFunction 의 rowXml 인자로 전달
+    let properties1 = {
+        dataList: "data:dlt_bind1",
+        dataDragDrop: "true",
+        dataDragDropOther: "true",
+        dragStartFunction: "scwin.target1_dragStartFunc"
+    };
+    // target2(Drop 대상) : dataDragDropOther=true + dragEndFunction 정의(검증 대상)
+    let properties2 = {
+        dataList: "data:dlt_bind2",
+        dataDragDropOther: "true",
+        dragEndFunction: "scwin.target2_dragEndFunc"
+    };
+
+    let cList1 = $c.gcm.createCList(properties1);
+    let cList2 = $c.gcm.createCList(properties2);
+
+    // ondatadrop 발생 여부 확인용 플래그 (dragEndFunction 정의 시 미발생 검증)
+    scwin.dropFired = false;
+
+    // 이벤트 핸들러 부착
+    //  - target1(소스) : ondatadragstart (발생 순서 시작점)
+    //  - target2(Drop 대상) : ondatadrop (dragEndFunction 정의 시 미발생 -> 호출되면 플래그 set)
+    let eList1 = $c.gcm.createEList(["ondatadragstart"], "target1");
+    let eList2 = $c.gcm.createEList(["ondatadrop"], "target2");
+
+    // dataList 2개 생성 (각 그리드 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind1');
+    $c.gcm.createBasicDataList('', '', 'dlt_bind2');
+
+    // target 2개 생성 (target1 : Drag 소스 = 왼쪽 / target2 : Drop 대상 = 오른쪽)
+    await $c.gcm.createBasicGridView(cList1, eList1, 'target1', cellLeft);
+    await $c.gcm.createBasicGridView(cList2, eList2, 'target2', cellRight);
+
+    // Drop 대상(target2)은 빈 상태로 시작 -> 이동이 눈에 보이게 (target1 은 createBasicDataList 기본 4행 유지)
+    dlt_bind2.setJSON([], false);
+}
+
+
+
+// 1단계 ondatadragstart : Drag 가 시작된 GridView(target1=좌)에서 발생
+scwin.target1_ondatadragstart = function (rowIndex) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    scwin.dropFired = false;
+    bottom.setReturnValue("[발생 순서] 1. ondatadragstart (target1=좌)");
+};
+
+
+
+// dragStartFunction : Drag 가 시작된 GridView(target1=좌)에 정의 -> dragEndFunction 보다 먼저 실행(@spec2)
+//  - XML 객체(rowXml) 반환 -> target2 dragEndFunction 의 두번째 인자(rowXml)로 전달
+scwin.target1_dragStartFunc = function (rowIndex, rowXml, info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("[발생 순서] 2. dragStartFunction (정의 위치=target1=좌)");
+    return rowXml;
+};
+
+
+
+// ondatadrop : Drop 된 GridView(target2=우)에서 발생 -> dragEndFunction 정의 시 엔진이 ondatadrop 대신 dragEndFunction 호출(미발생)
+scwin.target2_ondatadrop = function (info) {
+    scwin.dropFired = true;
+    var bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("[주의] ondatadrop 발생 - dragEndFunction 정의 시 발생하면 안 됨");
+};
+
+
+
+// dragEndFunction : Drop 된 GridView(target2=우)에 정의(검증 대상) -> ondatadrop 대신 호출
+//  - 시그니처(Row 단위) : function(targetRowIndex, rowXml, info)
+//    targetRowIndex : Drop 위치 Row 인덱스
+//    rowXml         : Drag 시작 Row 전체 데이터 XML 객체(dragStartFunction 반환값)
+//    info           : { fromColumnId, fromColumnIndex, fromGridViewId, rowJSON, toColumnId, toColumnIndex, toGridViewId }
+//  - this : Drag 가 시작된 GridView(target1)
+scwin.target2_dragEndFunc = function (targetRowIndex, rowXml, info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+
+    // 발생 순서 (dragStartFunction 실행 후 dragEndFunction 실행 / ondatadrop 미발생)
+    bottom.setReturnValue("[발생 순서] 3. dragEndFunction (정의 위치=target2=우, ondatadrop 대신 호출)");
+    bottom.setReturnValue("ondatadrop 발생 여부(미발생이어야 함) : " + scwin.dropFired);
+
+    // this : Drag 가 시작된 GridView(target1) 접근 가능
+    var thisId = (this && this.id) ? this.id : "";
+    bottom.setReturnValue("this(=Drag 시작 GridView) id : " + thisId);
+
+    // 파라미터 1 : targetRowIndex (Drop 위치 Row 인덱스)
+    bottom.setReturnValue("targetRowIndex : " + targetRowIndex);
+
+    // 파라미터 2 : rowXml (Drag 시작 Row 전체 데이터 XML 객체, dragStartFunction 반환값)
+    var isXmlObj = !!(rowXml && rowXml.nodeType && rowXml.nodeName);
+    bottom.setReturnValue("rowXml (XML 객체 여부) : " + isXmlObj);
+
+    // 파라미터 3 : info 의 각 속성 개별 출력
+    bottom.setReturnValue("info.fromColumnId : " + info.fromColumnId);
+    bottom.setReturnValue("info.fromColumnIndex : " + info.fromColumnIndex);
+    bottom.setReturnValue("info.fromGridViewId : " + info.fromGridViewId);
+    bottom.setReturnValue("info.rowJSON : " + JSON.stringify(info.rowJSON));
+    bottom.setReturnValue("info.toColumnId : " + info.toColumnId);
+    bottom.setReturnValue("info.toColumnIndex : " + info.toColumnIndex);
+    bottom.setReturnValue("info.toGridViewId : " + info.toGridViewId);
+
+    // @spec1 Drop 데이터 처리(RowStatus 포함) 직접 구현 : 전달받은 rowXml 을 Drop 대상(target2)에 실제 행으로 삽입
+    //  - setRowXML(rowIndex, rowData) : 해당 위치에 행 삽입(삽입된 행 RowStatus=insert)
+    //  - targetRowIndex 가 현재 행 수를 넘으면(빈 영역 Drop) 말미에 삽입되도록 클램프
+    if (isXmlObj) {
+        var insertIdx = targetRowIndex;
+        var cnt = target2.getRowCount();
+        if (typeof insertIdx !== "number" || insertIdx < 0 || insertIdx > cnt) {
+            insertIdx = cnt;
+        }
+        target2.dataList.setRowXML(insertIdx, rowXml);
+        bottom.setReturnValue("Drop 처리(직접 구현) 완료 : target2 의 " + insertIdx + " 위치에 행 삽입 (RowStatus=" + target2.dataList.getRowStatus(insertIdx) + ", 현재 target2 행 수=" + target2.getRowCount() + ")");
+    }
+
+    // 명시적으로 true 반환 -> 엔진이 Drag 소스(target1)의 원본 Row 를 자동 제거 -> 이동 완성
+    return true;
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

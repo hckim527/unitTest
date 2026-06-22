@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ondatadrop" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > ondatadrop]<br/>Drag 된 데이터가 다른 GridView 에 Drop 되었을때 발생합니다.",
+    "validation" : [
+        "dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성 중 하나 이상 true 여야 이벤트가 발생합니다.",
+        "Drag 가 시작된 GridView 에선 발생하지 않고 다른 GridView 에 데이터가 Drop 되었을때 해당 GridView 에서 발생합니다.",
+        "info.fromId : Drag 가 시작된 GridView 의 렌더링 ID 값을 갖습니다.",
+        "info.fromRowIndex : Drag 가 시작된 데이터의 Row 인덱스값을 갖습니다.",
+        "info.toRowIndex : 데이터가 Drop 된 위치의 Row 인덱스값을 갖습니다.",
+        "ondatadrop 이벤트는 데이터의 이동 처리가 모두 완료된 이후 발생합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제 (2개 그리드 + 2개 dataList)
+    if (typeof dlt_bind1 !== 'undefined') {
+        $p.data.remove("dlt_bind1");
+    }
+    if (typeof dlt_bind2 !== 'undefined') {
+        $p.data.remove("dlt_bind2");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof target2 !== 'undefined') {
+        target2.remove();
+    }
+    // 이전에 만든 flex wrapper 도 제거 (Target 재생성 시 중복 누적 방지)
+    if (scwin.gridFlexWrap && scwin.gridFlexWrap.parentNode) {
+        scwin.gridFlexWrap.parentNode.removeChild(scwin.gridFlexWrap);
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    //  - ondatadrop 은 Drag 가 시작된 그리드(target1)가 아니라, 데이터가 Drop 된 다른 그리드(target2)에서 발생
+    //  - 사용자 액션(Drag&Drop)으로 발생 -> 절차/확인 안내
+    $c.gcm.createLabel('label="[전제] 왼쪽=target1(Drag 소스), 오른쪽=target2(Drop 대상). 양쪽 dataDragDropOther=true.\n[절차] target1 의 Row 를 Drag 하여 target2 에 Drop -> target2 에서 ondatadrop 발생(info.fromId/fromRowIndex/toRowIndex 출력).\n[확인] Drag 시작 그리드(target1)에선 미발생, Drop 대상(target2)에서만 발생합니다."', '', 'label1');
+
+    // 좌우 배치용 flex wrapper 와 좌/우 셀(원시 DOM div) 생성
+    //  - 기본 케이스가 .tc_group_basic(원시 DOM)을 dynamicCreate parent 로 쓰므로 좌/우 셀도 원시 DOM div 로 생성
+    //  - 각 셀을 createBasicGridView 의 cParent 로 넘겨 두 그리드를 양옆으로 배치
+    let grpBasic = document.querySelector('.tc_group_basic');
+    scwin.gridFlexWrap = document.createElement('div');
+    scwin.gridFlexWrap.style.cssText = 'display:flex; gap:20px; align-items:flex-start;';
+    let cellLeft = document.createElement('div');
+    let cellRight = document.createElement('div');
+    scwin.gridFlexWrap.appendChild(cellLeft);
+    scwin.gridFlexWrap.appendChild(cellRight);
+    grpBasic.appendChild(scwin.gridFlexWrap);
+
+    // 양 그리드에 dataDragDropOther=true (교차 그리드 Drag&Drop 허용)
+    //  - dataDragDrop/dataDragDropSelf/dataDragDropOther/dataDragDropCell 중 하나 이상 true 여야 ondatadrop 발생
+    let properties1 = {
+        dataList: "data:dlt_bind1",
+        dataDragDropOther: "true"
+    };
+    let properties2 = {
+        dataList: "data:dlt_bind2",
+        dataDragDropOther: "true"
+    };
+
+    let cList1 = $c.gcm.createCList(properties1);
+    let cList2 = $c.gcm.createCList(properties2);
+
+    // 이벤트 핸들러 부착
+    //  - target2(Drop 대상) : ondatadrop (검증 대상)
+    //  - target1(Drag 소스) : 이벤트 미부착 (Drag 시작 그리드에선 ondatadrop 미발생 확인용)
+    let eList2 = $c.gcm.createEList(["ondatadrop"], "target2");
+
+    // dataList 2개 생성 (각 그리드 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind1');
+    $c.gcm.createBasicDataList('', '', 'dlt_bind2');
+
+    // target 2개 생성 (target1 : Drag 소스 = 왼쪽 / target2 : Drop 대상 = 오른쪽)
+    //  - cParent 로 좌/우 셀(원시 DOM div)을 전달 -> getTestGroup 이 그대로 반환하여 해당 셀에 생성
+    await $c.gcm.createBasicGridView(cList1, '', 'target1', cellLeft);
+    await $c.gcm.createBasicGridView(cList2, eList2, 'target2', cellRight);
+}
+
+
+
+// ondatadrop : Drag 된 데이터가 (다른) GridView 에 Drop 되었을때 해당 GridView(target2)에서 발생 (검증 대상)
+//  - info 객체 1개를 인자로 전달받음 (info.fromId / info.fromRowIndex / info.toRowIndex)
+//  - Drop 시 1회 발생 (연속 아님 -> 횟수 제한 불필요)
+scwin.target2_ondatadrop = function (info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    // info 하위 속성을 개별 출력하여 검증 (info.fromId : Drag 시작 그리드 렌더 ID)
+    bottom.setReturnValue("ondatadrop info.fromId : " + info.fromId);
+    bottom.setReturnValue("ondatadrop info.fromRowIndex : " + info.fromRowIndex);
+    bottom.setReturnValue("ondatadrop info.toRowIndex : " + info.toRowIndex);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

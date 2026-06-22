@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onsubtotaldblclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : Body 가 MultiLine 일때 info.startRowIndex / info.endRowIndex 의 Row 인덱스 동작을 분리 검증하는 샘플.
+//     한 데이터 레코드(Row 인덱스 N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : name | dept | amount
+//       Line2 : memo                  (같은 레코드의 두번째 Line)
+//     · SubTotal(부분합)은 dept 그룹 기준으로 삽입되며, info.startRowIndex/endRowIndex 는
+//       해당 그룹의 첫/마지막 "레코드 Row 인덱스"를 가리킨다 (Line 수만큼 곱해지지 않음).
+//     · 즉 같은 레코드의 Line1/Line2 는 동일 Row 인덱스이며, SubTotal 그룹 범위(start~end)도
+//       Line 기준이 아닌 레코드 Row 기준으로 매겨진다.
+scwin.tData = {
+    "description" : "[gridView > E > onsubtotaldblclick]<br/>SubTotal Cell 영역을 마우스 왼쪽 버튼으로 더블 클릭할 때 발생합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line) + dept 그룹 SubTotal 구성.
+//  한 레코드는 화면상 2개의 Line(TR)으로 렌더됨.
+//   Line1 : name | dept | amount
+//   Line2 : memo (병합)
+//  dept 가 연속되도록 정렬 -> dept 그룹 3개(Sales 2건 / Dev 2건 / QA 1건) -> SubTotal Row 3개.
+scwin.GRID_DATA = [
+    { "name": "John", "dept": "Sales", "amount": 100, "memo": "Sales-John memo" },
+    { "name": "Jane", "dept": "Sales", "amount": 200, "memo": "Sales-Jane memo" },
+    { "name": "Mike", "dept": "Dev",   "amount": 300, "memo": "Dev-Mike memo" },
+    { "name": "Amy",  "dept": "Dev",   "amount": 400, "memo": "Dev-Amy memo" },
+    { "name": "Tom",  "dept": "QA",    "amount": 500, "memo": "QA-Tom memo" }
+];
+
+
+
+// comp 생성 : MultiLine(레코드당 2 Line) + dept 그룹 SubTotal 그리드 1개를 동적 생성.
+//  header / gBody / subTotal 각각 <w2:row> 2개 → 레코드/그룹당 2 Line.
+//  (createBasicGridView 는 SubTotal/MultiLine 미생성이라 onsubtotaldblclick + MultiLine 검증 불가)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 더블클릭은 사용자 액션으로 수행되므로 라벨로 조작 방법을 안내
+    $c.gcm.createLabel('label="[전제] MultiLine(레코드당 2 Line: Line1=name/dept/amount, Line2=memo) + dept 그룹 SubTotal(소계).\n[절차] SubTotal(소계) 셀을 마우스 좌클릭으로 더블 클릭하세요. -> onsubtotaldblclick 발생(info.startRowIndex / endRowIndex 출력).\n[확인] 같은 레코드의 Line1/Line2 는 동일 Row 인덱스이며, SubTotal 그룹 범위(start~end)도 Line 수가 아닌 레코드 Row 기준으로 매겨집니다."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - dept(그룹 기준), amount(소계 대상 number), memo(두번째 Line 표시)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 핸들러 부착 (createEList 공통 함수)
+    let eList = $c.gcm.createEList(["onsubtotaldblclick"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // MultiLine : header / gBody / subTotal 각각 <w2:row> 2개 (레코드/그룹당 2 Line)
+    //  - 마지막 컬럼 width="*" 로 가로 스크롤 방지
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' defaultCellHeight="30" id="" style="width:600px;height:460px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="onsubtotaldblclick (MultiLine + SubTotal) 테스트 그리드"></w2:caption>';
+    // Header : Line1(이름/부서/금액) / Line2(메모)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol_dept" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_amount" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="*" colspan="3" style="" inputType="text" id="hcol_memo" value="메모"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(name,dept,amount) / Line2(memo) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="*" colspan="3" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 (dept 값이 바뀌는 지점마다 삽입), 그룹당 2 Line
+    //  - Line1 : 소계 라벨 + amount sum
+    //  - Line2 : 소계 영역의 두번째 Line (MultiLine 대응)
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol_name" value="소계(SubTotal)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol_dept" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol_amount" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="srow2">';
+    strTarget += '<w2:column width="*" colspan="3" style="" inputType="text" id="scol_memo" value="소계 그룹 메모 Line"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// onsubtotaldblclick : SubTotal Cell 좌클릭으로 더블 클릭 시 발생 (검증 대상)
+//  - 엔진 시그니처 : event.fireEvent(this, "onsubtotaldblclick", info)  -> 핸들러는 info 객체 하나만 받음
+//  - info = { colID, startRowIndex, endRowIndex, element }
+//  - info.startRowIndex / endRowIndex : 부분합 그룹의 첫/마지막 "레코드 Row 인덱스"
+//    · Body 가 MultiLine 이어도 각 Line 의 Row 인덱스는 동일(레코드 단위)하므로
+//      그룹 범위도 Line 수가 아닌 레코드 Row 기준으로 매겨진다.
+//      (예: Sales 그룹 = 레코드 Row 0~1 -> start 0 / end 1, Line 수로 0~3 이 되지 않음)
+//  - info.element 는 DOM 참조이므로 한 줄로만 출력
+scwin.target1_onsubtotaldblclick = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onsubtotaldblclick (MultiLine + SubTotal)");
+    wf_body_bottom.getObj("scwin").setReturnValue("info.startRowIndex : " + (info && info.startRowIndex));
+    wf_body_bottom.getObj("scwin").setReturnValue("info.endRowIndex : " + (info && info.endRowIndex));
+    wf_body_bottom.getObj("scwin").setReturnValue("[그룹 레코드 Row 수] " + (info && (info.endRowIndex - info.startRowIndex + 1)) + " (각 레코드는 2 Line 으로 표시되지만 Row 인덱스는 레코드 기준)");
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] dragStartFunction" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > dragStartFunction]<br/>Drag 된 데이터가 GridView 에 Drop 되었을때 호출할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "dataDragDrop, dataDragDropSelf, dataDragDropOther, dataDragDropCell 속성 중 하나 이상 true 여야 사용자 정의 함수가 호출됩니다.",
+        "데이터가 Drop 된 GridView 가 아닌 Drag 가 시작된 GridView 의 사용자 정의 함수가 호출됩니다.",
+        "다수 Row 를 Drag 하더라도 선택 상태와 관계없이 Drag 가 시작된 Row 의 데이터가 전달됩니다.",
+        "dataDragDropCell=true 인 경우에도 Drag 가 시작된 Row 의 데이터가 전달됩니다.",
+        "사용자 정의 함수가 XML 객체를 반환하면 dragEndFunction 의 두번째 파라미터로 전달됩니다 (XML 객체가 아니면 무시됩니다).",
+        "사용자 정의 함수의 첫번째 파라미터로 Drag 된 데이터의 Row 인덱스(rowIndex)가 전달됩니다.",
+        "사용자 정의 함수의 두번째 파라미터로 Drag 된 데이터의 Row XML 객체(rowXml)가 전달됩니다.",
+        "사용자 정의 함수의 세번째 파라미터로 Drag 데이터 정보 객체(info)가 전달됩니다.",
+        "info.fromColumnId : Drag 가 시작된 컬럼의 ID 값을 갖습니다.",
+        "info.fromColumnIndex : Drag 가 시작된 컬럼의 인덱스값을 갖습니다.",
+        "info.rowJSON : Drag 된 데이터의 Row JSON 값을 갖습니다.",
+        "Drop 되는 GridView 에 dragEndFunction 이 정의되어 있으면 Drop 처리를 직접 구현해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con_dragStartFunction 초기값 보관 (설정 케이스로 시작)
+    scwin.gVar = { "cDragStartFunc": "scwin.target1_dragStartFunc" };
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 좌 target1(Drag 소스) : dataDragDropOther=true + dragStartFunction(con 으로 설정/미설정 토글)
+//  - 우 target2(Drop 대상) : dataDragDropOther=true + dragEndFunction 정의
+//    -> dragStartFunction 의 XML 반환값이 dragEndFunction 의 두번째 인자(rowXml)로 전달됨(@propval5 / @spec1)
+scwin.comp_init = async function () {
+    // con 현재값 반영 (Target 재생성 버튼이 comp_init 재호출)
+    scwin.gVar.cDragStartFunc = con_dragStartFunction.getValue();   // "scwin.target1_dragStartFunc" 또는 "" (미설정)
+
+    // 기존 target / dataList 있으면 삭제 (2개 그리드 + 2개 dataList)
+    if (typeof dlt_bind1 !== 'undefined') {
+        $p.data.remove("dlt_bind1");
+    }
+    if (typeof dlt_bind2 !== 'undefined') {
+        $p.data.remove("dlt_bind2");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof target2 !== 'undefined') {
+        target2.remove();
+    }
+    // 이전에 만든 flex wrapper 도 제거 (Target 재생성 시 중복 누적 방지)
+    if (scwin.gridFlexWrap && scwin.gridFlexWrap.parentNode) {
+        scwin.gridFlexWrap.parentNode.removeChild(scwin.gridFlexWrap);
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    let dragStMsg = (scwin.gVar.cDragStartFunc === "") ? "미설정(함수 미호출)" : "설정(scwin.target1_dragStartFunc)";
+    $c.gcm.createLabel('label="[전제] 왼쪽 target1=Drag 소스(dragStartFunction=' + dragStMsg + '), 오른쪽 target2=Drop 대상.\n[절차] target1 의 Row 를 target2 로 드래그하면 dragStartFunction 이 호출되고 행이 실제 이동합니다.\n[참고] con 에서 미설정 선택 후 [Target 재생성] 시 함수 미호출."', '', 'label1');
+
+    // 좌우 배치용 flex wrapper 와 좌/우 셀(원시 DOM div) 생성
+    let grpBasic = document.querySelector('.tc_group_basic');
+    scwin.gridFlexWrap = document.createElement('div');
+    scwin.gridFlexWrap.style.cssText = 'display:flex; gap:20px; align-items:flex-start;';
+    let cellLeft = document.createElement('div');
+    let cellRight = document.createElement('div');
+    scwin.gridFlexWrap.appendChild(cellLeft);
+    scwin.gridFlexWrap.appendChild(cellRight);
+    grpBasic.appendChild(scwin.gridFlexWrap);
+
+    // target1(소스) properties
+    //  - dataDragDropOther=true : 다른 그리드(target2)로만 Drag&Drop 허용(자기자신 Drop 차단, eventController.js:1112)
+    //  - dataDragDrop=true      : 실제 Drop 시 dragEndFunction 호출 경로(eventController.js:1345 else-if 분기)를 활성화.
+    //    (dataDragDropOther 만으로는 onDrop 의 dragEndFunction 호출 분기[1338 cell / 1358 dataDragDrop]에 해당 분기가 없어
+    //     실제 마우스 Drag 시 dragStartFunction 은 호출되나 dragEndFunction 이 호출되지 않아 행 이동이 일어나지 않음)
+    //  - 두 옵션 병행: 자기자신 Drop 차단(Other) + Drop 콜백 활성(DragDrop) 동시 충족
+    //  - dragStartFunction : con 값에 따라 설정/미설정 (미설정 시 함수 자체를 속성에서 제외)
+    let properties1 = {
+        dataList: "data:dlt_bind1",
+        dataDragDrop: "true",
+        dataDragDropOther: "true"
+    };
+    if (scwin.gVar.cDragStartFunc !== "") {
+        properties1.dragStartFunction = scwin.gVar.cDragStartFunc;
+    }
+    // target2(Drop 대상) properties
+    //  - dataDragDropOther=true + dragEndFunction 정의
+    let properties2 = {
+        dataList: "data:dlt_bind2",
+        dataDragDropOther: "true",
+        dragEndFunction: "scwin.target2_dragEndFunc"
+    };
+
+    let cList1 = $c.gcm.createCList(properties1);
+    let cList2 = $c.gcm.createCList(properties2);
+
+    // dataList 2개 생성 (각 그리드 바인딩)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind1');
+    $c.gcm.createBasicDataList('', '', 'dlt_bind2');
+
+    // target 2개 생성 (target1 : 왼쪽 / target2 : 오른쪽)
+    await $c.gcm.createBasicGridView(cList1, '', 'target1', cellLeft);
+    await $c.gcm.createBasicGridView(cList2, '', 'target2', cellRight);
+
+    // Drop 대상(target2)은 빈 상태로 시작 -> 이동이 눈에 보이게 (target1 은 createBasicDataList 기본 4행 유지)
+    dlt_bind2.setJSON([], false);
+}
+
+
+
+// dragStartFunction : Drag 가 시작된 그리드(target1)에 설정된 사용자 정의 함수 (검증 대상)
+//  - Drop 시점에 호출되며 GridView properties(dragStartFunction)로 설정됨
+//  - 시그니처(비-drilldown) : function(rowIndex, rowXml, info)
+//    rowIndex : Drag 가 시작된 Row 인덱스
+//    rowXml   : Drag 데이터의 Row XML 객체
+//    info     : { fromColumnId, fromColumnIndex, rowJSON }
+//  - this : Drag 가 시작된 GridView(target1)
+//  - XML 객체(rowXml)를 반환 -> target2 의 dragEndFunction 두번째 인자로 전달(@propval5 / @spec1)
+scwin.target1_dragStartFunc = function (rowIndex, rowXml, info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+
+    // this 가 Drag 가 시작된 GridView(target1)인지 확인 (Drop 대상 target2 가 아님)
+    var thisId = (this && this.id) ? this.id : "";
+
+    // XML 객체 여부 : XML 노드는 nodeType / nodeName 을 가짐
+    var isXmlObj = !!(rowXml && rowXml.nodeType && rowXml.nodeName);
+
+    bottom.setReturnValue("▶ dragStartFunction 호출 (정의 위치 GridView : " + thisId + ")");
+    bottom.setReturnValue("dragStartFunction rowIndex : " + rowIndex);
+    bottom.setReturnValue("dragStartFunction rowXml(XML 객체 여부) : " + isXmlObj + " / nodeName=" + (rowXml && rowXml.nodeName));
+    bottom.setReturnValue("dragStartFunction info.fromColumnId : " + info.fromColumnId);
+    bottom.setReturnValue("dragStartFunction info.fromColumnIndex : " + info.fromColumnIndex);
+    bottom.setReturnValue("dragStartFunction info.rowJSON : " + JSON.stringify(info.rowJSON));
+
+    // XML 객체 반환 -> dragEndFunction 의 두번째 인자(rowXml)로 전달됨
+    return rowXml;
+};
+
+
+
+// dragEndFunction : Drop 대상 그리드(target2)에 정의 -> Drop 처리를 직접 구현(@spec1)
+//  - 시그니처 : function(toRowIndex, rowXml, info)
+//    rowXml : Drag 소스(target1) dragStartFunction 이 반환한 XML 객체가 그대로 전달됨(@propval5)
+scwin.target2_dragEndFunc = function (toRowIndex, rowXml, info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    var isXmlObj = !!(rowXml && rowXml.nodeType && rowXml.nodeName);
+    bottom.setReturnValue("▶ dragEndFunction 호출 (Drop 처리 직접 구현 시점)");
+    bottom.setReturnValue("dragEndFunction toRowIndex : " + toRowIndex);
+    bottom.setReturnValue("dragEndFunction 두번째 인자(rowXml) XML 객체 여부 : " + isXmlObj + " / nodeName=" + (rowXml && rowXml.nodeName));
+
+    // @spec1 Drop 처리 직접 구현 : 전달받은 rowXml 을 Drop 대상(target2)에 실제 행으로 삽입
+    //  - this 는 Drag 가 시작된 GridView(target1) 이므로 Drop 대상은 target2 를 직접 참조
+    //  - setRowXML(rowIndex, rowData[, overwrite=false]) : overwrite 미지정 -> 해당 위치에 행 삽입(dataList.js setRowXML)
+    //  - toRowIndex 가 현재 행 수를 넘으면(빈 영역 Drop) 말미에 삽입되도록 클램프
+    if (isXmlObj) {
+        var insertIdx = toRowIndex;
+        var cnt = target2.getRowCount();
+        if (typeof insertIdx !== "number" || insertIdx < 0 || insertIdx > cnt) {
+            insertIdx = cnt; // 말미
+        }
+        target2.dataList.setRowXML(insertIdx, rowXml);
+        bottom.setReturnValue("실제 Drop 처리(행 이동) 완료 : target2 의 " + insertIdx + " 위치에 행 삽입 (현재 target2 행 수=" + target2.getRowCount() + ")");
+    }
+
+    // true 반환 시 엔진이 Drag 소스(target1)의 원본 Row 를 자동 제거(eventController.js:1360 removeRow) -> 이동 완성
+    //  (여기서 별도 removeRow 호출 시 이중 제거되므로 호출하지 않음)
+    return true;
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dragStartFunction" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dragStartFunction" label="label" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>scwin.target1_dragStartFunc</xf:label>
+												<xf:value>scwin.target1_dragStartFunc</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

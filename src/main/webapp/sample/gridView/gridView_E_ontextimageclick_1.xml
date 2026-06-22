@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ontextimageclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > ontextimageclick]<br/>inputType='textImage', viewType='icon' 인 Body Cell 에서 이미지 영역을 마우스 왼쪽 버튼으로 클릭할 때 발생합니다.",
+    "validation" : [
+        "rowIndex 파라미터로 클릭된 Body Cell 의 Row 인덱스값이 전달됩니다. (0 부터 시작, GridView 에 표시된 Row 기준)",
+        "columnIndex 파라미터로 클릭된 Body Cell 의 Column 인덱스값이 전달됩니다. (0 부터 시작, 숨겨진 Column 도 포함, 사용자가 순서 변경해도 불변, RowNum/RowStatus Column 은 인덱스에 미포함)",
+        "Body Cell 이 비활성화(disabled) 상태이면 이벤트가 발생하지 않습니다.",
+        "ontextimageclick 이벤트가 발생하면 oncellclick 이벤트는 발생하지 않습니다.",
+        "imageClickFunction 속성에 사용자 정의 함수를 설정한 경우 ontextimageclick 이벤트가 발생한 후 사용자 함수가 실행됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - ontextimageclick 검증용 GridView 동적 생성
+//    · 컬럼 구성(표시 순서) : RowNum / RowStatus / name(text,idx0) / hid(text,idx1,숨김) / timg(textImage,idx2)
+//      → columnIndex 규칙 검증 : RowNum/RowStatus 는 인덱스 미포함, 숨김 컬럼(hid,idx1)은 인덱스에 포함
+//      → 따라서 timg 컬럼의 columnIndex 는 (숨김 hid 포함) 2 로 산출됨
+//    · timg : inputType="textImage" + viewType="icon" + imageSrc(아이콘) → 이미지 영역 클릭 시 ontextimageclick 발생
+//    · imageClickFunction="scwin.imgClickFunc" → @spec3 ontextimageclick 발생 후 사용자 함수 실행 순서 확인
+//  - @spec1 : Row 0 의 timg Cell 을 setCellDisabled 로 disabled 처리 → 해당 이미지 클릭 시 미발생, 정상 Row(1~) 와 비교
+//  - @spec2 : oncellclick 도 함께 바인딩 → 이미지 클릭 시 ontextimageclick 만 발생, oncellclick 미발생 확인
+//  - 핸들러는 발생 즉시 한 줄 출력(출력 순서 = 발생 순서)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] textImage 컬럼(timg)은 표시 인덱스 2 (앞에 숨김 컬럼 hid(idx1) 포함, RowNum/RowStatus 는 인덱스 미포함). Row 0 의 textImage 셀은 setCellDisabled 로 비활성화, Row 1~ 은 정상.\n[절차] timg 컬럼의 아이콘 이미지 영역을 좌클릭하세요. -> ontextimageclick 발생(rowIndex / columnIndex 출력). 정상 Row 와 Row 0(비활성) 을 각각 클릭하여 비교.\n[확인] 결과창에 ontextimageclick 만 출력되고 oncellclick 은 출력되지 않습니다. 사용자 함수(imageClickFunction)는 ontextimageclick 뒤에 실행됩니다. Row 0(비활성) 이미지 클릭 시 아무 이벤트도 발생하지 않습니다.\n[컬럼순서] 헤더를 드래그하여 컬럼 순서를 바꾼 뒤 이미지를 다시 클릭해도 columnIndex 값은 동일합니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="hid" name="hid" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="timg" name="timg" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John", "hid": "H0", "timg": "disabled" },
+        { "name": "Jane", "hid": "H1", "timg": "삭제" },
+        { "name": "Mike", "hid": "H2", "timg": "삭제" },
+        { "name": "Amy",  "hid": "H3", "timg": "삭제" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성
+    //  - rowNumVisible/rowStatusVisible=true : RowNum, RowStatus 는 columnIndex 미포함 검증
+    //  - columnMove="true" : 헤더 드래그로 사용자가 컬럼 순서를 바꿀 수 있게 허용
+	//      → 순서를 바꿔도 timg 컬럼의 columnIndex 는 정의 순서 기준(2) 으로 불변임을 검증
+	//  - oncellclick / ontextimageclick 모두 바인딩(@spec2 비교)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" rowStatusVisible="true" rowNumHeaderValue="No." rowStatusHeaderValue="St." checkAllType="false" columnMove="true" ev:oncellclick="scwin.target1_oncellclick" ev:ontextimageclick="scwin.target1_ontextimageclick" id="" style="width:560px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ontextimageclick test grid (textImage 이미지 영역 좌클릭)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름(idx0,text)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="숨김(idx1)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="삭제(idx2,textImage)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hid" dataList="hid"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="textImage" viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg" imageClickFunction="scwin.imgClickFunc" id="timg" dataList="timg"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 인덱스 1 (hid, plain 컬럼) 숨김 → timg 의 columnIndex 가 숨김 Column 포함 인덱스(2)임을 검증
+    target1.setColumnVisible(1, false);
+
+    // @spec1 : Row 0 의 timg Cell 을 disabled 처리 → 해당 이미지 클릭 시 ontextimageclick 미발생
+    target1.setCellDisabled(0, "timg", true);
+}
+
+
+
+// ontextimageclick : textImage 이미지 영역 좌클릭 시 발생 (검증 대상)
+//  - 엔진 시그니처 : event.fireEvent(mainGrid, "ontextimageclick", rowIndex, colIndex) -> 핸들러는 (rowIndex, columnIndex) 수신
+//  - param(rowIndex/columnIndex)은 개별 출력
+//  - 발생 즉시 한 줄 출력(출력 순서 = 발생 순서, @spec3 검증)
+scwin.target1_ontextimageclick = function (rowIndex, columnIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ontextimageclick rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("ontextimageclick columnIndex : " + columnIndex);
+};
+
+
+
+// oncellclick : @spec2 검증용. textImage 이미지 영역 클릭 시에는 발생하지 않아야 함(출력 안 됨)
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ oncellclick rowIndex:" + rowIndex + ", columnIndex:" + columnIndex + ", columnId:" + columnId);
+};
+
+
+
+// imageClickFunction : @spec3 검증용 사용자 정의 함수. ontextimageclick 발생 후 실행됨(출력 순서로 확인)
+scwin.imgClickFunc = function (rowIndex, colID, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ imageClickFunction 실행 (rowIndex:" + rowIndex + ", colID:" + colID + ")");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

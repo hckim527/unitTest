@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ontextimageclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : Body 가 MultiLine 일때 ontextimageclick 의 rowIndex / columnIndex 동작을 분리 검증하는 샘플.
+//     한 데이터 레코드(Row 인덱스 N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : name | dept | del1(textImage)
+//       Line2 : memo(병합)   | del2(textImage)   (같은 레코드의 두번째 Line)
+//     · del1(Line1, columnIndex 2) 과 del2(Line2, columnIndex 4) 는 같은 레코드의 서로 다른 Line 에 위치.
+//       두 이미지를 클릭하면 rowIndex 는 동일(caveat A)하고 columnIndex 는 서로 다른 고유값(caveat B)이다.
+scwin.tData = {
+    "description" : "[gridView > E > ontextimageclick]<br/>inputType='textImage', viewType='icon' 인 Body Cell 에서 이미지 영역을 마우스 왼쪽 버튼으로 클릭할 때 발생합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+        "Body 영역이 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line) 구성.
+//  한 레코드는 화면상 2개의 Line(TR)으로 렌더됨.
+//   Line1 : name | dept | del1(textImage)
+//   Line2 : memo(병합) | del2(textImage)
+scwin.GRID_DATA = [
+    { "name": "John", "dept": "Sales", "memo": "Sales-John memo", "del1": "삭제", "del2": "삭제" },
+    { "name": "Jane", "dept": "Dev",   "memo": "Dev-Jane memo",   "del1": "삭제", "del2": "삭제" },
+    { "name": "Mike", "dept": "QA",    "memo": "QA-Mike memo",    "del1": "삭제", "del2": "삭제" }
+];
+
+
+
+// comp 생성 : MultiLine(레코드당 2 Line) 그리드 1개를 동적 생성.
+//  - header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+//  - textImage 컬럼을 Line1(del1, columnIndex 2) 과 Line2(del2, columnIndex 4) 에 각각 배치.
+//    같은 레코드의 서로 다른 Line 에서 이미지 클릭 시 rowIndex 동일 / columnIndex 고유를 입증.
+//  - textImage : inputType="textImage" + imageSrc + viewType="icon" 모두 필요(이미지 영역 클릭 시 ontextimageclick 발생).
+//  - (createBasicGridView 는 MultiLine/textImage 미생성이라 ontextimageclick + MultiLine 검증 불가)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 이미지 클릭은 사용자 액션으로 수행되므로 라벨로 조작 방법을 안내
+    $c.gcm.createLabel('label="[전제] MultiLine(레코드당 2 Line). Line1=name/dept/del1(textImage, columnIndex 2), Line2=memo/del2(textImage, columnIndex 4). del1 과 del2 는 같은 레코드의 서로 다른 Line.\n[절차] 같은 레코드의 del1(위 Line) 과 del2(아래 Line) 이미지(삭제 아이콘)를 각각 클릭하세요. -> ontextimageclick 발생(rowIndex/columnIndex 출력).\n[확인] 두 Line 의 rowIndex 는 동일(레코드 기준)하고, columnIndex 는 2 / 4 로 서로 다른 고유값입니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="del1" name="del1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="del2" name="del2" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 핸들러 부착 (createEList 공통 함수)
+    let eList = $c.gcm.createEList(["ontextimageclick"]);
+
+    let strTarget = '';
+
+    // MultiLine : header / gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' defaultCellHeight="30" id="" style="width:620px;height:440px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ontextimageclick (MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(이름/부서/삭제) / Line2(메모/삭제)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol_dept" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_del1" value="삭제1(idx2,textImage)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="360" colspan="2" style="" inputType="text" id="hcol_memo" value="메모"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_del2" value="삭제2(idx4,textImage)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(name,dept,del1) / Line2(memo,del2) → 레코드당 2 TR Line
+    //  - del1(columnIndex 2) / del2(columnIndex 4) : inputType="textImage" + imageSrc + viewType="icon"
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="textImage" viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg" id="del1" dataList="del1"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="360" colspan="2" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="textImage" viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg" id="del2" dataList="del2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// ontextimageclick : textImage 셀의 이미지 클릭 시 발생 (검증 대상)
+//  - 엔진 시그니처 : event.fireEvent(_this.mainGrid, "ontextimageclick", rowIndex, colIndex)
+//    -> 핸들러는 rowIndex, columnIndex 를 직접 수신
+//  - MultiLine 검증 :
+//    · 같은 레코드의 Line1(del1) / Line2(del2) 이미지 클릭 시 rowIndex 는 동일(caveat A)
+//    · del1 의 columnIndex(2) 와 del2 의 columnIndex(4) 는 Line 위치와 무관하게 서로 다른 고유값(caveat B)
+//  - 발생 즉시 한 줄 출력(요약줄 금지)
+scwin.target1_ontextimageclick = function (rowIndex, columnIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ontextimageclick");
+    wf_body_bottom.getObj("scwin").setReturnValue("rowIndex : " + rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("columnIndex : " + columnIndex);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ontoggleclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : ontoggleclick @param rowIndex 의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드(부모 Row 인덱스 N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : name(drilldown 트리/토글) | amount
+//       Line2 : memo(일반 text 셀, colspan 병합)  ← 토글 없음
+//     · 토글 셀(inputType="drilldown")은 부모 Line1(name) "1개"만 둔다.
+//       (직전 안: Line1·Line2 둘 다 토글 → 두 토글이 같은 자식을 펼쳐 사용자가 혼란.
+//        본 안: 토글 1개로 단순화하여 토글 클릭 시 자식이 펼쳐지는 동작을 명확히 보이게 함)
+//     · 한 번의 토글 클릭으로 caveat 를 입증 :
+//       (1) 이벤트 param 의 collapsed / rowIndex 출력
+//       (2) 클릭된 그 레코드가 화면에서 차지하는 Line1·Line2(두 TR) 각각의 실제 데이터 rowIndex 를
+//           조회하여 Line1 rowIndex = Line2 rowIndex = 이벤트 rowIndex 로 모두 동일함을 출력.
+scwin.tData = {
+    "description" : "[gridView > E > ontoggleclick]<br/>inputType='drilldown' 인 Body Cell 에서 토글 버튼을 마우스 왼쪽 버튼으로 클릭할 때 발생합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — DrillDown(부모 depth1 / 자식 depth2) + MultiLine(레코드당 2 Line) 구성.
+//  한 레코드는 화면상 2개의 Line(TR)으로 렌더됨.
+//   Line1 : name(drilldown 토글 컬럼) | amount
+//   Line2 : memo(일반 text, colspan 병합)  ← 토글 없음
+//  계층 : 부모(depth1) 바로 아래 자식(depth2). 엔진 drilldown 은 순서 기반.
+scwin.GRID_DATA = [
+    { "name": "영업본부", "amount": 100, "memo": "영업본부 memo Line", "depth": 1 },
+    { "name": "영업1팀", "amount": 110, "memo": "영업1팀 memo Line",  "depth": 2 },
+    { "name": "개발본부", "amount": 200, "memo": "개발본부 memo Line", "depth": 1 },
+    { "name": "개발1팀", "amount": 210, "memo": "개발1팀 memo Line",  "depth": 2 }
+];
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - DrillDown 트리(inputType="drilldown" + depthColumn) + MultiLine(레코드당 2 Line) 그리드 1개 동적 생성.
+//    · header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+//      Line1 : name(drilldown 토글) / amount   ← 토글 셀은 여기 1개뿐
+//      Line2 : memo(일반 text, colspan 병합)    ← 토글 없음
+//    · showDepth="1" → 초기엔 depth1(부모)만 표시, 자식은 접힘. 부모 Line1 의 토글(▼/▶) 좌클릭 시 ontoggleclick 발생.
+//  - (createBasicGridView 는 DrillDown/MultiLine 미생성이라 ontoggleclick + MultiLine caveat 검증 불가)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 토글 클릭은 사용자 액션으로 수행되므로 라벨로 조작 방법을 안내
+    $c.gcm.createLabel('label="[전제] DrillDown 트리(부모: 영업본부 Row0 / 개발본부 Row2)이며 Body 는 MultiLine(레코드당 2 Line: Line1=이름(토글)/금액, Line2=메모). 토글은 부모 Line1 에 1개이며 Line2(메모)에는 토글이 없습니다. 초기엔 부모만 표시되고 자식은 접힘.\n[절차] 부모(예: 영업본부) Line1 의 토글 버튼을 한 번 좌클릭하세요. → 자식 Row 가 펼쳐지며 ontoggleclick 이 1회 발생합니다.\n[확인] 한 번의 토글 클릭으로, 클릭된 레코드의 두 Line(부서/메모)의 rowIndex 가 모두 동일하게(= 이벤트 rowIndex) 출력됩니다. con 변경은 Target 재생성 버튼으로 반영."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - depth(계층/number) : drilldown 컬럼의 depthColumn 으로 사용
+    //  - memo : 레코드의 두번째 Line 표시
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 핸들러 부착 (createEList 공통 함수)
+    let eList = $c.gcm.createEList(["ontoggleclick"]);
+
+    // DrillDown + MultiLine : header / gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    //  - Line1(name) : inputType="drilldown" + depthColumn="depth" → 토글 셀 (이 그리드의 유일한 토글)
+    //  - Line2(memo) : inputType="text" + colspan 병합 → 일반 셀(토글 없음)
+    //  - 마지막 컬럼 width="*" 로 가로 스크롤 방지
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' defaultCellHeight="30" id="" style="width:560px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ontoggleclick (DrillDown + MultiLine, 토글 1개) 테스트 그리드"></w2:caption>';
+    // Header : Line1(이름/금액) / Line2(메모)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol_name" value="이름(drilldown 토글)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_amount" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="hcol_memo" value="메모(토글 없음)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(name drilldown 토글, amount) / Line2(memo 일반 text) → 레코드당 2 TR Line
+    //  - 토글 셀은 Line1(name) 1개. Line2(memo) 는 일반 text 라 토글 버튼이 렌더되지 않음.
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="300" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// 클릭된 레코드의 화면상 두 Line(TR) 각각의 "실제 데이터 rowIndex" 를 조회한다.
+//  - 엔진 근거(C:\ai_engine_bak\websquare_engine) :
+//    · DOM TD 의 data-tdIndex 로 얻는 값은 "표시(display) rowIndex" 이다.
+//      mainDrawController.js:686 getElemRowIndex(td) = parseInt(td[data-tdIndex] / realRowDataLength) + grid.rowIndex.
+//    · DrillDown 으로 자식이 펼쳐지면 표시 순번과 실제 데이터 배열 인덱스가 어긋난다.
+//      표시 → 실제 변환은 공개 메소드 getRealRowIndex(displayIdx) 가 담당하며
+//      내부적으로 dataList.filteredRowIndexArr[displayIdx] 를 룩업한다
+//      (@name gridView.js:12655 / gridViewApiController.js:8004 / dataController.js:44).
+//    · ontoggleclick 의 rowIndex 도 drilldown.js:435 에서 getRealRowIndex 로 변환된 "실제 데이터 인덱스" 이므로,
+//      각 Line 도 동일하게 표시 인덱스를 getRealRowIndex 로 변환해야 이벤트 rowIndex 와 일관된다.
+//    · MultiLine 일때 같은 레코드의 Line1·Line2 두 TR 은 표시 rowIndex 가 동일 → 변환 후 실제 rowIndex 도 동일.
+//  - 구현 : 각 Line(TR) 첫 TD 의 표시 rowIndex 를 getElemRowIndex 동일 공식으로 구한 뒤 getRealRowIndex 로 변환한다.
+//    (DOM→실제 단일 공개 메소드는 엔진에 없음 → 표시 인덱스 산출 + getRealRowIndex 2단계가 최소 경로)
+scwin._getLineRowIndex = function (td) {
+    if (!td) return null;
+    // 접두어(data-) 유무에 무관하게 tdIndex 속성을 읽는다.
+    let raw = td.getAttribute("data-tdIndex");
+    if (raw === null) raw = td.getAttribute("tdIndex");
+    if (raw === null) return null;
+
+    let realLen = target1.realRowDataLength;
+    let topOffset = target1.rowIndex; // 스크롤 상단 오프셋(보이는 첫 표시 row)
+    if (typeof realLen !== "number" || realLen <= 0) return null;
+    if (typeof topOffset !== "number") topOffset = 0;
+
+    // (1) 표시(display) rowIndex 산출 (mainDrawController.js:686 getElemRowIndex 공식)
+    let displayIdx = parseInt(parseInt(raw, 10) / realLen, 10) + topOffset;
+    // (2) 표시 → 실제 데이터 rowIndex 변환 (getRealRowIndex, filteredRowIndexArr 룩업)
+    if (typeof target1.getRealRowIndex === "function") {
+        let realIdx = target1.getRealRowIndex(displayIdx);
+        if (typeof realIdx === "number") return realIdx;
+    }
+    return displayIdx;
+};
+
+// 클릭된 td(=토글 셀)가 속한 레코드의 Line1 TR(data-trIndex="0") 과 Line2 TR(다음 형제)을 반환
+scwin._getRecordTrs = function (clickedTd) {
+    if (!clickedTd) return null;
+    let tr = clickedTd.closest("tr");
+    if (!tr) return null;
+
+    // 현재 TR 이 Line2 이상이면 data-trIndex 가 0 인 Line1 까지 거슬러 올라감
+    let getTrIndex = function (el) {
+        let v = el.getAttribute("data-trIndex");
+        if (v === null) v = el.getAttribute("trIndex");
+        return v;
+    };
+    let line1 = tr;
+    let guard = 0;
+    while (getTrIndex(line1) !== "0" && line1.previousElementSibling && guard < 10) {
+        line1 = line1.previousElementSibling;
+        guard++;
+    }
+    let line2 = line1.nextElementSibling; // 레코드의 두번째 Line
+    return { line1: line1, line2: line2 };
+};
+
+
+
+// ontoggleclick : DrillDown 토글 버튼 좌클릭 시 발생 (검증 대상)
+//  - 엔진 시그니처 : event.fireEvent(this.mainGrid, "ontoggleclick", isOpen, parentRowIndex) (drilldown.js:449)
+//    → 핸들러는 (collapsed, rowIndex) 2개 파라미터를 직접 받음
+//  - collapsed : 펼쳤는지/접었는지 여부 (Boolean)
+//  - rowIndex  : 토글된 부모 레코드의 실제 Row 인덱스 (필터/DrillDown 미적용 데이터 기준)
+//  - caveat(검증 대상) : Body 가 MultiLine 이어도 같은 레코드의 각 Line 의 Row 인덱스값은 동일.
+//    · 한 번의 토글 클릭으로, 그 레코드의 Line1·Line2 두 TR 의 데이터 rowIndex 를 조회하여
+//      Line1 rowIndex = Line2 rowIndex = 이벤트 rowIndex 로 모두 동일함을 한 줄로 출력한다.
+//  - ▶ 발생 즉시 한 줄 출력(요약줄 금지)
+scwin.target1_ontoggleclick = function (collapsed, rowIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ontoggleclick");
+    wf_body_bottom.getObj("scwin").setReturnValue("collapsed : " + collapsed);
+    wf_body_bottom.getObj("scwin").setReturnValue("rowIndex : " + rowIndex);
+
+    // 클릭된 토글 셀(td)을 기준으로 그 레코드의 두 Line(TR)의 데이터 rowIndex 를 각각 조회
+    let line1Idx = null;
+    let line2Idx = null;
+    try {
+        let active = document.activeElement;
+        let clickedTd = active ? active.closest("td") : null;
+        let trs = scwin._getRecordTrs(clickedTd);
+        if (trs) {
+            let td1 = trs.line1 ? trs.line1.querySelector("td") : null;
+            let td2 = trs.line2 ? trs.line2.querySelector("td") : null;
+            line1Idx = scwin._getLineRowIndex(td1);
+            line2Idx = scwin._getLineRowIndex(td2);
+        }
+    } catch (err) {
+        // DOM 조회 실패 시 Line rowIndex 출력만 생략 (이벤트 param 출력은 정상)
+    }
+
+    let same = (line1Idx === line2Idx) && (line1Idx === rowIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("각 Line rowIndex → Line1:" + line1Idx + " / Line2:" + line2Idx + " / 이벤트:" + rowIndex + " → " + (same ? "동일" : "불일치"));
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oneditdblclick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > oneditdblclick]<br/>편집 모드 상태인 Body Cell 을 마우스 왼쪽 버튼으로 더블 클릭할때 발생합니다.",
+    "validation" : [
+        "inputType='text','textImage','drilldown','secret' 인 Body Cell 에서만 이벤트가 발생합니다.",
+        "rowIndex 파라미터로 더블 클릭된 Body Cell 의 Row 인덱스값이 전달됩니다.",
+        "Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "columnIndex 파라미터로 더블 클릭된 Body Cell 의 Column 인덱스값이 전달됩니다.",
+        "Column 의 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "사용자에 의해 Column 의 순서가 변경되어도 Column 의 인덱스값은 변경되지 않습니다.",
+        "RowNum, RowStatus Column 은 인덱스에 포함되지 않습니다.",
+        "columnId 파라미터로 더블 클릭된 Cell 의 Column ID 값이 전달됩니다.",
+        "Body Cell 의 편집영역 더블 클릭 시 oneditdblclick > oncelldblclick 순서로 이벤트가 발생하며 oncellclick 이벤트는 발생하지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - oneditdblclick 발생 대상 4종 inputType(text / textImage / drilldown / secret) 을 모두 Body Column 으로 구성(전부 화면 표시)
+//    · drilldown 은 트리(계층) 컬럼이므로 그리드를 DrillDown 그리드로 구성(depthColumn + 계층 데이터)
+//    · name(인덱스0) : inputType="drilldown" (트리 컬럼) → 편집영역 더블클릭 시 oneditdblclick
+//    · txt(인덱스1)  : inputType="text"     → 편집영역 더블클릭 시 oneditdblclick (화면 표시)
+//    · hid(인덱스2)  : inputType="text"     → setColumnVisible(2,false) 로 숨김 (caveat 데모 전용, 검증 대상 아님)
+//    · timg(인덱스3) : inputType="textImage"(imageSrc) → 편집영역 더블클릭 시 oneditdblclick
+//    · sec(인덱스4)  : inputType="secret"   → 편집영역 더블클릭 시 oneditdblclick
+//  - caveat 검증 유지
+//    · rowNumVisible / rowStatusVisible = true → RowNum, RowStatus 는 columnIndex 미포함
+//    · hid(인덱스2) 는 setColumnVisible(2,false) 로 숨김 → 그 뒤 timg(3)/sec(4) 의 columnIndex 가 숨김 Column 포함 인덱스
+//    · "Column 순서 변경" 버튼으로 표시 순서 변경 → columnIndex 불변
+//  - oncellclick / oncelldblclick / oneditdblclick 핸들러는 발생 즉시 한 줄 출력(출력 순서 = 발생 순서)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body 의 4개 inputType 컬럼은 모두 화면에 표시되며 차례로 drilldown(이름/트리,인덱스0) / text(인덱스1) / textImage(인덱스3) / secret(인덱스4) 이고 모두 편집 가능. 사이에 plain 숨김 컬럼 hid(인덱스2)가 있어 그 뒤 컬럼 인덱스가 숨김 포함으로 매겨짐. RowNum/RowStatus 표시(인덱스 미포함).\n[절차] 편집 가능 셀을 더블클릭하여 편집영역(input) 진입 후 편집영역을 다시 더블클릭 -> oneditdblclick 발생(rowIndex/columnIndex/columnId 출력). 4개 inputType 셀(text 포함) 각각 확인.\n[확인] 결과창의 순서가 oneditdblclick > oncelldblclick 이며 oncellclick 은 출력되지 않습니다. (Column 순서 변경 버튼으로 표시 순서를 바꿔도 columnIndex 는 불변)"', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="txt" name="txt" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="hid" name="hid" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="timg" name="timg" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="sec" name="sec" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 본부(depth1) > 팀(depth2) 2단계. 부모 바로 아래 자식이 위치(엔진 drilldown 은 순서 기반)
+    let jsonData = [
+        { "name": "영업본부", "txt": "T0", "hid": "H0", "timg": "G0", "sec": "S0", "depth": 1 },
+        { "name": "영업1팀", "txt": "T1", "hid": "H1", "timg": "G1", "sec": "S1", "depth": 2 },
+        { "name": "개발본부", "txt": "T2", "hid": "H2", "timg": "G2", "sec": "S2", "depth": 1 },
+        { "name": "개발1팀", "txt": "T3", "hid": "H3", "timg": "G3", "sec": "S3", "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (DrillDown + 4종 inputType 편집 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" rowStatusVisible="true" rowNumHeaderValue="No." rowStatusHeaderValue="St." checkAllType="false" ev:oncellclick="scwin.target1_oncellclick" ev:oncelldblclick="scwin.target1_oncelldblclick" ev:oneditdblclick="scwin.target1_oneditdblclick" id="" style="width:740px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="oneditdblclick test grid (drilldown / text / textImage / secret)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="name1(idx0,drilldown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="name2(idx1,text)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="name3(idx2,숨김)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="name4(idx3,textImage)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol5" value="name5(idx4,secret)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="txt" dataList="txt"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hid" dataList="hid"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="textImage" viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg" id="timg" dataList="timg"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="secret" id="sec" dataList="sec"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 인덱스 2 (hid, plain 컬럼) 숨김 → 그 뒤 timg(3)/sec(4) 의 columnIndex 가 숨김 Column 포함 인덱스임을 검증
+    target1.setColumnVisible(2, false);
+}
+
+
+
+// "Column 순서 변경" 버튼 : 인덱스 3(timg) 와 인덱스 4(sec) 의 표시 순서를 바꿈
+//  - 순서가 바뀌어도 columnIndex 값은 변경되지 않음을 편집영역 더블클릭으로 확인
+//  - drilldown(인덱스0) 은 트리 컬럼이므로 순서 변경 대상에서 제외
+scwin.btn_setColumnOrder_onclick = function (e) {
+    target1.setColumnOrder(["sec", "timg"]);
+    wf_body_bottom.getObj("scwin").setReturnValue("표시 순서 변경 완료 (timg <-> sec). 편집영역 더블클릭 시 columnIndex 는 불변인지 확인");
+};
+
+
+
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncellclick > rowIndex:" + rowIndex + ", columnIndex:" + columnIndex + ", columnId:" + columnId);
+}
+
+
+
+scwin.target1_oncelldblclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncelldblclick > rowIndex:" + rowIndex + ", columnIndex:" + columnIndex + ", columnId:" + columnId);
+}
+
+
+
+scwin.target1_oneditdblclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oneditdblclick > rowIndex:" + rowIndex + ", columnIndex:" + columnIndex + ", columnId:" + columnId);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnOrder_onclick" id="btn_setColumnOrder"
+							label="Column 순서 변경" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

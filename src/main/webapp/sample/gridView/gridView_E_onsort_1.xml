@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onsort" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260618" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > onsort]\nsortable=true 인 Header Column 을 클릭 또는 더블 클릭하여 데이터가 정렬된 후에 발생합니다.",
+    "validation" : [
+        "sortEvent 속성이 'onclick' 이면 Header Cell 클릭 시, 'ondblclick' 이면 더블 클릭 시 이벤트가 발생합니다.",
+        "sortInfo.headerId : 정렬이 실행된 Header Column 의 ID 값을 갖습니다.",
+        "sortInfo.bodyColId : 정렬이 실행된 Header Column 과 매칭되는 Body Column 의 ID 값을 갖습니다.",
+        "sortInfo.sortOrder : 실행된 정렬 방식을 1(오름차순), -1(내림차순), 0(정렬해제) 값으로 갖습니다.",
+        "Header Column 클릭 시 [onheaderclick/onheaderdblclick] > onbeforesort > onsort 순서로 이벤트가 발생합니다.",
+        "onbeforesort 이벤트에서 false 를 반환하면 onsort 이벤트는 발생하지 않습니다. 단, 정렬을 해제하는 경우엔 false 를 반환해도 onsort 이벤트가 발생합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 값 읽기
+    //  - con_returnValue : onbeforesort 핸들러 반환값 제어 (true / false / 미설정=생략)
+    //  - con_sortEvent   : 정렬 트리거 방식 (onclick / ondblclick)
+    let returnValueVal = con_returnValue.getValue();
+    let sortEventVal = con_sortEvent.getValue();
+
+    // 현재 설정/검증 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] sortable=true 헤더(name)를 정렬하면 [onheaderclick/onheaderdblclick] > onbeforesort > onsort 순서로 로그가 출력됩니다.\n초기 표시순서: Cherry, Apple, Date, Banana\n정렬은 클릭마다 오름(1)->내림(-1)->해제(0) 순환"', '', 'label1');
+    $c.gcm.createLabel('label="[현재 설정] onbeforesort 반환값=' + (returnValueVal === '' ? '생략(undefined->true)' : returnValueVal) + ' / sortEvent=' + sortEventVal + '\n[확인] onsort 는 정렬이 완료된 후 발생하며 sortInfo(headerId/bodyColId/sortOrder)를 인자로 받습니다.\nonbeforesort=false 면 onsort 미발생, 단 정렬해제(sortOrder=0)는 false 여도 onsort 발생"', '', 'label2');
+
+    // dataList 직접 생성 (4행, 정렬 시 순서가 눈에 띄게 바뀌도록 col1 값 구성)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    let nameArr = ['Cherry', 'Apple', 'Date', 'Banana'];
+    let descArr = ['체리', '사과', '대추', '바나나'];
+    for (let r = 0; r < 4; r++) {
+        strDl += '<w2:row>';
+        strDl += '<col1>' + nameArr[r] + '</col1>';
+        strDl += '<col2>' + descArr[r] + '</col2>';
+        strDl += '</w2:row>';
+    }
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성 : sortable=true / showSortableImage=true 고정, sortEvent 조건 적용
+    //  - 단일 Row 헤더(병합 금지) : 병합헤더는 정렬 인덱스 어긋남
+    //  - onheaderclick / onheaderdblclick / onbeforesort / onsort 모두 바인딩 (이벤트 순서 검증)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' sortEvent="' + sortEventVal + '" sortable="true" showSortableImage="true" dataList="data:dlt_bind" checkAllType="false" id="" ev:onheaderclick="scwin.target1_onheaderclick" ev:onheaderdblclick="scwin.target1_onheaderdblclick" ev:onbeforesort="scwin.target1_onbeforesort" ev:onsort="scwin.target1_onsort" style="width:420px;height:230px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="column2" value="desc"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 현재 화면 표시순서(col1=name) 수집 (정렬 실행 결과 확인용)
+scwin.getDisplayOrder = function () {
+    let order = [];
+    let rowCnt = target1.getRowCount();
+    for (let i = 0; i < rowCnt; i++) {
+        let v = target1.getCellDisplayData(i, "col1");
+        v = (v == null ? "" : ("" + v)).trim();
+        if (v !== "") {
+            order.push(v);
+        }
+    }
+    return order.join(", ");
+};
+
+
+
+// onheaderclick : sortEvent="onclick" 환경에서 정렬 트리거 시 가장 먼저 발생 (@spec1)
+scwin.target1_onheaderclick = function (headerId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onheaderclick");
+};
+
+
+
+// onheaderdblclick : sortEvent="ondblclick" 환경에서 정렬 트리거 시 가장 먼저 발생 (@spec1)
+scwin.target1_onheaderdblclick = function (headerId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onheaderdblclick");
+};
+
+
+
+// onbeforesort : 정렬 직전 발생, 핸들러 반환값으로 정렬 실행 여부 제어 (@spec2)
+//  - con_returnValue : true -> return true / false -> return false / 미설정 -> return 문 없음(undefined->true)
+//  - false 반환 시 onsort 미발생, 단 sortOrder===0(해제) 이면 반환값 무시되고 onsort 발생
+scwin.target1_onbeforesort = function (sortInfo) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onbeforesort");
+
+    let returnValueVal = con_returnValue.getValue();
+
+    // 반환값 제어
+    if (returnValueVal === 'true') {
+        return true;
+    } else if (returnValueVal === 'false') {
+        return false;
+    }
+    // 미설정 : return 문 없음 -> undefined -> true 적용
+};
+
+
+
+// onsort : 정렬이 '완료된 후' 발생 (이벤트 핵심)
+//  - onbeforesort 가 true(또는 정렬해제) 일 때만 발생 (false 반환 시 미발생)
+//  - sortInfo 개별 속성(headerId / bodyColId / sortOrder) + 정렬 후 표시순서 + 이벤트 발생 순서(@spec1) 출력
+scwin.target1_onsort = function (sortInfo) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onsort");
+    wf_body_bottom.getObj("scwin").setReturnValue("=====target1_onsort===== (정렬 완료 후 발생)");
+    wf_body_bottom.getObj("scwin").setReturnValue("sortInfo.headerId : " + sortInfo.headerId);
+    wf_body_bottom.getObj("scwin").setReturnValue("sortInfo.bodyColId : " + sortInfo.bodyColId);
+    wf_body_bottom.getObj("scwin").setReturnValue("sortInfo.sortOrder : " + sortInfo.sortOrder + " (1:오름차순 / -1:내림차순 / 0:정렬해제)");
+    wf_body_bottom.getObj("scwin").setReturnValue("정렬 후 표시순서(name) : " + scwin.getDisplayOrder());
+};
+
+
+
+// onbeforesort=false 로 onsort 가 미발생한 경우(누적 로그 잔존) 확인용
+scwin.btn_checkSort_onclick = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====정렬 결과 확인=====");
+    wf_body_bottom.getObj("scwin").setReturnValue("현재 표시순서(name) : " + scwin.getDisplayOrder());
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="핸들러 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_returnValue" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortEvent" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_sortEvent" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[onclick]]></xf:label>
+												<xf:value><![CDATA[onclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[ondblclick]]></xf:label>
+												<xf:value><![CDATA[ondblclick]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSort_onclick" id="btn_checkSort"
+							label="정렬 결과 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
