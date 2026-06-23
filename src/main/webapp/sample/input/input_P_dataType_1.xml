@@ -5,6 +5,7 @@
 		<w2:historyInfo>
 			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
 			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+			<w2:history meta_no="03" meta_desc="공통 샘플 링크 제거 및 독립 샘플로 재구성" meta_date="20260623" meta_user="InswaveSystems" ></w2:history>
 		</w2:historyInfo>
 		<w2:type>COMPONENT</w2:type>
 		<w2:buildDate />
@@ -16,31 +17,228 @@
 		</xf:model>
 		<w2:layoutInfo />
 		<w2:publicInfo method="" />
-		<script lazy="false" type="text/javascript">scwin.onpageload = function () {
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[input > P > dataType]<br/>InputBox 컴포넌트의 입력값 형식을 설정합니다.",
+    "validation" : [
+        "미설정 시 'text' 값으로 동작합니다.",
+        "'text', 'number', 'float', 'date', 'time', 'bigDecimal', 'euro', 'rupee', 'tenge' 값 중 하나를 문자열로 설정할 수 있습니다.",
+        "'text' 설정 시, 문자 형식으로 displayFormat 속성 등에서 참조합니다.",
+        "'number' 설정 시, 숫자 형식으로 adjustMaxLength, numberMask 속성 등에서 참조합니다.",
+        "'float' 설정 시, 소수 형식으로 autoDecimalPoint, maxlength 속성 등에서 참조합니다.",
+        "'date' 설정 시, 날짜 형식으로 ioFormat, useMonthYearFormat 속성 등에서 참조합니다.",
+        "'time' 설정 시, 시간 형식으로 ioFormat 속성 등에서 참조합니다.",
+        "'bigDecimal' 설정 시, 고정밀 소수 형식으로 displayFormat 속성 등에서 참조합니다.",
+        "'euro' 설정 시, 유로 통화 형식으로 euroMask 속성 등에서 참조합니다.",
+        "'rupee' 설정 시, 인도 루피 통화 형식으로 rupeeMask 속성 등에서 참조합니다.",
+        "'tenge' 설정 시, 카자흐스트탄 텡게 통화 형식으로 tengeMask 속성 등에서 참조합니다.",
+        "\"date\" 설정 시 8자리 숫자로 입력하여야 정상적인 날짜 표현이 가능합니다.",
+        "\"time\" 설정 시 6자리를 초과한 입력값은 잘리고, 6자리 미만인 경우 0 값이 추가됩니다.",
+        "\"text\", \"date\", \"time\" 값 이외의 값을 설정했을때 allowChar 속성을 설정하지 않았다면 숫자, \"+\", \"-\", \".\" 만 입력할 수 있습니다.",
+        "setValue() 로 입력값을 설정하면 dataType 속성에 관계없이 모든 문자가 설정됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
     // comp 초기 생성
     scwin.comp_init();
 };
 
 
 
-// comp 생성
-scwin.comp_init = async function () {
+// comp 생성/재생성
+scwin.comp_init = function () {
     // 기존 target 있으면 삭제
     if (typeof target1 !== 'undefined') {
         target1.remove();
     }
 
-    let properties = {
-        dataType: wf_sample.getObj(&quot;con_dataType&quot;).getText(),
+    let dt = con_dataType.getValue();
+
+    let properties = {};
+    // createEmptyInput 은 style 을 넣지 않아 기본 너비가 과도하게 커짐 -> 크기 지정
+    properties.style = 'width:200px; height:30px;';
+
+    // dataType 에 필요한 마스크만 생성 시 함께 설정한다. (마스크는 생성 속성 @dynamic N)
+    // 초기값은 빈값(테스트 시 직접 입력) -> initValue="input" 이 없는 createEmptyInput 사용.
+    if (dt !== '') {
+        properties.dataType = dt;
+        if (dt === 'number' || dt === 'float' || dt === 'bigDecimal') {
+            properties.numberMask = '#,###.#0[round]';
+        } else if (dt === 'euro') {
+            properties.euroMask = '€#.###,#0[round]';
+        } else if (dt === 'rupee') {
+            properties.rupeeMask = '₹#,###.#0[round]';
+        } else if (dt === 'tenge') {
+            properties.tengeMask = '# ###,#0[floor]₸';
+        } else if (dt === 'time') {
+            // time 은 displayFormat 미설정 시 기본 "HH:mm"(초 미표시) -> 초까지 표시
+            properties.displayFormat = 'HH:mm:ss';
+        }
     }
 
-    let cList = $c.gcm.createCList(properties)
-   
-    // comp 생성 함수 호출   
-    $c.gcm.createBasicInput(cList);
-}</script>
+    let cList = $c.gcm.createCList(properties);
+    // 값 입력 후 포커스 아웃(onblur) 시 리턴 창에 값 출력
+    let eList = $c.gcm.createEList(['onblur'], 'target1');
+
+    // 빈값으로 생성 (createEmptyInput: initValue 없음)
+    $c.gcm.createEmptyInput(cList, eList);
+};
+
+
+
+scwin.btn_getDataType_onclick = function (e) {
+    let rtn = target1.getDataType();
+    wf_body_bottom.getObj("scwin").setReturnValue("getDataType : " + rtn);
+};
+
+
+
+scwin.btn_setValue_onclick = function (e) {
+    let v = par_setValue.getValue();
+    target1.setValue(v);
+    wf_body_bottom.getObj("scwin").setReturnValue("setValue('" + v + "') -> getValue() : '" + target1.getValue() + "' (dataType: " + target1.getDataType() + ")");
+};
+
+
+
+// 값 입력 후 포커스 아웃 시 표시값(마스크 포맷 적용된 값)을 리턴 창에 출력
+scwin.target1_onblur = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("표시값 : " + target1.getFormattedValue());
+};
+]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
-		<w2:wframe style='' id="wf_sample" src="/sample/common_P/common_P_dataType_2.xml"></w2:wframe>
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_dataType" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[float]]></xf:label>
+												<xf:value><![CDATA[float]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[time]]></xf:label>
+												<xf:value><![CDATA[time]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bigDecimal]]></xf:label>
+												<xf:value><![CDATA[bigDecimal]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[euro]]></xf:label>
+												<xf:value><![CDATA[euro]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[rupee]]></xf:label>
+												<xf:value><![CDATA[rupee]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[tenge]]></xf:label>
+												<xf:value><![CDATA[tenge]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="setValue 값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_setValue" initValue="A1b2!@#가나" ref="" style=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_getDataType" label="getDataType" style=""
+							ev:onclick="scwin.btn_getDataType_onclick">
+						</w2:button>
+						<w2:button class="tc_btn_basic" id="btn_setValue" label="setValue" style=""
+							ev:onclick="scwin.btn_setValue_onclick">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
 	</body>
 </html>
