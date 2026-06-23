@@ -14,25 +14,11 @@
 		</xf:model>
 		<w2:layoutInfo />
 		<w2:publicInfo method="" />
-		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-936
-
-
-
-// 테스트 설명, 유효성 값 설정
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
 scwin.tData = {
     "description" : "[gridView > M > setCellDataType]<br/>Body Cell 정보를 사용하여 특정 Body Cell 의 dataType 속성을 설정합니다.",
     "validation" : [
-        "Column 의 inputType 이 'custom' 이고, Cell 의 inputType 속성값이 'text','textarea','input','secret' 인 경우에만 동작합니다.",
-        "rowIndex(필수) 파라미터로 dataType 속성을 설정할 Body Cell 의 Row 인덱스를 설정할 수 있어야 합니다.",
-        "rowIndex(필수) 파라미터의 Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
-        "columnInfo(필수) 파라미터로 dataType 속성을 설정할 Body Cell 의 Column 인덱스를 설정할 수 있어야 합니다.",
-        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
-        "dataType(필수) 파라미터로 'number' 를 설정하여 Cell 의 dataType 속성을 변경할 수 있어야 합니다.",
-        "dataType(필수) 파라미터로 'float' 를 설정하여 Cell 의 dataType 속성을 변경할 수 있어야 합니다.",
-        "dataType(필수) 파라미터로 'bigDecimal' 를 설정하여 Cell 의 dataType 속성을 변경할 수 있어야 합니다.",
-        "dataType(필수) 파라미터로 'text' 를 설정하여 Cell 의 dataType 속성을 변경할 수 있어야 합니다.",
-        "dataType(필수) 파라미터로 'date' 를 설정하여 Cell 의 dataType 속성을 변경할 수 있어야 합니다.",
-        "dataType(필수) 파라미터로 'time' 를 설정하여 Cell 의 dataType 속성을 변경할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터로 dataType 속성을 설정할 Body Cell 의 Column 의 ID 를 설정할 수 있어야 합니다.",
     ]
 }
 
@@ -61,7 +47,7 @@ scwin.comp_init = async function () {
         target1.remove();
     }
 
-	$c.gcm.createLabel('label="[전제] custom text·secret Cell 을 더블클릭하면 편집 input 으로 진입해 값을 입력할 수 있습니다. (초기값 빈값)\n[절차] rowIndex / columnInfo / dataType 선택 후 setCellDataType 실행 -> 해당 Cell 을 더블클릭해 값 입력 후 포커스 아웃하면 리턴창에 표시값이 출력됩니다.\n[확인] dataType 별로 입력 문자가 제한되고(숫자형=숫자/부호/소수점, text/date/time=제한없음), dataType 에 맞는 표시 포맷이 함께 적용됩니다. (number 1234.5 -> 1,234.5 / date 20231225 -> 2023-12-25)"', '', 'label1');
+	$c.gcm.createLabel('label="[전제] custom text·secret Cell 을 더블클릭하면 편집 input 으로 진입해 값을 입력할 수 있습니다. (초기값 빈값)\n[절차] rowIndex / columnInfo(Column ID) / dataType 선택 후 setCellDataType 실행 -> 해당 Cell 을 더블클릭해 값 입력 후 포커스 아웃하면 리턴창에 표시값이 출력됩니다.\n[확인] columnInfo 를 Column ID(col1·col2)로 지정해도 dataType 별로 입력 문자가 제한되고(숫자형=숫자/부호/소수점, text/date/time=제한없음), dataType 에 맞는 표시 포맷이 함께 적용됩니다. (number 1234.5 -> 1,234.5 / date 20231225 -> 2023-12-25)"', '', 'label1');
 
     // dataList 생성 + 빈값 바인딩
     //  사용자가 직접 셀에 값을 입력하는 흐름이므로 초기값은 모두 빈 문자열로 둔다.
@@ -145,6 +131,7 @@ scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
 
 // 해당 Cell 의 dataType 속성값을 조회 (custom 컬럼은 Cell 단위 cellManager.options.dataType, 그 외는 Column 단위)
 //  setCellDataType 은 Cell 단위 dataType 을 변경하므로 Cell 단위 값으로 변경 전/후를 확인한다.
+//  columnInfo 는 Column ID 문자열을 그대로 getColumnIndex 에 전달한다(Number 변환 금지).
 scwin.getCellDataType = function (rowIndex, columnInfo) {
     let api = scwin.target1;
     let colIndex = api.getColumnIndex(columnInfo);
@@ -161,7 +148,8 @@ scwin.getCellDataType = function (rowIndex, columnInfo) {
 
 // setCellDataType 실행 : Cell 의 dataType 속성을 변경하고 변경 전/후 dataType 을 리턴창에 출력한다.
 //  실측(정상 편집 더블클릭, 포트 65522, MCP):
-//   - text(col0) / secret(col1)   : (Cell)text -> (Cell)number 로 dataType 변경됨 (동작). 더블클릭 편집 input 생성됨.
+//   - text(col1) / secret(col2)   : (Cell)text -> (Cell)number 로 dataType 변경됨 (동작). 더블클릭 편집 input 생성됨.
+//  ※ columnInfo 는 Column ID(col1·col2) 문자열을 그대로 전달한다(Number 변환 금지).
 //  ※ dataType 의 실제 효과는 편집 input 에서의 "입력 문자 제한"으로 나타난다(MCP 실측):
 //    number/float/bigDecimal 등 숫자형 = 숫자/부호/소수점만 입력(예 "a1b2.3+c-" -> "12.3+-"), text/date/time = 제한 없음.
 //    dataType 변경 자체(Cell.options.dataType)도 정상 동작(text/secret 한정, textarea/input 은 엔진 결함).
@@ -186,7 +174,8 @@ scwin.getDisplayFormatByType = function (dataType) {
 
 scwin.btn_setCellDataType_onclick = function () {
     let rowIndex = Number(par_rowIndex.getValue());
-    let columnInfo = Number(par_columnInfo.getValue());
+    // ★ columnInfo 는 Column ID 문자열을 그대로 사용한다(Number 변환 금지).
+    let columnInfo = par_columnInfo.getValue();
     let dataType = par_dataType.getValue();
 
     // 변경 전 Cell dataType 속성값
@@ -197,7 +186,7 @@ scwin.btn_setCellDataType_onclick = function () {
 
     // ★ dataType 에 맞는 표시 포맷(displayFormat) 도 같은 Cell 에 함께 적용
     //  setCellDisplayFormat(rowIndex, columnInfo, displayFormat) : custom 셀 displayFormat 설정
-    //  -> 셀 편집·커밋 후 표시값이 타입별로 포맷되어 보인다.
+    //  -> 셀 편집·커밋 후 표시값이 타입별로 포맷되어 보인다. columnInfo 는 ID 문자열 그대로 전달.
     let fmt = scwin.getDisplayFormatByType(dataType);
     try { scwin.target1.setCellDisplayFormat(rowIndex, columnInfo, fmt); } catch (e) {}
 
@@ -209,8 +198,8 @@ scwin.btn_setCellDataType_onclick = function () {
 
     let changed = (beforeType !== afterType);
     wf_body_bottom.getObj("scwin").setReturnValue(
-        "setCellDataType(" + rowIndex + ", " + columnInfo + ", '" + dataType + "')"
-        + " + setCellDisplayFormat(" + rowIndex + ", " + columnInfo + ", '" + fmt + "')"
+        "setCellDataType(" + rowIndex + ", '" + columnInfo + "', '" + dataType + "')"
+        + " + setCellDisplayFormat(" + rowIndex + ", '" + columnInfo + "', '" + fmt + "')"
         + " | 변경 전 dataType : " + beforeType + " -> 변경 후 dataType : " + afterType
         + " | 변경됨 : " + changed
         + " | (해당 Cell 에 값을 입력하고 포커스 아웃하면 dataType 별 포맷이 적용된 표시값이 출력됩니다.)"
@@ -275,12 +264,12 @@ scwin.btn_setCellDataType_onclick = function () {
 										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
 										<xf:choices>
 											<xf:item>
-												<xf:label><![CDATA[0 : Column inputType=custom, Cell inputType=text (동작)]]></xf:label>
-												<xf:value><![CDATA[0]]></xf:value>
+												<xf:label><![CDATA[col1 : Cell inputType=text (동작)]]></xf:label>
+												<xf:value><![CDATA[col1]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[1 : Column inputType=custom, Cell inputType=secret (동작)]]></xf:label>
-												<xf:value><![CDATA[1]]></xf:value>
+												<xf:label><![CDATA[col2 : Cell inputType=secret (동작)]]></xf:label>
+												<xf:value><![CDATA[col2]]></xf:value>
 											</xf:item>
 										</xf:choices>
 									</xf:select1>
