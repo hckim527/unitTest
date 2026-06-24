@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260624" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; setRowVisible]&lt;br/&gt;Body Row 의 인덱스를 사용하여 특정 Body Row 를 숨깁니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;rowIndex(필수) 파라미터로 숨기거나 표시할 Body Row 의 인덱스를 설정할 수 있어야 합니다.&quot;,
+        &quot;rowIndex(필수) 파라미터의 Row 인덱스는 0 부터 시작하며 바인딩 된 DataList 기준으로 인덱스가 설정됩니다.&quot;,
+        &quot;visible(선택) 파라미터에 true 설정 시 해당 Row 를 GridView 컴포넌트에 표시합니다.&quot;,
+        &quot;visible(선택) 파라미터에 false 설정 시 해당 Row 를 GridView 컴포넌트에서 숨깁니다.&quot;,
+        &quot;visible(선택) 파라미터를 생략 시 기본값(false)으로 동작해야 합니다.&quot;,
+        &quot;Row 가 숨겨지면 RowNum Column 의 Row 순번은 재계산되지 않고 숨겨진 Row 의 순번은 건너뜁니다.&quot;,
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 바인딩 DataList 생성 (6 Row)
+    let strDlt = '';
+    strDlt += '&lt;w2:dataList ' + $c.gcm.strNameSpace + ' id=&quot;dlt_bind&quot; baseNode=&quot;list&quot; repeatNode=&quot;map&quot;&gt;';
+    strDlt += '&lt;w2:columnInfo&gt;';
+    strDlt += '&lt;w2:column id=&quot;col1&quot; name=&quot;name1&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;col2&quot; name=&quot;name2&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;col3&quot; name=&quot;name3&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;/w2:columnInfo&gt;';
+    strDlt += '&lt;w2:data use=&quot;true&quot;&gt;';
+    let arrNames = ['김철수', '이영희', '박민준', '최서연', '정도윤', '강하은'];
+    let arrDept = ['영업1팀', '영업2팀', '개발팀', '인사팀', '재무팀', '기획팀'];
+    for (var i = 0; i &lt; arrNames.length; i++) {
+        strDlt += '&lt;w2:row&gt;';
+        strDlt += '&lt;col1&gt;&lt;![CDATA[' + (i + 1) + ']]&gt;&lt;/col1&gt;';
+        strDlt += '&lt;col2&gt;&lt;![CDATA[' + arrNames[i] + ']]&gt;&lt;/col2&gt;';
+        strDlt += '&lt;col3&gt;&lt;![CDATA[' + arrDept[i] + ']]&gt;&lt;/col3&gt;';
+        strDlt += '&lt;/w2:row&gt;';
+    }
+    strDlt += '&lt;/w2:data&gt;';
+    strDlt += '&lt;/w2:dataList&gt;';
+    $p.data.create(strDlt);
+
+    // 조건 설정 - RowNum Column 표시 (@spec 순번 검증용)
+    let properties = {
+        dataList: &quot;data:dlt_bind&quot;,
+        rowNumVisible: &quot;true&quot;,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    await scwin.createGrid(cList);
+}
+
+
+
+// 일반 그리드(custom 셀 불필요) 동적 생성
+scwin.createGrid = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup('');
+
+    let strTarget = '';
+    strTarget += '&lt;w2:gridView ' + $c.gcm.strNameSpace + ' ' + cList + ' checkAllType=&quot;false&quot; id=&quot;&quot; style=&quot;width:500px;height:300px;&quot;&gt;';
+    strTarget += '&lt;w2:caption style=&quot;&quot; id=&quot;caption1&quot; value=&quot;사원 목록&quot;&gt;&lt;/w2:caption&gt;';
+    strTarget += '&lt;w2:header style=&quot;&quot; id=&quot;header1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;hrow1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;80&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol1&quot; value=&quot;사번&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol2&quot; value=&quot;이름&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;140&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol3&quot; value=&quot;부서&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:header&gt;';
+    strTarget += '&lt;w2:gBody style=&quot;&quot; id=&quot;gBody1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;brow1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;80&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;col1&quot; displayType=&quot;label&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;col2&quot; displayType=&quot;label&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;140&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;col3&quot; displayType=&quot;label&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:gBody&gt;';
+    strTarget += '&lt;/w2:gridView&gt;';
+
+    scwin.target1 = await $p.dynamicCreate(&quot;target1&quot;, &quot;gridView&quot;, strTarget, grp_comp);
+}
+
+
+
+// 현재 표시중인 RowNum 순번 목록 수집 (재계산 없이 숨김 순번을 건너뛰는지 확인)
+scwin.getDisplayedRowNums = function () {
+    let arrNum = [];
+    let tdList = document.querySelectorAll(&quot;td[id*='target1_headerRowNumber_bodyRow_']&quot;);
+    for (var i = 0; i &lt; tdList.length; i++) {
+        // 화면에 표시된 RowNum 셀만 수집
+        if (tdList[i].offsetParent !== null) {
+            let txt = tdList[i].textContent.trim();
+            if (txt !== '') arrNum.push(txt);
+        }
+    }
+    return arrNum;
+}
+
+
+
+scwin.btn_setRowVisible_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getText());
+    let visibleStr = par_visible.getText();
+
+    let msg = '';
+    if (visibleStr === '') {
+        // visible 생략 → 기본값(false) 동작
+        target1.setRowVisible(rowIndex);
+        msg = &quot;setRowVisible(&quot; + rowIndex + &quot;) [visible 생략]&quot;;
+    } else {
+        let visBool = visibleStr === 'true';
+        target1.setRowVisible(rowIndex, visBool);
+        msg = &quot;setRowVisible(&quot; + rowIndex + &quot;, &quot; + visBool + &quot;)&quot;;
+    }
+
+    // 적용 결과 확인 : getRowVisible + 표시중인 RowNum 순번
+    //  ※ setRowVisible 후 그리드 재렌더가 비동기로 일어나므로, RowNum 은 setTimeout 으로 재렌더 후 읽어야 최신(숨김 반영) 값이 출력됨
+    let isVisible = target1.getRowVisible(rowIndex);
+    setTimeout(function () {
+        let arrNum = scwin.getDisplayedRowNums();
+        wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(msg + &quot;\n[getRowVisible(&quot; + rowIndex + &quot;)] &quot; + isVisible + &quot;\n[표시중 RowNum 순번] &quot; + arrNum.join(', '));
+    }, 300);
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="visible" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_visible" ref="" style="" submenuSize="auto"
+										nodeSet="data:gdl_boolean" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setRowVisible_onclick" id="btn_setRowVisible"
+							label="setRowVisible" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

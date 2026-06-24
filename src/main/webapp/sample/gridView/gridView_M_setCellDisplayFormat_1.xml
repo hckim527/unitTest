@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setCellDisplayFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260623" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setCellDisplayFormat]<br/>inputType=\"custom\" 인 Column 의 특정 Body Cell 에 데이터가 표시되는 형식을 마스크 문자로 설정합니다.",
+    "validation" : [
+        "특정 Cell 의 inputType 속성이 'text', 'textarea', 'textImage', 'secret' 값이어야 동작합니다.",
+        "setCellInputTypeCustom=false 일때 Column 의 typeGetter 속성이 설정되었거나 setCellInputTypeCustom=true 일때 동작합니다.",
+        "Column 의 displayFormatter 속성이 설정되었거나 특정 Cell 에 setCellDisplayFormatter() 메소드로 사용자 함수가 설정된 경우 적용되지 않습니다.",
+        "rowIndex(필수) 파라미터로 데이터가 표시되는 형식을 설정하려는 Body Cell 의 Row 인덱스를 설정할 수 있어야 합니다.",
+        "rowIndex(필수) 파라미터의 Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "columnInfo(필수) 파라미터로 데이터가 표시되는 형식을 설정하려는 Body Cell 의 Column 인덱스 또는 ID 를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "displayFormat(필수) 파라미터로 Body Cell 의 dataType 속성값에 따라 데이터가 표시되는 형식을 마스크 문자로 설정할 수 있어야 합니다.",
+        "displayFormat(필수) 파라미터는 dataType='text' 인 경우 '#' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "displayFormat(필수) 파라미터는 dataType='date' 인 경우 'y', 'M', 'd', 'E' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "displayFormat(필수) 파라미터는 dataType='time' 인 경우 'H', 'm', 's' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "displayFormat(필수) 파라미터는 그외 dataType 인 경우 '#', '0', ',', '.' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "setColumnDisplayFormat() 메소드는 Column 단위로 적용되고, setCellDisplayFormat() 메소드는 'custom' Column 의 특정 Cell 에만 적용됩니다.",
+        "Column 의 customFormatter 속성이 설정되었거나 특정 Cell 에 setCellCustomFormatter() 메소드로 사용자 함수가 설정된 경우 최종 데이터 표시는 customFormatter 로 처리되므로 displayFormat 결과가 덮어 써질 수 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // columnInfo - displayFormat 초기 동기화 (columnInfo 의 dataType 에 맞는 마스크로 자동 설정)
+    scwin.par_columnInfo_onchange();
+};
+
+
+
+// columnInfo(컬럼=dataType) 선택값에 매핑되는 displayFormat 마스크로 자동 동기화
+//  0=text -> '###-####' / 1=number -> '#,##0.00' / 2=date -> 'yyyy/MM/dd (E)' / 3=time -> 'HH:mm:ss'
+scwin.par_columnInfo_onchange = function () {
+    let formatMap = {
+        "0": "###-####",
+        "1": "#,##0.00",
+        "2": "yyyy/MM/dd (E)",
+        "3": "HH:mm:ss"
+    };
+    let col = par_columnInfo.getValue();
+    if (formatMap[col] !== undefined) {
+        par_displayFormat.setValue(formatMap[col]);
+    }
+};
+
+
+
+// displayFormat 선택값에 매핑되는 columnInfo(컬럼=dataType)로 자동 동기화 (역방향)
+//  '###-####' -> 0(text) / '#,##0.00' -> 1(number) / 'yyyy/MM/dd (E)' -> 2(date) / 'HH:mm:ss' -> 3(time)
+scwin.par_displayFormat_onchange = function () {
+    let columnMap = {
+        "###-####": "0",
+        "#,##0.00": "1",
+        "yyyy/MM/dd (E)": "2",
+        "HH:mm:ss": "3"
+    };
+    let fmt = par_displayFormat.getValue();
+    if (columnMap[fmt] !== undefined) {
+        par_columnInfo.setValue(columnMap[fmt]);
+    }
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] Body 컬럼은 inputType=custom + typeGetter(con_inputType 값) 이며 dataType 을 미리 부여(col0=text / col1=number(숨김) / col2=date / col3=time).\n[절차] (필요시) con_inputType 선택 -> Target 재생성 -> columnInfo / displayFormat 선택 -> setCellDisplayFormat 실행.\n[확인] 리턴창에 Cell inputType / 변경 전·후 표시값 / 동작 여부 출력."', '', 'label1');
+
+    // dataList 생성 + 초기값 바인딩 (displayFormat 마스크가 가공할 원본 데이터)
+    //  ※ createBasicDataList 는 col1~col4 (4컬럼) 스키마만 생성하므로 5컬럼 이상은 데이터가 유실됨([createDynamicDataList 4col limit]).
+    //    -> 4 컬럼으로 text / number(그외) / date / time 마스크 4종을 모두 커버한다.
+    //  col0(text)=ABCD1234 / col1(number)=1234.5 / col2(date)=20231225 / col3(time)=123456
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "ABCD1234", "col2": "1234.5", "col3": "20231225", "col4": "123456" },
+        { "col1": "WXYZ5678", "col2": "9876.5", "col3": "20240101", "col4": "090005" },
+        { "col1": "QWER0001", "col2": "100.25", "col3": "20251111", "col4": "235959" },
+        { "col1": "ASDF9999", "col2": "50.5",   "col3": "20260623", "col4": "010203" }
+    ]);
+
+    // target 생성
+    //  4개 Body 컬럼 모두 inputType=custom + typeGetter 로 Cell inputType=text(allow-list) 구성.
+    //  각 Cell 에 dataType 을 미리 부여해 displayFormat 마스크가 의미있게 적용되도록 함.
+    //   col0(idx0) : dataType=text   -> "#" 마스크
+    //   col1(idx1) : dataType=number -> "#/0/,/." 마스크 (그외) (★ setColumnVisible(1,false) 로 숨김 -> 인덱스는 1 유지)
+    //   col2(idx2) : dataType=date   -> "y/M/d/E" 마스크
+    //   col3(idx3) : dataType=time   -> "H/m/s" 마스크
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" dataList="data:dlt_bind" id="" style="width:680px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol1" value="text (custom)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol2" value="number (숨김)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol3" value="date (custom)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="time (custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="170" inputType="custom" dataType="text" id="col1" dataList="col1" typeGetter="scwin.target1_textTypeGetter"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="custom" dataType="number" id="col2" dataList="col2" typeGetter="scwin.target1_textTypeGetter"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="custom" dataType="date" id="col3" dataList="col3" typeGetter="scwin.target1_textTypeGetter"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="custom" dataType="time" id="col4" dataList="col4" typeGetter="scwin.target1_textTypeGetter"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // ★ 두번째 Column(인덱스 1) 을 숨김 -> "숨겨진 Column 도 포함하여 인덱스가 설정" 검증용
+    scwin.target1.setColumnVisible(1, false);
+}
+
+
+
+// 모든 custom 컬럼의 Cell inputType 을 con_inputType 선택값으로 구성한다.
+//  @validation1 검증용 : allow-list(text/textarea/input/textImage/secret) 이면 setCellDisplayFormat 동작,
+//                        그 외(number 등) 이면 "Invalid cell input type" 로 미동작(false) 됨을 확인한다.
+//  ※ con_inputType 변경 후에는 'Target 재생성' 을 클릭해야 grid 가 새 inputType 으로 다시 그려진다.
+scwin.target1_textTypeGetter = function (info) {
+    let it = (typeof con_inputType !== 'undefined' && con_inputType.getValue()) ? con_inputType.getValue() : 'text';
+    return { id: 'cell_' + it + '_' + info.rowIndex + '_' + info.colIndex, inputType: it, options: {} };
+};
+
+
+
+// 해당 Cell 의 표시값(displayFormat 마스크가 적용된 화면값)을 조회
+//  getCellDisplayData(rowIndex, columnIndex) : displayFormat 등이 적용된 표시값을 반환
+scwin.getCellDisp = function (rowIndex, columnIndex) {
+    try {
+        return scwin.target1.getCellDisplayData(rowIndex, columnIndex);
+    } catch (e) {
+        return "(표시값 조회오류)";
+    }
+};
+
+
+
+// setCellDisplayFormat 실행 : 특정 셀의 displayFormat 마스크를 설정하고 변경 전/후 표시값을 리턴창에 출력
+//  setCellDisplayFormat(rowIndex, columnIndex, displayFormat) : 3인자, 성공 시 무반환 / 실패(전제 미충족) 시 false
+scwin.btn_setCellDisplayFormat_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let columnInfo = Number(par_columnInfo.getValue());
+    let displayFormat = par_displayFormat.getValue();
+
+    // 변경 전 표시값
+    let before = scwin.getCellDisp(rowIndex, columnInfo);
+
+    // 메소드 실행 (전제 미충족 시 false 반환)
+    let ret = scwin.target1.setCellDisplayFormat(rowIndex, columnInfo, displayFormat);
+
+    // 화면 갱신 (셀 단위 재렌더)
+    try { scwin.target1.refreshCell(rowIndex, columnInfo); } catch (e) {}
+
+    // 변경 후 표시값
+    let after = scwin.getCellDisp(rowIndex, columnInfo);
+
+    let changed = (before !== after);
+    let curInputType = (typeof con_inputType !== 'undefined' && con_inputType.getValue()) ? con_inputType.getValue() : 'text';
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCellDisplayFormat(" + rowIndex + ", " + columnInfo + ", '" + displayFormat + "')"
+        + " | Cell inputType : " + curInputType
+        + " | 변경 전 표시값 : " + before + " -> 변경 후 표시값 : " + after
+        + " | 변경됨 : " + changed
+        + (ret === false
+            ? " (allow-list inputType 아님 -> 미동작/false)"
+            : " (allow-list inputType -> 동작)"));
+}
+
+
+
+// @spec2 검증 : 특정 Cell 에 setCellCustomFormatter() 로 사용자 함수를 설정하면
+//  최종 표시는 customFormatter 로 처리되어 displayFormat 결과가 덮어써지는지 확인한다.
+scwin.myCustomFormatter = function (data, formattedData, rowIndex, colIndex) {
+    return "[custom] " + data;
+};
+scwin.btn_overrideByCustom_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let columnInfo = Number(par_columnInfo.getValue());
+    let displayFormat = par_displayFormat.getValue();
+
+    // 1) displayFormat 마스크 먼저 적용
+    scwin.target1.setCellDisplayFormat(rowIndex, columnInfo, displayFormat);
+    try { scwin.target1.refreshCell(rowIndex, columnInfo); } catch (e) {}
+    let afterFormat = scwin.getCellDisp(rowIndex, columnInfo);
+
+    // 2) 동일 Cell 에 setCellCustomFormatter 로 사용자 함수 설정 -> 최종 표시가 customFormatter 로 덮어써짐
+    scwin.target1.setCellCustomFormatter(rowIndex, columnInfo, "scwin.myCustomFormatter");
+    try { scwin.target1.refreshCell(rowIndex, columnInfo); } catch (e) {}
+    let afterCustom = scwin.getCellDisp(rowIndex, columnInfo);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCellDisplayFormat 적용 표시값 : " + afterFormat
+        + " -> setCellCustomFormatter 적용 후 표시값 : " + afterCustom
+        + " | customFormatter 로 덮어써짐 : " + (afterFormat !== afterCustom));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Cell inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[text (allow-list -> 동작)]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[textarea (allow-list -> 동작)]]></xf:label>
+												<xf:value><![CDATA[textarea]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[textImage (allow-list -> 동작)]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[secret (allow-list -> 동작)]]></xf:label>
+												<xf:value><![CDATA[secret]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number (allow-list 아님 -> 미동작/false)]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" escape="false"></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.par_columnInfo_onchange" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 : Cell dataType=text (# 마스크)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 : Cell dataType=number (숨김 Column, 그외 #/0/,/. 마스크)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : Cell dataType=date (y/M/d/E 마스크)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : Cell dataType=time (H/m/s 마스크)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.par_displayFormat_onchange" id="par_displayFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[###-#### (text '#' 마스크)]]></xf:label>
+												<xf:value><![CDATA[###-####]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#,##0.00 (그외 #/0/,/. 마스크)]]></xf:label>
+												<xf:value><![CDATA[#,##0.00]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yyyy/MM/dd (E) (date y/M/d/E 마스크)]]></xf:label>
+												<xf:value><![CDATA[yyyy/MM/dd (E)]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[HH:mm:ss (time H/m/s 마스크)]]></xf:label>
+												<xf:value><![CDATA[HH:mm:ss]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellDisplayFormat_onclick" id="btn_setCellDisplayFormat"
+							label="setCellDisplayFormat" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_overrideByCustom_onclick" id="btn_overrideByCustom"
+							label="setCellCustomFormatter 로 덮어쓰기 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

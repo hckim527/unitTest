@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setCellDisableEdit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260624" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  _2 : columnInfo 파라미터를 Column ID(문자열)로 지정하는 분리 샘플 (_1 은 인덱스 지정)
+scwin.tData = {
+    "description" : "[gridView > M > setCellDisableEdit]<br/>inputType=\"custom\" 인 Column 의 특정 Body Cell 에서 텍스트 편집을 비활성화할 지 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 Column 의 ID 를 설정하여 텍스트 편집의 비활성화 여부를 설정할 수 있어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_item !== 'undefined') {
+        $p.data.remove("dlt_item");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] 4개 Body 컬럼 모두 inputType=custom + typeGetter(autoComplete). typeGetter 설정으로 동작 전제 충족. autoComplete 셀은 itemSet(라벨=지역명 / 값=코드) 로 아이템 리스트 제공.\n[절차] rowIndex / columnInfo(Column ID) / disabled 선택 -> setCellDisableEdit 실행 -> 해당 셀 더블클릭(편집모드) -> 값 입력 -> 다른 곳 클릭(포커스아웃).\n[확인] columnInfo 를 인덱스 대신 Column ID(col1~col4) 로 지정해도 동일 동작. disabled=true 면 입력 텍스트가 셀 값에 반영되지 않고(리스트 선택만) 원래 값 유지, false 면 입력값이 반영된다."', '', 'label1');
+
+    // itemSet 바인딩용 DataList (autoComplete inputType 용 : col1=라벨(지역명), col2=값(코드))
+    $c.gcm.createBasicDataList('', '', 'dlt_item');
+    dlt_item.setJSON([
+        { "col1": "서울", "col2": "01" },
+        { "col1": "부산", "col2": "02" },
+        { "col1": "대구", "col2": "03" }
+    ]);
+
+    // 본문 데이터리스트 (autoComplete Cell 의 초기 표시값 : 아이템 값/라벨과 매칭)
+    //  ※ Body custom 컬럼 id 가 dataList 컬럼(col1~col4)과 일치해야 셀 편집 가능(불일치 시 자동 readOnly).
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "01", "col2": "서울", "col3": "02", "col4": "부산" },
+        { "col1": "02", "col2": "부산", "col3": "03", "col4": "대구" },
+        { "col1": "03", "col2": "대구", "col3": "01", "col4": "서울" },
+        { "col1": "01", "col2": "서울", "col3": "02", "col4": "부산" }
+    ]);
+
+    // target 생성
+    //  4개 Body 컬럼 모두 inputType=custom + typeGetter 로 Cell inputType=autoComplete 구성.
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" dataList="data:dlt_bind" id="" ev:onafteredit="scwin.target1_onafteredit" style="width:680px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol1" value="col1 (custom)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol2" value="col2 (custom)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol3" value="col3 (custom)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="col4 (custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="170" inputType="custom" id="col1" dataList="col1" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="custom" id="col2" dataList="col2" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="custom" id="col3" dataList="col3" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="custom" id="col4" dataList="col4" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 모든 custom 컬럼의 Cell inputType 을 autoComplete 로 구성한다 (setCellDisableEdit 동작 전제).
+//  autoComplete 는 itemSet(아이템 리스트) 가 필수이므로 col1=라벨/col2=값 의 dlt_item 을 함께 전달한다.
+scwin.target1_typeGetter = function (info) {
+    return {
+        id: 'cell_autoComplete_' + info.rowIndex + '_' + info.colIndex,
+        inputType: 'autoComplete',
+        itemSet: { nodeset: 'data:dlt_item', label: 'col1', value: 'col2' },
+        options: {}
+    };
+};
+
+
+
+// setCellDisableEdit 실행 : columnInfo 를 Column ID(문자열)로 그대로 지정하여 텍스트 편집 비활성화 여부를 설정
+//  _2 : columnInfo 를 Number 변환하지 않고 Column ID(문자열) 그대로 전달
+scwin.btn_setCellDisableEdit_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let columnInfo = par_columnInfo.getValue();
+    let disabledBool = (par_disabled.getValue() === "true");
+
+    let ret = scwin.target1.setCellDisableEdit(rowIndex, columnInfo, disabledBool);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCellDisableEdit(" + rowIndex + ", '" + columnInfo + "', " + disabledBool + ")"
+        + (ret === false ? " 미동작(false)" : " 적용")
+        + " | 셀 더블클릭 -> 값 입력 -> 포커스아웃 시 셀 값 출력");
+}
+
+
+
+// 셀 편집모드 종료(포커스아웃) 시 발생. 셀에 표시된 값을 리턴창에 출력한다.
+//  onafteredit @param : (rowIndex, columnIndex, value) 위치 인자. 표시값은 getCellDisplayData 로 조회.
+//  disabled=true 면 텍스트 편집 비활성(리스트 선택만) 이라 입력 텍스트가 셀 값에 반영되지 않는다.
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    let colId = scwin.target1.getColumnID(columnIndex);
+    let shown = scwin.target1.getCellDisplayData(rowIndex, columnIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "셀(" + rowIndex + ", " + colId + ") 표시값 : " + shown);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:value><![CDATA[col1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:value><![CDATA[col2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:value><![CDATA[col3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:value><![CDATA[col4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="disabled" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_disabled" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true (텍스트 편집 비활성화, 리스트 선택만)]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false (텍스트 편집 활성화, 입력+리스트)]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellDisableEdit_onclick" id="btn_setCellDisableEdit"
+							label="setCellDisableEdit" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

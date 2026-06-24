@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setCellInputType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260623" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setCellInputType]<br/>inputType='custom' 인 Column 의 특정 Body Cell 에 inputType 속성을 설정합니다.",
+    "validation" : [
+        "info.options(선택) 파라미터로 info.inputType 파라미터값과 연관된 Column 속성값을 객체로 설정할 수 있어야 합니다.",
+        "info.options(선택) 파라미터는 추가 설정하려는 Column 속성을 키로 설정합니다.",
+        "info.options(선택) 파라미터를 생략 시 기본값(undefined)으로 동작해야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] col1~col3 은 inputType=custom + setCellInputTypeCustom=true (typeGetter 미설정) -> setCellInputType 동작 대상. (컬럼 id 는 DataList 컬럼과 일치해야 편집 가능) rowIndex/columnInfo 는 0,0 / info.inputType 은 text 고정.\n[절차] info.options 설정 유무를 선택 후 setCellInputType 실행. 설정 시 Column 속성 textAlign 을 키로 right 값을 전달.\n[확인] 리턴창에 실행 후 Cell 의 textAlign 옵션값(getCellOption) 을 출력. 설정 시 right, 생략 시 undefined(기본값). 해당 Cell(0,0) 을 더블클릭(편집)하면 설정 시 입력값이 우측정렬로 표시됨."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 본문 DataList (custom 셀 편집용, 초기값으로 정렬이 보이도록 텍스트 채움)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "정렬확인", "col2": "가운데정렬", "col3": "가운데정렬" },
+        { "col1": "", "col2": "", "col3": "" },
+        { "col1": "", "col2": "", "col3": "" },
+        { "col1": "", "col2": "", "col3": "" }
+    ]);
+
+    // target 생성
+    //  - setCellInputTypeCustom="true" : custom 컬럼의 Cell 단위 inputType 변경 허용
+    //  - 각 Body 컬럼은 inputType="custom" + typeGetter 미설정 (전제)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" setCellInputTypeCustom="true" dataList="data:dlt_bind" ev:oncelldblclick="scwin.target1_oncelldblclick" id="" style="width:560px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" inputType="text" id="hcol1" value="col1 (custom)"></w2:column>';
+    strTarget += '<w2:column width="180" inputType="text" id="hcol2" value="col2 (custom)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol3" value="col3 (custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" inputType="custom" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="180" inputType="custom" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="custom" id="col3" dataList="col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 해당 Cell 에 적용된 Column 속성(options 키)값을 조회한다.
+//  custom 컬럼의 Cell 단위 cellManager.options[key] 를 getCellOption 으로 읽어
+//  info.options 로 전달한 Column 속성값이 실제 Cell 에 반영되었는지 확인한다.
+//  - 설정 시 : 전달한 값 (예: textAlign=right)
+//  - 생략 시 : undefined (기본값)
+scwin.getCellOptionValue = function (rowIndex, columnInfo, key) {
+    let api = scwin.target1;
+    let realRow = api.dataList.getRealRowIndex(rowIndex);
+    let val = api.getCellOption(realRow, columnInfo, key);
+    return (val === undefined) ? "undefined" : String(val);
+};
+
+
+
+scwin.btn_setCellInputType_onclick = function () {
+    // rowIndex / columnInfo 는 0, 0 고정 / info.inputType 은 text 고정 (이 샘플은 info.options 검증 전용)
+    let rowIndex = 0;
+    let columnInfo = 0;
+    let inputType = "text";
+
+    // info.options 설정 유무 (par_options : "set" 이면 textAlign=right 설정, "" 이면 생략)
+    let useOptions = (par_options.getValue() === "set");
+
+    // info 객체 구성
+    //  - info.inputType : 필수 (text 고정)
+    //  - info.options   : 선택. 설정 시 inputType(text) 과 연관된 Column 속성 textAlign 을 키로 right 전달.
+    let info = { inputType: inputType };
+    if (useOptions) {
+        info.options = { textAlign: "right" };
+    }
+
+    // 메소드 실행
+    scwin.target1.setCellInputType(rowIndex, columnInfo, info);
+
+    // 셀 단위 재렌더 (적용 결과 표시)
+    try { scwin.target1.refreshCell(rowIndex, columnInfo); } catch (e) {}
+
+    wf_body_bottom.getObj("scwin").setReturnValue("셀(0,0) 을 더블클릭하면 편집 input 의 실제 정렬(text-align)을 리턴창에 출력합니다.");
+}
+
+
+
+// 셀 더블클릭 시(실제 편집모드 진입) 렌더된 편집 input 의 실제 text-align 을 읽어 출력한다.
+//  ※ textAlign 은 표시 셀이 아닌 '편집 input' 에 적용되므로, 실제 더블클릭 편집 input 으로 검증한다.
+//    (편집 input 은 절대위치라 td 자식이 아니라 document 에 생성됨 -> id 로 조회)
+scwin.target1_oncelldblclick = function (rowIndex, columnIndex, columnId) {
+    // 더블클릭으로 편집모드 진입 후 렌더된 편집 input(현재 활성 1개) 의 실제 text-align 을 읽는다.
+    setTimeout(function () {
+        let input = document.querySelector('input[id*="_dynamic_text_"]');
+        let align = input ? (input.style.textAlign || getComputedStyle(input).textAlign) : "(편집 input 미생성)";
+        wf_body_bottom.getObj("scwin").setReturnValue("text-align : " + align);
+    }, 150);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="info.options" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_options" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[설정 ( textAlign : 'right' )]]></xf:label>
+												<xf:value><![CDATA[set]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[생략 ( 기본값 undefined )]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellInputType_onclick" id="btn_setCellInputType"
+							label="setCellInputType" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setCellAllowChar" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260624" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setCellAllowChar]<br/>inputType=\"custom\" 인 Column 의 특정 Body Cell 에 입력 가능한 문자의 집합을 정규식의 문자클래스 형식으로 설정합니다.",
+    "validation" : [
+        "rowIndex(필수) 파라미터는 Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+        "columnInfo(필수) 파라미터는 Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] Body 컬럼은 inputType=custom + typeGetter(Cell inputType=text). 초기 셀 값은 영문+숫자 혼합. Body 가 MultiLine(2줄).\n[MultiLine] 한 데이터 Row 가 2줄 표시 -> 두 줄은 같은 rowIndex, Column 은 0~3 고유 인덱스 (1줄 col1(0)/col2(1), 2줄 col3(2)/col4(3)).\n[절차] rowIndex / columnIndex / allowChar 선택 -> setCellAllowChar 실행.\n[확인] 실행 즉시 기존 셀 데이터에서 허용 안 된 문자가 제거됨. 편집모드에서도 허용 문자만 입력 (같은 rowIndex 라도 columnIndex 로 위/아래 Line 셀 개별 지정)."', '', 'label1');
+
+    // dataList 생성 + 초기값 바인딩
+    //  MultiLine 검증 : 한 데이터 Row 가 2줄에 걸쳐 표시되며 두 줄은 동일 rowIndex, Column 은 0~3 고유 인덱스를 가짐.
+    //  초기값은 영문+숫자 혼합으로 두어 allowChar 필터 결과가 보이게 한다.
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "abc123def", "col2": "ID-2024A", "col3": "Qty99box", "col4": "Lot-7B8C" },
+        { "col1": "xyz789ghi", "col2": "ID-2025B", "col3": "Qty12box", "col4": "Lot-3D4E" }
+    ]);
+
+    // target 생성
+    //  4개 컬럼 모두 inputType=custom + typeGetter 로 Cell 의 inputType=text 구성 (setCellAllowChar 적용 대상)
+    // ★ MultiLine : gBody 에 2개의 row 를 두어 한 데이터 Row 가 2줄에 걸쳐 표시되게 한다.
+    //  - 1줄 : col1(idx0) / col2(idx1)
+    //  - 2줄 : col3(idx2) / col4(idx3)
+    //  - 두 줄은 동일 rowIndex, Column 은 줄에 걸쳐 0~3 고유 인덱스
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" dataList="data:dlt_bind" id="" ev:onafteredit="scwin.target1_onafteredit" style="width:560px;height:300px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol1" value="col1 (idx0)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="col2 (idx1)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="col3 (idx2)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="col4 (idx3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="280" inputType="custom" id="col1" dataList="col1" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="custom" id="col2" dataList="col2" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="280" inputType="custom" id="col3" dataList="col3" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="custom" id="col4" dataList="col4" typeGetter="scwin.target1_typeGetter"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 각 Cell 을 inputType=text (allow-list) 로 구성 (setCellAllowChar 적용 대상)
+scwin.target1_typeGetter = function (info) {
+    return { id: 'cell_' + info.rowIndex + '_' + info.colIndex, inputType: 'text', options: {} };
+};
+
+
+
+// setCellAllowChar 실행 : 특정 셀에 입력 가능한 문자의 집합(정규식 문자클래스)을 설정한다.
+//  MultiLine : 같은 rowIndex 라도 고유 columnIndex(0~3)로 위/아래 Line 의 Cell 을 각각 지정할 수 있다.
+//  실행 즉시 기존 셀 데이터에서 허용되지 않은 문자가 제거되므로, 실행 전/후 셀 표시값을 함께 출력하여 확인한다.
+scwin.btn_setCellAllowChar_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let columnIndex = Number(par_columnIndex.getValue());
+    let allowChar = par_allowChar.getValue();
+
+    let before = scwin.target1.getCellData(rowIndex, columnIndex);
+    let ret = scwin.target1.setCellAllowChar(rowIndex, columnIndex, allowChar);
+    let after = scwin.target1.getCellData(rowIndex, columnIndex);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCellAllowChar(" + rowIndex + ", " + columnIndex + ", '" + allowChar + "')"
+        + (ret === false
+            ? " -> 전제 미충족(미동작)"
+            : " -> 기존 셀값 '" + before + "' -> '" + after + "' (허용 안 된 문자 제거). 편집 시에도 허용 문자만 입력됩니다."));
+}
+
+
+
+// onafteredit : 셀 편집모드가 종료되어 포커스가 빠져나온 시점에 발생.
+//  편집 종료된 셀에 실제 표시된 값(allowChar 적용으로 허용 문자만 남은 결과)을 조회하여 출력한다.
+//  MultiLine 이므로 같은 rowIndex 라도 columnIndex(0~3)로 위/아래 Line 셀을 구분 표기한다.
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    // getCellData 는 colID 인자에 컬럼 인덱스를 직접 받아 내부에서 getColumnID 로 해석한다.
+    let displayed = scwin.target1.getCellData(rowIndex, columnIndex);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "onafteredit | rowIndex : " + rowIndex + ", columnIndex : " + columnIndex
+        + " -> 셀 표시값 : \"" + displayed + "\"");
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 (1번째 데이터 Row : 두 줄 동일 rowIndex)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (2번째 데이터 Row : 두 줄 동일 rowIndex)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 : 1줄 col1]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 : 1줄 col2]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : 2줄 col3]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : 2줄 col4]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="allowChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_allowChar" style="" initValue="0-9"></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellAllowChar_onclick" id="btn_setCellAllowChar"
+							label="setCellAllowChar" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
