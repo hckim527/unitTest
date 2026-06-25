@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnDisplayFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260625" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnDisplayFormatter]<br/>Body Column 정보를 사용하여 특정 Column 의 displayFormatter 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터는 Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다."
+    ]
+}
+
+
+
+// displayFormatter 사용자 함수 : 셀 데이터를 ' 원' 단위 표현으로 변환
+scwin.fmtWon = function (data) {
+    return data + " 원";
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Body Row MultiLine 구성)
+//  - gBody 에 <w2:row> 2개 -> 한 데이터 Row 가 2 Line 으로 표시
+//  - 1줄 = col1(인덱스0:text) / col2(인덱스1:number)
+//  - 2줄 = col3(인덱스2:text) / col4(인덱스3:number)
+//  - Row 가 MultiLine 이어도 col1~col4 는 각각 고유 인덱스(0~3) 를 가짐
+//  - 이 고유 인덱스로 setColumnDisplayFormatter(인덱스, "scwin.fmtWon") 호출 시 해당 컬럼만 정확히 변환 적용됨
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body 가 MultiLine(2줄). 한 데이터 Row 가 2줄에 걸쳐 표시됨. 1줄 col1(0:text)/col2(1:number), 2줄 col3(2:text)/col4(3:number) 고유 인덱스. 데이터 Row 3개. 사용자 함수 scwin.fmtWon(data) 은 셀 데이터 뒤에 ( 원) 을 붙여 반환.\n[절차] columnInfo(0~3) 선택 후 (setColumnDisplayFormatter 실행) -> 선택한 고유 인덱스 컬럼에만 displayFormatter(scwin.fmtWon) 적용. 미적용 셀 표시값과 비교.\n[확인] MultiLine 이어도 col1~col4 는 고유 인덱스(0~3)로 각각 지목되어 해당 컬럼만 변환 적용(다른 컬럼 영향 없음). getColumnID(인덱스) 매핑도 함께 출력."', '', 'label1');
+
+    // dataList 생성 + 초기값 바인딩 (col1:text / col2:number / col3:text / col4:number)
+    let strData = '';
+    strData += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="col2" dataType="number"></w2:column>';
+    strData += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="col4" dataType="number"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+    dlt_bind.setJSON([
+        { "col1": "서울 강남점", "col2": "1250000", "col3": "강남구 역삼동", "col4": "320" },
+        { "col1": "부산 해운대점", "col2": "980500", "col3": "해운대구 우동", "col4": "210" },
+        { "col1": "대구 수성점", "col2": "1430250", "col3": "수성구 범어동", "col4": "415" }
+    ]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (Body Row MultiLine : gBody 에 <w2:row> 2개)
+    //  - 1줄 : col1(0:text) / col2(1:number)
+    //  - 2줄 : col3(2:text) / col4(3:number)
+    //  - Row 가 MultiLine 이어도 모든 Column 은 고유 인덱스(0~3)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" dataList="data:dlt_bind" id="" style="width:560px;height:340px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol1" value="지점명(text)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="매출(number)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="주소(text)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="직원수(number)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : col1 (text)
+    strTarget += '<w2:column width="280" inputType="text" id="col1" dataList="col1"></w2:column>';
+    // index 1 : col2 (number, 1줄 마지막, 고유 인덱스 1)
+    strTarget += '<w2:column width="*" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // index 2 : col3 (text, 2줄 첫 컬럼, 고유 인덱스 2)
+    strTarget += '<w2:column width="280" inputType="text" id="col3" dataList="col3"></w2:column>';
+    // index 3 : col4 (number, 2줄 마지막, 고유 인덱스 3)
+    strTarget += '<w2:column width="*" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// [실행] setColumnDisplayFormatter : 선택한 컬럼(고유 누적 인덱스) 에만 displayFormatter 사용자 함수를 설정
+//  - MultiLine(2줄) 이어도 col1~col4 는 고유 인덱스(0~3) 로 정확히 지목됨
+//  - 선택 인덱스 컬럼의 모든 행 셀이 scwin.fmtWon 으로 변환(data + ' 원') 되어 표시되고 다른 컬럼은 영향 없음
+//  - 적용 후 해당 컬럼 셀 표시값 + getColumnID(인덱스) 매핑을 출력하여 고유 인덱스로 해당 컬럼만 변환됨을 확인
+scwin.btn_setColumnDisplayFormatter_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let colID = target1.getColumnID(columnInfo);   // MultiLine Row 에서도 col1~col4 는 고유 인덱스(0~3)
+
+    // 고유 인덱스로 해당 컬럼에만 displayFormatter(사용자 함수) 설정
+    target1.setColumnDisplayFormatter(columnInfo, "scwin.fmtWon");
+
+    // 적용 후 해당 컬럼 3개 행의 화면(td) 표시값 수집
+    let shown = [];
+    for (let r = 0; r < 3; r++) {
+        let td = document.querySelector("td[id*='target1_cell_" + r + "_" + columnInfo + "']");
+        shown.push(td ? td.textContent : "(셀없음)");
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("setColumnDisplayFormatter(" + columnInfo + ", 'scwin.fmtWon') [고유 인덱스 " + columnInfo + " -> getColumnID : " + colID + "] -> 해당 컬럼 셀 표시값 : [" + shown.join(" / ") + "]");
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (고유 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 (1줄 col1 : text, 고유 인덱스)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (1줄 col2 : number, 고유 인덱스)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 (2줄 col3 : text, 고유 인덱스)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 (2줄 col4 : number, 고유 인덱스)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnDisplayFormatter_onclick" id="btn_setColumnDisplayFormatter"
+							label="setColumnDisplayFormatter 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

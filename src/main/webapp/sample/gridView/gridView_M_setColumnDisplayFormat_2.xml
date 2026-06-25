@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnDisplayFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260625" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnDisplayFormat]<br/>Body Column 정보를 사용하여 특정 Column 의 displayFormat 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 displayFormat 속성을 설정하려는 Body Column 의 ID 를 설정할 수 있어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : dataType 별 Column(text/number/date) 구성. setColumnDisplayFormat 을 Column ID 로 호출.
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column - cnum(dataType=number) / cdate(dataType=date, 초기 displayFormat=yyyy.MM.dd) / ctext(dataType=text, 숫자형 문자열). 데이터 Row 3개. setColumnDisplayFormat 의 columnInfo 파라미터를 (인덱스가 아닌) Column ID 문자열로 호출.\n[절차] columnInfo(Column ID) 선택 후 (setColumnDisplayFormat 실행) 클릭.\n[확인] Column ID 로 호출되어 해당 Column 셀 표시 포맷이 실제로 변경됨(변경 전/후 비교 출력). cnum: 1250 -> 1,250.00 / cdate: 2025.01.15 -> 2025/01/15 / ctext: 1234567 -> 123-4567."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (dataType 별 컬럼)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cnum" name="cnum" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="cdate" name="cdate" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="ctext" name="ctext" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "cnum": "1250",  "cdate": "20250115", "ctext": "1234567" },
+        { "cnum": "30000", "cdate": "20250220", "ctext": "9876543" },
+        { "cnum": "475",   "cdate": "20250312", "ctext": "5550000" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Header 3컬럼 + gBody. body 컬럼 id 는 dataList 컬럼 id 와 동일해야 바인딩)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:480px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnDisplayFormat 테스트 그리드 (Column ID 호출)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="수량(cnum, number)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="일자(cdate, date)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="품목(ctext, text)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // cnum (number)
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="number" id="cnum" dataList="cnum"></w2:column>';
+    // cdate (date) - 초기 displayFormat=yyyy.MM.dd (점) -> 적용 시 yyyy/MM/dd(슬래시) 로 변경되어 변화가 명확
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="date" displayFormat="yyyy.MM.dd" id="cdate" dataList="cdate"></w2:column>';
+    // ctext (text)
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="text" id="ctext" dataList="ctext"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// [실행] setColumnDisplayFormat : columnInfo 파라미터에 (인덱스가 아닌) Column ID 문자열을 전달하여 displayFormat 을 설정한다.
+//  - cnum -> "#,##0.00", cdate -> "yyyy-MM-dd" (선택한 Column ID 에 맞는 포맷 적용)
+//  - 적용 후 해당 Column 의 모든 Row 셀 표시값을 수집하여 displayFormat 적용 결과를 확인
+scwin.btn_setColumnDisplayFormat_onclick = function () {
+    // columnInfo 파라미터 : Column ID 문자열
+    let colID = par_columnInfo.getValue();
+
+    // Column ID 에 맞는 displayFormat 결정 (적용 시 셀 표시값이 눈에 띄게 바뀌도록)
+    //  cnum  : 1250 -> 1,250.00 / cdate : 2025.01.15 -> 2025/01/15 / ctext : 1234567 -> 123-4567
+    let fmtMap = {
+        "cnum":  "#,##0.00",
+        "cdate": "yyyy/MM/dd",
+        "ctext": "###-####"
+    };
+    let displayFormat = fmtMap[colID];
+    let colIndex = target1.getColumnIndex(colID);
+    let cnt = dlt_bind.getRowCount();
+
+    // 셀 표시값 수집 헬퍼
+    let readCells = function () {
+        let arr = [];
+        for (let r = 0; r < cnt; r++) {
+            let td = document.querySelector("td[id*='target1_cell_" + r + "_" + colIndex + "']");
+            arr.push(td ? td.textContent.trim() : '');
+        }
+        return arr;
+    };
+
+    // columnInfo 파라미터에 Column ID 문자열을 전달하여 호출
+    target1.setColumnDisplayFormat(colID, displayFormat);
+
+    // 적용 후 표시값
+    let after = readCells();
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setColumnDisplayFormat('" + colID + "', '" + displayFormat + "')"
+        + "\n[셀 표시값] " + after.join(', ')
+    );
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (Column ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>cnum (number -> #,##0.00)</xf:label><xf:value>cnum</xf:value></xf:item>
+											<xf:item><xf:label>cdate (date -> yyyy/MM/dd)</xf:label><xf:value>cdate</xf:value></xf:item>
+											<xf:item><xf:label>ctext (text -> ###-####)</xf:label><xf:value>ctext</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnDisplayFormat_onclick" id="btn_setColumnDisplayFormat"
+							label="setColumnDisplayFormat 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

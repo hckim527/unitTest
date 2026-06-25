@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnChooseOption" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260625" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnChooseOption]<br/>Body Column 정보를 사용하여 특정 Column 에 '선택 안내'를 의미하는 아이템을 설정합니다.",
+    "validation" : [
+        "chooseOptionValue(필수) '선택 안내' 아이템이 존재하면 해당 아이템을 먼저 제거한 후 새 값으로 대체합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : select 컬럼(grade) 에 "기존 선택 안내" 아이템을 미리 설정해 둔다.
+//  -> 이미 선택 안내 아이템이 존재하는 상태에서 setColumnChooseOption 을 재호출하면
+//     기존 아이템을 제거한 후 새 값으로 대체(누적 안 됨)되는지 검증하기 위함.
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_grade !== 'undefined') {
+        $p.data.remove("dlt_grade");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] grade(인덱스1) 는 select 컬럼(DataList dlt_grade 3행 바인딩). comp_init 에서 setColumnChooseOption 으로 기존 선택안내 아이템 (- 기존 선택 - / OLD) 을 이미 설정해 둠 -> 첫 아이템이 (- 기존 선택 -), 전체 아이템 4개(DataList 3 + 선택안내 1).\n[절차] chooseOptionValue / chooseOptionLabel 입력 후 (setColumnChooseOption 재호출 (대체)) 클릭.\n[확인] 재호출 후 기존 선택안내 아이템 (- 기존 선택 -) 이 제거되고 새 값이 첫 아이템으로 대체됨. 전체 아이템 수가 그대로 4개(누적 시 5개) 이면 누적이 아니라 대체된 것. 반환영역에서 전/후 비교."', '', 'label1');
+
+    // select 컬럼 옵션용 DataList (label/value) 동적 생성
+    let strGrade = '';
+    strGrade += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_grade" baseNode="list" repeatNode="map">';
+    strGrade += '<w2:columnInfo>';
+    strGrade += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strGrade += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strGrade += '</w2:columnInfo>';
+    strGrade += '<w2:data use="true"></w2:data>';
+    strGrade += '</w2:dataList>';
+    $p.data.create(strGrade);
+    dlt_grade.setJSON([
+        { "label": "A등급", "value": "A" },
+        { "label": "B등급", "value": "B" },
+        { "label": "C등급", "value": "C" }
+    ], false);
+
+    // GridView 와 바인딩할 body DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name": "노트북", "grade": "A" },
+        { "name": "모니터", "grade": "B" },
+        { "name": "키보드", "grade": "C" },
+        { "name": "마우스", "grade": "A" }
+    ], false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+        editable: "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (index0:name(text) / index1:grade(select, DataList dlt_grade 바인딩))
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:480px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnChooseOption 대체 검증 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="품목"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="등급(select)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    // index 0 : name (text)
+    strTarget += '<w2:column width="200" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 1 : grade (select) - DataList(dlt_grade) 바인딩 itemset -> setColumnChooseOption 대상
+    strTarget += '<w2:column width="*" style="" inputType="select" id="grade" dataList="grade">';
+    strTarget += '<w2:choices><w2:itemset nodeset="data:dlt_grade"><w2:label ref="label"></w2:label><w2:value ref="value"></w2:value></w2:itemset></w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 기존 선택 안내 아이템을 미리 설정 -> 이미 존재하는 상태를 만든다 (재호출 시 대체 검증용)
+    target1.setColumnChooseOption(1, "OLD", "- 기존 선택 -");
+}
+
+
+
+// select 컬럼의 렌더된 아이템(첫 아이템 label/value + 전체 개수) 을 읽어 문자열로 만든다.
+//  WebSquare select 셀은 native select 가 아닌 w2selectbox 로 렌더 -> 편집모드 진입 후 cellInfo.select.itemArr 로 확인.
+scwin.readItems = function (colIndex) {
+    let td = document.querySelector("td[id*='target1_cell_0_" + colIndex + "']");
+    target1.setEditMode(td);
+    let sel = target1.getCellInfo(colIndex).select;
+    let first = (sel && sel.itemArr && sel.itemArr.length > 0) ? sel.itemArr[0] : { label: "", value: "" };
+    let cnt = (sel && sel.itemArr) ? sel.itemArr.length : -1;
+    return "첫 아이템 label='" + first.label + "' value='" + first.value + "' / 전체 아이템 수=" + cnt;
+}
+
+// [대체 검증] 기존 선택 안내 아이템이 존재하는 상태에서 setColumnChooseOption 재호출
+//  -> 기존 아이템을 먼저 제거한 후 새 값으로 대체(누적 안 됨)되는지 전/후 비교로 확인.
+scwin.btn_replace_onclick = function () {
+    let colIndex = 1;   // grade (select)
+    let newValue = par_chooseOptionValue.getValue();
+    let newLabel = par_chooseOptionLabel.getValue();
+
+    // 재호출 전 : comp_init 에서 설정한 기존 선택안내 아이템 (- 기존 선택 - / OLD)
+    let before = scwin.readItems(colIndex);
+
+    // 재호출 : 기존 선택안내 아이템 제거 후 새 값으로 대체
+    target1.setColumnChooseOption(colIndex, newValue, newLabel);
+
+    // 재호출 후 : 첫 아이템이 새 값으로 바뀌고 전체 개수는 동일(누적 안 됨)
+    let after = scwin.readItems(colIndex);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[재호출 전] " + before
+        + "\n[재호출 후] setColumnChooseOption(" + colIndex + ", '" + newValue + "', '" + newLabel + "') -> " + after        
+    );
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="chooseOptionValue" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_chooseOptionValue" initValue="NEW" style="" ref=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="chooseOptionLabel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:input id="par_chooseOptionLabel" initValue="- 새 선택 -" style="" ref=""></xf:input>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_replace_onclick" id="btn_replace"
+							label="setColumnChooseOption 재호출 (대체)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

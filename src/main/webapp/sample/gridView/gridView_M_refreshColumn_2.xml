@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] refreshColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260624" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > refreshColumn]<br/>Body Column 정보를 사용하여 특정 Body Column 을 다시 렌더링합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 Column 의 ID 를 설정하여 다시 렌더링 할 수 있어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 테스트 참고 라벨 (가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] columnInfo 에 Column ID(col1~col4) 지정 -> 인덱스 대신 ID 로 지정해도 동일 동작. 데이터 Row 4개.\n[절차] 1) (GridView 값만 수정) 클릭 -> 그리드 셀의 화면(DOM) 표시값만 임시로 변경(DataList 는 원본 그대로 -> 화면과 DataList 불일치). 2) columnInfo(Column ID) 선택 후 (refreshColumn 실행) -> 해당 컬럼을 DataList 값으로 다시 렌더링.\n[확인] refreshColumn 을 Column ID 로 호출하면 화면의 임시값이 사라지고 해당 컬럼의 모든 Row 가 DataList 원본값으로 복원되어 반환영역에 출력됨."', '', 'label1');
+
+    // 조건 설정
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // dataList 생성 (col1~col4) + 초기값 바인딩
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "노트북", "col2": "서울", "col3": "3", "col4": "1200" },
+        { "col1": "모니터", "col2": "부산", "col3": "5", "col4": "1800" },
+        { "col1": "키보드", "col2": "대전", "col3": "7", "col4": "900" },
+        { "col1": "마우스", "col2": "광주", "col3": "9", "col4": "500" }
+    ]);
+
+    // target 생성
+    scwin.target1 = $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// [1단계] GridView 화면 값만 수정 : DataList 는 건드리지 않고 그리드 셀의 화면(DOM) 표시값만 임시로 변경한다.
+//  -> DataList 와 화면이 불일치 상태가 됨. refreshColumn(Column ID) 이 DataList 를 다시 읽어 화면을 복원하는지 확인용.
+scwin.btn_modifyAllCells_onclick = function () {
+    let cnt = dlt_bind.getRowCount();
+    let colCnt = target1.getColumnCount();
+
+    // 화면에만 표시할 임시값 : 초기값과 같은 형태(품목/지역/수량/단가)지만 다른 값
+    let fakeMap = {
+        "col1": ["태블릿", "프린터", "스피커", "웹캠"],
+        "col2": ["인천", "대구", "울산", "수원"],
+        "col3": ["11", "22", "33", "44"],
+        "col4": ["3300", "2700", "1500", "800"]
+    };
+
+    // 모든 표시 셀의 화면(td) 텍스트만 임시값으로 변경 (DataList 미반영)
+    for (let r = 0; r < cnt; r++) {
+        for (let c = 0; c < colCnt; c++) {
+            let td = document.querySelector("td[id*='target1_cell_" + r + "_" + c + "']");
+            if (!td) { continue; }
+            let colID = target1.getColumnID(c);
+            let val = (fakeMap[colID] && typeof fakeMap[colID][r] !== 'undefined') ? fakeMap[colID][r] : ("임시" + r);
+            td.textContent = val;
+        }
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("GridView 화면 값만 수정 완료 (DataList 미반영). 화면은 초기값과 비슷한 형태의 다른 값으로 바뀌었지만 DataList 는 원본 유지 -> columnInfo(Column ID) 선택 후 (refreshColumn 실행) 으로 화면 복원 확인.");
+}
+
+// [2단계] refreshColumn 실행 : 선택한 Column ID 를 DataList 값으로 다시 렌더링 -> 화면 임시값이 사라지고 DataList 원본값으로 복원된다.
+scwin.btn_refreshColumn_onclick = function () {
+    let columnInfo = par_columnInfo.getText();      // Column ID 그대로 전달 (Number 변환 금지)
+    let colIndex = target1.getColumnIndex(columnInfo);
+    let cnt = dlt_bind.getRowCount();
+
+    // refreshColumn 을 Column ID 로 호출 -> DataList 값을 다시 읽어 해당 컬럼 화면 복원
+    target1.refreshColumn(columnInfo);
+
+    // 복원된 해당 컬럼의 모든 Row 화면 표시값 수집
+    let arr = [];
+    for (let r = 0; r < cnt; r++) {
+        let td = document.querySelector("td[id*='target1_cell_" + r + "_" + colIndex + "']");
+        arr.push(td ? td.textContent.trim() : '');
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("refreshColumn('" + columnInfo + "') -> DataList 기준으로 화면 복원 : " + arr.join(', '));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (Column ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_modifyAllCells_onclick" id="btn_modifyAllCells"
+							label="GridView 값만 수정" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_refreshColumn_onclick" id="btn_refreshColumn"
+							label="refreshColumn 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
