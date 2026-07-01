@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnIoFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260625" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnIoFormat]<br/>Body Column 정보를 사용하여 특정 Column 의 ioFormat 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 ioFormat 속성을 설정하려는 Body Column 의 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "Body Column 이 dataType='date' 이고, inputType 속성값이 'custom' 이 아닐때 동작합니다.",
+        "ioFormat(필수) 파라미터로 Cell 이 편집 상태일때 적용될 포맷을 'y','M','d','H','m','S' 마스크 문자로 설정합니다.",
+        "ioFormat(필수) 파라미터는 마스크 문자가 아닌 일반문자는 설정할 수 없습니다.",
+        "dateMask(선택) 파라미터로 Cell 값이 표시되는 포맷을 'y','M','d','E','H','m','S' 마스크 문자로 설정합니다.",
+        "dateMask(선택) 파라미터는 마스크 문자가 아닌 일반문자는 그대로 표시됩니다.",
+        "Cell 데이터와 맞는 마스크 문자를 설정하지 않으면 값이 정상적으로 처리되지 않습니다.",
+        "ioFormat 파라미터의 마스크 문자 사이에 구분자를 설정할 수 없습니다.",
+        "ioFormat, dateMask 파라미터값은 각각 Column 의 ioFormat, displayFormat 속성에 설정됩니다.",
+        "setColumnIoFormat() 메소드를 실행하여 displayFormat 속성을 설정해도 해당 Column 은 자동으로 다시 렌더링되지 않습니다.",
+        "dateMask(선택) 파라미터를 생략하면 displayFormat 속성은 변경되지 않고 기존 표시 포맷이 유지됩니다.",
+    ]
+}
+
+
+
+// columnInfo(컬럼 인덱스) 별 권장 ioFormat (par_ioFormat 자동 선택용)
+//  0:dDate(date,text) 동작대상 / 1:dHide(date,숨김) / 2:dCustom(date,custom) 미동작 / 3:dText(text) 미동작
+scwin.colIoFormatMap = {
+    "0": "ddMMyyyy",
+    "1": "ddMMyyyy",
+    "2": "ddMMyyyy",
+    "3": "ddMMyyyy",
+    "4": "HHmmSS"
+};
+
+// ioFormat -> 동일 형식의 dateMask(표시포맷) 매핑 : 같은 필드 순서에 구분자를 넣은 표시용 포맷
+scwin.ioToDateMaskMap = {
+    "ddMMyyyy":   "dd-MM-yyyy",
+    "yyyyMMdd":   "yyyy-MM-dd",
+    "HHmmSS":     "HH:mm:SS",
+    "dd-MM-yyyy": "dd-MM-yyyy"
+};
+
+// par_ioFormat 선택이 바뀌면 dateMask(표시포맷) 를 ioFormat 과 동일 형식으로 par_dateMask 에 자동 선택
+scwin.par_ioFormat_onchange = function () {
+    let io = par_ioFormat.getValue();
+    let dm = scwin.ioToDateMaskMap[io];
+    if (typeof dm !== 'undefined') {
+        par_dateMask.setValue(dm);
+    }
+};
+
+// columnInfo 선택이 바뀌면 해당 컬럼 권장 ioFormat 을 par_ioFormat 에 자동 선택하고, dateMask 도 ioFormat 과 동일 형식으로 자동 선택
+scwin.par_columnInfo_onchange = function () {
+    let col = par_columnInfo.getValue();
+    let io = scwin.colIoFormatMap[col];
+    if (typeof io !== 'undefined') {
+        par_ioFormat.setValue(io);
+        scwin.par_ioFormat_onchange();
+    }
+};
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 columnInfo 선택값(0)에 맞는 ioFormat / dateMask 자동 선택
+    par_columnInfo.setValue("0");
+    scwin.par_columnInfo_onchange();
+};
+
+
+
+// comp 생성 : date(text)/date(숨김)/date(custom)/text Column 구성
+//  setColumnIoFormat 은 dataType='date' 이고 inputType!='custom' 인 Column(0:dDate) 에서만 동작
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column(숨김 포함) 0:dDate(date/text·동작) / 1:dHide(date·숨김) / 2:dCustom(date/custom·미동작) / 3:dText(text·미동작) / 4:dTime(date/시분초·동작), 데이터 3행.\n[절차] columnInfo·ioFormat·dateMask 선택 -> (setColumnIoFormat 실행). date 컬럼(0:dDate, 4:dTime) 셀 더블클릭 편집 후 포커스아웃하면 편집값(ioFormat)·표시값(displayFormat)이 자동 출력됨.\n[확인] date 컬럼만 동작 - 0:dDate 편집창=ddMMyyyy(예 15012025)->표시 15-01-2025, 4:dTime 편집창=HHmmSS(예 153045)->표시 15:30:45. 2:dCustom/3:dText 는 미동작."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dDate" name="dDate" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="dHide" name="dHide" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="dCustom" name="dCustom" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="dText" name="dText" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dTime" name="dTime" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "dDate": "20250115", "dHide": "20250115", "dCustom": "20250115", "dText": "20250115", "dTime": "153045" },
+        { "dDate": "20251231", "dHide": "20251231", "dCustom": "20251231", "dText": "20251231", "dTime": "093000" },
+        { "dDate": "20250707", "dHide": "20250707", "dCustom": "20250707", "dText": "20250707", "dTime": "235959" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (date/date/date(custom)/text Column)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:560px;height:220px;" editable="true" ev:onbeforeedit="scwin.target1_onbeforeedit" ev:onafteredit="scwin.target1_onafteredit">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnIoFormat 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" inputType="text" id="h0" value="0:date(text)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="h1" value="1:date(숨김)"></w2:column>';
+    strTarget += '<w2:column width="140" inputType="text" id="h2" value="2:date(custom)"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="h3" value="3:text"></w2:column>';
+    strTarget += '<w2:column width="130" inputType="text" id="h4" value="4:date(시분초)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    //  (중요) body 컬럼 id 는 dataList 컬럼 id 와 동일해야 셀에 데이터가 바인딩됨
+    // 0 : date + text -> setColumnIoFormat 동작 대상 (dataType=date, inputType!=custom)
+    strTarget += '<w2:column width="140" inputType="text" dataType="date" displayFormat="yyyy/MM/dd" id="dDate" dataList="dDate"></w2:column>';
+    // 1 : date 숨김(setColumnVisible(1,false)) -> 숨김 Column 포함 인덱스 검증용
+    strTarget += '<w2:column width="120" inputType="text" dataType="date" displayFormat="yyyy/MM/dd" id="dHide" dataList="dHide"></w2:column>';
+    // 2 : date + custom -> 전제 미충족(inputType=custom) -> 미동작
+    strTarget += '<w2:column width="140" inputType="custom" dataType="date" displayFormat="yyyy/MM/dd" id="dCustom" dataList="dCustom"></w2:column>';
+    // 3 : text -> 전제 미충족(dataType!=date) -> 미동작
+    strTarget += '<w2:column width="110" inputType="text" dataType="text" id="dText" dataList="dText"></w2:column>';
+    // 4 : date + 시분초(time) 데이터 -> ioFormat=HHmmSS / dateMask=HH:mm:SS (: 구분) 로 시분초 정상 적용
+    strTarget += '<w2:column width="130" inputType="text" dataType="date" displayFormat="HH:mm:SS" id="dTime" dataList="dTime"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 두번째 Column(dHide, 인덱스 1) 숨김 -> 숨김 Column 포함 인덱스 검증용
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// [실행] setColumnIoFormat : columnInfo(인덱스) + ioFormat + dateMask 로 해당 Column 의 ioFormat/displayFormat 속성을 설정한다.
+//  - 호출 직후 : 설정된 ioFormat/displayFormat 속성값 + 화면 표시값(자동 재렌더 여부) 확인
+//  - 편집상태 입력형식(ioFormat) 은 셀 편집모드 진입 후 입력객체의 _editFormat 으로 확인
+scwin.btn_setColumnIoFormat_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let ioFormat = par_ioFormat.getValue();
+    let dateMask = par_dateMask.getValue();
+    let colID = target1.getColumnID(columnInfo);
+
+    // dateMask(선택) 파라미터 생략 옵션 : par_dateMask 가 빈값(미설정)이면 dateMask 인자 자체를 생략하여 호출
+    if (dateMask === '' || dateMask === null) {
+        target1.setColumnIoFormat(columnInfo, ioFormat);
+    } else {
+        target1.setColumnIoFormat(columnInfo, ioFormat, dateMask);
+    }
+
+    // 설정 후 해당 Column 의 ioFormat/displayFormat 속성값 확인 (getCellInfo().options)
+    let cellInfo = target1.getCellInfo(columnInfo);
+    let setIo = (cellInfo && cellInfo.options) ? cellInfo.options.ioFormat : '(조회불가)';
+    let setDisp = (cellInfo && cellInfo.options) ? cellInfo.options.displayFormat : '(조회불가)';
+
+    // 호출 직후 화면 표시값(displayFormat 반영) 수집
+    let arr = scwin.collectColText(columnInfo);
+
+    let msg = "setColumnIoFormat(" + columnInfo + (dateMask === '' || dateMask === null ? ", '" + ioFormat + "'" : ", '" + ioFormat + "', '" + dateMask + "'") + ") [" + colID + "]";
+    msg += "\n[속성] ioFormat='" + setIo + "' / displayFormat='" + setDisp + "'";
+    msg += "\n[표시값] " + arr.join(', ');
+
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+}
+
+// 해당 Column 의 모든 Row 화면 표시값(td.textContent) 수집
+scwin.collectColText = function (columnInfo) {
+    let cnt = dlt_bind.getRowCount();
+    let arr = [];
+    for (let r = 0; r < cnt; r++) {
+        let td = document.querySelector("td[id*='target1_cell_" + r + "_" + columnInfo + "']");
+        arr.push(td ? td.textContent.trim() : '');
+    }
+    return arr;
+}
+
+// [이벤트] 셀을 직접 편집 -> 포커스 아웃(onafteredit) 하는 실제 인터랙션마다
+//  편집 상태에서의 값(ioFormat)과 포커스아웃 이후 표시 상태 값(displayFormat) 을 자동 출력한다.
+//  - onbeforeedit(row, col, value) : 편집모드 진입 직전. value = 편집 입력창에 표시되는 값(ioFormat 적용값)
+scwin.target1_onbeforeedit = function (row, col, value) {
+    // 편집 진입 시 입력창(편집상태)에 표시되는 값(ioFormat) 보관 (참고용)
+    scwin._editIoValue = value;
+};
+
+//  - onafteredit(row, col, value) : 셀 편집이 끝나 포커스가 빠져나온 직후 발생.
+//    value = 편집 상태에서의 값(편집 입력창 값, ioFormat 적용) / 이 시점 Cell 표시값(td.textContent) = 표시 상태 값(displayFormat)
+scwin.target1_onafteredit = function (row, col, value) {
+    let colID = target1.getColumnID(col);
+    // 편집 상태에서의 값(ioFormat) : onafteredit 의 value (편집 입력창에 적용된 값)
+    let editVal = value;
+    // 포커스 아웃 이후 표시 상태 값(displayFormat) : 해당 Cell 의 화면 표시값
+    let td = document.querySelector("td[id*='target1_cell_" + row + "_" + col + "']");
+    let dispVal = td ? td.textContent.trim() : '';
+
+    let msg = "편집->포커스아웃 [" + colID + "] (" + row + "," + col + ")";
+    msg += "\n[편집값(ioFormat)] " + editVal;
+    msg += "\n[표시값(displayFormat)] " + dispVal;
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+};
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto" ev:onchange="scwin.par_columnInfo_onchange">
+										<xf:choices>
+											<xf:item><xf:label>0 (dDate, date/text)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (dHide, date/숨김)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2 (dCustom, date/custom)</xf:label><xf:value>2</xf:value></xf:item>
+											<xf:item><xf:label>3 (dText, text)</xf:label><xf:value>3</xf:value></xf:item>
+											<xf:item><xf:label>4 (dTime, date/시분초)</xf:label><xf:value>4</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ioFormat (편집포맷)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_ioFormat" ref="" style="" submenuSize="auto" ev:onchange="scwin.par_ioFormat_onchange">
+										<xf:choices>
+											<xf:item><xf:label>ddMMyyyy (일월년)</xf:label><xf:value>ddMMyyyy</xf:value></xf:item>
+											<xf:item><xf:label>yyyyMMdd (년월일)</xf:label><xf:value>yyyyMMdd</xf:value></xf:item>
+											<xf:item><xf:label>HHmmSS (시분초)</xf:label><xf:value>HHmmSS</xf:value></xf:item>
+											<xf:item><xf:label>dd-MM-yyyy (구분자포함 - 설정불가)</xf:label><xf:value>dd-MM-yyyy</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dateMask (표시포맷)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_dateMask" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+											<xf:item><xf:label>dd-MM-yyyy</xf:label><xf:value>dd-MM-yyyy</xf:value></xf:item>
+											<xf:item><xf:label>yyyy-MM-dd</xf:label><xf:value>yyyy-MM-dd</xf:value></xf:item>
+											<xf:item><xf:label>HH:mm:SS</xf:label><xf:value>HH:mm:SS</xf:value></xf:item>
+											<xf:item><xf:label>yyyy년MM월dd일 (일반문자 그대로 표시)</xf:label><xf:value>yyyy년MM월dd일</xf:value></xf:item>
+											<xf:item><xf:label>EEE yyyy-MM-dd (요일포함)</xf:label><xf:value>EEE yyyy-MM-dd</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnIoFormat_onclick" id="btn_setColumnIoFormat"
+							label="setColumnIoFormat 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

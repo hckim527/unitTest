@@ -95,11 +95,9 @@ scwin.comp_init = async function () {
 
 
 
-// 아이콘 위치 확인 : 각 sortable Header th 의 정렬 화살표에 대해
-//   ① 클래스 기준(_main_left 유무) ② 실제 background-position 기준 두 가지로 좌/우 위치를 판정
-//  - 정렬 화살표는 .w2grid_head_sort_none/_asc/_desc 요소의 CSS background-image 로 표시되며
-//    background-position 의 X 값이 실제 표시 위치(좌: 4px 부근 / 우: calc(100% - 4px))를 결정한다.
-//  - 클래스(_left)는 정상 적용되나 background-position 이 좌측으로 바뀌지 않으면(우측 100% 유지) 실제로는 우측에 표시됨 → 좌표값으로 검출
+// 클래스 확인 : 각 sortable Header th 에 적용된 'w2grid_head_sort_div_*' CSS 클래스를 수집하여 출력
+//  - sortedIconPosition='left' : '..._main_left' / '..._sub_sortable_image_left' (_left 접미사 O)
+//  - sortedIconPosition='right'(기본) / sortHeaderDiv=true : '..._main' / '..._sub_sortable_image' (접미사 X)
 //  - 정렬 자체는 사용자가 헤더를 클릭하여 수행 (정렬 트리거 버튼은 생성하지 않음)
 scwin.btn_checkIconPos_onclick = function (e) {
     let bottom = wf_body_bottom.getObj("scwin");
@@ -117,41 +115,22 @@ scwin.btn_checkIconPos_onclick = function (e) {
         return;
     }
 
-    bottom.setReturnValue("[옵션] sortedIconPosition : " + target1.options.sortedIconPosition + " / sortHeaderDiv : " + target1.options.sortHeaderDiv);
-
     for (let i = 0; i < sortableThs.length; i++) {
         let th = sortableThs[i];
 
-        // 정렬 화살표 background 를 가진 요소 찾기
-        //  - 기본 모드 : div.w2grid_head_sort_div_main(_left)  /  sortHeaderDiv 모드 : button.w2grid_head_sort_div_main_btn
-        //  - 모드별로 background 없는 outer/컨테이너가 함께 존재하므로 backgroundImage 가 실제로 있는 요소를 선택
-        let candidates = th.querySelectorAll("[class*='w2grid_head_sort_div_main'], [class*='w2grid_head_sort_none'], [class*='w2grid_head_sort_asc'], [class*='w2grid_head_sort_desc']");
-        let arrowEl = null;
-        for (let ci = 0; ci < candidates.length; ci++) {
-            if (getComputedStyle(candidates[ci]).backgroundImage !== "none") { arrowEl = candidates[ci]; break; }
-        }
-        if (!arrowEl && candidates.length > 0) { arrowEl = candidates[0]; }
-        let cls = arrowEl ? arrowEl.className : "(없음)";
-
-        // ① 클래스 기준 : _left 유무 (sortHeaderDiv 모드는 _btn 으로 _left 미부여 → 오른쪽)
-        let clsSide = arrowEl ? (/_main_left|_image_left/.test(cls) ? "왼쪽(left)" : "오른쪽(right)") : "(판단불가)";
-
-        // ② background-position 기준 : 실제 화살표 표시 위치
-        //   X 값이 100%(=우측 기준) 면 오른쪽, 4px/0%/left 면 왼쪽
-        let bgPos = arrowEl ? getComputedStyle(arrowEl).backgroundPosition : "";
-        let bgSide = "(판단불가)";
-        if (arrowEl && bgPos && bgPos !== "0% 0%") {
-            if (/100%|right/.test(bgPos)) {
-                bgSide = "오른쪽(right)";
-            } else if (/(^|[\s,])(left|0%|0px|[1-9]\d?px)/.test(bgPos)) {
-                bgSide = "왼쪽(left)";
-            } else {
-                bgSide = "불명확";
+        // th 내 적용된 'w2grid_head_sort_div_*' CSS 클래스를 수집(_left 접미사 포함 여부로 아이콘 위치 검증)
+        let sortDivEls = th.querySelectorAll("[class*='w2grid_head_sort_div']");
+        let appliedCls = [];
+        for (let si = 0; si < sortDivEls.length; si++) {
+            let toks = (sortDivEls[si].className || "").split(/\s+/);
+            for (let ti = 0; ti < toks.length; ti++) {
+                if (toks[ti].indexOf("w2grid_head_sort_div") === 0 && appliedCls.indexOf(toks[ti]) === -1) {
+                    appliedCls.push(toks[ti]);
+                }
             }
         }
 
-        bottom.setReturnValue("Header[" + i + "] 클래스기준 : " + clsSide + " / background-position기준 : " + bgSide);
-        bottom.setReturnValue("  background-position : " + (bgPos || "(없음)"));
+        bottom.setReturnValue("Header[" + i + "] 적용 클래스 : " + (appliedCls.length ? appliedCls.join(", ") : "(없음)"));
     }
 }]]></script>
 		<style type="text/css"><![CDATA[]]></style>
@@ -219,7 +198,7 @@ scwin.btn_checkIconPos_onclick = function (e) {
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkIconPos_onclick" id="btn_checkIconPos"
-							label="아이콘 위치 확인" style="">
+							label="클래스 확인" style="">
 						</w2:button>
 					</xf:group>
 				</xf:group>
