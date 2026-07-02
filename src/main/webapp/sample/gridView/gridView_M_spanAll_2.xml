@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] spanAll" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260701" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > spanAll]<br/>GridView 에 DrillDown 이 적용된 경우 하위 Row 를 확장하거나 축소합니다.",
+    "validation" : [
+        "spanAll() 실행 시 toggle(), drillTo() 로 확장/축소된 상태가 초기화됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 — 3단계(depth 1/2/3) DrillDown 트리 GridView 구성 (_1 과 동일)
+//  · depth1(본사) 2건 > depth2(본부) 각 2건 > depth3(팀) 각 2건 = 총 14건
+//  · showDepth="1" 이므로 초기엔 최상위 depth1(본사 2건)만 표시(하위 접힘)
+//  · height 를 데이터보다 작게(250px) 잡아 전체 확장 시 세로 스크롤 발생
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] inputType=drilldown 3단계 트리(depth1 본사 2건 > depth2 본부 > depth3 팀, 총 14건). 초기 showDepth=1 로 최상위(본사)만 표시.\n[절차] 1) [drillTo] 클릭 → drillTo(2) 로 본사A/영업본부만 펼친 부분 확장 상태 생성(spanAll 미호출). 2) [toggle] 클릭 → toggle 로 전체 확장(spanAll 미호출). 3) par_openInfo 인자 선택 후 [spanAll] 클릭 → spanAll 실행하여 초기화 결과 확인.\n[확인] drillTo(셋업1)·toggle(셋업2) 로 만든 확장 상태가 spanAll 로 초기화되는지 gridView 표시값 변화로 확인."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (본사=1, 본부=2, 팀=3)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모 바로 아래 자식 위치(엔진 drilldown 은 순서 기반)
+    let jsonData = [
+        { "name": "본사A",     "amount": 1000, "depth": 1 },
+        { "name": "영업본부",   "amount": 500,  "depth": 2 },
+        { "name": "영업1팀",    "amount": 260,  "depth": 3 },
+        { "name": "영업2팀",    "amount": 240,  "depth": 3 },
+        { "name": "개발본부",   "amount": 500,  "depth": 2 },
+        { "name": "개발1팀",    "amount": 260,  "depth": 3 },
+        { "name": "개발2팀",    "amount": 240,  "depth": 3 },
+        { "name": "본사B",     "amount": 900,  "depth": 1 },
+        { "name": "관리본부",   "amount": 450,  "depth": 2 },
+        { "name": "관리1팀",    "amount": 230,  "depth": 3 },
+        { "name": "관리2팀",    "amount": 220,  "depth": 3 },
+        { "name": "재무본부",   "amount": 450,  "depth": 2 },
+        { "name": "재무1팀",    "amount": 230,  "depth": 3 },
+        { "name": "재무2팀",    "amount": 220,  "depth": 3 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (DrillDown 트리 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" checkAllType="false" id="" style="width:520px;height:250px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="spanAll (DrillDown 확장/축소) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol1" value="조직(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="300" style="text-align:left;" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par_openInfo(셀렉트) 문자열 값을 spanAll 인자(Boolean/Number)로 변환
+//  '' → undefined(인자 생략, 기본 false=전체 축소) / 'true'|'false' → Boolean / '2'|'3' → Number(depth)
+scwin.parseOpenInfo = function (v) {
+    if (v === 'true')  return true;
+    if (v === 'false') return false;
+    if (v === '')      return undefined;
+    return parseInt(v, 10);
+}
+
+
+
+// gridView 에 현재 표시(확장)된 Row 의 값을 순서대로 수집 (drilldown 축소된 하위 Row 는 제외됨)
+scwin.dispVals = function () {
+    let len = target1.getDataLength();
+    let rows = [];
+    for (var i = 0; i < len; i++) {
+        rows.push(target1.getCellData(i, 'name') + '(' + target1.getCellDisplayData(i, 'amount') + ')');
+    }
+    return "gridView 표시값(" + len + "행): " + rows.join(', ');
+}
+
+
+
+// [셋업 버튼1] drillTo 부분확장 — spanAll 미호출, 부분 확장 상태만 생성 (toggle 미사용)
+//  drillTo(2) 로 영업본부 브랜치만 오픈 → 일부 Row 만 펼친 부분 확장 (spanAll 초기화 대상인 drillTo 확장 상태 생성)
+scwin.btn_setup1_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.drillTo(2);   // (drillTo) 영업본부 브랜치만 펼침
+
+    setTimeout(function () {
+        bottom.setReturnValue("[drillTo] " + scwin.dispVals());
+    }, 200);
+}
+
+
+
+// [셋업 버튼2] toggle 로 전체 확장 — spanAll 미호출 (spanAll 초기화 대상인 toggle 확장 상태 생성)
+//  spanAll·drillTo 없이 toggle 로만 닫힌 상위 Row 를 모두 열어 전체(14행) 확장
+//  출력: gridView 표시값
+scwin.btn_setup2_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // spanAll·drillTo 없이 toggle 로만 전체 확장 : 닫힌 상위 Row(depth<3 이면서 미오픈)를 모두 오픈
+    //  주의: depth3(팀)은 leaf 이나 getOpenStatus 가 false 를 반환하므로, depth<3 조건으로 leaf 를 제외해야 무한루프 방지
+    let guard = 0;
+    while (guard++ < 50) {
+        let n = target1.getDataLength();
+        let closed = -1;
+        for (var i = 0; i < n; i++) {
+            if (target1.getCellData(i, 'depth') < 3 && target1.getOpenStatus(i) === false) { closed = i; break; }
+        }
+        if (closed < 0) break;   // 더 이상 닫힌 상위 Row 없음 → 전체 확장 완료
+        target1.toggle(closed);
+    }
+
+    setTimeout(function () {
+        bottom.setReturnValue("[toggle] " + scwin.dispVals());
+    }, 200);
+}
+
+
+
+// [spanAll 실행 버튼] par_openInfo 인자로 spanAll 호출 후 초기화 판정
+//  drillTo/toggle 로 만든 확장 상태가 spanAll 실행 시 초기화되는지 (gridView 표시값 변화로 확인)
+scwin.btn_spanAll_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let vText = par_openInfo.getValue();     // '', 'true', 'false', '2', '3'
+    let openInfo = scwin.parseOpenInfo(vText);
+
+    // spanAll 실행 (par 미설정 시 인자 생략)
+    if (vText === '') {
+        target1.spanAll();
+    } else {
+        target1.spanAll(openInfo);
+    }
+
+    setTimeout(function () {
+        let argTxt = (vText === '') ? '' : String(openInfo);
+        bottom.setReturnValue("[spanAll(" + argTxt + ") 후] " + scwin.dispVals());
+    }, 200);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="openInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_openInfo" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setup1_onclick" id="btn_setup1" label="drillTo" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setup2_onclick" id="btn_setup2" label="toggle" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_spanAll_onclick" id="btn_spanAll" label="spanAll" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

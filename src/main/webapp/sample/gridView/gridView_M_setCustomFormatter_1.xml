@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setCustomFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260702" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setCustomFormatter]<br/>Body Column 정보를 사용하여 특정 Column 의 customFormatter 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 customFormatter 속성을 설정하려는 Body Cell 의 Column 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정되고 MultiLine 인 경우에도 모든 Column 이 고유의 인덱스를 가집니다.",
+        "Column 의 inputType 속성이 'text', 'link', 'select', 'autoComplete', 'textarea', 'expression', 'textImage' 값이어야 동작합니다.",
+        "formatter(필수) 파라미터로 표시되는 Cell 데이터를 마지막으로 변환할 사용자 정의 함수의 이름을 설정할 수 있어야 합니다.",
+        "formatter(필수) 사용자 정의 함수의 파라미터로 Cell 의 실제 데이터(data), 포맷 적용 데이터(formattedData), Row 인덱스(rowIndex), Column 인덱스(columnIndex) 가 전달됩니다.",
+        "formatter(필수) 사용자 정의 함수의 반환값이 Cell 에 표시되는 최종 데이터로 적용됩니다.",
+        "formatter(필수) 사용자 정의 함수 내부에서 this 는 GridView 컴포넌트를 가리킵니다.",
+        "setCustomFormatter() 메소드는 Column 단위로 적용됩니다.",
+        "Cell 의 최종 데이터 표시는 customFormatter 로 처리되므로 displayFormat 또는 displayFormatter 결과를 활용하려면 사용자 함수에 전달되는 formattedData 파라미터를 사용하여야 합니다.",
+        "setCustomFormatter() 메소드가 실행되면 DOM 이 즉시 재렌더링되며, 스크롤이나 데이터 변경 시 지속적으로 사용자 정의 함수가 실행됩니다.",
+    ]
+}
+
+
+
+// ★ formatter(사용자 함수) 1 : @spec2 검증용 - formattedData(포맷 적용 데이터)를 그대로 활용하여 접미사 부착
+//  customFormatter 가 최종 표시를 처리하므로 displayFormat 결과를 쓰려면 formattedData 파라미터를 사용해야 함
+//  -> displayFormat="#,##0" 이 걸린 Column(0) 에 적용하면 formattedData 는 콤마 포맷값("1,250")이 전달됨을 확인
+scwin.fmtWon = function (data, formattedData, rowIndex, columnIndex) {
+    return formattedData + " won";
+};
+
+// ★ formatter(사용자 함수) 2 : 파라미터 4종(data/formattedData/rowIndex/columnIndex) 전달 + this=GridView 검증용
+//  this.getRowCount() 는 GridView 메소드 -> this 가 GridView 컴포넌트여야만 정상 반환됨
+scwin.fmtFull = function (data, formattedData, rowIndex, columnIndex) {
+    return "[rowIndex=" + rowIndex + " columnIndex=" + columnIndex + "] d=" + data + " f=" + formattedData + " this.getRowCount()=" + this.getRowCount();
+};
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 파라미터 선택값
+    par_columnInfo.setValue("0");
+    par_formatter.setValue("scwin.fmtWon");
+};
+
+
+
+// comp 생성 : allow-list inputType(동작) 과 대조용 inputType(미동작) Column 을 함께 구성한다.
+//  인덱스(숨김 포함) : 0 text(displayFormat) / 1 text(숨김) / 2 link / 3 select / 4 autoComplete /
+//                      5 textarea / 6 expression / 7 textImage / 8 checkbox(대조) / 9 calendar(대조)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_grade !== 'undefined') {
+        $p.data.remove("dlt_grade");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column 인덱스(숨김 포함) - 0:text(displayFormat=#,##0) / 1:text(setColumnVisible(1,false) 로 숨김) / 2:link / 3:select / 4:autoComplete / 5:textarea / 6:expression / 7:textImage (여기까지 allow-list, 동작) / 8:checkbox / 9:calendar (대조용, 미동작). 데이터 Row 3개.\n[절차] columnInfo(인덱스) 와 formatter(함수명) 선택 후 (setCustomFormatter 실행) -> 해당 Column 모든 Row 셀의 화면 표시값이 사용자 함수 반환값으로 바뀌는지 확인.\n[확인] allow-list Column 은 반환값으로 변경되고, checkbox/calendar 는 미변경(미동작). fmtWon 은 formattedData(콤마 포맷) 활용(@spec2), fmtFull 은 4개 파라미터와 this.getRowCount() 로 this=GridView 를 확인."', '', 'label1');
+
+    // select / autoComplete Column 의 itemset 용 DataList (코드/라벨)
+    let strGrade = '';
+    strGrade += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_grade" baseNode="list" repeatNode="map">';
+    strGrade += '<w2:columnInfo>';
+    strGrade += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strGrade += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strGrade += '</w2:columnInfo>';
+    strGrade += '<w2:data use="true"></w2:data>';
+    strGrade += '</w2:dataList>';
+    $p.data.create(strGrade);
+    dlt_grade.setJSON([
+        { "code": "A", "label": "최우수" },
+        { "code": "B", "label": "우수" },
+        { "code": "C", "label": "보통" }
+    ], false);
+
+    // 실제 서빙되는 아이콘 이미지 (textImage 가 화면에 보이도록)
+    let imgSrc = "/cm/images/contents/btn_folder.png";
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="ctext" name="ctext" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="chide" name="chide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="clink" name="clink" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cselect" name="cselect" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cauto" name="cauto" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="ctextarea" name="ctextarea" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="csrc" name="csrc" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="ctextimg" name="ctextimg" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="ccheck" name="ccheck" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="ccal" name="ccal" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "ctext": "1250",  "chide": "숨김A", "clink": "상세보기", "cselect": "A", "cauto": "A", "ctextarea": "재고확인\n2층 보관", "csrc": "5",  "ctextimg": "정상", "ccheck": "Y", "ccal": "20250115" },
+        { "ctext": "30500", "chide": "숨김B", "clink": "상세보기", "cselect": "B", "cauto": "B", "ctextarea": "신규입고\n검수 대기", "csrc": "10", "ctextimg": "지연", "ccheck": "N", "ccal": "20250220" },
+        { "ctext": "780",   "chide": "숨김C", "clink": "상세보기", "cselect": "C", "cauto": "C", "ctextarea": "할인적용\n20% 할인", "csrc": "15", "ctextimg": "정상", "ccheck": "Y", "ccal": "20250312" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // itemset 공통 조각 (select / autoComplete 용)
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_grade"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:100%;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setCustomFormatter 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" inputType="text" id="h0" value="0:text(displayFormat)"></w2:column>';
+    strTarget += '<w2:column width="90" inputType="text" id="h1" value="1:text(숨김)"></w2:column>';
+    strTarget += '<w2:column width="90" inputType="text" id="h2" value="2:link"></w2:column>';
+    strTarget += '<w2:column width="90" inputType="text" id="h3" value="3:select"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="h4" value="4:autoComplete"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="h5" value="5:textarea"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="h6" value="6:expression"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="h7" value="7:textImage"></w2:column>';
+    strTarget += '<w2:column width="80" inputType="text" id="h8" value="8:checkbox(대조)"></w2:column>';
+    strTarget += '<w2:column width="90" inputType="text" id="h9" value="9:calendar(대조)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="h10" value="10:text(csrc, expr원본)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    //  (중요) body 컬럼 id 는 dataList 컬럼 id 와 동일해야 셀에 데이터가 바인딩됨
+    // 0 : text + displayFormat="#,##0" (allow) -> formatter 의 formattedData 가 콤마 포맷값 전달 확인(@spec2)
+    strTarget += '<w2:column width="150" inputType="text" dataType="number" displayFormat="#,##0" id="ctext" dataList="ctext"></w2:column>';
+    // 1 : text 숨김(setColumnVisible(1,false)) (allow) -> 숨김 Column 포함 인덱스 검증용
+    strTarget += '<w2:column width="90" inputType="text" dataType="text" id="chide" dataList="chide"></w2:column>';
+    // 2 : link (allow)
+    strTarget += '<w2:column width="90" inputType="link" id="clink" dataList="clink"></w2:column>';
+    // 3 : select (allow)
+    strTarget += '<w2:column width="90" inputType="select" id="cselect" dataList="cselect">' + itemset + '</w2:column>';
+    // 4 : autoComplete (allow)
+    strTarget += '<w2:column width="110" inputType="autoComplete" id="cauto" dataList="cauto">' + itemset + '</w2:column>';
+    // 5 : textarea (allow)
+    strTarget += '<w2:column width="120" inputType="textarea" id="ctextarea" dataList="ctextarea"></w2:column>';
+    // 6 : expression (allow) -> csrc x 10 계산값 표시
+    strTarget += '<w2:column width="100" inputType="expression" id="cexpr" displayFormat="#,###" expression="Number(display(\'csrc\'))*10"></w2:column>';
+    // 7 : textImage (allow)
+    strTarget += '<w2:column width="100" inputType="textImage" id="ctextimg" dataList="ctextimg" viewType="icon" imageSrc="' + imgSrc + '"></w2:column>';
+    // 8 : checkbox (대조용, allow-list 밖 -> customFormatter 미동작)
+    strTarget += '<w2:column width="80" inputType="checkbox" id="ccheck" dataList="ccheck" trueValue="Y" falseValue="N"></w2:column>';
+    // 9 : calendar (대조용, allow-list 밖 -> customFormatter 미동작)
+    strTarget += '<w2:column width="90" inputType="calendar" id="ccal" dataList="ccal"></w2:column>';
+    // 10 : text(number) (allow) -> expression(6) 의 원본값 제공(display(\'csrc\')) 겸 allow-list 검증용
+    strTarget += '<w2:column width="*" inputType="text" dataType="number" id="csrc" dataList="csrc"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 두번째 Column(chide, 인덱스 1) 숨김 -> 숨김 Column 도 인덱스에 포함됨 검증용
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// 인덱스 -> 바인딩 DataList Column ID 매핑 (expression(6) 은 dataList 없음 -> null)
+scwin.getColId = function (columnIndex) {
+    let map = ["ctext", "chide", "clink", "cselect", "cauto", "ctextarea", null, "ctextimg", "ccheck", "ccal", "csrc"];
+    return map[columnIndex];
+};
+
+
+
+// [실행] setCustomFormatter : columnInfo(인덱스) 와 formatter(함수명) 으로 해당 Column 의 customFormatter 속성을 설정한다.
+//  - 설정 후 해당 Column 의 모든 Row 화면 표시값(td.textContent) 을 수집하여 사용자 함수 반환값으로 변환/재렌더되었는지 확인(즉시 재렌더 @spec3)
+//  - allow-list Column 은 변경되고, checkbox/calendar 대조 Column 은 미변경(미동작)
+scwin.btn_setCustomFormatter_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let formatter = par_formatter.getValue();
+    let colID = target1.getColumnID(columnInfo);
+    let cnt = dlt_bind.getRowCount();
+
+    // setCustomFormatter 호출 (Column 단위)
+    target1.setCustomFormatter(columnInfo, formatter);
+
+    // 적용된 해당 Column 의 모든 Row 화면 표시값 수집 (숨김 Column 도 td 존재)
+    let arr = [];
+    for (let r = 0; r < cnt; r++) {
+        let td = document.querySelector("td[id*='target1_cell_" + r + "_" + columnInfo + "']");
+        arr.push(td ? td.textContent.trim() : '(td없음)');
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCustomFormatter(" + columnInfo + ", '" + formatter + "') [" + colID + "] -> 모든 Row 화면 표시값 : " + arr.join(' | '));
+}
+
+
+
+// @spec3 검증 : setCustomFormatter 적용 후 바인딩 DataList 의 원본 데이터를 변경(setCellData)해도
+//  customFormatter 가 지속적으로 재적용(재실행)되는지 확인 (데이터 변경 시 사용자 함수 지속 실행)
+scwin.btn_changeData_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let colId = scwin.getColId(columnInfo);
+    if (!colId) {
+        wf_body_bottom.getObj("scwin").setReturnValue("expression Column(6) 은 바인딩 데이터가 없어 데이터 변경 검증 대상이 아닙니다.");
+        return;
+    }
+
+    let newData = "9999";
+    let beforeTd = document.querySelector("td[id*='target1_cell_0_" + columnInfo + "']");
+    let before = beforeTd ? beforeTd.textContent.trim() : '';
+    dlt_bind.setCellData(0, colId, newData);
+    let afterTd = document.querySelector("td[id*='target1_cell_0_" + columnInfo + "']");
+    let after = afterTd ? afterTd.textContent.trim() : '';
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "dlt_bind.setCellData(0, '" + colId + "', '" + newData + "') -> Row0 표시값 : " + before + " -> " + after);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>0 (ctext, text/displayFormat)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (chide, text/숨김)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2 (clink, link)</xf:label><xf:value>2</xf:value></xf:item>
+											<xf:item><xf:label>3 (cselect, select)</xf:label><xf:value>3</xf:value></xf:item>
+											<xf:item><xf:label>4 (cauto, autoComplete)</xf:label><xf:value>4</xf:value></xf:item>
+											<xf:item><xf:label>5 (ctextarea, textarea)</xf:label><xf:value>5</xf:value></xf:item>
+											<xf:item><xf:label>6 (cexpr, expression)</xf:label><xf:value>6</xf:value></xf:item>
+											<xf:item><xf:label>7 (ctextimg, textImage)</xf:label><xf:value>7</xf:value></xf:item>
+											<xf:item><xf:label>8 (ccheck, checkbox/대조)</xf:label><xf:value>8</xf:value></xf:item>
+											<xf:item><xf:label>9 (ccal, calendar/대조)</xf:label><xf:value>9</xf:value></xf:item>
+											<xf:item><xf:label>10 (csrc, text/number)</xf:label><xf:value>10</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="formatter (함수명)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_formatter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>scwin.fmtWon (formattedData + ' won' - @spec2)</xf:label><xf:value>scwin.fmtWon</xf:value></xf:item>
+											<xf:item><xf:label>scwin.fmtFull (data/formattedData/rowIndex/columnIndex + this)</xf:label><xf:value>scwin.fmtFull</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCustomFormatter_onclick" id="btn_setCustomFormatter"
+							label="setCustomFormatter 실행" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_changeData_onclick" id="btn_changeData"
+							label="데이터변경(setCellData) 후 재적용 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

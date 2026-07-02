@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] isEditing" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260701" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > isEditing]<br/>GridView 컴포넌트에 편집 상태의 Cell 이 있는지 여부를 반환합니다.",
+    "validation" : [
+        "편집 상태의 Cell 이 있으면 true, 없으면 false 를 반환합니다.",
+        "inputType='select' 인 Cell 에서 아이템 리스트가 표시된 상태도 편집 상태로 처리합니다.",
+        "onbeforeedit 이벤트에서 isEditing() 메소드 실행 시 false 값을 반환합니다.",
+        "onafteredit 이벤트에서 isEditing() 메소드 실행 시 false 값을 반환합니다.",
+        "oneditend 이벤트에서 isEditing() 메소드 실행 시 true 값을 반환합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 테스트 참고 라벨 (grid 생성 전 먼저 생성)
+    $c.gcm.createLabel('label="[전제] col1(text)=텍스트 편집 컬럼 / col2(select)=아이템 리스트(예/아니오) 편집 컬럼. 편집형 그리드(더블클릭 편집 진입). onbeforeedit / onafteredit / oneditend 핸들러가 각 시점의 isEditing() 반환값을 출력한다.\n[절차] (1) 편집 없는 상태에서 (isEditing 확인) 클릭 -> false / (2) col1 셀 더블클릭(편집 진입) 후 (isEditing 확인) 클릭 -> true / (3) col2(select) 셀 더블클릭해 아이템 리스트(드롭다운)를 연 뒤 (isEditing 확인) 클릭 -> true / (4) 셀 편집 후 다른 곳 클릭(편집 종료) -> 이벤트별 isEditing() 값 자동 출력\n[확인] isEditing 확인: 편집 없음=false, 편집중(입력창/열린 리스트)=true. 이벤트: onbeforeedit=false, onafteredit=false, oneditend=true."', '', 'label1');
+
+    // 바인딩 DataList 생성 (4행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    let arrName = ['김철수', '이영희', '박민준', '최서연'];
+    let arrSel = ['Y', 'N', 'Y', 'N'];
+    let arrDept = ['영업1팀', '개발팀', '인사팀', '재무팀'];
+    for (let r = 0; r < 4; r++) {
+        strDl += '<w2:row>';
+        strDl += '<col1>' + arrName[r] + '</col1>';
+        strDl += '<col2>' + arrSel[r] + '</col2>';
+        strDl += '<col3>' + arrDept[r] + '</col3>';
+        strDl += '</w2:row>';
+    }
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성 (편집형 그리드 : col1=text 편집 / col2=select 아이템 리스트 / col3=text)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' editModeEvent="ondblclick" dataList="data:dlt_bind" checkAllType="false" id="" ev:onbeforeedit="scwin.target1_onbeforeedit" ev:oneditend="scwin.target1_oneditend" ev:onafteredit="scwin.target1_onafteredit" style="width:540px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="사원 목록"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" inputType="text" id="hcol1" value="이름 (text)"></w2:column>';
+    strTarget += '<w2:column width="160" inputType="text" id="hcol2" value="사용여부 (select)"></w2:column>';
+    strTarget += '<w2:column width="180" inputType="text" id="hcol3" value="부서 (text)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" inputType="text" dataType="text" id="col1"></w2:column>';
+    strTarget += '<w2:column width="160" inputType="select" dataType="text" id="col2">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>예</w2:label><w2:value>Y</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>아니오</w2:label><w2:value>N</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '<w2:column width="180" inputType="text" dataType="text" id="col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// isEditing 확인 : 현재 편집 상태 Cell 존재 여부 반환 (편집 없음=false / 편집중=true / 열린 select 리스트=true)
+//  validation 1, 2 검증용. 사용자가 편집 진입/드롭다운 오픈 여부에 따라 반환값을 확인한다.
+scwin.btn_isEditing_onclick = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("[isEditing] 편집 상태 Cell 존재 여부 = " + scwin.target1.isEditing());
+}
+
+
+
+// onbeforeedit : 편집모드 진입 전 발생 -> isEditing() = false (validation 3)
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onbeforeedit] isEditing() = " + scwin.target1.isEditing());
+}
+
+
+
+// oneditend : 편집 종료 시점 발생(onafteredit 보다 먼저) -> isEditing() = true (validation 5)
+scwin.target1_oneditend = function (rowIndex, columnIndex, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[oneditend] isEditing() = " + scwin.target1.isEditing());
+}
+
+
+
+// onafteredit : 편집모드 종료 후 발생 -> isEditing() = false (validation 4)
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[onafteredit] isEditing() = " + scwin.target1.isEditing());
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_isEditing_onclick" id="btn_isEditing"
+							label="isEditing 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

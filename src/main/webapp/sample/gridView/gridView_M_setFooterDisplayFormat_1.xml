@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setFooterDisplayFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260702" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-961
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setFooterDisplayFormat]<br/>Footer Cell 정보로 특정 Footer Cell 의 displayFormat 속성을 설정합니다.",
+    "validation" : [
+        "footerInfo(필수) 파라미터로 displayFormat 속성을 설정하려는 Footer Cell 의 인덱스(0 부터 시작) 또는 ID 를 설정할 수 있어야 합니다.",
+        "displayFormat(필수) 파라미터로 dataType='text' 인 Footer Cell 은 '#' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "displayFormat(필수) 파라미터로 dataType='date' 인 Footer Cell 은 'y','M','d','E' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "displayFormat(필수) 파라미터로 dataType='time' 인 Footer Cell 은 'H','m','s' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "displayFormat(필수) 파라미터로 그외(number) dataType 인 Footer Cell 은 '#','0',',','.' 마스크 문자를 사용하여 형식을 설정합니다.",
+        "Footer Cell 의 displayFormatter 가 설정된 경우 displayFormat 은 무시됩니다.",
+        "Footer 영역은 customFormatter 가 미동작하므로 displayFormat 결과가 customFormatter 로 덮어써지지 않습니다.",
+        "동일한 Footer Cell ID 가 존재하는 경우 해당 Footer Cell 의 displayFormat 이 모두 적용됩니다.",
+    ]
+}
+
+
+
+// displayFormatter Footer Cell(인덱스 4) 용 사용자 함수 : 값과 무관하게 '[' + 값 + ']' 로 표시 -> displayFormat 무시 확인용
+scwin.fmtBracket = function (value) {
+    return "[" + value + "]";
+};
+
+// customFormatter Footer Cell(인덱스 5) 용 사용자 함수 : Footer 영역은 customFormatter 미동작이므로 이 결과(C:값)는 표시되지 않아야 함
+scwin.fmtCustom = function (value) {
+    return "C:" + value;
+};
+
+// footerInfo(인덱스/ID) 별로 해당 Footer Cell 의 dataType 에 맞는 displayFormat 마스크 매핑
+//  text="#" / date="y,M,d,E" / time="H,m,s" / 그외(number)="#,0,,,."
+scwin.footerFormatMap = {
+    "0": "#,##0.00",   // ftnum   (number)
+    "1": "###-####",   // fttext  (text)
+    "2": "yyyy-MM-dd", // ftdate  (date)
+    "3": "HH:mm:ss",   // fttime  (time)
+    "4": "#,##0.00",   // ftfmtter(number, displayFormatter -> 무시)
+    "5": "#,##0.00",   // ftcustom(number, customFormatter -> Footer 미동작)
+    "ftdup": "#,##0.00" // ftdup  (number, 동일 ID 2개)
+};
+
+// footerInfo 셀렉트박스 선택이 바뀌면 해당 Footer Cell 에 매핑되는 displayFormat 값을 par_displayFormat 셀렉트박스에 자동 선택
+scwin.par_footerInfo_onchange = function () {
+    let key = par_footerInfo.getValue();
+    let fmt = scwin.footerFormatMap[key];
+    if (typeof fmt !== 'undefined') {
+        par_displayFormat.setValue(fmt);
+    }
+};
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 footerInfo 선택값(0)에 맞는 displayFormat 자동 선택
+    par_footerInfo.setValue("0");
+    scwin.par_footerInfo_onchange();
+};
+
+
+
+// comp 생성 : dataType 별 Footer Cell(number/text/date/time) + displayFormatter/customFormatter/동일ID Footer Cell 구성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // Footer Cell 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] footerInfo(인덱스 또는 ID) 와 displayFormat 선택 후 (setFooterDisplayFormat 실행) -> getFooterData(displayData) 로 적용값 확인.\n[확인] dataType 별 마스크 적용(text #, number #/0/,/., date yMd, time Hms). displayFormatter Cell 은 displayFormat 무시, customFormatter 는 Footer 미동작, 동일 ID 는 모두 적용."', '', 'label1');
+
+    // GridView 와 바인딩할 Body DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="c0" name="c0" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c1" name="c1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c2" name="c2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c3" name="c3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c4" name="c4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c5" name="c5" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c6" name="c6" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c7" name="c7" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "c0": "A1", "c1": "B1", "c2": "C1", "c3": "D1", "c4": "E1", "c5": "F1", "c6": "G1", "c7": "H1" },
+        { "c0": "A2", "c1": "B2", "c2": "C2", "c3": "D2", "c4": "E2", "c5": "F2", "c6": "G2", "c7": "H2" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (Header 8컬럼 + gBody + Footer 1행 : dataType 별 Footer Cell)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:100%;height:230px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setFooterDisplayFormat 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="100" inputType="text" id="h0" value="0:number"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="h1" value="1:text"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="h2" value="2:date"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="h3" value="3:time"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="h4" value="4:displayFmtter"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="h5" value="5:customFmtter"></w2:column>';
+    strTarget += '<w2:column width="90" inputType="text" id="h6" value="6:ftdup"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="h7" value="7:ftdup"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="100" inputType="text" id="c0" dataList="c0"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="c1" dataList="c1"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="c2" dataList="c2"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="c3" dataList="c3"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="c4" dataList="c4"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="c5" dataList="c5"></w2:column>';
+    strTarget += '<w2:column width="90" inputType="text" id="c6" dataList="c6"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="c7" dataList="c7"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1"><w2:row style="" id="frow1">';
+    // index 0 : number Footer Cell -> setFooterDisplayFormat(0,"#,##0.00") (#/0/,/. 마스크, 화면 즉시 재렌더)
+    strTarget += '<w2:column width="100" inputType="text" dataType="number" id="ftnum" value="1234567.891"></w2:column>';
+    // index 1 : text Footer Cell -> setFooterDisplayFormat(1,"###-####") (# 마스크)
+    strTarget += '<w2:column width="100" inputType="text" dataType="text" id="fttext" value="1234567"></w2:column>';
+    // index 2 : date Footer Cell -> setFooterDisplayFormat(2,"yyyy-MM-dd") (y/M/d/E 마스크)
+    strTarget += '<w2:column width="100" inputType="text" dataType="date" id="ftdate" value="20250115"></w2:column>';
+    // index 3 : time Footer Cell -> setFooterDisplayFormat(3,"HH:mm:ss") (H/m/s 마스크)
+    strTarget += '<w2:column width="100" inputType="text" dataType="time" id="fttime" value="143025"></w2:column>';
+    // index 4 : displayFormatter 설정 Footer Cell -> setFooterDisplayFormat 호출해도 무시(fmtBracket 결과 유지)
+    strTarget += '<w2:column width="110" inputType="text" dataType="number" id="ftfmtter" value="1000" displayFormatter="scwin.fmtBracket"></w2:column>';
+    // index 5 : customFormatter 설정 Footer Cell -> Footer 영역 customFormatter 미동작 -> displayFormat 만 적용(덮어쓰지 않음)
+    strTarget += '<w2:column width="110" inputType="text" dataType="number" id="ftcustom" value="2000" customFormatter="scwin.fmtCustom"></w2:column>';
+    // index 6,7 : 동일 ID(ftdup) Footer Cell 2개 -> setFooterDisplayFormat("ftdup",...) 시 모두 적용
+    strTarget += '<w2:column width="90" inputType="text" dataType="number" id="ftdup" value="500"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" dataType="number" id="ftdup" value="500"></w2:column>';
+    strTarget += '</w2:row></w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// [실행] setFooterDisplayFormat : footerInfo(인덱스 또는 ID) 와 displayFormat 으로 해당 Footer Cell 의 displayFormat 속성을 설정한다.
+//  - 설정 후 getFooterData(footerInfo, "displayData") 로 마스크가 적용된 표시값을 확인한다.
+scwin.btn_setFooterDisplayFormat_onclick = function () {
+    let raw = par_footerInfo.getValue();
+    let isIndex = /^[0-9]+$/.test(raw);
+    let footerInfo = isIndex ? Number(raw) : raw;
+    let displayFormat = par_displayFormat.getValue();
+
+    // setFooterDisplayFormat 호출
+    target1.setFooterDisplayFormat(footerInfo, displayFormat);
+
+    let argStr = isIndex ? footerInfo : "'" + footerInfo + "'";
+
+    // @spec2 : 동일 ID(ftdup) Footer Cell 은 모두 적용 -> 두 위치(index 6,7) 표시값으로 확인
+    if (raw === "ftdup") {
+        let v6 = target1.getFooterData(6, "displayData");
+        let v7 = target1.getFooterData(7, "displayData");
+        wf_body_bottom.getObj("scwin").setReturnValue("setFooterDisplayFormat('ftdup', '" + displayFormat + "') 호출 -> 동일 ID Footer Cell 모두 적용");
+        wf_body_bottom.getObj("scwin").setReturnValue("[동일 ID 셀 표시값] index6 = " + v6 + " / index7 = " + v7);
+        return;
+    }
+
+    // getFooterData(displayData) 로 마스크 적용된 표시값 확인 (모든 dataType 공통 검증 수단)
+    let disp = target1.getFooterData(footerInfo, "displayData");
+    wf_body_bottom.getObj("scwin").setReturnValue("setFooterDisplayFormat(" + argStr + ", '" + displayFormat + "') 호출");
+    wf_body_bottom.getObj("scwin").setReturnValue("[getFooterData('displayData') 표시값] " + disp);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="footerInfo (인덱스/ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_footerInfo" ref="" style="" submenuSize="auto" ev:onchange="scwin.par_footerInfo_onchange">
+										<xf:choices>
+											<xf:item><xf:label>0 (ftnum, number)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (fttext, text)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2 (ftdate, date)</xf:label><xf:value>2</xf:value></xf:item>
+											<xf:item><xf:label>3 (fttime, time)</xf:label><xf:value>3</xf:value></xf:item>
+											<xf:item><xf:label>4 (ftfmtter, displayFormatter)</xf:label><xf:value>4</xf:value></xf:item>
+											<xf:item><xf:label>5 (ftcustom, customFormatter)</xf:label><xf:value>5</xf:value></xf:item>
+											<xf:item><xf:label>ftdup (ID, 동일 ID 2개)</xf:label><xf:value>ftdup</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_displayFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>#,##0.00 (number/그외)</xf:label><xf:value>#,##0.00</xf:value></xf:item>
+											<xf:item><xf:label>###-#### (text 마스크)</xf:label><xf:value>###-####</xf:value></xf:item>
+											<xf:item><xf:label>yyyy-MM-dd (date)</xf:label><xf:value>yyyy-MM-dd</xf:value></xf:item>
+											<xf:item><xf:label>HH:mm:ss (time)</xf:label><xf:value>HH:mm:ss</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFooterDisplayFormat_onclick" id="btn_setFooterDisplayFormat"
+							label="setFooterDisplayFormat 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnIncrement" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260702" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnIncrement]<br/>Body Column 정보를 사용하여 특정 Column 에 increment 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 increment 속성을 설정할 Body Column 의 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "increment(필수) 파라미터로 Cell 의 Spinner 버튼 클릭 시 더해지거나 빼지는 값을 설정할 수 있어야 합니다.",
+        "Body Column 이 inputType='spinner' 인 경우에 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : text / spinner Column 을 섞어 구성하고, 인덱스 1(규격) 은 숨김 처리한다.
+//  - 인덱스 0 : 품목  (text)   -> spinner 아님 (미동작 대조)
+//  - 인덱스 1 : 규격  (text)   -> setColumnVisible(1,false) 로 숨김 (숨김 Column 도 인덱스에 포함)
+//  - 인덱스 2 : 수량  (spinner, increment=1 초기 설정)
+//  - 인덱스 3 : 단가  (spinner, increment=1000 초기 설정)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 인덱스0=품목(text), 인덱스1=규격(text, 숨김), 인덱스2=수량(spinner, 초기 increment=1), 인덱스3=단가(spinner, 초기 increment=1000). 숨긴 규격 컬럼도 인덱스에 포함되므로 수량=인덱스2, 단가=인덱스3.\n[절차] columnInfo(인덱스) 와 increment 를 선택 후 (setColumnIncrement) 버튼 클릭. 이어서 대상 spinner 셀을 더블클릭해 편집모드로 진입하고 셀 오른쪽 위/아래 버튼을 1회 누른 뒤 다른 셀로 이동해 편집을 종료(커밋).\n[확인] 반환영역에 getColumnIncrement 로 저장된 increment 값이 표시되고, 편집 종료 시 [spinner 변경] 라인으로 변화량과 increment 의 일치 여부(일치/불일치)가 자동 검증되어 출력됨(onviewchange 는 편집 종료 시 편집 시작~종료의 순변화량을 보고하므로 1회 클릭이면 변화량=increment 로 일치, 여러 번 누르면 변화량=누른 횟수×increment). text(품목/규격) 컬럼에 설정하면 미동작(getColumnIncrement 반환 false)."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cname" name="cname" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cspec" name="cspec" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cqty" name="cqty" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cprice" name="cprice" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    dlt_bind.setJSON([
+        { "cname": "노트북", "cspec": "15인치", "cqty": "10", "cprice": "1200000" },
+        { "cname": "모니터", "cspec": "27인치", "cqty": "20", "cprice": "350000" },
+        { "cname": "키보드", "cspec": "무선", "cqty": "30", "cprice": "45000" }
+    ], false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 이벤트 바인딩 (onviewchange) : spinner ▲/▼ 클릭 등 마우스/키보드로 셀 값이 변경되면 발생
+    let eList = $c.gcm.createEList(["onviewchange"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (text / spinner 혼합)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:100%;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnIncrement 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" inputType="text" id="h0" value="품목(text)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="h1" value="규격(숨김)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h2" value="수량(spinner)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="h3" value="단가(spinner)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    //  (중요) body 컬럼 id 는 dataList 컬럼 id 와 동일해야 셀에 데이터가 바인딩됨
+    // 인덱스 0 : 품목 (text) - spinner 아님 (미동작 대조)
+    strTarget += '<w2:column width="120" inputType="text" id="cname" dataList="cname"></w2:column>';
+    // 인덱스 1 : 규격 (text) - setColumnVisible(1,false) 로 숨김
+    strTarget += '<w2:column width="120" inputType="text" id="cspec" dataList="cspec"></w2:column>';
+    // 인덱스 2 : 수량 (spinner, 초기 increment=1)
+    strTarget += '<w2:column width="150" inputType="spinner" id="cqty" dataList="cqty" increment="1"></w2:column>';
+    // 인덱스 3 : 단가 (spinner, 초기 increment=1000)
+    strTarget += '<w2:column width="*" inputType="spinner" id="cprice" dataList="cprice" increment="1000"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 인덱스 1(규격) 숨김 -> 숨김 Column 도 인덱스에 포함됨을 검증하기 위함
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// [실행] setColumnIncrement : columnInfo(인덱스) 와 increment 를 설정하고,
+//  getColumnIncrement 로 저장된 increment 값을 확인한다.
+//  (실제 증감량은 대상 spinner 셀 편집모드에서 위/아래 버튼 클릭으로 확인)
+scwin.btn_setColumnIncrement_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let increment = Number(par_increment.getValue());
+
+    target1.setColumnIncrement(columnInfo, increment);
+    wf_body_bottom.getObj("scwin").setReturnValue("setColumnIncrement(" + columnInfo + ", " + increment + ")");
+
+    // getColumnIncrement 로 설정값 확인 (spinner 가 아니면 false 반환)
+    let rtn = target1.getColumnIncrement(columnInfo);
+    wf_body_bottom.getObj("scwin").setReturnValue("getColumnIncrement(" + columnInfo + ") : " + rtn);
+}
+
+
+
+// [검증] onviewchange : 대상 spinner 셀을 편집모드로 진입한 뒤 ▲/▼ 버튼을 누르면
+//  값이 변경되며 발생한다. 변화량(newValue-oldValue)이 setColumnIncrement 로 저장된
+//  increment 와 일치하는지 결정적으로 판정하여 반환영역에 즉시 출력한다.
+scwin.target1_onviewchange = function (info) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let oldNum = Number(info.oldValue);
+    let newNum = Number(info.newValue);
+    let delta = newNum - oldNum;
+    // 변경된 셀의 컬럼(인덱스)에 저장된 increment (spinner 가 아니면 false)
+    let inc = target1.getColumnIncrement(info.colIndex);
+    let match = (Number(inc) !== 0 && !isNaN(Number(inc)) && Math.abs(delta) === Number(inc)) ? "일치" : "불일치";
+    bottom.setReturnValue("[spinner 변경] col" + info.colIndex + " row" + info.rowIndex + ": " + info.oldValue + " -> " + info.newValue + " (변화량 " + delta + ", increment=" + inc + ") => " + match);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="increment" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_increment" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10]]></xf:label>
+												<xf:value><![CDATA[10]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[100]]></xf:label>
+												<xf:value><![CDATA[100]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnIncrement_onclick" id="btn_setColumnIncrement"
+							label="setColumnIncrement" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

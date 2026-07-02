@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setSubtotalVisible" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260701" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setSubtotalVisible]<br/>GridView 컴포넌트에서 SubTotal(부분합) Row 의 표시 여부를 설정합니다.",
+    "validation" : [
+        "visible(필수) 파라미터에 true 를 설정하면 SubTotal(부분합) Row 를 표시합니다.",
+        "visible(필수) 파라미터에 false 를 설정하면 SubTotal(부분합) Row 를 미표시합니다.",
+        "setSubtotalVisible() 메소드로 SubTotal(부분합) Row 가 표시되거나 숨겨지면 세로 스크롤바가 재계산됩니다.",
+        "[전제] GridView 컴포넌트 디자인 시 SubTotal(부분합) Row 가 정의되어 있어야 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - setSubtotalVisible 검증용 : Header + gBody + SubTotal(dept 그룹 소계) 를 갖춘 커스텀 GridView 동적 생성
+//    (@spec1 전제 : SubTotal Row 가 디자인 시 정의되어 있어야 setSubtotalVisible 동작)
+//  - 세로 스크롤 확보 : 데이터 행수 > 그리드 높이(height:250px) 로 스크롤바 재계산 확인
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 부서(dept) 그룹별 SubTotal(소계) Row 가 정의된 그리드 (SubTotal Row 미정의 시 동작 안 함)\n[절차] visible 값(true/false) 선택 후 (setSubtotalVisible) 클릭\n[확인] true=SubTotal Row 표시 / false=미표시, 표시/숨김 시 세로 스크롤 높이 재계산"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - dept(그룹 기준), amount(소계 대상 number)
+    //  - SubTotal 은 targetColumnID(=dept) 값이 바뀌는 지점마다 소계 Row 삽입되므로 같은 dept 가 연속되도록 정렬된 데이터 사용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 11건 (Sales 3 + Dev 3 + QA 3 + HR 2) -> dept 그룹 4개 -> SubTotal Row 4개 생성됨
+    let jsonData = [
+        { "name": "John",  "dept": "Sales", "amount": 100 },
+        { "name": "Jane",  "dept": "Sales", "amount": 200 },
+        { "name": "Paul",  "dept": "Sales", "amount": 150 },
+        { "name": "Mike",  "dept": "Dev",   "amount": 300 },
+        { "name": "Amy",   "dept": "Dev",   "amount": 400 },
+        { "name": "Kevin", "dept": "Dev",   "amount": 250 },
+        { "name": "Tom",   "dept": "QA",    "amount": 500 },
+        { "name": "Sara",  "dept": "QA",    "amount": 350 },
+        { "name": "Leo",   "dept": "QA",    "amount": 450 },
+        { "name": "Nina",  "dept": "HR",    "amount": 600 },
+        { "name": "Owen",  "dept": "HR",    "amount": 550 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // Header(이름/부서/금액) + gBody(데이터) + SubTotal(부서별 소계)
+    // - SubTotal : targetColumnID="dept" -> dept 가 바뀔 때마다 소계 Row 삽입, amount 에 sum('amount') expression
+    // - 마지막 컬럼 width="*" 로 가로 스크롤 방지 / height:250px 로 세로 스크롤 유발
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:600px;height:250px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setSubtotalVisible 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row (dept 값이 바뀌는 지점마다 삽입)
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol1" value="소계(SubTotal)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// setSubtotalVisible : visible(필수) 로 SubTotal Row 표시/미표시 설정 + 세로 스크롤 재계산 확인
+scwin.btn_setSubtotalVisible_onclick = function () {
+    // par_visible 은 boolean(gdl_boolean) select -> getText() 로 "true"/"false" 문자열 취득
+    var visible = (par_visible.getText() === "true");
+
+    // 세로 스크롤 재계산 확인용 : 실행 전 scrollY_div 스크롤 높이 캡처
+    var scrollY = document.querySelector("[id$='_scrollY_div']");
+    var beforeH = scrollY ? scrollY.scrollHeight : 0;
+
+    target1.setSubtotalVisible(visible);
+
+    setTimeout(function () {
+        // SubTotal Row 표시 여부 : data-subtotal 속성 Row 중 실제 표시(offsetHeight>0)된 개수
+        var subRows = document.querySelectorAll("tr[data-subtotal]");
+        var shownCnt = 0;
+        for (var i = 0; i < subRows.length; i++) {
+            if (subRows[i].offsetHeight > 0) shownCnt++;
+        }
+
+        // 세로 스크롤 재계산 확인 : 표시/숨김 후 scrollY_div 스크롤 높이 변화
+        var afterH = scrollY ? scrollY.scrollHeight : 0;
+
+        wf_body_bottom.getObj("scwin").setReturnValue("[SubTotal Row 표시 여부] visible=" + visible + " -> 표시된 SubTotal Row 수 " + shownCnt);
+        wf_body_bottom.getObj("scwin").setReturnValue("[세로 스크롤 재계산] scrollHeight " + beforeH + " -> " + afterH);
+    }, 300);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="visible" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 style="" id="par_visible" label="label" nodeSet="data:gdl_boolean" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setSubtotalVisible_onclick" id="btn_setSubtotalVisible"
+							label="setSubtotalVisible" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
