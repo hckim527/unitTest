@@ -56,7 +56,7 @@ scwin.comp_init = async function () {
     }
 
     // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
-    $c.gcm.createLabel('label="[전제] Body 가 MultiLine(2줄). 한 데이터 Row 가 2줄에 걸쳐 표시됨. 1줄 name(0)/grade(1, select), 2줄 qty(2)/phone(3) 고유 인덱스. 데이터 Row 3개. grade 컬럼은 DataList(dlt_grade) 바인딩 select.\n[절차] columnInfo(0~3) 선택 후 (setColumnChooseOption 실행). value=ALL, label=- 선택 - 로 호출.\n[확인] MultiLine 이어도 name~phone 은 고유 인덱스(0~3). select 컬럼(grade)의 고유 인덱스 1 로 호출 시 정확히 그 컬럼에 선택 안내 아이템(- 선택 -)이 첫 아이템으로 설정되고 chooseOption=true 가 됨. 다른 인덱스(select 아님) 호출 시 미동작."', '', 'label1');
+    $c.gcm.createLabel('label="[전제] Body 가 MultiLine(2줄). 한 데이터 Row 가 2줄에 걸쳐 표시됨. 1줄 지점명(0)/매출(1), 2줄 등급(2, select)/연락처(3) 고유 인덱스. 데이터 Row 3개. 등급 컬럼은 DataList(dlt_grade) 바인딩 select 이며 2줄에 위치.\n[절차] columnInfo(0~3) 선택 후 (setColumnChooseOption 실행). value=ALL, label=- 선택 - 로 호출.\n[확인] MultiLine 이어도 모든 Column 은 고유 인덱스(0~3). select 컬럼(등급)은 2줄에 있지만 고유 인덱스 2 -> setColumnChooseOption(2, ...) 호출 시 정확히 그 컬럼에 선택 안내 아이템(- 선택 -)이 첫 아이템으로 설정되고 chooseOption=true 가 됨. 다른 인덱스(select 아님) 호출 시 미동작."', '', 'label1');
 
     // select 컬럼 옵션 DataList (label / value)
     let strGradeDlt = '';
@@ -94,19 +94,24 @@ scwin.comp_init = async function () {
     strTarget += '<w2:header style="" id="header1">';
     strTarget += '<w2:row style="" id="hrow1">';
     strTarget += '<w2:column width="280" inputType="text" id="hcol1" value="지점명"></w2:column>';
-    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="등급(select)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="매출(만원)"></w2:column>';
     strTarget += '</w2:row>';
     strTarget += '<w2:row style="" id="hrow2">';
-    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="매출(만원)"></w2:column>';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="등급(select)"></w2:column>';
     strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="연락처"></w2:column>';
     strTarget += '</w2:row>';
     strTarget += '</w2:header>';
     strTarget += '<w2:gBody style="" id="gBody1">';
     strTarget += '<w2:row style="" id="brow1">';
-    // index 0 : name (text)
+    // index 0 : name/지점명 (text)
     strTarget += '<w2:column width="280" inputType="text" id="col1" dataList="col1"></w2:column>';
-    // index 1 : grade (select, DataList 바인딩 itemset) - setColumnChooseOption 대상
-    strTarget += '<w2:column width="*" inputType="select" id="col2" dataList="col2">';
+    // index 1 : qty/매출 (text)
+    strTarget += '<w2:column width="*" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // index 2 : grade/등급 (select, DataList 바인딩 itemset) - setColumnChooseOption 대상.
+    //           2줄(brow2)에 있는 컬럼이지만 MultiLine 이어도 고유 인덱스가 이어져 2 가 됨(검증 핵심).
+    strTarget += '<w2:column width="280" inputType="select" id="col2" dataList="col2">';
     strTarget += '<w2:choices>';
     strTarget += '<w2:itemset nodeset="data:dlt_grade">';
     strTarget += '<w2:label ref="label"></w2:label>';
@@ -114,11 +119,7 @@ scwin.comp_init = async function () {
     strTarget += '</w2:itemset>';
     strTarget += '</w2:choices>';
     strTarget += '</w2:column>';
-    strTarget += '</w2:row>';
-    strTarget += '<w2:row style="" id="brow2">';
-    // index 2 : qty (text)
-    strTarget += '<w2:column width="280" inputType="text" id="col3" dataList="col3"></w2:column>';
-    // index 3 : phone (text)
+    // index 3 : phone/연락처 (text)
     strTarget += '<w2:column width="*" inputType="text" id="col4" dataList="col4"></w2:column>';
     strTarget += '</w2:row>';
     strTarget += '</w2:gBody>';
@@ -130,9 +131,9 @@ scwin.comp_init = async function () {
 
 
 // setColumnChooseOption 실행 : 선택한 고유 인덱스(columnInfo)에 '선택 안내' 아이템 설정.
-//  - MultiLine Row 에서도 name~phone 은 고유 인덱스(0~3). select 컬럼(grade)의 고유 인덱스는 1.
-//  - 정상 동작 시 해당 select 컬럼 첫 아이템이 '- 선택 -' 가 되고 chooseOption=true.
-//  - select 아닌 인덱스(0/2/3) 로 호출하면 미동작.
+//  - MultiLine Row 에서도 모든 Column 은 고유 인덱스(0~3). select 컬럼(등급)은 2줄에 있지만 고유 인덱스는 2.
+//  - 정상 동작 시 해당 select 컬럼(고유 인덱스 2) 첫 아이템이 '- 선택 -' 가 되고 chooseOption=true.
+//  - select 아닌 인덱스(0/1/3) 로 호출하면 미동작.
 scwin.btn_setColumnChooseOption_onclick = function () {
     let columnInfo = Number(par_columnInfo.getValue());
     let colID = target1.getColumnID(columnInfo);   // MultiLine Row 에서도 name~phone 은 고유 인덱스(0~3)
@@ -147,7 +148,21 @@ scwin.btn_setColumnChooseOption_onclick = function () {
     let chooseOption = (cellInfo && cellInfo.options) ? cellInfo.options.chooseOption : undefined;
     let chooseOptionLabel = (cellInfo && cellInfo.options) ? cellInfo.options.chooseOptionLabel : undefined;
 
-    wf_body_bottom.getObj("scwin").setReturnValue("setColumnChooseOption(" + columnInfo + ", 'ALL', '- 선택 -') -> 고유 인덱스 " + columnInfo + " [" + colID + "] (inputType=" + inputType + ") : chooseOption=" + chooseOption + ", chooseOptionLabel='" + chooseOptionLabel + "'");
+    let msg = "setColumnChooseOption(" + columnInfo + ", 'ALL', '- 선택 -') -> 고유 인덱스 " + columnInfo + " [" + colID + "] (inputType=" + inputType + ") : chooseOption=" + chooseOption + ", chooseOptionLabel='" + chooseOptionLabel + "'";
+
+    // select 컬럼(고유 인덱스 2)이면 해당 Row 0 셀을 편집모드로 진입시켜 렌더된 첫 아이템(itemArr[0])을 읽는다.
+    //  -> chooseOptionLabel('- 선택 -')이 첫번째 아이템으로 표시되는지 확인 (_1/_2 샘플과 동일 패턴).
+    //  (WebSquare select 셀은 native select 가 아닌 w2selectbox 로 렌더 -> cellInfo.select.itemArr 로 확인)
+    if (target1.getCellInfo(columnInfo).options.inputType === "select") {
+        let td = document.querySelector("td[id*='target1_cell_0_" + columnInfo + "']");
+        target1.setEditMode(td);
+        let sel = target1.getCellInfo(columnInfo).select;
+        if (sel && sel.itemArr && sel.itemArr.length > 0) {
+            msg += "\n[첫 아이템] label='" + sel.itemArr[0].label + "' value='" + sel.itemArr[0].value + "'";
+        }
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
 }
 ]]></script>
 	</head>
@@ -183,19 +198,19 @@ scwin.btn_setColumnChooseOption_onclick = function () {
 										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
 										<xf:choices>
 											<xf:item>
-												<xf:label><![CDATA[0 (1줄 name, text : 고유 인덱스)]]></xf:label>
+												<xf:label><![CDATA[0 (1줄 지점명, text : 고유 인덱스)]]></xf:label>
 												<xf:value><![CDATA[0]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[1 (1줄 grade, select : 고유 인덱스)]]></xf:label>
+												<xf:label><![CDATA[1 (1줄 매출, text : 고유 인덱스)]]></xf:label>
 												<xf:value><![CDATA[1]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[2 (2줄 qty, text : 고유 인덱스)]]></xf:label>
+												<xf:label><![CDATA[2 (2줄 등급, select : 고유 인덱스)]]></xf:label>
 												<xf:value><![CDATA[2]]></xf:value>
 											</xf:item>
 											<xf:item>
-												<xf:label><![CDATA[3 (2줄 phone, text : 고유 인덱스)]]></xf:label>
+												<xf:label><![CDATA[3 (2줄 연락처, text : 고유 인덱스)]]></xf:label>
 												<xf:value><![CDATA[3]]></xf:value>
 											</xf:item>
 										</xf:choices>
