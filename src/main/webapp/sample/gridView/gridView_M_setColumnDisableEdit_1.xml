@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnDisableEdit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260706" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnDisableEdit]<br/>Body Column 정보를 사용하여 특정 Column 의 텍스트 편집을 비활성화할 지 설정합니다.",
+    "validation" : [
+        "특정 Column 의 inputType 속성값이 'autoComplete' 일때 동작합니다.",
+        "columnInfo(필수) 파라미터로 텍스트 편집을 비활성화 하려는 Body Column 의 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다. (Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.)",
+        "disabled(필수) 파라미터에 true 설정 시 해당 Column 의 입력창에서 텍스트 편집은 비활성화 되고 아이템 리스트를 통한 선택만 가능합니다.",
+        "disabled(필수) 파라미터에 false 설정 시 해당 Column 의 입력창에서 텍스트 편집이 활성화 되고 아이템 리스트와 입력값에 의한 선택이 모두 가능합니다.",
+        "setColumnDisableEdit() 은 Column 단위로 적용됩니다. (특정 Cell 에만 적용하려면 setCellDisableEdit() 을 사용합니다.)"
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_item !== 'undefined') {
+        $p.data.remove("dlt_item");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] Body Column 인덱스(숨김 포함) - 0:col1(autoComplete) / 1:col2(text, setColumnVisible(1,false) 로 숨김) / 2:col3(autoComplete) / 3:col4(text). autoComplete 컬럼(col1/col3)은 itemSet(라벨=지역명 / 값=코드) 로 아이템 리스트 제공. Row 4개.\n[절차] par_columnInfo(인덱스) / disabled 선택 -> setColumnDisableEdit 실행 -> 해당 컬럼 셀 더블클릭(편집모드 진입) -> 값 입력 시도 -> 다른 곳 클릭(포커스아웃).\n[확인] setColumnDisableEdit 는 Column 단위 적용이라 해당 컬럼의 모든 Row 에 반영된다. disabled=true 면 입력창 텍스트 편집이 비활성(리스트 선택만) 되어 입력한 텍스트가 셀 값에 반영되지 않고 원래 값 유지, false 면 입력값 반영. autoComplete 아닌 컬럼(col4 text, 인덱스 3)은 미동작(항상 편집 가능). 숨김 컬럼(인덱스 1)도 인덱스 계산에 포함됨."', '', 'label1');
+
+    // itemSet 바인딩용 DataList (autoComplete inputType 용 : col1=라벨(지역명), col2=값(코드))
+    //  ※ createBasicDataList 는 col1~col4 스키마만 생성하므로 itemSet label/value 도 col1/col2 사용.
+    $c.gcm.createBasicDataList('', '', 'dlt_item');
+    dlt_item.setJSON([
+        { "col1": "서울", "col2": "01" },
+        { "col1": "부산", "col2": "02" },
+        { "col1": "대구", "col2": "03" },
+        { "col1": "광주", "col2": "04" }
+    ]);
+
+    // 본문 데이터리스트 (autoComplete Cell 의 초기 표시값 : 아이템 값/라벨과 매칭)
+    //  ※ Body 컬럼 id 가 dataList 컬럼(col1~col4)과 일치해야 셀 편집 가능(불일치 시 자동 readOnly).
+    //  col1/col3 : autoComplete 컬럼(코드 저장, 라벨 표시) / col2 : 숨김 text / col4 : text
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "01", "col2": "H1", "col3": "02", "col4": "메모A" },
+        { "col1": "02", "col2": "H2", "col3": "03", "col4": "메모B" },
+        { "col1": "03", "col2": "H3", "col3": "01", "col4": "메모C" },
+        { "col1": "04", "col2": "H4", "col3": "02", "col4": "메모D" }
+    ]);
+
+    // target 생성
+    //  col1/col3 = inputType=autoComplete(itemSet 바인딩), col2/col4 = text. editable=true 로 셀 편집 허용.
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    // autoComplete 컬럼 공통 itemSet 조각 (label ref=col1(지역명), value ref=col2(코드))
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_item"><w2:label ref="col1"></w2:label><w2:value ref="col2"></w2:value></w2:itemset></w2:choices>';
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" editable="true" dataList="data:dlt_bind" id="" ev:onafteredit="scwin.target1_onafteredit" style="width:680px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol1" value="col1 (autoComplete)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol2" value="col2 (text/숨김)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol3" value="col3 (autoComplete)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="col4 (text)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="170" inputType="autoComplete" id="col1" dataList="col1">' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="autoComplete" id="col3" dataList="col3">' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // col2(인덱스 1) Column 을 숨김 처리 : columnInfo 인덱스가 숨겨진 Column 도 포함함을 검증하기 위함.
+    scwin.target1.setColumnVisible(1, false);
+}
+
+
+
+// setColumnDisableEdit 실행 : 특정 Column 의 텍스트 편집 비활성화 여부를 설정 (2인자)
+//  columnInfo 는 인덱스(Number). autoComplete 아닌 컬럼/숨김 text 컬럼은 미동작(엔진에서 inputType=="autoComplete" 만 처리).
+//  적용 여부는 해당 컬럼 셀을 더블클릭(편집모드) -> 값 입력 -> 포커스아웃 시 onafteredit 표시값으로 확인한다.
+scwin.btn_setColumnDisableEdit_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let disabledBool = (par_disabled.getValue() === "true");
+
+    scwin.target1.setColumnDisableEdit(columnInfo, disabledBool);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setColumnDisableEdit(" + columnInfo + ", " + disabledBool + ") 적용"
+        + " | 컬럼 " + columnInfo + " 셀 더블클릭 -> 편집모드에서 "
+        + (disabledBool ? "텍스트 입력 비활성(리스트 선택만)" : "텍스트 입력 가능")
+        + " 확인. 포커스아웃 시 셀 표시값 출력");
+}
+
+
+
+// 셀 편집모드 종료(포커스아웃) 시 발생. 셀에 표시된 값을 리턴창에 출력한다.
+//  onafteredit @param : (rowIndex, columnIndex, value) 위치 인자. 표시값은 getCellDisplayData 로 조회.
+//  disabled=true 면 텍스트 편집 비활성(리스트 선택만) 이라 입력 텍스트가 셀 값에 반영되지 않는다.
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    let shown = scwin.target1.getCellDisplayData(rowIndex, columnIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "셀(" + rowIndex + ", " + columnIndex + ") 표시값 : " + shown);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (대상 컬럼 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 (col1 / autoComplete)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (col2 / text / 숨김 Column)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 (col3 / autoComplete)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 (col4 / text / 미동작 대조)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="disabled" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_disabled" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true (텍스트 편집 비활성화, 리스트 선택만)]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false (텍스트 편집 활성화, 입력+리스트)]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnDisableEdit_onclick" id="btn_setColumnDisableEdit"
+							label="setColumnDisableEdit" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

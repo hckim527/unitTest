@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnEditPlaceholderChar" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260706" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnEditPlaceholderChar]<br/>Body Column 정보를 사용하여 특정 Column 의 editPlaceholderChar 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터는 Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 columnInfo(0)/editPlaceholderChar(_) 선택
+    par_columnInfo.setValue("0");
+    par_editPlaceholderChar.setValue("_");
+};
+
+
+
+// comp 생성 (Body Row MultiLine 구성)
+//  - gBody 에 <w2:row> 2개 -> 한 데이터 Row 가 2 Line 으로 표시
+//  - 1줄 = col1(인덱스0:text) / col2(인덱스1:text)
+//  - 2줄 = col3(인덱스2:text) / col4(인덱스3:text)
+//  - Row 가 MultiLine 이어도 col1~col4 는 각각 고유 인덱스(0~3) 를 가짐
+//  - 모든 Body Column inputType='text' + editFormat -> setColumnEditPlaceholderChar 동작 조건 충족
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body 가 MultiLine(2줄). 한 데이터 Row 가 2줄에 걸쳐 표시됨. 1줄 col1(0:text·editFormat)/col2(1:text·editFormat), 2줄 col3(2:text·editFormat)/col4(3:text·editFormat) 고유 인덱스. col2(1) 와 col4(3) 은 화면상 같은 우측 위치이나 고유 인덱스가 다름. 데이터 Row 3개.\n[절차] columnInfo(0~3)·editPlaceholderChar(문자) 선택 후 (setColumnEditPlaceholderChar 실행). 반환값과 getColumnEditPlaceholderChar 설정값 확인. 해당 셀 더블클릭 편집 시 입력창에 마스크+빈자리 문자 표시.\n[확인] MultiLine 이어도 col1~col4 는 고유 인덱스(0~3)로 각각 지목됨. 인덱스 1(col2) 적용 시 우측 위치가 같은 인덱스 3(col4) 은 미설정 유지(반대도 동일)."', '', 'label1');
+
+    // dataList 생성 + 초기값 바인딩
+    let strData = '';
+    strData += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+    dlt_bind.setJSON([
+        { "col1": "1234567", "col2": "010203", "col3": "9876543", "col4": "112233" },
+        { "col1": "5550000", "col2": "445566", "col3": "3216540", "col4": "778899" },
+        { "col1": "1112222", "col2": "121212", "col3": "8889999", "col4": "343434" }
+    ]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (Body Row MultiLine : gBody 에 <w2:row> 2개)
+    //  - 1줄 : col1(0:text·editFormat) / col2(1:text·editFormat)
+    //  - 2줄 : col3(2:text·editFormat) / col4(3:text·editFormat)
+    //  - Row 가 MultiLine 이어도 모든 Column 은 고유 인덱스(0~3)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" dataList="data:dlt_bind" id="" style="width:560px;height:340px;" editable="true" ev:onbeforeedit="scwin.target1_onbeforeedit" ev:onafteredit="scwin.target1_onafteredit">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol1" value="col1(0:text)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="col2(1:text)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="col3(2:text)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="col4(3:text)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : col1 (text + editFormat, 1줄 첫 컬럼, 고유 인덱스 0)
+    strTarget += '<w2:column width="280" inputType="text" dataType="text" editFormat="###-####" id="col1" dataList="col1"></w2:column>';
+    // index 1 : col2 (text + editFormat, 1줄 우측, 고유 인덱스 1)
+    strTarget += '<w2:column width="*" inputType="text" dataType="text" editFormat="##-##-##" id="col2" dataList="col2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // index 2 : col3 (text + editFormat, 2줄 첫 컬럼, 고유 인덱스 2)
+    strTarget += '<w2:column width="280" inputType="text" dataType="text" editFormat="###-####" id="col3" dataList="col3"></w2:column>';
+    // index 3 : col4 (text + editFormat, 2줄 우측, 고유 인덱스 3. col2 와 시각적 위치 동일하나 인덱스 다름)
+    strTarget += '<w2:column width="*" inputType="text" dataType="text" editFormat="##-##-##" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// [실행] setColumnEditPlaceholderChar : 선택한 컬럼(고유 누적 인덱스) 에만 editPlaceholderChar 를 설정
+//  - MultiLine(2줄) 이어도 col1~col4 는 고유 인덱스(0~3) 로 정확히 지목됨
+//  - 시각적으로 같은 우측 위치인 col2(인덱스1) / col4(인덱스3) 도 고유 인덱스로 구분됨
+//  - 적용 후 getColumnEditPlaceholderChar 로 각 컬럼 설정값을 확인하여 영향 범위 확인
+scwin.btn_setColumnEditPlaceholderChar_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let phChar = par_editPlaceholderChar.getValue();
+    let colID = target1.getColumnID(columnInfo);   // MultiLine Row 에서도 col1~col4 는 고유 인덱스(0~3)
+
+    // 고유 인덱스로 해당 컬럼에만 editPlaceholderChar 설정
+    let ret = target1.setColumnEditPlaceholderChar(columnInfo, phChar);
+
+    // set 확인 : 각 컬럼의 getColumnEditPlaceholderChar 로 지정 인덱스 컬럼만 설정됨을 확인
+    let msg = "setColumnEditPlaceholderChar(" + columnInfo + ", '" + phChar + "') [인덱스 " + columnInfo + " -> getColumnID:" + colID + "] 반환값=" + ret;
+    msg += "\n[인덱스0 col1] " + target1.getColumnEditPlaceholderChar(0);
+    msg += "\n[인덱스1 col2] " + target1.getColumnEditPlaceholderChar(1);
+    msg += "\n[인덱스2 col3] " + target1.getColumnEditPlaceholderChar(2);
+    msg += "\n[인덱스3 col4] " + target1.getColumnEditPlaceholderChar(3);
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+}
+
+// [이벤트] 셀 편집 진입 시 : 편집모드 입력창에 마스크+빈자리 문자(editPlaceholderChar)가 미리 표시됨을 확인
+scwin.target1_onbeforeedit = function (row, col, value) {
+    let colID = target1.getColumnID(col);
+    setTimeout(function () {
+        let editor = document.querySelector("input[id^='G_'][id$='target1__" + colID + "']");
+        if (editor) {
+            let msg = "편집모드 진입 [" + colID + "] (" + row + "," + col + ") 고유 인덱스 " + col;
+            msg += "\n[입력창 표시(마스크+빈자리 문자)] " + editor.value;
+            wf_body_bottom.getObj("scwin").setReturnValue(msg);
+        }
+    }, 50);
+};
+
+// [이벤트] 셀 편집 확정(포커스아웃) 시 : 일부만 입력하고 확정하면 미입력 자리가 제거된 최종값을 확인
+scwin.target1_onafteredit = function (row, col, value) {
+    let colID = target1.getColumnID(col);
+    let cellData = target1.getCellData(row, col);
+    let td = document.querySelector("td[id*='target1_cell_" + row + "_" + col + "']");
+    let dispVal = td ? td.textContent.trim() : '';
+    let msg = "편집->확정 [" + colID + "] (" + row + "," + col + ") 고유 인덱스 " + col;
+    msg += "\n[확정값(getCellData)] " + cellData;
+    msg += "\n[표시값] " + dispVal;
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (고유 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>0 (1줄 col1 : text, 고유 인덱스)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (1줄 col2 : text, 고유 인덱스)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2 (2줄 col3 : text, 고유 인덱스)</xf:label><xf:value>2</xf:value></xf:item>
+											<xf:item><xf:label>3 (2줄 col4 : text, 고유 인덱스)</xf:label><xf:value>3</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editPlaceholderChar (빈자리 문자)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_editPlaceholderChar" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>_ (밑줄)</xf:label><xf:value>_</xf:value></xf:item>
+											<xf:item><xf:label>* (별표)</xf:label><xf:value>*</xf:value></xf:item>
+											<xf:item><xf:label>○ (동그라미)</xf:label><xf:value>○</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnEditPlaceholderChar_onclick" id="btn_setColumnEditPlaceholderChar"
+							label="setColumnEditPlaceholderChar 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

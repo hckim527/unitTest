@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnEditPlaceholderChar" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260706" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setColumnEditPlaceholderChar]<br/>Body Column 정보를 사용하여 특정 Column 의 editPlaceholderChar 속성을 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 editPlaceholderChar 속성을 설정하려는 Body Column 의 ID 를 설정할 수 있어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 columnInfo(Column ID)/editPlaceholderChar(_) 선택
+    par_columnInfo.setValue("cText");
+    par_editPlaceholderChar.setValue("_");
+};
+
+
+
+// comp 생성 : text(editFormat)/text(editFormat·숨김)/custom(미동작)/calendar(useEditFormat) Column 구성
+//  setColumnEditPlaceholderChar 를 (인덱스가 아닌) Column ID 문자열로 호출
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column(숨김 포함) cText(text·editFormat=###-####·동작) / cHide(text·editFormat·숨김) / cCustom(custom·미동작) / cCal(calendar·useEditFormat=true·displayFormat=yyyy-MM-dd·동작), 데이터 3행. columnInfo 파라미터를 인덱스가 아닌 Column ID 문자열로 호출.\n[절차] columnInfo(Column ID)·editPlaceholderChar(문자) 선택 후 (setColumnEditPlaceholderChar 실행). 반환값과 getColumnEditPlaceholderChar(Column ID) 설정값 확인.\n[확인] Column ID 로 지목되어 text(cText)·calendar(cCal)만 동작(cCustom 미동작·반환 false). 숨김 Column(cHide) 도 ID 로 지목 가능."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cText" name="cText" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cHide" name="cHide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cCustom" name="cCustom" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cCal" name="cCal" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "cText": "1234567",  "cHide": "010203", "cCustom": "1234567", "cCal": "20250115" },
+        { "cText": "9876543",  "cHide": "112233", "cCustom": "9876543", "cCal": "20251231" },
+        { "cText": "5550000",  "cHide": "445566", "cCustom": "5550000", "cCal": "20250707" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (text/text(숨김)/custom/calendar Column. body 컬럼 id 는 dataList 컬럼 id 와 동일해야 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:660px;height:230px;" editable="true" ev:onbeforeedit="scwin.target1_onbeforeedit" ev:onafteredit="scwin.target1_onafteredit">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnEditPlaceholderChar 테스트 그리드 (Column ID 호출)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="170" inputType="text" id="h0" value="cText(text)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h1" value="cHide(text/숨김)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h2" value="cCustom(custom)"></w2:column>';
+    strTarget += '<w2:column width="190" inputType="text" id="h3" value="cCal(calendar)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    // cText : text + editFormat -> Column ID 호출 동작 대상
+    strTarget += '<w2:column width="170" inputType="text" dataType="text" editFormat="###-####" id="cText" dataList="cText"></w2:column>';
+    // cHide : text + editFormat 숨김(setColumnVisible(1,false)) -> Column ID 로는 숨김 Column 도 지목 가능
+    strTarget += '<w2:column width="150" inputType="text" dataType="text" editFormat="##-##-##" id="cHide" dataList="cHide"></w2:column>';
+    // cCustom : custom -> 전제 미충족 -> 미동작(setColumnEditPlaceholderChar 반환 false)
+    strTarget += '<w2:column width="150" inputType="custom" dataType="text" id="cCustom" dataList="cCustom"></w2:column>';
+    // cCal : calendar + useEditFormat=true + displayFormat -> Column ID 호출 동작 대상
+    strTarget += '<w2:column width="190" inputType="calendar" dataType="date" useEditFormat="true" displayFormat="yyyy-MM-dd" id="cCal" dataList="cCal"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // cHide(인덱스 1) 숨김 -> Column ID 로 숨김 Column 도 지목 가능함을 확인
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// [실행] setColumnEditPlaceholderChar : columnInfo 파라미터에 (인덱스가 아닌) Column ID 문자열을 전달하여 설정
+//  - 쌍이 되는 get 메소드(getColumnEditPlaceholderChar)도 Column ID 로 호출하여 설정값 확인
+scwin.btn_setColumnEditPlaceholderChar_onclick = function () {
+    // columnInfo 파라미터 : Column ID 문자열
+    let colID = par_columnInfo.getValue();
+    let phChar = par_editPlaceholderChar.getValue();
+    let cellInfo = target1.getCellInfo(colID);
+    let inputType = (cellInfo && cellInfo.options) ? cellInfo.options.inputType : '';
+
+    // columnInfo 파라미터에 Column ID 문자열을 전달하여 호출
+    let ret = target1.setColumnEditPlaceholderChar(colID, phChar);
+
+    // 쌍이 되는 get 메소드(getColumnEditPlaceholderChar)도 Column ID 로 호출하여 설정값 확인
+    let getPh = target1.getColumnEditPlaceholderChar(colID);
+
+    let msg = "setColumnEditPlaceholderChar('" + colID + "', '" + phChar + "') [inputType=" + inputType + "] 반환값=" + ret;
+    msg += "\n[getColumnEditPlaceholderChar('" + colID + "')] " + getPh;
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+}
+
+// [이벤트] 셀 편집 진입 시 : 편집모드 입력창에 마스크+빈자리 문자(editPlaceholderChar)가 미리 표시됨을 확인
+scwin.target1_onbeforeedit = function (row, col, value) {
+    let colID = target1.getColumnID(col);
+    setTimeout(function () {
+        let editor = document.querySelector("input[id^='G_'][id$='target1__" + colID + "']");
+        if (editor) {
+            let msg = "편집모드 진입 [" + colID + "] (" + row + "," + col + ")";
+            msg += "\n[입력창 표시(마스크+빈자리 문자)] " + editor.value;
+            wf_body_bottom.getObj("scwin").setReturnValue(msg);
+        }
+    }, 50);
+};
+
+// [이벤트] 셀 편집 확정(포커스아웃) 시 : 일부만 입력하고 확정하면 미입력 자리가 제거된 최종값을 확인
+scwin.target1_onafteredit = function (row, col, value) {
+    let colID = target1.getColumnID(col);
+    let cellData = target1.getCellData(row, col);
+    let td = document.querySelector("td[id*='target1_cell_" + row + "_" + col + "']");
+    let dispVal = td ? td.textContent.trim() : '';
+    let msg = "편집->확정 [" + colID + "] (" + row + "," + col + ")";
+    msg += "\n[확정값(getCellData)] " + cellData;
+    msg += "\n[표시값] " + dispVal;
+    wf_body_bottom.getObj("scwin").setReturnValue(msg);
+};
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (Column ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>cText (text)</xf:label><xf:value>cText</xf:value></xf:item>
+											<xf:item><xf:label>cHide (text/숨김)</xf:label><xf:value>cHide</xf:value></xf:item>
+											<xf:item><xf:label>cCustom (custom)</xf:label><xf:value>cCustom</xf:value></xf:item>
+											<xf:item><xf:label>cCal (calendar)</xf:label><xf:value>cCal</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editPlaceholderChar (빈자리 문자)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_editPlaceholderChar" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>_ (밑줄)</xf:label><xf:value>_</xf:value></xf:item>
+											<xf:item><xf:label>* (별표)</xf:label><xf:value>*</xf:value></xf:item>
+											<xf:item><xf:label>○ (동그라미)</xf:label><xf:value>○</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnEditPlaceholderChar_onclick" id="btn_setColumnEditPlaceholderChar"
+							label="setColumnEditPlaceholderChar 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

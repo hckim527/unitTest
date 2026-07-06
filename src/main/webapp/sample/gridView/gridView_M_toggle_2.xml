@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] toggle" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260706" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : toggle @param rowIndex 의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : name(drilldown 토글) | amount
+//       Line2 : memo(일반 text 셀, colspan 병합)  ← 토글 없음
+//     · toggle(rowIndex) 실행 후, 토글된 그 레코드가 화면에서 차지하는 Line1·Line2(두 TR) 각각의
+//       실제 데이터 rowIndex 를 조회하여 Line1 rowIndex = Line2 rowIndex = 전달 rowIndex 로 모두 동일함을 출력.
+scwin.tData = {
+    "description" : "[gridView > M > toggle]<br/>DrillDown 이 적용되었을때 특정 Row 의 펼침 상태를 토글합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - DrillDown 트리(inputType="drilldown" + depthColumn) + MultiLine(레코드당 2 Line) 그리드 구성
+//    · header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+//      Line1 : name(drilldown 토글) / amount   ← 토글 셀은 여기 1개뿐
+//      Line2 : memo(일반 text, colspan 병합)    ← 토글 없음
+//  - drilldownRealRowIndexAll="true" : toggle(rowIndex) 의 rowIndex 를 바인딩 DataList 기준으로 처리
+//  - showDepth="1" → 초기엔 depth1(부모)만 표시, 자식은 접힘
+//  - 데이터(DataList idx): 영업본부(0) > 영업1팀(1), 개발본부(2) > 개발1팀(3)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] DrillDown 트리 + MultiLine(레코드당 2 Line: Line1=이름(토글)/금액, Line2=메모(토글 없음)). drilldownRealRowIndexAll=true 라 toggle 의 rowIndex 는 DataList 기준. 데이터: 영업본부(0) > 영업1팀(1), 개발본부(2) > 개발1팀(3). 초기엔 부모(영업본부/개발본부)만 표시.\n[절차] par_rowIndex 선택 후 toggle 버튼 클릭 -> 해당 레코드 토글.\n[확인] 토글된 레코드의 두 Line(이름/메모) 의 데이터 rowIndex 가 모두 동일하게(= 전달 rowIndex) 출력됩니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (부모=1, 자식=2)
+    //  - memo : 레코드의 두번째 Line 표시
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "영업본부", "amount": 100, "memo": "영업본부 memo Line", "depth": 1 },
+        { "name": "영업1팀", "amount": 110, "memo": "영업1팀 memo Line",  "depth": 2 },
+        { "name": "개발본부", "amount": 200, "memo": "개발본부 memo Line", "depth": 1 },
+        { "name": "개발1팀", "amount": 210, "memo": "개발1팀 memo Line",  "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // DrillDown + MultiLine : header / gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' drilldownRealRowIndexAll="true" dataList="data:dlt_bind" rowNumVisible="true" defaultCellHeight="30" id="" style="width:560px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="toggle (DrillDown + MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(이름/금액) / Line2(메모)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol_name" value="이름(drilldown 토글)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_amount" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="hcol_memo" value="메모(토글 없음)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(name drilldown 토글, amount) / Line2(memo 일반 text) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="300" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// 화면상 특정 TD(Line 의 첫 셀)의 "실제 데이터 rowIndex" 를 구한다.
+//  - 엔진 근거 : DOM TD 의 data-tdIndex 는 "표시(display) rowIndex" 기준값.
+//    표시 rowIndex = parseInt(tdIndex / realRowDataLength) + grid.rowIndex(스크롤 상단 오프셋)  (mainDrawController getElemRowIndex 공식)
+//    표시 → 실제 변환은 getRealRowIndex(displayIdx) (dataList.filteredRowIndexArr 룩업).
+//  - MultiLine 일때 같은 레코드의 Line1·Line2 두 TR 은 표시 rowIndex 가 동일 → 변환 후 실제 rowIndex 도 동일.
+scwin._getLineRowIndex = function (td) {
+    if (!td) return null;
+    let raw = td.getAttribute("data-tdIndex");
+    if (raw === null) raw = td.getAttribute("tdIndex");
+    if (raw === null) return null;
+
+    let realLen = target1.realRowDataLength;
+    let topOffset = target1.rowIndex;
+    if (typeof realLen !== "number" || realLen <= 0) return null;
+    if (typeof topOffset !== "number") topOffset = 0;
+
+    let displayIdx = parseInt(parseInt(raw, 10) / realLen, 10) + topOffset;
+    if (typeof target1.getRealRowIndex === "function") {
+        let realIdx = target1.getRealRowIndex(displayIdx);
+        if (typeof realIdx === "number") return realIdx;
+    }
+    return displayIdx;
+};
+
+// 주어진 TD 가 속한 레코드의 Line1 TR(data-trIndex="0") 과 Line2 TR(다음 형제)을 반환
+scwin._getRecordTrs = function (anchorTd) {
+    if (!anchorTd) return null;
+    let tr = anchorTd.closest("tr");
+    if (!tr) return null;
+
+    let getTrIndex = function (el) {
+        let v = el.getAttribute("data-trIndex");
+        if (v === null) v = el.getAttribute("trIndex");
+        return v;
+    };
+    let line1 = tr;
+    let guard = 0;
+    while (getTrIndex(line1) !== "0" && line1.previousElementSibling && guard < 10) {
+        line1 = line1.previousElementSibling;
+        guard++;
+    }
+    let line2 = line1.nextElementSibling;
+    return { line1: line1, line2: line2 };
+};
+
+
+
+// [toggle] : par_rowIndex(DataList 기준 인덱스)로 해당 레코드의 펼침/접힘을 토글한 뒤,
+//  그 레코드의 두 Line(TR)의 데이터 rowIndex 가 모두 동일함을 확인 출력
+scwin.btn_toggle_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+
+    let result = target1.toggle(rowIndex);
+    b.setReturnValue("toggle(" + rowIndex + ") 반환값 : " + result);
+
+    // 현재 표시 Row 목록 (getRowCount 은 레코드 단위 → MultiLine 이어도 중복 없이 레코드별 1건, _1 과 동일 형식)
+    let names = [];
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        let real = target1.getRealRowIndex(i);
+        names.push(real + ":" + dlt_bind.getCellData(real, "name"));
+    }
+    b.setReturnValue("현재 표시 Row(" + names.length + ") : " + names.join(", "));
+
+    if (result === false) {
+        b.setReturnValue("(접혀서 안 보이는 Row 라 미실행 → Line rowIndex 조회 생략)");
+        return;
+    }
+
+    // 토글된 레코드의 이름으로 Line1(이름) 셀 TD 를 찾음
+    let pname = dlt_bind.getCellData(rowIndex, "name");
+    let nameTd = null;
+    let tds = document.querySelectorAll("td");
+    for (let i = 0; i < tds.length; i++) {
+        if (tds[i].textContent.trim() === pname) {
+            nameTd = tds[i];
+            break;
+        }
+    }
+
+    let line1Idx = null;
+    let line2Idx = null;
+    let trs = scwin._getRecordTrs(nameTd);
+    if (trs) {
+        let td1 = trs.line1 ? trs.line1.querySelector("td") : null;
+        let td2 = trs.line2 ? trs.line2.querySelector("td") : null;
+        line1Idx = scwin._getLineRowIndex(td1);
+        line2Idx = scwin._getLineRowIndex(td2);
+    }
+
+    let same = (line1Idx === line2Idx) && (line1Idx === rowIndex);
+    b.setReturnValue("MultiLine 각 Line rowIndex → Line1:" + line1Idx + " / Line2:" + line2Idx + " / 전달 rowIndex:" + rowIndex + " → " + (same ? "동일" : "불일치"));
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex (토글할 Row 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_toggle_onclick" id="btn_toggle" label="toggle" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
