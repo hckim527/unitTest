@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getRealRowIndex" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : @param rowIndex 의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : name(drilldown) | amount
+//       Line2 : memo(일반 text 셀, colspan 병합)
+//     · DrillDown(showDepth=1) 로 부모만 표시 → 화면 표시 인덱스가 DataList 인덱스와 달라짐(자식 숨김으로 시프트).
+//     · par_rowIndex(표시 인덱스) 선택 후 getRealRowIndex 버튼 클릭 → DataList 인덱스 반환값 출력.
+//       레코드가 2 Line(이름행/메모행)으로 표시되어도 표시 rowIndex 는 하나이므로 레코드 단위로 동일한 값이 반환된다.
+scwin.tData = {
+    "description" : "[gridView > M > getRealRowIndex]<br/>GridView 에 표시된 Row 기준의 인덱스를 DataList 기준의 인덱스로 반환합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - DrillDown 트리(inputType="drilldown" + depthColumn) + MultiLine(레코드당 2 Line) 그리드 구성
+//    · header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+//      Line1 : name(drilldown) / amount
+//      Line2 : memo(일반 text, colspan 병합)
+//  - showDepth="1" → 부모(depth1)만 표시, 자식(depth2) 접힘 → 표시 인덱스 != DataList 인덱스
+//  - 데이터(DataList idx): 영업본부(0) > 영업1팀(1), 개발본부(2) > 개발1팀(3), 관리팀(4) > 관리1팀(5)
+//      초기 표시(부모만): 영업본부(표시0->DataList0), 개발본부(표시1->DataList2), 관리팀(표시2->DataList4)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] DrillDown 트리 + MultiLine(레코드당 2 Line: Line1=이름(drilldown)/금액, Line2=메모). showDepth=1 로 부모만 표시되어 표시 인덱스가 DataList 인덱스와 달라집니다.\n[표시 레이아웃] 표시0=영업본부(DataList0) / 표시1=개발본부(DataList2) / 표시2=관리팀(DataList4). 각 레코드는 2 Line(이름행/메모행)으로 표시됩니다.\n[절차] par_rowIndex(표시 인덱스) 선택 후 [getRealRowIndex] 버튼 클릭.\n[확인] 선택한 표시 인덱스의 DataList 기준 인덱스가 반환됩니다. 레코드가 2 Line(이름행/메모행)으로 표시되어도 표시 rowIndex 는 하나이므로 레코드 단위로 동일한 값이 반환됩니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (부모=1, 자식=2)
+    //  - memo : 레코드의 두번째 Line 표시
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "영업본부", "amount": 100, "memo": "영업본부 메모 Line", "depth": 1 },
+        { "name": "영업1팀", "amount": 110, "memo": "영업1팀 메모 Line",  "depth": 2 },
+        { "name": "개발본부", "amount": 200, "memo": "개발본부 메모 Line", "depth": 1 },
+        { "name": "개발1팀", "amount": 210, "memo": "개발1팀 메모 Line",  "depth": 2 },
+        { "name": "관리팀",   "amount": 300, "memo": "관리팀 메모 Line",   "depth": 1 },
+        { "name": "관리1팀", "amount": 310, "memo": "관리1팀 메모 Line",  "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // DrillDown + MultiLine : header / gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" defaultCellHeight="30" id="" style="width:560px;height:440px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getRealRowIndex (DrillDown + MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(이름/금액) / Line2(메모)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol_name" value="이름(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_amount" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="hcol_memo" value="메모"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(name drilldown, amount) / Line2(memo 일반 text) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="300" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// [getRealRowIndex] : par_rowIndex(표시 인덱스)를 DataList 기준 인덱스로 변환하여 반환값 출력
+//  - MultiLine(레코드당 2 Line)이어도 표시 rowIndex 는 하나이므로 레코드 단위로 동일한 DataList 인덱스가 반환된다.
+scwin.btn_getRealRowIndex_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let displayIdx = parseInt(par_rowIndex.getValue(), 10);
+
+    let result = target1.getRealRowIndex(displayIdx);
+    b.setReturnValue("getRealRowIndex(" + displayIdx + ") 반환 : " + result);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex (표시 기준 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="1" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRealRowIndex_onclick" id="btn_getRealRowIndex" label="getRealRowIndex" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

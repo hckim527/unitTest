@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getRealRowIndex" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : "필터링 / 정렬" 을 적용해 "화면 표시 Row 순서 != DataList 데이터 Row 순서" 상태를 만들고
+//     - 정렬(amount 오름/내림차순) 적용 시 표시 순서가 DataList 원본 순서와 달라진 상태에서
+//       표시 인덱스 0,1,2... -> getRealRowIndex -> DataList 원본 인덱스(Number) 반환됨을 검증
+//     - 필터(region=서울) 적용으로 일부 Row 만 표시(축소)된 상태에서
+//       남은 표시 인덱스 -> getRealRowIndex -> 원본 DataList 인덱스 반환됨을 검증
+//     - 범위초과/음수(-1,99) 및 파라미터 생략 -> undefined 반환
+//   · 정렬/필터는 DataList(dlt_bind) 의 view(filteredRowIndexArr)만 재배열하고 물리 데이터(dataArr)는 원본 유지하므로,
+//     getRealRowIndex 반환 인덱스로 dlt_bind.getCellData 하면 화면 표시 셀 값과 대응된다.
+scwin.tData = {
+    "description" : "[gridView > M > getRealRowIndex]<br/>GridView 에 표시된 Row 기준의 인덱스를 DataList 기준의 인덱스로 반환합니다.",
+    "validation" : [
+        "필터링, 정렬 등이 적용되었을때 화면에 보이는 Row 순서와 DataList 의 데이터 Row 순서는 다를 수 있습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 정렬/필터 미적용의 원본 순서로 그리드 생성 (표시 순서 == DataList 순서)
+//  - 정렬/필터 버튼을 누르면 표시 순서가 DataList 순서와 달라진다.
+//  - DataList 원본 순서(표시 인덱스 == DataList 인덱스, 초기):
+//      idx0 : 서울 / 홍길동 / 300
+//      idx1 : 부산 / 김철수 / 100
+//      idx2 : 서울 / 이영희 / 500
+//      idx3 : 부산 / 박민수 / 200
+//      idx4 : 서울 / 최지우 / 400
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 정렬/필터 미적용 초기 상태는 표시 순서 == DataList 원본 순서(표시 인덱스 == DataList 인덱스).\n[DataList 원본] idx0:서울 홍길동(300) / idx1:부산 김철수(100) / idx2:서울 이영희(500) / idx3:부산 박민수(200) / idx4:서울 최지우(400)\n[절차] (정렬) 정렬 버튼(클릭 시 amount 오름↔내림 토글)으로 표시 순서를 바꾼 뒤, 또는 (필터) region=서울 버튼으로 일부 Row 만 표시되게 한 뒤 rowIndex(표시 인덱스, [생략] 포함) 선택 후 getRealRowIndex 버튼을 누릅니다. 정렬/필터 초기화는 상단 Target 재생성 버튼으로 합니다.\n[확인] 정렬/필터로 표시 순서가 바뀌어도 반환 Number 는 해당 표시행의 원본 DataList 인덱스입니다. 범위초과(99)/음수(-1)/[생략]은 undefined 를 반환합니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) : 정렬/필터로 표시 순서를 바꿀 원본 데이터 ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // DataList 원본 순서 (amount 는 정렬 시 표시 순서가 원본과 달라지도록 비정렬 배치)
+    let jsonData = [
+        { "region": "서울", "name": "홍길동", "amount": "300" },
+        { "region": "부산", "name": "김철수", "amount": "100" },
+        { "region": "서울", "name": "이영희", "amount": "500" },
+        { "region": "부산", "name": "박민수", "amount": "200" },
+        { "region": "서울", "name": "최지우", "amount": "400" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // 정렬 토글 상태 플래그 (정렬 버튼 클릭 시 오름↔내림 전환용)
+    scwin.gVar = { "sortAsc": false };
+
+    // target 그리드 생성 (region / name / amount) — GroupBy/DrillDown 없음
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" id="" style="width:600px;height:400px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getRealRowIndex (필터링/정렬) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol_region" value="지역(region)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_amount" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" dataType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="text" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// [정렬 적용] amount 컬럼 기준 정렬 → 표시 순서 != DataList 원본 순서
+//  - 클릭할 때마다 오름차순(0) ↔ 내림차순(1) 토글 (view/filteredRowIndexArr 재배열, 물리 데이터는 원본 유지)
+//  - 초기화(정렬 해제)는 상단 'Target 재생성' 버튼으로 그리드/DataList 를 새로 만들어 수행
+scwin.btn_sort_onclick = function () {
+    scwin.gVar.sortAsc = !scwin.gVar.sortAsc;
+    let order = scwin.gVar.sortAsc ? 0 : 1;
+    dlt_bind.sort("amount", order);
+    let disp = order === 0 ? "100,200,300,400,500" : "500,400,300,200,100";
+    wf_body_bottom.getObj("scwin").setReturnValue("[정렬] amount " + (order === 0 ? "오름" : "내림") + "차순 적용 → 표시 순서 : " + disp + " (DataList 원본 순서와 다름). rowIndex 선택 후 getRealRowIndex 버튼을 누르세요.");
+};
+
+
+
+// [필터 적용] region=서울 필터 → 일부 Row 만 표시(축소), 표시 순서가 원본 인덱스와 어긋남
+//  - setColumnFilter 4-인자(operatorType, exactMatch=true) 필요 (2-인자는 미적용)
+//  - 초기화(필터 해제)는 상단 'Target 재생성' 버튼으로 수행
+scwin.btn_filter_onclick = function () {
+    dlt_bind.setColumnFilter("region", "서울", "and", true);
+    wf_body_bottom.getObj("scwin").setReturnValue("[필터] region=서울 적용 → 서울 3건만 표시(표시 idx 0,1,2). 원본 DataList idx 0,2,4 에 대응. rowIndex 선택 후 getRealRowIndex 버튼을 누르세요.");
+};
+
+
+
+// [getRealRowIndex] : par_rowIndex(표시 기준 인덱스)를 DataList 기준 인덱스로 변환
+//  - 데이터 Row : Number 반환 (정렬/필터로 표시 순서가 바뀌어도 원본 DataList 인덱스 반환)
+//  - 범위초과/음수 : undefined 반환
+//  - "생략" 옵션 : rowIndex 파라미터 없이 호출 → undefined 반환
+scwin.btn_getRealRowIndex_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let raw = par_rowIndex.getValue();
+
+    // "생략" 옵션 : 인자 없이 호출 → undefined
+    if (raw === "omit") {
+        let result = target1.getRealRowIndex();
+        b.setReturnValue("getRealRowIndex() (파라미터 생략) 반환 : " + result);
+        return;
+    }
+
+    let rowIndex = parseInt(raw, 10);
+    let result = target1.getRealRowIndex(rowIndex);
+
+    if (typeof result === "number") {
+        // 데이터 Row → DataList 원본(물리) 인덱스(Number)
+        b.setReturnValue("getRealRowIndex(" + rowIndex + ") 반환 : " + result);
+    } else {
+        b.setReturnValue("getRealRowIndex(" + rowIndex + ") 반환 : " + result + " (유효하지 않은 파라미터 / 범위초과)");
+    }
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex (표시 기준 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[-1]]></xf:label><xf:value><![CDATA[-1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[99]]></xf:label><xf:value><![CDATA[99]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[생략 (파라미터 없이 호출)]]></xf:label><xf:value><![CDATA[omit]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="정렬 적용 (amount 오름↔내림 토글)" style=""></w2:button>
+																		<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_filter_onclick" id="btn_filter" label="필터 적용 (region=서울)" style=""></w2:button>
+												<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRealRowIndex_onclick" id="btn_getRealRowIndex" label="getRealRowIndex" style=""></w2:button>
+											</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

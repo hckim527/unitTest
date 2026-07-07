@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _4 : setDisabled 의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : empNo(text, idx0) | name(text, idx1) | grade(text, idx2)
+//       Line2 : memo(text, idx3)  | region(text, idx4)
+//     · Row 가 MultiLine(레코드당 2 Line)이어도 모든 Column 은 Line 을 넘어 이어지는 고유 인덱스(0,1,2,3,4)와 고유 ID 를 가짐.
+//       → setDisabled 를 Line1 컬럼/셀 ID 와 Line2 컬럼/셀 ID 각각에 적용하면 해당 대상만 disabled 되고 서로 독립.
+scwin.tData = {
+    "description" : "[gridView > M > setDisabled]<br/>파라미터에 맞게 특정 단위의 disabled 속성값을 설정합니다.",
+    "validation" : [
+        "colInfo(필수) 파라미터로 type 파라미터값이 'column','cell' 일때 disabled 속성을 설정할 Column 과 Cell 의 ID 를 설정할 수 있어야 합니다. (Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값과 ID 값을 갖습니다.)"
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - MultiLine(레코드당 2 Line) 그리드 : header / gBody 각각 <w2:row> 2개
+//      Line1 : empNo(idx0) / name(idx1) / grade(idx2)
+//      Line2 : memo(idx3)  / region(idx4)
+//  - Line 을 넘어 컬럼 인덱스가 이어짐 : empNo=0, name=1, grade=2, memo=3, region=4 (각 고유 ID)
+//      → Line1 컬럼/셀 ID 와 Line2 컬럼/셀 ID 는 서로 다른 고유 인덱스/ID 로 독립적으로 setDisabled 됨
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] MultiLine(레코드당 2 Line) 그리드. Line1=empNo(idx0)/name(idx1)/grade(idx2), Line2=memo(idx3)/region(idx4). Row 가 MultiLine 이어도 모든 Column 은 Line 을 넘어 이어지는 고유 인덱스(0~4)와 고유 ID 를 가집니다.\n[절차] type(column/cell) + colInfo(Column ID) + (cell 은 rowIndex) + disabled 선택 후 (setDisabled) 클릭. disabled=회색 배경으로 구분.\n[확인] Line1 컬럼/셀 ID(empNo/name/grade)와 Line2 컬럼/셀 ID(memo/region)에 각각 setDisabled 하면 지정 대상만 disabled(회색) 되고 서로 독립임을 확인. getColumnIndex(ID) 로 각 ID 의 고유 인덱스를, getDisabled 로 적용 상태를 반환영역에 출력."', '', 'label1');
+
+    // 조건 설정 (disabled Cell 을 배경색으로 구분: disabled=회색, readonly=연노랑)
+    let properties = {
+        dataList: "data:dlt_bind",
+        disabledBackgroundColor: "#D3D3D3",
+        readOnlyBackgroundColor: "#FFF8DC",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (각 Column 별 데이터)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="empNo" name="empNo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "empNo": "1001", "name": "김철수", "grade": "최우수", "memo": "1차 검토 완료", "region": "서울" },
+        { "empNo": "1002", "name": "이영희", "grade": "우수",   "memo": "재검토 요청",   "region": "경기" },
+        { "empNo": "1003", "name": "박민수", "grade": "보통",   "memo": "신규 배정",     "region": "부산" },
+        { "empNo": "1004", "name": "정수진", "grade": "최우수", "memo": "승인 대기",     "region": "대구" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 : MultiLine(레코드당 2 Line) - header / gBody 각각 <w2:row> 2개
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' defaultCellHeight="30" id="" style="width:100%;height:340px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setDisabled (MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(empNo/name/grade) / Line2(memo/region)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" inputType="text" id="h0" value="empNo(idx0)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="h1" value="name(idx1)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h2" value="grade(idx2)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="210" colspan="2" inputType="text" id="h3" value="memo(idx3)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h4" value="region(idx4)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(empNo/name/grade) / Line2(memo/region) → 레코드당 2 TR Line
+    //  (중요) body 컬럼 id 는 dataList 컬럼 id 와 동일해야 셀에 데이터가 바인딩됨. 각 컬럼 id 는 고유.
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // idx0 empNo (Line1)
+    strTarget += '<w2:column width="90" inputType="text" id="empNo" dataList="empNo"></w2:column>';
+    // idx1 name (Line1)
+    strTarget += '<w2:column width="120" inputType="text" id="name" dataList="name"></w2:column>';
+    // idx2 grade (Line1)
+    strTarget += '<w2:column width="150" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // idx3 memo (Line2)
+    strTarget += '<w2:column width="210" colspan="2" inputType="text" id="memo" dataList="memo"></w2:column>';
+    // idx4 region (Line2)
+    strTarget += '<w2:column width="150" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// setDisabled : type 파라미터값이 'column' 또는 'cell' 일 때 colInfo 를 Column ID 로 지정
+//  - Line1 ID(empNo/name/grade) 와 Line2 ID(memo/region) 는 서로 다른 고유 인덱스/ID → 독립 적용
+scwin.btn_setDisabled_onclick = function () {
+    let type = par_type.getValue();
+    let rowIndex = Number(par_rowIndex.getText());
+    let colInfo = par_colInfo.getValue();  // Column ID (문자열)
+    let disabledText = par_disabled.getValue();
+
+    // disabled 파라미터 값 결정 (true / false / '' / 생략)
+    if (disabledText === 'omit') {
+        // 파라미터 생략 → 기본값 false
+        if (type === 'column') {
+            target1.setDisabled(type, colInfo);
+            wf_body_bottom.getObj("scwin").setReturnValue("setDisabled('column', '" + colInfo + "')");
+        } else {
+            target1.setDisabled(type, rowIndex, colInfo);
+            wf_body_bottom.getObj("scwin").setReturnValue("setDisabled('cell', " + rowIndex + ", '" + colInfo + "')");
+        }
+    } else {
+        // true / false / '' (빈 문자열) 설정
+        let disabled = (disabledText === 'true') ? true : (disabledText === 'false') ? false : "";
+
+        if (type === 'column') {
+            target1.setDisabled(type, colInfo, disabled);
+            wf_body_bottom.getObj("scwin").setReturnValue("setDisabled('column', '" + colInfo + "', " + JSON.stringify(disabled) + ")");
+        } else {
+            target1.setDisabled(type, rowIndex, colInfo, disabled);
+            wf_body_bottom.getObj("scwin").setReturnValue("setDisabled('cell', " + rowIndex + ", '" + colInfo + "', " + JSON.stringify(disabled) + ")");
+        }
+    }
+
+    scwin.btn_getDisabled_onclick();
+}
+
+
+
+// getDisabled : 설정 대상(type)의 disabled 상태 + 해당 ID 의 고유 인덱스(getColumnIndex) 출력
+//  → MultiLine 이어도 각 Column ID 가 고유 인덱스를 가짐을 확인 (Line1 ID ≠ Line2 ID)
+scwin.btn_getDisabled_onclick = function () {
+    let type = par_type.getValue();
+    let rowIndex = Number(par_rowIndex.getText());
+    let colInfo = par_colInfo.getValue();  // Column ID (문자열)
+
+    // 해당 Column ID 의 고유 인덱스 (MultiLine 이어도 Line 을 넘어 이어지는 고유값)
+    let colIdx = target1.getColumnIndex(colInfo);
+    wf_body_bottom.getObj("scwin").setReturnValue("getColumnIndex('" + colInfo + "') : " + colIdx + " (Column ID 별 고유 인덱스)");
+
+    // 설정한 단위(type) 의 disabled 상태 조회 (colInfo 를 ID 로 전달)
+    if (type === 'column') {
+        wf_body_bottom.getObj("scwin").setReturnValue("getDisabled('column', '" + colInfo + "') : " + target1.getDisabled("column", colInfo));
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("getDisabled('cell', " + rowIndex + ", '" + colInfo + "') : " + target1.getDisabled("cell", rowIndex, colInfo));
+        // 우선순위 반영된 실제 적용값 (all) 조회
+        wf_body_bottom.getObj("scwin").setReturnValue("getDisabled('all', " + rowIndex + ", '" + colInfo + "') : " + target1.getDisabled("all", rowIndex, colInfo));
+    }
+}
+
+
+
+// Line1/Line2 독립성 일괄 확인 버튼
+//  - Line1 컬럼 ID(grade, idx2) 와 Line2 컬럼 ID(region, idx4) 각각 setDisabled('column', ..., true)
+//  - 각 ID 의 고유 인덱스와 disabled 상태를 함께 출력하여 서로 독립(교차 영향 없음)임을 확인
+scwin.btn_lineIndependence_onclick = function () {
+    target1.setDisabled("column", "grade", true);   // Line1 (idx2)
+    target1.setDisabled("column", "region", true);  // Line2 (idx4)
+
+    wf_body_bottom.getObj("scwin").setReturnValue("Line1 setDisabled('column','grade',true) / Line2 setDisabled('column','region',true) 실행");
+    wf_body_bottom.getObj("scwin").setReturnValue("getColumnIndex('grade')=" + target1.getColumnIndex("grade") + " (Line1) / getColumnIndex('region')=" + target1.getColumnIndex("region") + " (Line2) → 서로 다른 고유 인덱스");
+    wf_body_bottom.getObj("scwin").setReturnValue("getDisabled('column','grade') : " + target1.getDisabled("column", "grade") + " / getDisabled('column','region') : " + target1.getDisabled("column", "region"));
+    // Line1 미지정 ID(empNo,idx0) / Line2 미지정 ID(memo,idx3) 는 영향 없음(false)
+    wf_body_bottom.getObj("scwin").setReturnValue("미지정 getDisabled('column','empNo') : " + target1.getDisabled("column", "empNo") + " / getDisabled('column','memo') : " + target1.getDisabled("column", "memo") + " → 독립(영향 없음)");
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="type" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[column]]></xf:label>
+												<xf:value><![CDATA[column]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cell]]></xf:label>
+												<xf:value><![CDATA[cell]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colInfo (ID)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_colInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[empNo (Line1, idx0)]]></xf:label>
+												<xf:value><![CDATA[empNo]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[name (Line1, idx1)]]></xf:label>
+												<xf:value><![CDATA[name]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[grade (Line1, idx2)]]></xf:label>
+												<xf:value><![CDATA[grade]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[memo (Line2, idx3)]]></xf:label>
+												<xf:value><![CDATA[memo]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[region (Line2, idx4)]]></xf:label>
+												<xf:value><![CDATA[region]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[noExistCol (없는 ID)]]></xf:label>
+												<xf:value><![CDATA[noExistCol]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="disabled" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_disabled" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[""(Empty String)]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[생략]]></xf:label>
+												<xf:value><![CDATA[omit]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setDisabled_onclick" id="btn_setDisabled"
+							label="setDisabled" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDisabled_onclick" id="btn_getDisabled"
+							label="getDisabled" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_lineIndependence_onclick" id="btn_lineIndependence"
+							label="Line1(grade)/Line2(region) 독립 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

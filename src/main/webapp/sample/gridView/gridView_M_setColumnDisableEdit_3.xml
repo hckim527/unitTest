@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnDisableEdit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-975
+// 테스트 설명, 유효성 값 설정
+//  ★ _3 : columnInfo 의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드를 2개의 Line(TR)으로 표시(MultiLine, editable).
+//       Line1 : colA(autoComplete, idx0) | colB(text, idx1) | colC(autoComplete, idx2)
+//       Line2 : colD(text, idx3) | colE(autoComplete, idx4)
+//     · Row 가 MultiLine(레코드당 2 Line)이어도 컬럼 인덱스는 Line 을 넘어 이어지는 고유값(0,1,2,3,4)을 가짐.
+//       → Line1 의 autoComplete(colA idx0, colC idx2) 와 Line2 의 autoComplete(colE idx4)는 서로 다른
+//         고유 인덱스로 각각 setColumnDisableEdit 의 대상이 된다. (Line1 대상 인덱스 ≠ Line2 대상 인덱스)
+scwin.tData = {
+    "description" : "[gridView > M > setColumnDisableEdit]<br/>Body Column 정보를 사용하여 특정 Column 의 텍스트 편집을 비활성화할 지 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다. (Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.)"
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - MultiLine(레코드당 2 Line) 그리드 : header / gBody 각각 <w2:row> 2개, editable=true
+//      Line1 : colA(autoComplete, idx0) / colB(text, idx1) / colC(autoComplete, idx2)
+//      Line2 : colD(text, idx3) / colE(autoComplete, idx4)
+//  - Line 을 넘어 컬럼 인덱스가 이어짐 : colA=0, colB=1, colC=2, colD=3, colE=4
+//      → Line1 autoComplete(colA=0, colC=2) 와 Line2 autoComplete(colE=4)는 서로 다른 고유 인덱스로
+//        각각 setColumnDisableEdit 의 대상이 됨 (autoComplete 아닌 text 컬럼 1/3 은 미동작)
+//  - dlt_item : autoComplete itemSet 바인딩용(라벨=지역명 / 값=코드)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_item !== 'undefined') {
+        $p.data.remove("dlt_item");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] MultiLine(레코드당 2 Line) editable 그리드. Line1=colA(autoComplete,idx0)/colB(text,idx1)/colC(autoComplete,idx2), Line2=colD(text,idx3)/colE(autoComplete,idx4). Row 가 MultiLine 이어도 컬럼 인덱스는 Line 을 넘어 이어지는 고유값(0,1,2,3,4)을 가집니다. autoComplete 컬럼(0/2/4)만 setColumnDisableEdit 동작. autoComplete itemSet 은 라벨=지역명 / 값=코드.\n[절차] par_columnInfo(인덱스) / disabled 선택 -> setColumnDisableEdit 실행 -> 해당 컬럼 셀 더블클릭(편집모드) -> 값 입력 시도 -> 다른 곳 클릭(포커스아웃).\n[확인] MultiLine 이어도 각 컬럼이 고유 인덱스로 대상이 됨. Line1(idx0/idx2)·Line2(idx4)를 각각 disabled=true 로 설정 시 해당 컬럼 입력창 텍스트 편집 비활성(리스트 선택만)되어 입력 텍스트가 셀 값에 반영되지 않고 원래 값 유지, false 면 입력값 반영. text 컬럼(idx1/idx3)은 미동작(항상 편집 가능)."', '', 'label1');
+
+    // autoComplete itemSet 바인딩용 DataList (라벨=지역명 / 값=코드)
+    let strItem = '';
+    strItem += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_item" baseNode="list" repeatNode="map">';
+    strItem += '<w2:columnInfo>';
+    strItem += '<w2:column id="iLabel" name="iLabel" dataType="text"></w2:column>';
+    strItem += '<w2:column id="iValue" name="iValue" dataType="text"></w2:column>';
+    strItem += '</w2:columnInfo>';
+    strItem += '<w2:data use="true"></w2:data>';
+    strItem += '</w2:dataList>';
+    $p.data.create(strItem);
+    dlt_item.setJSON([
+        { "iLabel": "서울", "iValue": "01" },
+        { "iLabel": "부산", "iValue": "02" },
+        { "iLabel": "대구", "iValue": "03" },
+        { "iLabel": "광주", "iValue": "04" }
+    ], false);
+
+    // 본문 DataList (colA/colC/colE : autoComplete 코드 저장 / colB/colD : text)
+    //  ※ Body 컬럼 id 가 dataList 컬럼 id 와 일치해야 셀 편집 가능(불일치 시 자동 readOnly).
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="colA" name="colA" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="colB" name="colB" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="colC" name="colC" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="colD" name="colD" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="colE" name="colE" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "colA": "01", "colB": "김철수", "colC": "02", "colD": "1차 검토", "colE": "03" },
+        { "colA": "02", "colB": "이영희", "colC": "03", "colD": "재검토 요청", "colE": "01" },
+        { "colA": "03", "colB": "박민수", "colC": "01", "colD": "신규 배정", "colE": "04" },
+        { "colA": "04", "colB": "정수진", "colC": "02", "colD": "승인 대기", "colE": "02" }
+    ], false);
+
+    // target 생성 : MultiLine(레코드당 2 Line) - header / gBody 각각 <w2:row> 2개
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    // autoComplete 컬럼 공통 itemSet 조각 (label ref=iLabel(지역명), value ref=iValue(코드))
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_item"><w2:label ref="iLabel"></w2:label><w2:value ref="iValue"></w2:value></w2:itemset></w2:choices>';
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" editable="true" dataList="data:dlt_bind" id="" defaultCellHeight="30" ev:onafteredit="scwin.target1_onafteredit" style="width:100%;height:320px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnDisableEdit (MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(colA/colB/colC) / Line2(colD/colE)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" inputType="text" id="hcolA" value="colA (autoComplete/idx0)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="hcolB" value="colB (text/idx1)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="hcolC" value="colC (autoComplete/idx2)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="240" colspan="2" inputType="text" id="hcolD" value="colD (text/idx3)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="hcolE" value="colE (autoComplete/idx4)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(colA/colB/colC) / Line2(colD/colE) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // idx0 colA (autoComplete) -> Line1 대상
+    strTarget += '<w2:column width="120" inputType="autoComplete" id="colA" dataList="colA">' + itemset + '</w2:column>';
+    // idx1 colB (text) -> 미동작 대조
+    strTarget += '<w2:column width="120" inputType="text" id="colB" dataList="colB"></w2:column>';
+    // idx2 colC (autoComplete) -> Line1 대상
+    strTarget += '<w2:column width="120" inputType="autoComplete" id="colC" dataList="colC">' + itemset + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // idx3 colD (text) -> 미동작 대조
+    strTarget += '<w2:column width="240" colspan="2" inputType="text" id="colD" dataList="colD"></w2:column>';
+    // idx4 colE (autoComplete) -> Line2 대상
+    strTarget += '<w2:column width="120" inputType="autoComplete" id="colE" dataList="colE">' + itemset + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// setColumnDisableEdit 실행 : MultiLine 그리드에서 컬럼 고유 인덱스로 텍스트 편집 비활성화 여부 설정 (2인자)
+//  columnInfo 는 인덱스(Number). MultiLine 이어도 Line 을 넘어 이어지는 고유값(Line1=0/1/2, Line2=3/4).
+//  autoComplete 컬럼(0/2/4)만 동작, text 컬럼(1/3)은 미동작. 적용 여부는 해당 컬럼 셀 더블클릭(편집모드)
+//  -> 값 입력 -> 포커스아웃 시 onafteredit 표시값으로 확인한다.
+scwin.btn_setColumnDisableEdit_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let disabledBool = (par_disabled.getValue() === "true");
+
+    scwin.target1.setColumnDisableEdit(columnInfo, disabledBool);
+
+    let lineDesc = (columnInfo <= 2) ? "Line1" : "Line2";
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setColumnDisableEdit(" + columnInfo + ", " + disabledBool + ") 적용 [" + lineDesc + " 대상 컬럼]"
+        + " | 컬럼 " + columnInfo + " 셀 더블클릭 -> 편집모드에서 "
+        + (disabledBool ? "텍스트 입력 비활성(리스트 선택만)" : "텍스트 입력 가능")
+        + " 확인. 포커스아웃 시 셀 표시값 출력");
+}
+
+
+
+// 셀 편집모드 종료(포커스아웃) 시 발생. 셀에 표시된 값을 리턴창에 출력한다.
+//  onafteredit @param : (rowIndex, columnIndex, value) 위치 인자. 표시값은 getCellDisplayData 로 조회.
+//  disabled=true 면 텍스트 편집 비활성(리스트 선택만) 이라 입력 텍스트가 셀 값에 반영되지 않는다.
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    let colId = scwin.target1.getColumnID(columnIndex);
+    let shown = scwin.target1.getCellDisplayData(rowIndex, columnIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "셀(" + rowIndex + ", " + columnIndex + " / " + colId + ") 표시값 : " + shown);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (대상 컬럼 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 (Line1 colA / autoComplete)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (Line1 colB / text / 미동작 대조)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 (Line1 colC / autoComplete)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 (Line2 colD / text / 미동작 대조)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 (Line2 colE / autoComplete)]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="disabled" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_disabled" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true (텍스트 편집 비활성화, 리스트 선택만)]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false (텍스트 편집 활성화, 입력+리스트)]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnDisableEdit_onclick" id="btn_setColumnDisableEdit"
+							label="setColumnDisableEdit" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

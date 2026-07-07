@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
 	xmlns:xf="http://www.w3.org/2002/xforms">
-	<head meta_screenName="[gridView] setGridStyle" meta_author="InswaveSystems" meta_type="메인">
+	<head meta_screenName="[gridView] getCurrentGridStyle" meta_author="InswaveSystems" meta_type="메인">
 		<w2:historyInfo>
-			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260701" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
 		</w2:historyInfo>
 		<w2:type>COMPONENT</w2:type>
 		<w2:buildDate />
@@ -32,18 +32,17 @@
 		<w2:publicInfo method="" />
 		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
 scwin.tData = {
-    "description" : "[gridView > M > setGridStyle]<br/>GridView 컴포넌트의 전체 구조 정의를 JSON 형식의 문자열로 설정합니다.",
+    "description" : "[gridView > M > getCurrentGridStyle]<br/>GridView 컴포넌트의 전체 구조 정의를 JSON 형식의 문자열로 반환합니다.",
     "validation" : [
-        "doc(필수) 파라미터로 GridView 의 전체 구조를 JSON 형식의 문자열로 설정합니다.",
-        "기존 GridView 정의를 완전히 제거하고 파라미터로 새로운 GridView 정의를 설정하는 구조적 재생성 메소드입니다.",
-        "구조만 정의하며 데이터는 정의하지 않습니다.",
-        "유효하지 않은 문자열 설정 시 메소드가 실행되지 않고 기존 GridView 를 그대로 유지합니다."
+        "현재 GridView 컴포넌트의 상태가 반영된 전체 구조 정의를 JSON 형식의 문자열을 반환합니다.",
+        "Column 순서, Column 너비, 숨겨진 Column, 고정 Column 등 데이터를 제외한 GridView 의 전체 구조를 반환합니다.",
+        "getCurrentGridStyle() 메소드의 반환값은 setGridStyle() 메소드의 입력으로 사용할 수 있습니다."
     ]
 }
 
 
 
-// setGridStyle 입력으로 사용할 구조 스타일 저장소 (getCurrentGridStyle 반환값을 저장)
+// 추출한 구조 스타일 저장소 (getCurrentGridStyle 반환값 → setGridStyle 복원 입력으로 재사용)
 scwin.gVar = { "curStyle" : null };
 
 
@@ -55,26 +54,47 @@ scwin.onpageload = function () {
 
 
 
-// 그리드의 전체 행 데이터를 결과창에 출력 (setGridStyle 재생성/미실행 후에도 데이터가 그대로 유지됨을 확인)
-scwin.dumpGridData = function (g) {
+// [getCurrentGridStyle] : target1 의 현재 전체 구조 정의 문자열을 반환하여 출력 + gVar 저장
+//  - 반환 문자열에는 columnOrder / fixedColumn / 각 컬럼 width / hidden 이 포함되고 행 데이터(값)는 제외된다.
+//  - 반환값을 scwin.gVar.curStyle 에 저장하여 [setGridStyle(저장값 복원)] 에서 재사용한다.
+scwin.btn_getCurrentGridStyle_onclick = function () {
     let b = wf_body_bottom.getObj("scwin");
-    for (let i = 0; i < g.getRowCount(); i++) {
-        b.setReturnValue("  " + g.getCellData(i, "empNo") + " / " + g.getCellData(i, "name") + " / " + g.getCellData(i, "dept") + " / " + g.getCellData(i, "position") + " / " + g.getCellData(i, "salary"));
-    }
+
+    let result = target1.getCurrentGridStyle();
+
+    // 반환값 저장 (setGridStyle 입력으로 사용)
+    scwin.gVar.curStyle = result;
+
+    b.setReturnValue("target1.getCurrentGridStyle() 반환 (gVar.curStyle 저장) : " + result);
 };
 
 
 
-// [getCurrentGridStyle] : 현재 구조 정의 문자열을 확보하여 gVar 저장 (setGridStyle 입력으로 사용)
-scwin.btn_getCurrentGridStyle_onclick = function () {
+// [setGridStyle(저장값 복원)] : 저장한 구조 스타일(gVar.curStyle)을 같은 그리드(target1)에 적용하여 복원
+//  - @spec : getCurrentGridStyle() 의 반환값을 setGridStyle() 입력으로 사용할 수 있다(왕복).
+//  - setGridStyle 은 대상 그리드를 제거하고 스타일 doc(동일 id=target1)으로 재생성하므로, 같은 그리드 복원 시 id 충돌이 없다.
+//    (헤더 드래그로 컬럼 순서/너비를 바꾼 뒤 이 버튼을 누르면 저장 시점 구조로 되돌아온다.)
+//  - 저장 전이면 안내 메시지를 출력한다.
+scwin.btn_setGridStyle_onclick = function () {
     let b = wf_body_bottom.getObj("scwin");
-    scwin.gVar.curStyle = target1.getCurrentGridStyle();
-    b.setReturnValue("getCurrentGridStyle() 반환값 저장 (setGridStyle 입력으로 사용) : " + scwin.gVar.curStyle);
+
+    if (!scwin.gVar || !scwin.gVar.curStyle) {
+        b.setReturnValue("먼저 [getCurrentGridStyle] 버튼을 클릭하여 현재 구조를 추출(gVar 저장)하세요.");
+        return;
+    }
+
+    target1.setGridStyle(scwin.gVar.curStyle);
+
+    // setGridStyle 은 그리드를 재생성하므로 재획득 후 복원 결과 출력
+    let t1 = $p.getComponentById("target1");
+    b.setReturnValue("target1.setGridStyle(gVar.curStyle) 적용 완료 : 저장 시점의 구조(컬럼 순서/너비/숨김/고정)로 복원됩니다.");
+    b.setReturnValue("[복원 후] target1.getCurrentGridStyle() 반환 : " + t1.getCurrentGridStyle());
 };
 
 
 
 // [컬럼 순서 변경] : setColumnOrder 로 컬럼 순서를 역순으로 바꾼다(구조 변경 확인용).
+//  - 이후 [setGridStyle(저장값 복원)] 을 누르면 저장 시점 순서로 되돌아온다.
 scwin.btn_changeOrder_onclick = function () {
     let b = wf_body_bottom.getObj("scwin");
     target1.setColumnOrder([4, 3, 2, 1, 0]);
@@ -84,56 +104,12 @@ scwin.btn_changeOrder_onclick = function () {
 
 
 // [컬럼 너비 변경] : setColumnWidth 로 일부 컬럼 너비를 바꾼다(구조 변경 확인용).
+//  - 이후 [setGridStyle(저장값 복원)] 을 누르면 저장 시점 너비로 되돌아온다.
 scwin.btn_changeWidth_onclick = function () {
     let b = wf_body_bottom.getObj("scwin");
     target1.setColumnWidth(1, 260);   // 이름 컬럼 140 → 260
     target1.setColumnWidth(3, 60);    // 직급 컬럼 110 → 60
     b.setReturnValue("setColumnWidth(1,260) / setColumnWidth(3,60) 실행 → 이름/직급 컬럼 너비 변경");
-};
-
-
-
-// [setGridStyle(doc 설정)] : 저장한 구조 스타일(doc)로 GridView 전체 구조를 설정(재생성)
-//  - @validation1 : doc(필수) 로 전체 구조를 JSON 문자열로 설정.
-//  - @validation2 : 기존 정의를 완전 제거하고 doc 으로 새 GridView 를 재생성.
-//  - @validation3 : 구조만 정의하고 데이터는 정의하지 않음 → 재생성 후에도 DataList(dlt_bind) 데이터는 그대로 표시됨.
-//  - setGridStyle 은 그리드를 재생성하므로 재획득 후 결과 출력. (컬럼 순서/너비를 바꾼 뒤 실행하면 doc 시점 구조로 재설정됨.)
-scwin.btn_setGridStyle_onclick = function () {
-    let b = wf_body_bottom.getObj("scwin");
-
-    if (!scwin.gVar || !scwin.gVar.curStyle) {
-        b.setReturnValue("먼저 [getCurrentGridStyle] 버튼을 클릭하여 설정할 구조(doc)를 확보(gVar 저장)하세요.");
-        return;
-    }
-
-    target1.setGridStyle(scwin.gVar.curStyle);
-
-    // 재생성된 grid 재획득 후 결과 출력
-    let g = $p.getComponentById("target1");
-    b.setReturnValue("target1.setGridStyle(doc) 적용 완료 : 기존 정의를 제거하고 doc 구조(컬럼 순서/너비/숨김/고정)로 재생성합니다.");
-    b.setReturnValue("[재생성 후] 컬럼 순서 = [" + g.getColumnOrder() + "]");
-    // 구조만 정의·데이터 미정의 : 재생성 후에도 DataList 데이터는 그대로 유지됨 (전체 행 출력)
-    b.setReturnValue("[구조만 정의·데이터 미정의] 재생성 후 전체 데이터 (사번/이름/부서/직급/급여, DataList 유지) :");
-    scwin.dumpGridData(g);
-};
-
-
-
-// [setGridStyle(잘못된 문자열)] : 유효하지 않은 문자열 → 메소드 미실행, 기존 GridView 유지
-scwin.btn_setGridStyleInvalid_onclick = function () {
-    let b = wf_body_bottom.getObj("scwin");
-    let g = $p.getComponentById("target1");
-    let beforeCol = g.getColumnCount();
-    let beforeOrder = g.getColumnOrder();
-
-    // 유효하지 않은(파싱 불가) 구조 문자열 → 메소드 미실행, 기존 GridView(컬럼 순서/너비 변경 포함 현재 상태) 유지
-    g.setGridStyle('{"N":"w2:gridView" 유효하지 않은 구조 문자열}');
-
-    let g2 = $p.getComponentById("target1");
-    let afterCol = g2.getColumnCount();
-    let afterOrder = g2.getColumnOrder();
-    b.setReturnValue("[잘못된 문자열 후 기존 구조 유지] 컬럼 수 " + beforeCol + " -> " + afterCol + " / 컬럼 순서 [" + beforeOrder + "] -> [" + afterOrder + "] / 전체 데이터 :");
-    scwin.dumpGridData(g2);
 };]]></script>
 		<style type="text/css"><![CDATA[]]></style>
 	</head>
@@ -149,7 +125,7 @@ scwin.btn_setGridStyleInvalid_onclick = function () {
 				<xf:group style="" id="grp_sample">
 					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
 					<xf:group style="" id="grp_comp" class="tc_group_basic">
-						<w2:textbox id="label1" style="margin:5px;" escape="false" label="[전제] target1 = 커스텀 구조(첫 컬럼 사번 고정 fixedColumn=1, 부서 컬럼 숨김 hidden, 컬럼별 커스텀 너비), dlt_bind 데이터 표시. getCurrentGridStyle() 반환값(전체 구조 JSON 문자열)을 setGridStyle() 의 doc 파라미터로 설정하여 구조를 재생성합니다.&lt;br/&gt;[절차] (1) [getCurrentGridStyle] 클릭 -&gt; 설정할 구조(doc) 확보(gVar 저장). (2) [컬럼 순서 변경](setColumnOrder) / [컬럼 너비 변경](setColumnWidth) 으로 구조를 바꿈. (3) [setGridStyle(doc 설정)] 클릭 -&gt; doc 구조로 재생성(바꿨던 순서/너비가 doc 시점 구조로 재설정).&lt;br/&gt;[확인] setGridStyle 은 기존 정의를 완전 제거 후 doc 로 재생성하며 데이터는 정의하지 않음(재생성 후에도 DataList 데이터 유지). [setGridStyle(잘못된 문자열)] 은 파싱 불가라 미실행·기존 구조 유지."></w2:textbox>
+						<w2:textbox id="label1" style="margin:5px;" escape="false" label="[전제] target1 = 커스텀 구조(첫 컬럼 사번 고정 fixedColumn=1, 부서 컬럼 숨김 hidden, 컬럼별 커스텀 너비). getCurrentGridStyle() 반환값을 setGridStyle() 입력으로 사용하여 같은 그리드를 저장 시점 구조로 복원합니다.&lt;br/&gt;[절차] (1) [getCurrentGridStyle] 클릭 -&gt; 현재 구조 정의 문자열 반환 및 gVar 저장. (2) [컬럼 순서 변경](setColumnOrder) / [컬럼 너비 변경](setColumnWidth) 버튼으로 구조를 바꿈(헤더 드래그로도 가능). (3) [setGridStyle(저장값 복원)] 클릭 -&gt; 저장한 구조로 복원.&lt;br/&gt;[확인] 반환 문자열에 columnOrder / fixedColumn / 각 컬럼 width / hidden 이 포함되고 행 데이터(값)는 제외됨. [복원] 후 변경했던 순서/너비가 저장 시점 구조로 되돌아옴."></w2:textbox>
 						<w2:gridView id="target1" style="width:640px;height:220px;" dataList="data:dlt_bind" rowNumVisible="true" fixedColumn="1">
 							<w2:caption style="" id="caption1" value="target1 (커스텀 구조 : 고정/숨김/커스텀 너비)"></w2:caption>
 							<w2:header style="" id="header1">
@@ -178,8 +154,7 @@ scwin.btn_setGridStyleInvalid_onclick = function () {
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCurrentGridStyle_onclick" id="btn_getCurrentGridStyle" label="getCurrentGridStyle" style=""></w2:button>
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_changeOrder_onclick" id="btn_changeOrder" label="컬럼 순서 변경" style=""></w2:button>
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_changeWidth_onclick" id="btn_changeWidth" label="컬럼 너비 변경" style=""></w2:button>
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setGridStyle_onclick" id="btn_setGridStyle" label="setGridStyle(doc 설정)" style=""></w2:button>
-						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setGridStyleInvalid_onclick" id="btn_setGridStyleInvalid" label="setGridStyle(잘못된 문자열)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setGridStyle_onclick" id="btn_setGridStyle" label="setGridStyle(저장값 복원)" style=""></w2:button>
 					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>

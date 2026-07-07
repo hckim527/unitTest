@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] hasChild" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > hasChild]<br/>DrillDown 이 적용되었을때 특정 Row 의 자식 Row 존재 여부를 반환합니다.",
+    "validation" : [
+        "inputType='drilldown' 인 Column 이 정의되어야 동작합니다.",
+        "rowIndex(필수) 파라미터로 자식 Row 의 존재를 확인하려는 Body Row 인덱스를 설정합니다.",
+        "rowIndex(필수) 파라미터의 Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "특정 Row 에 자식 Row 가 존재하면 true, 존재하지 않으면 false 를 반환합니다.",
+        "접혀져서 화면에 표시되지 않는 Row 는 hasChild() 메소드를 사용할 수 없습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - inputType="drilldown" 트리 컬럼 + depth(계층) 데이터로 3단계 DrillDown 그리드 구성
+//  - drilldownRealRowIndexAll 은 설정하지 않음(기본 false) : hasChild 는 엔진 구현상 항상
+//    getRealRowIndex(displayRowIndex) 로 처리하여 rowIndex 를 "화면 표시 인덱스"로 해석하므로,
+//    표시 인덱스 != 실제 DataList 인덱스 상태를 유지하여 표시 인덱스 특성을 확인한다.
+//  - 데이터(DataList idx): 영업본부(0) > 영업1팀(1) > 김영업(2), 개발본부(3) > 개발1팀(4), 관리팀(독립)(5, Leaf)
+//  - showDepth="1" 로 초기에는 depth1(영업본부/개발본부/관리팀)만 표시됨(자식은 접힘)
+//    각 부모 Row 의 +/- 아이콘을 클릭하여 펼치고 접으면 표시 Row 와 표시 인덱스가 바뀐다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] inputType=drilldown 트리 그리드. 데이터: 영업본부(0) > 영업1팀(1) > 김영업(2), 개발본부(3) > 개발1팀(4), 관리팀(독립)(5)=Leaf. 초기 showDepth=1 로 depth1(영업본부/개발본부/관리팀)만 표시되고 자식은 접힘. rowIndex 는 화면에 표시된 Row 기준의 표시 인덱스.\n[절차] 그리드의 +/- 아이콘으로 원하는 Row 를 펼치거나 접은 뒤, par_rowIndex(표시 인덱스) 선택 후 hasChild 버튼 클릭.\n[확인] 자식이 있는 부모 Row 는 true, Leaf Row 는 false. 결과창의 현재 표시 Row 목록으로 그 표시 인덱스가 어떤 Row 를 가리키는지 확인(펼침/접힘에 따라 같은 표시 인덱스가 다른 Row 를 가리킴). 접혀서 화면에 표시되지 않는 Row 는 hasChild 로 조회할 수 없음."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (본부=1, 팀=2, 사원=3)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모 바로 아래에 그 자식이 위치(엔진 drilldown 은 순서 기반)
+    //  - idx0 영업본부(depth1) > idx1 영업1팀(depth2) > idx2 김영업(depth3)
+    //  - idx3 개발본부(depth1) > idx4 개발1팀(depth2)
+    //  - idx5 관리팀(독립, depth1, 자식 없음) = Leaf
+    let jsonData = [
+        { "name": "영업본부",     "amount": 100, "depth": 1 },
+        { "name": "영업1팀",      "amount": 110, "depth": 2 },
+        { "name": "김영업",       "amount": 111, "depth": 3 },
+        { "name": "개발본부",     "amount": 200, "depth": 1 },
+        { "name": "개발1팀",      "amount": 210, "depth": 2 },
+        { "name": "관리팀(독립)", "amount": 300, "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (DrillDown 트리 컬럼, drilldownRealRowIndexAll 미설정)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" id="" style="width:560px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="hasChild (자식 Row 존재 여부) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="hcol1" value="조직(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="360" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// [hasChild] : par_rowIndex(화면 표시 인덱스)로 해당 Row 에 자식 Row 가 존재하는지 반환
+//  - 반환값 : 자식 있으면 true / 없으면 false
+//  - 현재 표시 Row 목록(표시인덱스:실제인덱스:이름)을 함께 출력하여 그 표시 인덱스가
+//    현재 어떤 Row 를 가리키는지, 펼침/접힘에 따라 어떻게 달라지는지 확인
+scwin.btn_hasChild_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+
+    let result = target1.hasChild(rowIndex);
+    b.setReturnValue("hasChild(" + rowIndex + ") 반환값 : " + result);
+
+    // 현재 표시 Row 목록 (display 순회 → getRealRowIndex 로 실제 idx → DataList 에서 name 조회)
+    let list = [];
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        let real = target1.getRealRowIndex(i);
+        list.push(i + ":" + real + ":" + dlt_bind.getCellData(real, "name"));
+    }
+    b.setReturnValue("현재 표시 Row(표시idx:실제idx:이름) : " + list.join(", "));
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5]]></xf:label><xf:value><![CDATA[5]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hasChild_onclick" id="btn_hasChild" label="hasChild" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

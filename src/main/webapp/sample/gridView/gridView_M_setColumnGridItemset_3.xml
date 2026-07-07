@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setColumnGridItemset" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : columnInfo(인덱스)의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : empNo(text,idx0) | name(text,idx1) | grade(select,dlt_grade itemset,idx2)
+//       Line2 : memo(text,idx3) | region(autoComplete,dlt_grade itemset,idx4)
+//     · Row 가 MultiLine(레코드당 2 Line)이어도 컬럼 인덱스는 Line 을 넘어 이어지는 고유값(0,1,2,3,4)을 가짐.
+//       → Line1 의 select(grade,idx2) 와 Line2 의 autoComplete(region,idx4)는 서로 다른 고유 인덱스로
+//         각각 setColumnGridItemset 대상이 되어 dlt_new(GridViewItemset)로 재바인딩된다. text(idx0)는 미동작.
+scwin.tData = {
+    "description" : "[gridView > M > setColumnGridItemset]<br/>Body Column 정보를 사용하여 특정 Column 의 아이템 바인딩을 GridViewItemset 으로 설정합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 아이템 바인딩을 GridViewItemset 으로 설정할 Body Column 의 인덱스를 설정합니다. 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다. (Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다.)",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 파라미터 콤보 기본값 설정 (정적 select1 은 초기 selectedIndex 미적용 -> onpageload 에서 setValue)
+    par_columnInfo.setValue("2");
+    par_nodeset.setValue("data:dlt_new");
+    par_label.setValue("nName");
+    par_value.setValue("nVal");
+    par_width.setValue("400");
+    par_height.setValue("200");
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - MultiLine(레코드당 2 Line) 그리드 : header / gBody 각각 <w2:row> 2개
+//      Line1 : empNo(text) / name(text) / grade(select, dlt_grade itemset)
+//      Line2 : memo(text)  / region(autoComplete, dlt_grade itemset)
+//  - Line 을 넘어 컬럼 인덱스가 이어짐 : empNo=0, name=1, grade=2, memo=3, region=4
+//      → Line1 select(grade,idx2) 와 Line2 autoComplete(region,idx4)는 서로 다른 고유 인덱스로 각각 setColumnGridItemset 대상
+//      → text(idx0)는 미동작 대조
+//  - GridViewItemset 소스 DataList(dlt_new) : nVal/nName/nDept/nTel (다중 컬럼)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_grade !== 'undefined') {
+        $p.data.remove("dlt_grade");
+    }
+    if (typeof dlt_new !== 'undefined') {
+        $p.data.remove("dlt_new");
+    }
+    if (typeof dlt_body !== 'undefined') {
+        $p.data.remove("dlt_body");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] MultiLine(레코드당 2 Line) 그리드. Line1=empNo(text,idx0)/name(text,idx1)/grade(select,idx2), Line2=memo(text,idx3)/region(autoComplete,idx4). grade/region 은 dlt_grade 초기 바인딩. Row 가 MultiLine 이어도 컬럼 인덱스는 Line 을 넘어 이어지는 고유값(0~4)을 가집니다. Line1 select(idx2)와 Line2 autoComplete(idx4)는 서로 다른 고유 인덱스로 각각 setColumnGridItemset 대상입니다.\n[절차] par(columnInfo(인덱스)·nodeset/label/value·width/height) 선택 후 (setColumnGridItemset) 클릭.\n[확인] 지정 인덱스의 select/autoComplete 컬럼이 dlt_new(GridViewItemset)로 재바인딩되어 재렌더(표시값 김철수). text(idx0)는 미동작.\n[리스트창] 대상 셀 편집 시 열리는 아이템 리스트창(그리드형 팝업)의 실측 크기 출력 - width 는 설정값(미설정 시 Body Column 너비) 반영, height 는 행수 기준 렌더."', '', 'label1');
+
+    // 초기 아이템 DataList (gCode=value, gLabel=label)
+    let strGrade = '';
+    strGrade += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_grade" baseNode="list" repeatNode="map">';
+    strGrade += '<w2:columnInfo>';
+    strGrade += '<w2:column id="gCode" name="gCode" dataType="text"></w2:column>';
+    strGrade += '<w2:column id="gLabel" name="gLabel" dataType="text"></w2:column>';
+    strGrade += '</w2:columnInfo>';
+    strGrade += '<w2:data use="true"></w2:data>';
+    strGrade += '</w2:dataList>';
+    $p.data.create(strGrade);
+    dlt_grade.setJSON([
+        { "gCode": "A", "gLabel": "최우수" },
+        { "gCode": "B", "gLabel": "우수" },
+        { "gCode": "C", "gLabel": "보통" }
+    ], false);
+
+    // GridViewItemset 소스 DataList (다중 컬럼) - setColumnGridItemset 으로 새로 바인딩
+    //  value=nVal(사번), label=nName(이름), nDept/nTel 은 드롭다운 그리드에만 표시
+    let strNew = '';
+    strNew += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_new" baseNode="list" repeatNode="map">';
+    strNew += '<w2:columnInfo>';
+    strNew += '<w2:column id="nVal" name="nVal" dataType="text"></w2:column>';
+    strNew += '<w2:column id="nName" name="nName" dataType="text"></w2:column>';
+    strNew += '<w2:column id="nDept" name="nDept" dataType="text"></w2:column>';
+    strNew += '<w2:column id="nTel" name="nTel" dataType="text"></w2:column>';
+    strNew += '</w2:columnInfo>';
+    strNew += '<w2:data use="true"></w2:data>';
+    strNew += '</w2:dataList>';
+    $p.data.create(strNew);
+    dlt_new.setJSON([
+        { "nVal": "E01", "nName": "김철수", "nDept": "영업부", "nTel": "010-1111-0001" },
+        { "nVal": "E02", "nName": "이영희", "nDept": "개발부", "nTel": "010-2222-0002" },
+        { "nVal": "E03", "nName": "박민수", "nDept": "인사부", "nTel": "010-3333-0003" },
+        { "nVal": "E04", "nName": "정수진", "nDept": "총무부", "nTel": "010-4444-0004" }
+    ], false);
+
+    // Body 데이터용 DataList (select/autoComplete 컬럼 초기값은 gCode)
+    let strBody = '';
+    strBody += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_body" baseNode="list" repeatNode="map">';
+    strBody += '<w2:columnInfo>';
+    strBody += '<w2:column id="empNo" name="empNo" dataType="text"></w2:column>';
+    strBody += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strBody += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strBody += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strBody += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strBody += '</w2:columnInfo>';
+    strBody += '<w2:data use="true"></w2:data>';
+    strBody += '</w2:dataList>';
+    $p.data.create(strBody);
+    dlt_body.setJSON([
+        { "empNo": "1001", "name": "김철수", "grade": "B", "memo": "1차 검토 완료", "region": "B" },
+        { "empNo": "1002", "name": "이영희", "grade": "A", "memo": "재검토 요청",   "region": "A" },
+        { "empNo": "1003", "name": "박민수", "grade": "C", "memo": "신규 배정",     "region": "C" },
+        { "empNo": "1004", "name": "정수진", "grade": "A", "memo": "승인 대기",     "region": "B" }
+    ], false);
+
+    // Property 설정
+    let properties = {
+        dataList: "data:dlt_body",
+        editable: "true",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // Body 초기 아이템 바인딩 조각 (select/autoComplete 셀용) : label ref=gLabel, value ref=gCode
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_grade"><w2:label ref="gLabel"></w2:label><w2:value ref="gCode"></w2:value></w2:itemset></w2:choices>';
+
+    // target 생성 : MultiLine(레코드당 2 Line) - header / gBody 각각 <w2:row> 2개
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' defaultCellHeight="30" id="" style="width:100%;height:320px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setColumnGridItemset (MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(empNo/name/grade) / Line2(memo/region)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" inputType="text" id="h0" value="empNo(text)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="h1" value="name(text)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h2" value="grade(select)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="210" colspan="2" inputType="text" id="h3" value="memo(text)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h4" value="region(autoComplete)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(empNo/name/grade) / Line2(memo/region) → 레코드당 2 TR Line
+    //  (중요) body 컬럼 id 는 dataList 컬럼 id 와 동일해야 셀에 데이터가 바인딩됨
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // idx0 empNo (text) -> 미동작 대조
+    strTarget += '<w2:column width="90" inputType="text" id="empNo" dataList="empNo" displayType="label"></w2:column>';
+    // idx1 name (text)
+    strTarget += '<w2:column width="120" inputType="text" id="name" dataList="name" displayType="label"></w2:column>';
+    // idx2 grade (select, dlt_grade itemset) -> Line1 setColumnGridItemset 동작 대상
+    strTarget += '<w2:column width="150" inputType="select" id="grade" dataList="grade">' + itemset + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // idx3 memo (text)
+    strTarget += '<w2:column width="210" colspan="2" inputType="text" id="memo" dataList="memo" displayType="label"></w2:column>';
+    // idx4 region (autoComplete, dlt_grade itemset) -> Line2 setColumnGridItemset 동작 대상
+    strTarget += '<w2:column width="150" inputType="autoComplete" id="region" dataList="region">' + itemset + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 레코드 0 대상 컬럼 셀의 표시 텍스트 (재렌더 확인용)
+//  - MultiLine 이라도 td id 는 레코드 Row(0) + 고유 컬럼 인덱스 기준
+scwin.getCellDisplay = function (colIndex) {
+    let td = document.querySelector("td[id$='target1_cell_0_" + colIndex + "']");
+    return td ? td.textContent.trim() : "(td 없음)";
+}
+
+
+
+// GridViewItemset 아이템 리스트창(그리드형 드롭다운 팝업) 실측
+//  - 팝업 컨테이너 : class="w2gridItemTable" (select/autoComplete 공통), 셀 편집 진입 시 렌더
+//  - 현재 화면에 표시된 팝업의 실제 getBoundingClientRect 크기를 반환
+scwin.measureItemPopup = function () {
+    let els = document.querySelectorAll(".w2gridItemTable");
+    for (let i = 0; i < els.length; i++) {
+        let el = els[i];
+        let r = el.getBoundingClientRect();
+        if (r.width > 0 && window.getComputedStyle(el).display !== "none") {
+            return { w: Math.round(r.width), h: Math.round(r.height) };
+        }
+    }
+    return null;
+}
+
+
+
+// setColumnGridItemset 실행 (메인 검증 - MultiLine 컬럼 고유 인덱스)
+//  - 선택한 컬럼(고유 인덱스) 의 아이템 바인딩을 data:dlt_new 의 GridViewItemset 으로 교체
+//    Line1 select(grade,idx2) 와 Line2 autoComplete(region,idx4)는 서로 다른 고유 인덱스로 각각 대상이 됨
+//  - 검증 getter : getColumnNodeSet (GridViewItemset 은 nodeset/label/value + items(ref/header) 를 반환)
+scwin.btn_setColumnGridItemset_onclick = function () {
+    let colIndex = parseInt(par_columnInfo.getValue(), 10);
+
+    // info 파라미터 구성 (nodeset/label/value/item 필수, width/height 선택)
+    let ns = par_nodeset.getValue() || "data:dlt_new";
+    let lb = par_label.getValue() || "nName";
+    let vl = par_value.getValue() || "nVal";
+    let info = {
+        "nodeset": ns,
+        "label": lb,
+        "value": vl,
+        "item": [
+            { "ref": "nVal", "header": "사번" },
+            { "ref": "nName", "header": "이름" },
+            { "ref": "nDept", "header": "부서" },
+            { "ref": "nTel", "header": "연락처" }
+        ]
+    };
+    // width(선택) : 미설정 시 info 에서 생략 -> Body Column 너비 적용
+    let wVal = par_width.getValue();
+    if (wVal !== "") {
+        info.width = parseInt(wVal, 10);
+    }
+    // height(선택) : 미설정 시 info 에서 생략 -> 기본 높이
+    let hVal = par_height.getValue();
+    if (hVal !== "") {
+        info.height = parseInt(hVal, 10);
+    }
+
+    // 재바인딩 전 표시값 (재렌더 확인용)
+    let colId = target1.getColumnID(colIndex);
+    let beforeCell = scwin.getCellDisplay(colIndex);
+    let before = target1.getColumnNodeSet(colIndex);
+
+    // columnInfo(필수:고유 인덱스), info(필수:객체)
+    target1.setColumnGridItemset(colIndex, info);
+
+    setTimeout(function () {
+        let after = target1.getColumnNodeSet(colIndex);
+        let afterStr = after ? ("nodeset=" + after.nodeset + ", label=" + after.label + ", value=" + after.value) : "바인딩 없음";
+        let itemStr = (after && after.items) ? after.items.map(function (it) { return it.header + "(" + it.ref + ")"; }).join(", ") : "없음";
+        let changed = JSON.stringify(before) !== JSON.stringify(after);
+        let isBound = !!(after && after.nodeset === ns);
+
+        // 재바인딩된 컬럼(select/autoComplete)만 전 Row 를 dlt_new 첫 아이템(E01=김철수)으로 초기선택 -> 재렌더 확인
+        if (isBound) {
+            let bindColId = target1.getColumnID(colIndex);
+            for (let r = 0; r < dlt_body.getRowCount(); r++) {
+                dlt_body.setCellData(r, bindColId, "E01");
+            }
+        }
+
+        // 공통 출력 (리스트창 실측값 sizeStr 포함)
+        let flush = function (sizeStr) {
+            let afterCell = scwin.getCellDisplay(colIndex);
+            wf_body_bottom.getObj("scwin").setReturnValue("대상 컬럼 : 인덱스 " + colIndex + " (ID:" + colId + ")");
+            wf_body_bottom.getObj("scwin").setReturnValue("바인딩 변경 : " + changed);
+            wf_body_bottom.getObj("scwin").setReturnValue("재바인딩 후 : " + afterStr);
+            wf_body_bottom.getObj("scwin").setReturnValue("item : " + itemStr);
+            wf_body_bottom.getObj("scwin").setReturnValue("재렌더 표시값 : " + beforeCell + " -> " + afterCell);
+            wf_body_bottom.getObj("scwin").setReturnValue("리스트창 실측(px) : " + sizeStr + " [설정 width=" + (wVal || "미설정") + ", height=" + (hVal || "미설정") + "]");
+        };
+
+        setTimeout(function () {
+            if (!isBound) {
+                // 미동작 컬럼(text) 은 리스트창 없음
+                flush("해당 없음(미동작 컬럼)");
+                return;
+            }
+            // 대상 셀 편집 진입 -> 아이템 리스트창(그리드형 팝업) 오픈 후 실제 렌더 크기 측정
+            let td = document.querySelector("td[id$='target1_cell_0_" + colIndex + "']");
+            try { target1.setEditMode(td); } catch (e) {}
+            setTimeout(function () {
+                let m = scwin.measureItemPopup();
+                let sizeStr = m ? ("width=" + m.w + ", height=" + m.h) : "측정 실패(팝업 미오픈)";
+                // 리스트창(팝업) 닫기 : 외부 영역 mousedown 으로 팝업 닫힘 (setEditMode(false) 는 내부 오류)
+                document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+                flush(sizeStr);
+            }, 450);
+        }, 200);
+    }, 300);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (대상 컬럼 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[2 (Line1 grade, select)]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4 (Line2 region, autoComplete)]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[0 (Line1 empNo, text - 미동작 대조)]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="info.nodeset (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_nodeset" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[data:dlt_new]]></xf:label><xf:value><![CDATA[data:dlt_new]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="info.label (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_label" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[nName (이름)]]></xf:label><xf:value><![CDATA[nName]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[nVal (사번)]]></xf:label><xf:value><![CDATA[nVal]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[nDept (부서)]]></xf:label><xf:value><![CDATA[nDept]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[nTel (연락처)]]></xf:label><xf:value><![CDATA[nTel]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="info.value (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_value" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[nVal (사번)]]></xf:label><xf:value><![CDATA[nVal]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[nName (이름)]]></xf:label><xf:value><![CDATA[nName]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[nDept (부서)]]></xf:label><xf:value><![CDATA[nDept]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[nTel (연락처)]]></xf:label><xf:value><![CDATA[nTel]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="width (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_width" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[400]]></xf:label><xf:value><![CDATA[400]]></xf:value></xf:item>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="height (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_height" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[200]]></xf:label><xf:value><![CDATA[200]]></xf:value></xf:item>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnGridItemset_onclick" id="btn_setColumnGridItemset"
+							label="setColumnGridItemset 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

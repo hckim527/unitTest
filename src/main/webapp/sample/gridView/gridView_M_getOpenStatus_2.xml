@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getOpenStatus" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : getOpenStatus @param rowIndex 의 MultiLine caveat 전용 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : name(drilldown 펼침/접힘) | amount
+//       Line2 : memo(일반 text 셀, colspan 병합)  ← 토글 없음
+//     · MultiLine 이어도 각 Line 의 Row 인덱스값은 동일(= 레코드 rowIndex)하므로,
+//       getOpenStatus(rowIndex) 한 번의 호출이 레코드(두 Line) 전체의 펼침 상태를 반환한다.
+scwin.tData = {
+    "description" : "[gridView > M > getOpenStatus]<br/>DrillDown 이 적용되었을때 특정 Row 의 펼침 상태를 반환합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - DrillDown 트리(inputType="drilldown" + depthColumn) + MultiLine(레코드당 2 Line) 그리드 구성
+//    · header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+//      Line1 : name(drilldown 펼침/접힘) / amount   ← 펼침 셀은 여기 1개뿐
+//      Line2 : memo(일반 text, colspan 병합)         ← 토글 없음
+//  - drilldownRealRowIndexAll="true" : getOpenStatus(rowIndex) 의 rowIndex 를 바인딩 DataList 기준으로 처리
+//  - showDepth="1" → 초기엔 depth1(부모)만 표시, 자식은 접힘
+//  - 데이터(DataList idx): 영업본부(0) > 영업1팀(1), 개발본부(2) > 개발1팀(3)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] DrillDown 트리 + MultiLine(레코드당 2 Line: Line1=이름(펼침/접힘)/금액, Line2=메모(토글 없음)). drilldownRealRowIndexAll=true 라 getOpenStatus 의 rowIndex 는 DataList 기준. 데이터: 영업본부(0) > 영업1팀(1), 개발본부(2) > 개발1팀(3). 초기엔 부모(영업본부/개발본부)만 표시.\n[절차] 그리드의 +/- 아이콘으로 부모 Row 를 펼치거나 접은 뒤, par_rowIndex 선택 후 getOpenStatus 버튼 클릭.\n[확인] MultiLine 이어도 한 레코드의 두 Line 은 같은 rowIndex 를 공유하므로, getOpenStatus(rowIndex) 한 번으로 그 레코드(두 Line) 전체의 펼침 상태(true/false)가 반환됩니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (부모=1, 자식=2)
+    //  - memo : 레코드의 두번째 Line 표시
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    //  - idx0 영업본부(depth1) > idx1 영업1팀(depth2)
+    //  - idx2 개발본부(depth1) > idx3 개발1팀(depth2)
+    let jsonData = [
+        { "name": "영업본부", "amount": 100, "memo": "영업본부 memo Line", "depth": 1 },
+        { "name": "영업1팀", "amount": 110, "memo": "영업1팀 memo Line",  "depth": 2 },
+        { "name": "개발본부", "amount": 200, "memo": "개발본부 memo Line", "depth": 1 },
+        { "name": "개발1팀", "amount": 210, "memo": "개발1팀 memo Line",  "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // DrillDown + MultiLine : header / gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' drilldownRealRowIndexAll="true" dataList="data:dlt_bind" rowNumVisible="true" defaultCellHeight="30" id="" style="width:560px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getOpenStatus (DrillDown + MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(이름/금액) / Line2(메모)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol_name" value="이름(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_amount" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="hcol_memo" value="메모(토글 없음)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(name drilldown, amount) / Line2(memo 일반 text) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="300" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// [getOpenStatus] : par_rowIndex(DataList 기준 인덱스)로 레코드(두 Line)의 펼침 상태를 반환
+//  - MultiLine 이어도 두 Line 은 같은 rowIndex 를 공유 → 단일 호출로 레코드 전체 상태 반환
+scwin.btn_getOpenStatus_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+
+    let result = target1.getOpenStatus(rowIndex);
+    b.setReturnValue("getOpenStatus(" + rowIndex + ") 반환값 : " + result);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getOpenStatus_onclick" id="btn_getOpenStatus" label="getOpenStatus" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

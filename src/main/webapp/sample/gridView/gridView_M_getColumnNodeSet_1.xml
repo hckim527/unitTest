@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getColumnNodeSet" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getColumnNodeSet]<br/>Body Column 정보를 사용하여 특정 Column 의 아이템으로 바인딩된 DataList 정보를 객체로 반환합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터로 아이템으로 바인딩된 DataList 정보를 조회할 Body Column 의 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",        
+        "inputType='select','autoComplete','checkcombobox' 이고 아이템이 ItemSet 으로 정의된 경우 nodeset, label, value 속성이 모두 빈 문자열('') 인 객체를 반환합니다.",
+        "inputType 속성값이 'select','autoComplete','checkcombobox' 가 아니거나 유효하지 않은 파라미터인 경우 undefined 를 반환합니다.",
+        "반환된 객체의 result.nodeset 은 아이템이 정의된 DataList 의 ID 를 'data:{DataList ID}' 형식으로 갖습니다.",
+        "반환된 객체의 result.value 는 아이템의 Value 값과 바인딩 된 Column 의 ID 를 갖습니다.",
+        "반환된 객체의 result.label 은 아이템의 Label 값과 바인딩 된 Column 의 ID 를 갖습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 옵션용 DataList(dlt_grade) : value ref=gCode, label ref=gLabel
+//  - select/checkcombobox/autoComplete Column 은 dlt_grade 를 itemset(nodeset) 으로 바인딩 -> 채워진 객체 반환
+//  - text Column -> undefined / 정적 인라인 ItemSet select Column -> 빈 문자열 객체
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_grade !== 'undefined') {
+        $p.data.remove("dlt_grade");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column 인덱스(숨김 포함) - 0:name(text) / 1:memo(text, setColumnVisible(1,false) 숨김) / 2:grade(select, dlt_grade nodeset itemset) / 3:region(checkcombobox, dlt_grade nodeset itemset) / 4:city(autoComplete, dlt_grade nodeset itemset) / 5:type(select, 정적 인라인 item). dlt_grade 는 value ref=gCode, label ref=gLabel.\n[절차] columnInfo(인덱스) 선택 후 (getColumnNodeSet) 클릭. 99 는 유효하지 않은 인덱스.\n[확인] nodeset itemset(2/3/4)=채워진 객체(nodeset=data:dlt_grade, value=gCode, label=gLabel) / 정적 item(5)=빈 문자열 객체 / text(0)·유효하지않은인덱스(99)=undefined 가 반환영역에 출력됨."', '', 'label1');
+
+    // 옵션용 DataList (코드/라벨) - value ref=gCode, label ref=gLabel
+    let strGrade = '';
+    strGrade += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_grade" baseNode="list" repeatNode="map">';
+    strGrade += '<w2:columnInfo>';
+    strGrade += '<w2:column id="gCode" name="gCode" dataType="text"></w2:column>';
+    strGrade += '<w2:column id="gLabel" name="gLabel" dataType="text"></w2:column>';
+    strGrade += '</w2:columnInfo>';
+    strGrade += '<w2:data use="true"></w2:data>';
+    strGrade += '</w2:dataList>';
+    $p.data.create(strGrade);
+    dlt_grade.setJSON([
+        { "gCode": "A", "gLabel": "최우수" },
+        { "gCode": "B", "gLabel": "우수" },
+        { "gCode": "C", "gLabel": "보통" }
+    ], false);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (각 Column 별 데이터)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="city" name="city" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="type" name="type" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // checkcombobox(region) 다중값은 공백 구분 코드값
+    let jsonData = [
+        { "name": "노트북", "memo": "재고확인", "grade": "A", "region": "A B", "city": "A", "type": "1" },
+        { "name": "모니터", "memo": "신규입고", "grade": "B", "region": "B C", "city": "B", "type": "2" },
+        { "name": "키보드", "memo": "할인적용", "grade": "C", "region": "A C", "city": "C", "type": "1" },
+        { "name": "마우스", "memo": "주문대기", "grade": "A", "region": "B", "city": "A", "type": "2" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // itemset(nodeset) 공통 조각 (select/checkcombobox/autoComplete 용) : label ref=gLabel, value ref=gCode
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_grade"><w2:label ref="gLabel"></w2:label><w2:value ref="gCode"></w2:value></w2:itemset></w2:choices>';
+    // 정적 인라인 ItemSet (DataList nodeset 아님) - 빈 문자열 객체 반환 검증용
+    let staticItemset = '<w2:choices><w2:item><w2:label>일반</w2:label><w2:value>1</w2:value></w2:item><w2:item><w2:label>우수</w2:label><w2:value>2</w2:value></w2:item></w2:choices>';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:100%;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getColumnNodeSet 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" inputType="text" id="h0" value="name(text)"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="h1" value="memo(숨김)"></w2:column>';
+    strTarget += '<w2:column width="120" inputType="text" id="h2" value="grade(select)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="h3" value="region(checkcombobox)"></w2:column>';
+    strTarget += '<w2:column width="130" inputType="text" id="h4" value="city(autoComplete)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="h5" value="type(정적select)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    //  (중요) body 컬럼 id 는 dataList 컬럼 id 와 동일해야 셀에 데이터가 바인딩됨
+    // 0 name (text) -> 미지원 inputType -> undefined
+    strTarget += '<w2:column width="90" inputType="text" id="name" dataList="name"></w2:column>';
+    // 1 memo (text) -> setColumnVisible(1,false) 로 숨김 (숨김 포함 인덱스 검증용)
+    strTarget += '<w2:column width="100" inputType="text" id="memo" dataList="memo"></w2:column>';
+    // 2 grade (select, dlt_grade nodeset itemset) -> 채워진 객체
+    strTarget += '<w2:column width="120" inputType="select" id="grade" dataList="grade">' + itemset + '</w2:column>';
+    // 3 region (checkcombobox, dlt_grade nodeset itemset) -> 채워진 객체
+    strTarget += '<w2:column width="150" inputType="checkcombobox" id="region" dataList="region">' + itemset + '</w2:column>';
+    // 4 city (autoComplete, dlt_grade nodeset itemset) -> 채워진 객체
+    strTarget += '<w2:column width="130" inputType="autoComplete" id="city" dataList="city">' + itemset + '</w2:column>';
+    // 5 type (select, 정적 인라인 item -> DataList nodeset 아님) -> 빈 문자열 객체
+    strTarget += '<w2:column width="*" inputType="select" id="type" dataList="type">' + staticItemset + '</w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 두번째 Column(memo, 인덱스 1) 숨김 -> 숨김 Column 포함 인덱스 검증용
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// getColumnNodeSet 조회 (메인 검증)
+//  - select/checkcombobox/autoComplete + nodeset itemset Column -> 채워진 객체
+//  - 정적 인라인 ItemSet select Column -> 빈 문자열 객체
+//  - text / 유효하지 않은 인덱스 -> undefined
+scwin.btn_getColumnNodeSet_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+
+    let colID = target1.getColumnID(columnInfo);
+    let info = target1.getColumnNodeSet(columnInfo);
+
+    let result;
+    if (typeof info === 'undefined') {
+        result = "undefined";
+    } else if (info === null) {
+        result = "null";
+    } else {
+        result = "{ nodeset='" + info.nodeset + "', value='" + info.value + "', label='" + info.label + "' }";
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("getColumnNodeSet(" + columnInfo + ") [getColumnID:" + colID + "] -> " + result);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0 (name, text -> undefined)]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2 (grade, select -> 채워진 객체)]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3 (region, checkcombobox -> 채워진 객체)]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4 (city, autoComplete -> 채워진 객체)]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5 (type, 정적 select -> 빈 문자열 객체)]]></xf:label><xf:value><![CDATA[5]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[99 (유효하지 않은 인덱스 -> undefined)]]></xf:label><xf:value><![CDATA[99]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getColumnNodeSet_onclick" id="btn_getColumnNodeSet"
+							label="getColumnNodeSet 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
