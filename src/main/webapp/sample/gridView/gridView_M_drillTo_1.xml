@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] drillTo" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > drillTo]<br/>DrillDown 이 적용되었을때 특정 Row 부터 최상위 부모 Row 까지 모두 펼칩니다.",
+    "validation" : [
+        "inputType='drilldown' 인 Column 이 정의되어야 동작합니다.",
+        "rowIndex(필수) 파라미터로 최상위 부모 Row 까지 모두 펼칠 기준 Body Row 의 인덱스를 설정합니다.",
+        "rowIndex(필수) 파라미터의 Row 인덱스는 0 부터 시작하며 바인딩 된 DataList 기준으로 인덱스가 설정됩니다.",
+        "drillTo() 실행 시 기준 Row 의 자식 Row 는 펼치지 않습니다.",
+        "drillTo() 는 toggle() 과 달리 ontoggleclick 이벤트를 발생시키지 않습니다.",
+        "autoFit=true 이면 drillTo() 실행 후 Column 너비를 데이터에 맞게 자동 조정합니다."
+    ]
+}
+
+
+
+// ontoggleclick 발생 횟수 카운터 (drillTo 실행 후 0 이면 이벤트 미발생 확인)
+scwin.gVar = { "toggleClickCount": 0 };
+
+// @spec3 검증용 초장문 문자열 : 초기 접혀(showDepth=1) 화면 미표시인 깊은 자식(김영업, DataList idx2)의
+//  조직(drilldown) 셀에 넣는다. drillTo(2) 로 조상을 펼치면 이 긴-내용 셀이 화면에 나타난다.
+//  → autoFit=allColumn 이 이 긴 데이터 내용에 맞게 조직 컬럼을 자동으로 넓히는지(가이드) 를 내용 기준으로 검증.
+scwin.LONG_NAME = "김영업(글로벌영업총괄본부 해외전략사업개발실 책임연구원 직무대리 겸 신사업기획TF 리더)";
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 기본 선택을 접힌 자식 Row(2 김영업)로 지정 → 첫 클릭에 부모 펼침(핵심 동작)이 보이도록.
+    //  (정적 select1 은 selectedIndex 가 초기 렌더에 미적용 → onpageload 에서 setValue 로 지정)
+    par_rowIndex.setValue("2");
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    scwin.gVar.toggleClickCount = 0;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] drilldown 트리(autoFit=allColumn), 조직 컬럼은 setColumnWidth 로 80 으로 좁혀 시작. rowIndex=DataList 기준. 데이터: 영업본부(0)>영업1팀(1)>김영업[초장문](2), 개발본부(3)>개발1팀(4), 관리팀(5). 초기엔 최상위(0/3/5)만 표시, 자식(1/2/4) 접힘.\n[절차] par_rowIndex 선택 후 drillTo 클릭(기본 2). 자식 미펼침/미발생 확인은 자식있는 Row(0/1/3)로 실행.\n[확인] 기준 Row 표시=최상위까지 펼쳐짐. getOpenStatus=false(자식 미펼침), ontoggleclick 0(미발생). @spec3: 조직 컬럼 너비 before/after — 자식 펼침 drillTo(1/2/4)만 autoFit 재적용으로 80→399(컨테이너 기준), Root(0/3/5)는 80 유지."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (본부=1, 팀=2, 사원=3)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모 바로 아래에 그 자식이 위치(엔진 drilldown 은 순서 기반)
+    //  - idx0 영업본부(depth1) > idx1 영업1팀(depth2) > idx2 김영업(depth3)
+    //  - idx3 개발본부(depth1) > idx4 개발1팀(depth2)
+    //  - idx5 관리팀(독립, depth1, 자식 없음) = Leaf
+    //  ※ idx2(김영업) 조직 셀에 초장문(LONG_NAME) 을 넣음 : 초기엔 접혀 미표시, drillTo(2) 로 나타남 → @spec3 내용기준 검증 대상
+    let jsonData = [
+        { "name": "영업본부",         "amount": 100, "depth": 1 },
+        { "name": "영업1팀",          "amount": 110, "depth": 2 },
+        { "name": scwin.LONG_NAME,    "amount": 111, "depth": 3 },
+        { "name": "개발본부",         "amount": 200, "depth": 1 },
+        { "name": "개발1팀",          "amount": 210, "depth": 2 },
+        { "name": "관리팀(독립)",     "amount": 300, "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (DrillDown 트리 컬럼 + autoFit="allColumn")
+    //  - 조직(drilldown) 컬럼 = 유동('*') : autoFit 이 관할하는 컬럼(긴-내용 셀 보유) → @spec3 검증 대상
+    //  - 금액 컬럼 = 고정(120), height=240 : 최대 5행이 세로 스크롤 없이 보임 → 컨테이너 폭 불변
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' autoFit="allColumn" defaultCellHeight="28" dataList="data:dlt_bind" rowNumVisible="true" ev:ontoggleclick="scwin.target1_ontoggleclick" id="" style="width:560px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="drillTo (부모까지 모두 펼침) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol1" value="조직(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="*" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // [초기 로딩 시] 조직(drilldown, id="name") 컬럼을 setColumnWidth 로 작게(80) 세팅.
+    //  - 목적 : 유동('*') 이라 컨테이너 몫으로 넓게(399) 시작하면 @spec3(내용기준 조정) 확인이 애매 → 일부러 80 으로 좁혀 시작.
+    //  - 실측(62293) : setColumnWidth("name", 80) 은 즉시 적용됨(autoFit 이 곧바로 되돌리지 않음) → 로드 직후 조직 컬럼 = 80.
+    //                  이후 drillTo() 를 실행하면 autoFit(redraw)이 다시 "컨테이너 너비" 기준으로 재분배하여 80 → 399 로 되돌아간다.
+    //                  단 이 399 는 데이터 내용 폭(약 585px)이 아니라 컨테이너 몫이므로 긴-내용 셀은 여전히 잘린다(내용 기준 조정 아님).
+    //  - onpageload/Target 재생성 모두 comp_init 을 거치므로 재생성해도 항상 80 에서 시작(케이스 일관성).
+    target1.setColumnWidth("name", 80);
+}
+
+
+
+// 긴-내용 셀을 보유한 조직(drilldown, 유동 '*') 컬럼의 현재 렌더 너비를 구한다 (@spec3 내용기준 검증용)
+//  - autoFit 이 관할하는 이 컬럼이, drillTo 로 긴-내용 셀(김영업 초장문)이 나타난 뒤 그 내용에 맞게 넓어지는지 확인.
+//  - 헤더 th(첫 데이터 컬럼 = 조직) offsetWidth 로 컬럼 너비를 읽음(항상 렌더되어 안정적).
+scwin._getNameColWidth = function () {
+    let ths = target1.render.querySelectorAll("th.gridHeaderTDDefault_data");
+    return ths.length ? ths[0].offsetWidth : null;
+};
+
+// 현재 화면에 표시되는 Row 목록 (display 순회 → getRealRowIndex → DataList name)
+scwin._getVisibleRowText = function () {
+    let names = [];
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        let real = target1.getRealRowIndex(i);
+        names.push(real + ":" + dlt_bind.getCellData(real, "name"));
+    }
+    return "(" + names.length + ") " + names.join(", ");
+};
+
+
+
+// [drillTo] : par_rowIndex(DataList 기준) 부터 최상위 부모까지 모두 펼침
+//  - 부모 펼침 확인 : drillTo 후 표시 Row 목록에 기준 Row 가 포함되면 부모가 모두 펼쳐진 것
+//  - 기준 Row 의 getOpenStatus 는 false (자기 자식은 펼치지 않음)
+//  - ontoggleclick 발생 횟수 0 (drillTo 는 이벤트 미발생)
+//  - @spec3 : setColumnWidth("name", 80) 으로 좁혀 시작한 조직 컬럼이, drillTo 후 데이터 내용에 맞게 넓어지는지 before/after 로 확인.
+//    실측 : (1) 자식이 펼쳐져 재그리기가 발생하는 drillTo(1/2/4) 에서만 autoFit 이 다시 적용되어 80 → 399 로 되돌아감(=컨테이너 몫, 데이터 내용폭 아님).
+//           (2) Root drillTo(0/3/5) 는 표시행 변화(재그리기)가 없어 80 유지.
+//           (3) 넓어진 399 도 긴-내용 폭(약 585px)에는 못 미쳐 초장문 셀은 여전히 잘림(true) → "데이터에 맞게" 아님(@spec3 불일치).
+scwin.btn_drillTo_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+
+    scwin.gVar.toggleClickCount = 0;          // ontoggleclick 카운터 리셋
+    let beforeW = scwin._getNameColWidth();    // drillTo 전 조직 컬럼 너비 (setColumnWidth 로 80 세팅됨)
+    let beforeVis = scwin._getVisibleRowText();
+
+    target1.drillTo(rowIndex);
+
+    let afterW = scwin._getNameColWidth();      // drillTo 후 조직 컬럼 너비
+    let afterVis = scwin._getVisibleRowText();
+
+    b.setReturnValue("drillTo(" + rowIndex + ") 표시 Row : " + afterVis + (beforeVis === afterVis ? " (변화 없음 : Root 라 펼칠 부모 없음)" : " (부모 펼침)"));
+    b.setReturnValue("getOpenStatus(" + rowIndex + ") : " + target1.getOpenStatus(rowIndex) + " (자식 미펼침) / ontoggleclick : " + scwin.gVar.toggleClickCount + " (미발생)");
+    // @spec3 : autoFit 출력값은 조직 컬럼 너비(before -> after)만 출력. (해석/잘림 등은 안내 라벨·주석 참조)
+    b.setReturnValue("autoFit 조직(긴-내용) 컬럼 너비 : " + beforeW + " -> " + afterW);
+};
+
+
+
+// ontoggleclick : 토글 상태 변경 이후 발생. drillTo 는 이 이벤트를 발생시키지 않음(@spec2).
+//  - 실제 그리드 +/- 아이콘 토글 시에만 발생 → drillTo 후 카운터가 0 으로 유지됨을 확인
+scwin.target1_ontoggleclick = function (collapsed, rowIndex) {
+    scwin.gVar.toggleClickCount++;
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5]]></xf:label><xf:value><![CDATA[5]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_drillTo_onclick" id="btn_drillTo" label="drillTo" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getAncestorRowIndexArray" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getAncestorRowIndexArray]<br/>DrillDown 이 적용되었을때 특정 Row 의 모든 부모 Row 인덱스값을 배열로 반환합니다.",
+    "validation" : [
+        "inputType='drilldown' 인 Column 이 정의되어야 동작합니다.",
+        "rowIndex(필수) 파라미터로 모든 부모 Row 의 인덱스를 조회할 Body Row 의 인덱스를 설정합니다.",
+        "rowIndex(필수) 파라미터의 Row 인덱스는 0 부터 시작하며 바인딩 된 DataList 기준으로 인덱스가 설정됩니다.",
+        "파라미터에 해당하는 Row 의 모든 부모 Row 인덱스값을 1차원 배열로 반환합니다.",
+        "반환되는 배열은 가까운 부모(직계 부모)부터 최상위 부모까지 순서대로 생성됩니다.",
+        "파라미터에 해당하는 Row 의 인덱스는 포함되지 않으며 부모가 없는 Root Row 이면 빈 배열을 반환합니다.",
+        "반환되는 Row 의 인덱스는 0 부터 시작하며 바인딩 된 DataList 기준으로 인덱스가 설정됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - inputType="drilldown" 트리 컬럼 + depth(계층) 데이터로 3단계 DrillDown 그리드 구성
+//  - getAncestorRowIndexArray 의 rowIndex 및 반환 인덱스는 모두 "바인딩된 DataList 기준" 이다
+//    (엔진 gridViewApiController.getAncestorRowIndexArray → drilldown.getAncestorRowArr(rowIndex).
+//     getAncestorRowArr 는 idx=rowIndex 부터 시작해 push 후 idx=getParentRowIndex(idx) 로 부모를
+//     따라 올라가며(idx>=0), 마지막에 shift() 로 자기 자신을 제거 → 직계 부모부터 최상위 부모까지
+//     순서대로 담은 1차원 배열을 반환. 자기 자신은 미포함, 부모 없는 Root 는 [] 반환).
+//    → 표시 접힘/펼침과 무관하게 DataList 인덱스로 직접 조회 가능. getRealRowIndex 변환 불필요.
+//  - ★ getParentRowIndex(직계 부모 1개만) 와 구별 : 이 메소드는 조부모까지 모든 조상을 배열로 반환.
+//  - 데이터(DataList idx): 영업본부(0) > 영업1팀(1) > 김영업(2), 개발본부(3) > 개발1팀(4), 관리팀(독립)(5)=Root
+//  - showDepth="1" 로 초기에는 depth1(영업본부/개발본부/관리팀)만 표시되고 자식은 접힘.
+//    자식이 화면에 안 보여도 DataList 인덱스로 모든 조상 조회가 동작함을 확인.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] inputType=drilldown 트리 그리드. rowIndex 와 반환 인덱스 모두 바인딩된 DataList 기준(표시 접힘/펼침과 무관). 데이터(DataList idx): 영업본부(0) > 영업1팀(1) > 김영업(2), 개발본부(3) > 개발1팀(4), 관리팀(독립)(5)=Root. 초기 showDepth=1 로 자식(1,2,4)은 접혀 화면에 없지만 DataList 인덱스로 직접 조회 가능.\n[절차] par_rowIndex(DataList 인덱스) 선택 후 getAncestorRowIndexArray 버튼 클릭.\n[확인] 조회 Row 의 모든 조상(직계 부모+조부모)이 직계 부모부터 최상위까지 순서대로 1차원 배열로 반환(김영업(2) -> [1,0] = 직계 영업1팀+조부 영업본부, 영업1팀(1) -> [0], 개발1팀(4) -> [3]). 조회 Row 자신은 미포함. 부모 없는 Root(0/3/5) -> 빈 배열 []. (직계 부모 1개만 반환하는 getParentRowIndex 와 구별)."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (본부=1, 팀=2, 사원=3)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모 바로 아래에 그 자식이 위치(엔진 drilldown 은 순서 기반)
+    //  - idx0 영업본부(depth1) > idx1 영업1팀(depth2) > idx2 김영업(depth3)
+    //  - idx3 개발본부(depth1) > idx4 개발1팀(depth2)
+    //  - idx5 관리팀(독립, depth1, 부모 없음) = Root
+    let jsonData = [
+        { "name": "영업본부",     "amount": 100, "depth": 1 },
+        { "name": "영업1팀",      "amount": 110, "depth": 2 },
+        { "name": "김영업",       "amount": 111, "depth": 3 },
+        { "name": "개발본부",     "amount": 200, "depth": 1 },
+        { "name": "개발1팀",      "amount": 210, "depth": 2 },
+        { "name": "관리팀(독립)", "amount": 300, "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (DrillDown 트리 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" id="" style="width:560px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getAncestorRowIndexArray (모든 부모 Row 인덱스 배열) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="hcol1" value="조직(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="360" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// [getAncestorRowIndexArray] : par_rowIndex(DataList 인덱스)의 모든 조상 Row 인덱스(DataList 기준)를 1차원 배열로 반환
+//  - 반환 : 직계 부모부터 최상위 부모까지 순서대로 담긴 모든 조상 인덱스 배열 / 부모 없는 Root 는 빈 배열 []
+//  - 조회 Row 자신의 인덱스는 배열에 포함되지 않음
+scwin.btn_getAncestorRowIndexArray_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+
+    let result = target1.getAncestorRowIndexArray(rowIndex);
+
+    b.setReturnValue("getAncestorRowIndexArray(" + rowIndex + ") 반환 : " + JSON.stringify(result));
+
+    // DataList 기준 조상 매핑 (Root 이면 빈 배열)
+    let baseName = dlt_bind.getCellData(rowIndex, "name");
+    let parentText;
+    if (!result || result.length === 0) {
+        parentText = "(부모 없음 - 빈 배열)";
+    } else {
+        parentText = result.map(function (idx) { return "idx" + idx + "(" + dlt_bind.getCellData(idx, "name") + ")"; }).join(", ");
+    }
+    b.setReturnValue("조회 Row : idx" + rowIndex + "(" + baseName + ") -> 모든 부모(조상) : " + parentText);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5]]></xf:label><xf:value><![CDATA[5]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAncestorRowIndexArray_onclick" id="btn_getAncestorRowIndexArray" label="getAncestorRowIndexArray" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
