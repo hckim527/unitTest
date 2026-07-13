@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] headerFilter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260708" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > headerFilter]<br/>GridView 컴포넌트의 Header 에 HeaderFilter 기능을 활성화합니다.",
+    "validation" : [
+        "true 설정 시, Body Column 의 inputType 속성값에 따라 HeaderFilter 의 종류가 자동으로 적용되며 필터조건도 달라집니다.",
+        "true 설정 시, inputType 이 'text','textarea','spinner','link','textImage' 이면 검색어 입력창과 검색어 필터링을 지원합니다.",
+        "true 설정 시, inputType 이 'checkbox','radio' 이면 체크박스와 상태 필터링을 지원합니다.",
+        "true 설정 시, inputType 이 'select','autoComplete','checkcombobox' 이면 SelectBox 입력창과 목록값 필터링을 지원합니다.",
+        "true 설정 시, inputType 이 'calendar' 이면 날짜 입력창과 날짜 필터링을 지원합니다.",
+        "true 설정 시, 그 외 inputType 은 필터링을 지원하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// Body Column 순서와 동일한 inputType 목록 (필터셀 종류 판별 시 사용)
+scwin.gVar = {
+    "inputTypes": ["text", "textarea", "spinner", "link", "textImage", "checkbox", "radio", "select", "autoComplete", "checkcombobox", "calendar", "button(그외)"]
+};
+
+
+
+// comp 생성
+//  - headerFilter=true + defaultShowHeaderFilter=true 로 필터 행을 초기 표시
+//  - 가이드에 명시된 모든 inputType 을 Body Column 으로 배치 (카테고리별 전수)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_grade !== 'undefined') {
+        $p.data.remove("dlt_grade");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 전제/절차/확인 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] headerFilter=true + defaultShowHeaderFilter=true 로 필터 행(HeaderFilter)을 초기 표시.\n가이드 명시 inputType 전수를 컬럼으로 배치 -> [입력창계열] text/textarea/spinner/link/textImage  [체크박스계열] checkbox/radio  [SelectBox계열] select/autoComplete/checkcombobox  [날짜] calendar  [그외/미지원] button\n[절차] (HeaderFilter 종류 확인) 버튼 클릭\n[확인] 각 컬럼 필터셀에 자동 적용된 종류(검색어 입력창 / 체크박스 / SelectBox / 날짜 입력창 / 없음)를 반환영역에서 컬럼별로 확인"', '', 'label1');
+
+    // select/autoComplete/checkcombobox Column 아이템용 DataList (value ref=gCode, label ref=gLabel)
+    let strGrade = '';
+    strGrade += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_grade" baseNode="list" repeatNode="map">';
+    strGrade += '<w2:columnInfo>';
+    strGrade += '<w2:column id="gCode" name="gCode" dataType="text"></w2:column>';
+    strGrade += '<w2:column id="gLabel" name="gLabel" dataType="text"></w2:column>';
+    strGrade += '</w2:columnInfo>';
+    strGrade += '<w2:data use="true"></w2:data>';
+    strGrade += '</w2:dataList>';
+    $p.data.create(strGrade);
+    dlt_grade.setJSON([
+        { "gCode": "A", "gLabel": "서울" },
+        { "gCode": "B", "gLabel": "부산" },
+        { "gCode": "C", "gLabel": "대구" }
+    ], false);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (12개 컬럼 = inputType 전수)
+    let cols = [
+        "cText", "cTextarea", "cSpinner", "cLink", "cTextImage",
+        "cCheck", "cRadio", "cSelect", "cAuto", "cCheckcombo",
+        "cCal", "cBtn"
+    ];
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    for (let i = 0; i < cols.length; i++) {
+        let dt = (cols[i] === 'cCal') ? 'date' : (cols[i] === 'cSpinner') ? 'number' : 'text';
+        strDlt += '<w2:column id="' + cols[i] + '" name="' + cols[i] + '" dataType="' + dt + '"></w2:column>';
+    }
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "cText": "노트북", "cTextarea": "재고 확인 필요", "cSpinner": "10", "cLink": "상세보기", "cTextImage": "서울", "cCheck": "Y", "cRadio": "Y", "cSelect": "A", "cAuto": "A", "cCheckcombo": "A B", "cCal": "2026-07-01", "cBtn": "보기" },
+        { "cText": "모니터", "cTextarea": "신규 입고", "cSpinner": "20", "cLink": "상세보기", "cTextImage": "부산", "cCheck": "N", "cRadio": "N", "cSelect": "B", "cAuto": "B", "cCheckcombo": "B", "cCal": "2026-07-02", "cBtn": "보기" },
+        { "cText": "키보드", "cTextarea": "할인 적용", "cSpinner": "30", "cLink": "상세보기", "cTextImage": "대구", "cCheck": "Y", "cRadio": "Y", "cSelect": "C", "cAuto": "C", "cCheckcombo": "A C", "cCal": "2026-07-03", "cBtn": "보기" },
+        { "cText": "마우스", "cTextarea": "주문 대기", "cSpinner": "40", "cLink": "상세보기", "cTextImage": "서울", "cCheck": "N", "cRadio": "N", "cSelect": "A", "cAuto": "A", "cCheckcombo": "B C", "cCal": "2026-07-04", "cBtn": "보기" }
+    ], false);
+
+    // headerFilter/filterColumn 은 createBasicGridView 로 구성 불가 -> 인라인 동적 생성
+    await scwin.createHeaderFilterGridView();
+}
+
+
+
+// headerFilter 필터 행을 포함한 gridView 동적 생성 (inputType 전수 Body Column)
+scwin.createHeaderFilterGridView = async function () {
+    let grp_comp = $c.gcm.getTestGroup('');
+    let ns = $c.gcm.getNameSpace();
+
+    // select/autoComplete/checkcombobox Column 용 itemset (label ref=gLabel, value ref=gCode)
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_grade"><w2:label ref="gLabel"></w2:label><w2:value ref="gCode"></w2:value></w2:itemset></w2:choices>';
+    // textImage Column 용 1px 투명 이미지 (렌더 확인용)
+    let imgSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+
+    // Header 라벨 Row / filterColumn Row / Body Row 구성 정보 (동일 순서)
+    let defs = [
+        { h: "text",          fid: "fText",       body: '<w2:column width="90" style="" inputType="text" id="cText" dataList="cText"></w2:column>' },
+        { h: "textarea",      fid: "fTextarea",   body: '<w2:column width="110" style="" inputType="textarea" id="cTextarea" dataList="cTextarea"></w2:column>' },
+        { h: "spinner",       fid: "fSpinner",    body: '<w2:column width="90" style="" inputType="spinner" dataType="number" id="cSpinner" dataList="cSpinner"></w2:column>' },
+        { h: "link",          fid: "fLink",       body: '<w2:column width="90" style="" inputType="link" id="cLink" dataList="cLink"></w2:column>' },
+        { h: "textImage",     fid: "fTextImage",  body: '<w2:column width="90" style="" inputType="textImage" imageSrc="' + imgSrc + '" imageAlign="left" id="cTextImage" dataList="cTextImage"></w2:column>' },
+        { h: "checkbox",      fid: "fCheck",      body: '<w2:column width="80" style="" inputType="checkbox" trueValue="Y" falseValue="N" id="cCheck" dataList="cCheck"></w2:column>' },
+        { h: "radio",         fid: "fRadio",      body: '<w2:column width="80" style="" inputType="radio" trueValue="Y" falseValue="N" id="cRadio" dataList="cRadio"></w2:column>' },
+        { h: "select",        fid: "fSelect",     body: '<w2:column width="100" style="" inputType="select" id="cSelect" dataList="cSelect">' + itemset + '</w2:column>' },
+        { h: "autoComplete",  fid: "fAuto",       body: '<w2:column width="110" style="" inputType="autoComplete" id="cAuto" dataList="cAuto">' + itemset + '</w2:column>' },
+        { h: "checkcombobox", fid: "fCheckcombo", body: '<w2:column width="120" style="" inputType="checkcombobox" id="cCheckcombo" dataList="cCheckcombo">' + itemset + '</w2:column>' },
+        { h: "calendar",      fid: "fCal",        body: '<w2:column width="150" style="" inputType="calendar" dataType="date" id="cCal" dataList="cCal"></w2:column>' },
+        { h: "button(그외)",  fid: "fBtn",        body: '<w2:column width="*" style="" inputType="button" id="cBtn" dataList="cBtn"></w2:column>' }
+    ];
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' headerFilter="true" defaultShowHeaderFilter="true" dataList="data:dlt_bind" checkAllType="false" id="" style="width:1200px;height:320px;">';
+    s += '<w2:caption style="" id="caption1" value="inputType 전수 HeaderFilter 종류"></w2:caption>';
+    // Header : 일반 헤더 Row + filterColumn Row
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    for (let i = 0; i < defs.length; i++) {
+        let w = (i === defs.length - 1) ? '*' : '100';
+        s += '<w2:column width="' + w + '" style="" inputType="text" id="h' + i + '" value="' + defs[i].h + '"></w2:column>';
+    }
+    s += '</w2:row>';
+    s += '<w2:row style="" id="rowFilter">';
+    for (let i = 0; i < defs.length; i++) {
+        let w = (i === defs.length - 1) ? '*' : '100';
+        s += '<w2:filterColumn width="' + w + '" style="" id="' + defs[i].fid + '" value=""></w2:filterColumn>';
+    }
+    s += '</w2:row>';
+    s += '</w2:header>';
+    // Body : inputType 전수 Column (id 는 DataList 컬럼 id 와 동일해야 바인딩됨)
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    for (let i = 0; i < defs.length; i++) {
+        s += defs[i].body;
+    }
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// inputType 별 필터셀에 자동 적용된 HeaderFilter 종류를 컨트롤 class 로 판별하여 컬럼별로 한 줄씩 출력
+//  - 필터셀 TD(class 'gridHeaderFilter') 을 컬럼 순서대로 수집하여 inputType 목록과 1:1 매칭
+scwin.btn_checkFilterType_onclick = function () {
+    let head = document.querySelector("[id*='target1_head_table']");
+    if (!head) {
+        wf_body_bottom.getObj("scwin").setReturnValue("HeaderFilter 영역을 찾을 수 없습니다.");
+        return;
+    }
+
+    // 필터셀(Header) 수집 : GridView Header 는 div/th 기반 셀로 렌더되며 필터셀은 class 'gridHeaderFilter' 를 가짐
+    //  header__column{N} class 의 컬럼 인덱스로 정렬하여 Body Column 순서와 1:1 정렬
+    let cells = Array.from(head.querySelectorAll(".gridHeaderFilter"));
+    let colIdx = function (el) {
+        let m = el.className.match(/header__column(\d+)/);
+        return m ? parseInt(m[1]) : 999;
+    };
+    cells.sort(function (a, b) { return colIdx(a) - colIdx(b); });
+
+    // 필터셀 종류 판별 (컨트롤 class 기준)
+    let detect = function (cell) {
+        if (cell.querySelector('.w2grid_header_filter_input_calendar')) return "날짜 입력창 (.w2grid_header_filter_input_calendar)";
+        if (cell.querySelector('.w2grid_header_filter_checkbox')) return "체크박스 (.w2grid_header_filter_checkbox)";
+        if (cell.querySelector('.w2grid_header_filter_checkcombobox')) return "SelectBox 입력창 (.w2grid_header_filter_checkcombobox)";
+        if (cell.querySelector('.w2grid_header_filter_input')) return "검색어 입력창 (.w2grid_header_filter_input)";
+        if (cell.querySelector('.w2grid_header_filter_button.filter_icon_disable')) return "없음/필터 미지원 (disabled 필터 버튼)";
+        return "없음";
+    };
+
+    let its = scwin.gVar.inputTypes;
+    for (let i = 0; i < cells.length; i++) {
+        let it = i < its.length ? its[i] : "?";
+        wf_body_bottom.getObj("scwin").setReturnValue("[inputType=" + it + "] -> " + detect(cells[i]));
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFilterType_onclick" id="btn_checkFilterType"
+							label="HeaderFilter 종류 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

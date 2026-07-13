@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setCellInputTypeCustom" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260710" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > setCellInputTypeCustom]<br/>inputType='custom' 인 Column 에서 특정 Cell 의 inputType 속성 변경을 허용할지 설정합니다.",
+    "validation" : [
+        "Column 의 typeGetter 속성에 사용자 함수를 정의하면 setCellInputTypeCustom 속성은 false 로 동작합니다.",
+        "true 설정 시, inputType='custom' 인 Column 에서 특정 Cell 의 inputType 속성 변경을 허용합니다.",
+        "false 설정 시, inputType='custom' 인 Column 에서 특정 Cell 의 inputType 속성 변경을 허용하지 않습니다.",
+        "미설정 시, inputType='custom' 인 Column 에서 특정 Cell 의 inputType 속성 변경을 허용하지 않습니다.",
+        "false 설정 시, Column 의 typeGetter 속성에 사용자 함수를 정의하여 각 Cell 의 inputType 속성값을 설정해야 합니다.",
+        "false 설정 시, Column 의 typeGetter 속성을 설정하지 않으면 모든 Cell 의 inputType 속성값은 'text' 로 설정됩니다.",
+        "각 Cell 의 inputType 속성은 setCellInputType() 메소드를 사용하여 동적으로 설정할 수 있습니다.",
+        "inputType='custom' 인 Column 에서 Cell 의 inputType 속성값 중 'drilldown' 은 지원하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// custom Column(col2) 의 typeGetter 사용자 함수 : 각 Cell 을 'text' 로 설정
+//  ※ typeGetter 가 정의된 Column 은 setCellInputTypeCustom 값과 무관하게 typeGetter 결과로 동작(= false 동작)
+scwin.col2_typeGetter = function (info) {
+    return { id: 'c2_cell_' + info.rowIndex + '_' + info.colIndex, inputType: 'text', options: {} };
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_item !== 'undefined') {
+        $p.data.remove("dlt_item");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 현재 con 적용값 (gdl_boolean : label 이 'true' / 'false' / '' → getText() 사용, getValue()는 인덱스)
+    let cVal = con_setCellInputTypeCustom.getText();
+    let cLabel = (cVal === '') ? '(미설정)' : cVal;
+
+    $c.gcm.createLabel('label="[전제] col1 = inputType=custom (typeGetter 미설정), col2 = inputType=custom (typeGetter 정의 -> text). 현재 setCellInputTypeCustom = ' + cLabel + '.\n[절차] rowIndex 선택 후 버튼으로 대상 Cell 의 inputType 변경(setCellInputType) 시도. col1 은 select / drilldown, col2 는 select 시도.\n[확인] 리턴창에서 대상 Cell 편집기 렌더 타입과 Column inputType(custom 유지) 확인. true=col1 변경 허용(select 렌더) / false·미설정=col1 미허용(text) / col2(typeGetter)=항상 typeGetter 값(text) 으로 false 동작. drilldown 은 미지원(no-op)."', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // select inputType 용 itemSet DataList (col1=라벨, col2=값)
+    $c.gcm.createBasicDataList('', '', 'dlt_item');
+    dlt_item.setJSON([
+        { "col1": "서울", "col2": "01" },
+        { "col1": "부산", "col2": "02" },
+        { "col1": "대구", "col2": "03" }
+    ]);
+
+    // 본문 DataList (custom 셀 편집용, 초기값 빈값) - 4 Row
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1": "", "col2": "" },
+        { "col1": "", "col2": "" },
+        { "col1": "", "col2": "" },
+        { "col1": "", "col2": "" }
+    ]);
+
+    // con 미설정이면 setCellInputTypeCustom 속성 자체를 생략(엔진 기본값 false)
+    let customAttr = (cVal === '') ? '' : 'setCellInputTypeCustom="' + cVal + '" ';
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' checkAllType="false" ' + customAttr + 'dataList="data:dlt_bind" id="" style="width:520px;height:240px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol1" value="col1 (custom / typeGetter 미설정)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="col2 (custom / typeGetter 정의)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="*" inputType="custom" displayMode="label" value="" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="custom" displayMode="label" value="" id="col2" dataList="col2" typeGetter="scwin.col2_typeGetter"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 대상 Cell 에 실제 적용된 inputType 을 반환한다.
+//  - typeGetter 미설정(허용) Column : cellManagerInfoByRowIndex 에 적용된 inputType 이 반영됨
+//  - typeGetter 정의 Column : cellManagerHashByRowIndex 의 options.inputType(=typeGetter 결과) 반영
+scwin.getCellInputType = function (rowIndex, colId) {
+    let api = scwin.target1;
+    let ci = api.cellInfoHash[api.tdIdList[api.getColumnIndex(colId)]];
+    let realRow = api.getRealRowIndex(rowIndex);
+    try {
+        if (!ci.isValidTypeGetter && ci.cellManagerInfoByRowIndex && ci.cellManagerInfoByRowIndex[realRow]) {
+            return ci.cellManagerInfoByRowIndex[realRow].inputType;
+        }
+        if (ci.cellManagerHashByRowIndex && ci.cellManagerHashByRowIndex[realRow]) {
+            return ci.cellManagerHashByRowIndex[realRow].options.inputType;
+        }
+    } catch (e) {}
+    return "(미확인)";
+};
+
+
+
+// 대상 Column 의 inputType 속성값 (custom 유지 여부 확인용)
+scwin.getColumnInputType = function (colId) {
+    let api = scwin.target1;
+    let colIndex = api.getColumnIndex(colId);
+    try { return api.cellInfoHash[api.tdIdList[colIndex]].options.inputType; } catch (e) { return "(?)"; }
+};
+
+
+
+// setCellInputType 실행 후 해당 Cell 을 편집모드(더블클릭과 동일 경로)로 진입시켜, 적용된 타입의 입력 컴포넌트가 셀에 실제 표시되는지 확인한다.
+//  (setCellInputType_1 샘플과 동일 패턴 : mainDrawController.setEditMode(td) 로 진입 → select 면 [role=combobox] 등 에디터 렌더)
+scwin.enterEditMode = function (rowIndex, colId) {
+    let api = scwin.target1;
+    let colIndex = api.getColumnIndex(colId);
+    let td = api._getTDByIndex(colIndex + (rowIndex - (api.rowIndex > 0 ? api.rowIndex : 0)) * api.oneRowDataLength);
+    try { if (td && typeof api.setEditMode === 'function') api.setEditMode(td); } catch (e) {}
+    let editor = td ? (td.querySelector('[role=combobox]') || td.querySelector('input, select, textarea')) : null;
+    return { shown: !!editor, tag: editor ? (editor.getAttribute('role') || editor.tagName.toLowerCase()) : "-" };
+};
+
+
+
+// [col1] typeGetter 미설정 Column 에 setCellInputType('select') 시도
+scwin.btn_col1_select_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let info = {
+        inputType: "select",
+        options: { viewType: "default" },
+        itemSet: { nodeset: "data:dlt_item", label: "col1", value: "col2" }
+    };
+    scwin.target1.setCellInputType(rowIndex, "col1", info);
+    try { scwin.target1.refreshCell(rowIndex, "col1"); } catch (e) {}
+
+    let cellType = scwin.getCellInputType(rowIndex, "col1");
+    let allowed = (cellType === "select");
+    let edit = scwin.enterEditMode(rowIndex, "col1");   // 실행 후 자동 편집모드 진입
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[col1 (typeGetter 미설정)] Row " + rowIndex + " setCellInputType('select') -> Cell inputType = " + cellType
+        + " (변경 허용: " + (allowed ? "O" : "X") + ") | 편집모드 입력 컴포넌트 : " + (edit.shown ? "표시됨(" + edit.tag + ")" : "미표시")
+        + " | Column col1 inputType = " + scwin.getColumnInputType("col1"));
+}
+
+
+
+// [col1] setCellInputType('drilldown') 시도 -> 미지원(no-op)
+scwin.btn_col1_drilldown_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    scwin.target1.setCellInputType(rowIndex, "col1", { inputType: "drilldown" });
+    try { scwin.target1.refreshCell(rowIndex, "col1"); } catch (e) {}
+
+    let cellType = scwin.getCellInputType(rowIndex, "col1");
+    let edit = scwin.enterEditMode(rowIndex, "col1");   // 실행 후 자동 편집모드 진입
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[col1] Row " + rowIndex + " setCellInputType('drilldown') -> 미지원(no-op). Cell inputType = " + cellType
+        + " (drilldown 으로 변경되지 않음) | 편집모드 입력 컴포넌트 : " + (edit.shown ? "표시됨(" + edit.tag + ")" : "미표시"));
+}
+
+
+
+// [col2] typeGetter 정의 Column 에 setCellInputType('select') 시도 -> typeGetter 우선(무시)
+scwin.btn_col2_select_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let info = {
+        inputType: "select",
+        options: { viewType: "default" },
+        itemSet: { nodeset: "data:dlt_item", label: "col1", value: "col2" }
+    };
+    scwin.target1.setCellInputType(rowIndex, "col2", info);
+    try { scwin.target1.refreshCell(rowIndex, "col2"); } catch (e) {}
+
+    let cellType = scwin.getCellInputType(rowIndex, "col2");
+    let edit = scwin.enterEditMode(rowIndex, "col2");   // 실행 후 자동 편집모드 진입
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[col2 (typeGetter 정의)] Row " + rowIndex + " setCellInputType('select') -> typeGetter 우선(select 무시). Cell inputType = " + cellType
+        + " (편집모드 입력 컴포넌트 : " + (edit.shown ? "표시됨(" + edit.tag + ")" : "미표시") + ") -> setCellInputTypeCustom 이 false 로 동작");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="setCellInputTypeCustom" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_setCellInputTypeCustom" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_col1_select_onclick" id="btn_col1_select"
+							label="col1 setCellInputType(select)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_col1_drilldown_onclick" id="btn_col1_drilldown"
+							label="col1 setCellInputType(drilldown)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_col2_select_onclick" id="btn_col2_select"
+							label="col2 setCellInputType(select)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

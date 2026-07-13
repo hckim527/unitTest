@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] headerFilter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260708" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > headerFilter]<br/>GridView 컴포넌트의 Header 에 HeaderFilter 기능을 활성화합니다.",
+    "validation" : [
+        "headerFilter 속성은 HeaderFilter 기능의 활성화 여부만 설정하며 표시 여부는 defaultShowHeaderFilter 속성으로 설정합니다.",
+        "headerFilter=true 설정 시 Column 의 useFilter 속성과 GridView 의 useFilterList 속성, 그리고 해당 속성과 연관된 속성은 동작하지 않습니다.",
+        "true 설정 시, GridView 렌더링 시 HeaderFilter 가 생성되며 defaultShowHeaderFilter 속성에 의해 표시 여부가 결정됩니다.",
+        "false 설정 시, GridView 렌더링 시 HeaderFilter 가 생성되지 않으며 defaultShowHeaderFilter 속성이 동작하지 않습니다.",
+        "미설정 시, GridView 렌더링 시 HeaderFilter 가 생성되지 않으며 defaultShowHeaderFilter 속성이 동작하지 않습니다.",
+        "false 설정 시, Column 의 useFilter 속성과 GridView 의 useFilterList 속성, 그리고 해당 속성과 연관된 속성으로 필터 기능을 사용할 수 있습니다.",
+        "HeaderFilter 기능은 동적으로 생성이 불가능하며 렌더링 시 생성 여부를 결정한 후 표시 여부만 동적으로 처리합니다.",
+        "headerFilter=false 이면 HeaderFilter 기능이 생성되지 않아 defaultShowHeaderFilter 속성이 동작하지 않습니다.",
+        "HeaderFilter 기능은 GridView 에 DataList 가 바인딩 되어 있을때 정상적으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con_headerFilter / con_defaultShowHeaderFilter : '' 미설정(기본 false) / 'true' / 'false'
+    //  (headerFilter 는 동적 변경 불가 → con 변경 시 Target 재생성 버튼으로 재렌더)
+    let vHeaderFilter = con_headerFilter.getText();
+    let vDefaultShow = con_defaultShowHeaderFilter.getText();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblHf = (vHeaderFilter === '' ? '(미설정=기본 false)' : vHeaderFilter);
+    let lblDs = (vDefaultShow === '' ? '(미설정=기본 false)' : vDefaultShow);
+    $c.gcm.createLabel('label="[전제] headerFilter=' + lblHf + ' / defaultShowHeaderFilter=' + lblDs + ' 로 그리드 생성 (DataList 바인딩, col1 은 useFilter=true / 그리드 useFilterList=true)\n[절차] (1) headerFilter 동작 확인 버튼으로 필터 행 생성/표시 여부 확인 (2) headerFilter=true+표시 상태면 HeaderFilter 필터 행의 col1 입력창에 검색어를 입력·적용(엔터) 후 필터 결과 확인 버튼 클릭\n[확인] headerFilter=true 면 HeaderFilter 필터 행이 생성되고 표시 여부는 defaultShowHeaderFilter 로 결정됨. false / 미설정이면 필터 행이 생성되지 않아 defaultShowHeaderFilter 가 동작하지 않음. headerFilter=true 면 useFilter / useFilterList 필터 아이콘이 표시되지 않아(무시) 필터 기능이 동작하지 않음. 필터 결과 확인 버튼으로 필터 적용 후 표시된 행 수/값을 확인"', '', 'label1');
+
+    // dataList 생성 (4행, col1~col4) - @spec2 : DataList 바인딩 전제
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // headerFilter / defaultShowHeaderFilter / useFilterList 속성을 con 값에 따라 적용한 커스텀 gridView 생성
+    //  (createBasicGridView 는 filterColumn/headerFilter 구성 불가 → 인라인 구성)
+    await scwin.createHeaderFilterGridView(vHeaderFilter, vDefaultShow);
+}
+
+
+
+// HeaderFilter 필터 행(filterColumn)을 포함한 gridView 동적 생성
+scwin.createHeaderFilterGridView = async function (vHeaderFilter, vDefaultShow) {
+    let grp_comp = $c.gcm.getTestGroup('');
+    let ns = $c.gcm.strNameSpace;
+
+    // headerFilter 속성 : 미설정('') 이면 속성 미추가(기본 false → HeaderFilter 미생성)
+    let hfAttr = '';
+    if (vHeaderFilter === 'true') {
+        hfAttr = ' headerFilter="true"';
+    } else if (vHeaderFilter === 'false') {
+        hfAttr = ' headerFilter="false"';
+    }
+
+    // defaultShowHeaderFilter 속성 : 미설정('') 이면 속성 미추가(기본 false → 필터 행 초기 숨김)
+    let dsAttr = '';
+    if (vDefaultShow === 'true') {
+        dsAttr = ' defaultShowHeaderFilter="true"';
+    } else if (vDefaultShow === 'false') {
+        dsAttr = ' defaultShowHeaderFilter="false"';
+    }
+
+    // useFilterList="true" : headerFilter=true 면 무시(@description|2), false/미설정이면 FilterList 필터 기능 사용 가능(@propval false|)
+    let s = '';
+    s += '<w2:gridView ' + ns + hfAttr + dsAttr + ' useFilterList="true" dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:300px;">';
+    s += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    // col1 : useFilter=true → headerFilter=false/미설정이면 필터 아이콘 표시, headerFilter=true 면 미표시(무시)
+    s += '<w2:column width="130" style="" inputType="text" id="column1" value="col1(useFilter)" useFilter="true"></w2:column>';
+    s += '<w2:column width="130" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    s += '<w2:column width="130" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '<w2:row style="" id="rowFilter">';
+    s += '<w2:filterColumn width="130" style="" id="filterColumn1" value=""></w2:filterColumn>';
+    s += '<w2:filterColumn width="130" style="" id="filterColumn2" value=""></w2:filterColumn>';
+    s += '<w2:filterColumn width="130" style="" id="filterColumn3" value=""></w2:filterColumn>';
+    s += '<w2:filterColumn width="*" style="" id="filterColumn4" value=""></w2:filterColumn>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="130" style="" inputType="text" id="col1" value=""></w2:column>';
+    s += '<w2:column width="130" style="" inputType="text" id="col2" value=""></w2:column>';
+    s += '<w2:column width="130" style="" inputType="text" id="col3" value=""></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4" value=""></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// headerFilter 동작 확인 : HeaderFilter 필터 행 생성/표시 여부 + useFilter/useFilterList 무시 여부 + DataList 바인딩 확인
+scwin.btn_checkHeaderFilter_onclick = function () {
+    let scb = wf_body_bottom.getObj("scwin");
+
+    // 1) HeaderFilter 필터 행 생성 여부 + 표시 여부(defaultShowHeaderFilter 로 결정)
+    let filterTr = document.querySelector("[id*='target1_head_table'] tr.w2grid_header_filter");
+    if (filterTr) {
+        let shown = filterTr.style.display !== 'none';
+        scb.setReturnValue("HeaderFilter 필터 행 생성 : true / 표시 여부(defaultShowHeaderFilter) : " + (shown ? '표시' : '숨김'));
+    } else {
+        scb.setReturnValue("HeaderFilter 필터 행 생성 : false → defaultShowHeaderFilter 미동작");
+    }
+
+    // 2) headerFilter=true 면 useFilter/useFilterList 무시 (useFilter 컬럼 필터 아이콘 유무로 확인)
+    let filterIcons = document.querySelectorAll("[id*='target1_head_table'] input.w2grid_customFilter_open");
+    scb.setReturnValue("useFilter/useFilterList 필터 아이콘 : " + filterIcons.length + "개 (headerFilter=true 면 0=무시, false/미설정이면 표시=필터 사용)");
+
+    // 3) DataList 바인딩 여부 (@spec2 전제)
+    scb.setReturnValue("DataList 바인딩 : " + target1.options.dataList);
+}
+
+
+
+// 필터 결과 확인 : HeaderFilter 필터 행 입력창에 검색어 입력·적용(사용자 액션) 후,
+//  실제 필터링되어 그리드에 표시된 행 수(getRowCount)와 표시된 col1 값(getCellData)을 출력.
+//  (@propval true : HeaderFilter 생성 후 실제 필터링 동작을 값으로 입증. 입력/적용은 사용자 액션 → 별도 트리거 버튼 없음)
+scwin.btn_checkFilterResult_onclick = function () {
+    let scb = wf_body_bottom.getObj("scwin");
+    let cnt = target1.getRowCount();
+    let vals = [];
+    for (let i = 0; i < cnt; i++) {
+        vals.push(target1.getCellData(i, "col1"));
+    }
+    scb.setReturnValue("필터 적용 후 표시 행 수 : " + cnt + " / 표시된 col1 값 : " + vals.join(", "));
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="headerFilter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_headerFilter" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="defaultShowHeaderFilter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_defaultShowHeaderFilter" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkHeaderFilter_onclick" id="btn_checkHeaderFilter"
+							label="headerFilter 동작 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFilterResult_onclick" id="btn_checkFilterResult"
+							label="필터 결과 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

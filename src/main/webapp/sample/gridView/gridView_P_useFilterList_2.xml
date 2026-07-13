@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] useFilterList" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260708" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : useFilterList @spec 의 MultiLine caveat 전용 샘플.
+//     Body 가 MultiLine(레코드당 2 Line) 구성이어도, useFilter 컬럼(부서, Line1)에 FilterList 필터를
+//     적용하면 그 Column 이 속한 Line 기준으로 필터가 정상 적용되어 레코드가 걸러진다.
+//       Line1 : 부서(useFilter, 필터 대상) | 이름
+//       Line2 : 메모(일반 text, colspan 병합)
+//     검증 : 사용자가 부서 컬럼 FilterList 아이콘을 열고 값 선택/적용 후 "필터 결과 확인" 클릭
+//            → getRowCount()(필터 후 표시 레코드 수) + 각 행 부서/메모 값 출력
+//            → MultiLine 이어도 동일 Column Line(부서) 기준으로 필터가 적용됨을 값으로 입증.
+scwin.tData = {
+    "description" : "[gridView > P > useFilterList]<br/>GridView 컴포넌트의 Header Column 에 FilterList 기능을 활성화할지 설정합니다.",
+    "validation" : [
+        "Body Column 이 MultiLine 이어도 동일 Column Line 에 필터가 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - useFilterList="true" 고정(FilterList 활성) + MultiLine(레코드당 2 Line) 그리드 구성
+//    · header / gBody 각각 <w2:row> 2개 → 레코드당 2 Line.
+//      Line1 : 부서(useFilter="true", 필터 대상) / 이름
+//      Line2 : 메모(일반 text, colspan 병합)     ← 필터 대상 아님
+//  - 데이터의 부서 값을 반복(영업/개발/영업/인사/개발)시켜 필터로 일부만 남도록 구성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] useFilterList=true + MultiLine(레코드당 2 Line: 부서(필터대상)/이름 | 메모), Line1 에 useFilter 컬럼(부서). 데이터 부서값: 영업/개발/영업/인사/개발.\n[절차] 부서 컬럼 FilterList 아이콘(헤더) 열고 값 선택 적용 후 필터 결과 확인 버튼 클릭.\n[확인] MultiLine 이어도 동일 Column Line(부서) 기준으로 필터 적용되어 표시 레코드가 걸러짐(getRowCount + 부서/메모 값)."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "dept": "영업", "name": "김영업", "memo": "영업본부 신규 계약 검토" },
+        { "dept": "개발", "name": "이개발", "memo": "그리드 컴포넌트 개선" },
+        { "dept": "영업", "name": "박영업", "memo": "3분기 매출 보고" },
+        { "dept": "인사", "name": "최인사", "memo": "하반기 채용 계획" },
+        { "dept": "개발", "name": "정개발", "memo": "필터 기능 회귀 테스트" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // useFilterList="true" 고정 + MultiLine : header / gBody 각각 <w2:row> 2개 (레코드당 2 Line)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' useFilterList="true" dataList="data:dlt_bind" rowNumVisible="true" defaultCellHeight="30" id="" style="width:520px;height:360px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="useFilterList (FilterList + MultiLine) 테스트 그리드"></w2:caption>';
+    // Header : Line1(부서 useFilter / 이름) / Line2(메모)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol_dept" value="부서(필터 대상)" useFilter="true"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_name" value="이름"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="hcol_memo" value="메모(필터 대상 아님)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(dept / name) / Line2(memo colspan 병합) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="*" colspan="2" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// [필터 결과 확인] : 사용자가 부서 컬럼 FilterList 아이콘을 열고 값을 선택/적용한 뒤 클릭
+//  - getRowCount() : 필터 후 화면에 표시되는 레코드 수
+//  - 각 표시 레코드의 부서(Line1 필터 대상) / 메모(Line2) 값을 출력
+//    → MultiLine(레코드당 2 Line)이어도 동일 Column Line(부서) 기준으로 필터가 적용되어
+//      해당 부서 레코드만 남고, 같은 레코드의 메모(Line2)도 함께 유지됨을 값으로 입증
+scwin.btn_checkFilter_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let cnt = target1.getRowCount();
+
+    b.setReturnValue("필터 후 표시 레코드 수(getRowCount) : " + cnt);
+
+    let rows = [];
+    for (let i = 0; i < cnt; i++) {
+        rows.push("[" + i + "] 부서=" + target1.getCellData(i, "dept") + " / 메모=" + target1.getCellData(i, "memo"));
+    }
+    b.setReturnValue("표시 레코드(부서 Line1 필터 적용) : " + (rows.length ? rows.join(" , ") : "(없음)"));
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFilter_onclick" id="btn_checkFilter" label="필터 결과 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
