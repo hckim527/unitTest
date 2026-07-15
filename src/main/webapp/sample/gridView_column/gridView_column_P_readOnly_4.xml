@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView.column] readOnly" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260713" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > column > P > readOnly]<br/>특정 Body Cell 이 아닌 Body Column 의 읽기전용(readonly) 상태를 설정합니다.",
+    "validation" : [
+        "GridView, Column, Cell 단위로 각각 읽기전용(readonly) 상태를 설정할 수 있습니다.",
+        "Column 의 readOnly 를 ''(Empty String)으로 설정한 경우 상위 모듈(GridView)의 readOnly 값이 적용됩니다.",
+        "하위 단위(Cell)에 명시적으로 readOnly 를 설정하면 상위 단위(Column/GridView)의 값과 무관하게 해당 값이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 초기값 : GridView=true / col1(Column)='' (상속) / cell='' (미설정) -> 로드 직후 '' 상속 대비 확인
+    con_gridReadOnly.setSelectedIndex(1);
+    con_columnReadOnly.setSelectedIndex(0);
+    con_cellReadOnly.setSelectedIndex(0);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 대상 Column = col1 : con_columnReadOnly 값을 Column 레벨 readOnly 속성으로 설정 ('' 이면 상위 GridView 상속)
+//  - 대조 Column = col2 : readOnly="false" 명시 (상위 GridView 값과 무관하게 편집 가능 = override)
+//  - GridView 단위 : con_gridReadOnly / Cell(0,col1) 단위 : con_cellReadOnly
+//  - readOnly 는 렌더 시 결정되는 Column 속성이므로 con 변경은 Target 재생성 버튼으로 반영
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 단위별 con_ selectbox 로 각 단위의 readOnly 값을 독립 설정 (gdl_boolean 바인딩 -> getText() 로 '' / 'true' / 'false' 판단)
+    //  - con_gridReadOnly   : GridView 단위 readOnly
+    //  - con_columnReadOnly : col1(대상 Column) 단위 readOnly ('' 이면 상위 GridView 값 상속)
+    //  - con_cellReadOnly   : Cell(row0, col1) 단위 readOnly ('' 이면 상위 Column/GridView 값 상속)
+    let vGrid = con_gridReadOnly.getText();
+    let vCol = con_columnReadOnly.getText();
+    let vCell = con_cellReadOnly.getText();
+
+    let dGrid = (vGrid === '' ? '(미설정)' : vGrid);
+    let dCol = (vCol === '' ? '(빈문자열, 상속)' : vCol);
+    let dCell = (vCell === '' ? '(빈문자열, 상속)' : vCell);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[대상] Column = col1(첫번째 body 컬럼) / Cell = (row 0, col1) / 대조 Column = col2(readOnly=false 명시)\n[현재] GridView readOnly = ' + dGrid + ' / col1 readOnly = ' + dCol + ' / cell(0,col1) readOnly = ' + dCell + '\n[절차] con 선택 후 Target 재생성 -> (readOnly 상태 확인) 클릭 / 셀 더블클릭으로 편집 가능여부(isEditing) 확인\n[확인] col1 readOnly 가 빈문자열이면 상위 GridView 값 상속 / col2(false 명시)는 상위값과 무관하게 편집 가능(override)"', '', 'label1');
+
+    // dataList 생성 (4행, col1~col4)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // GridView / Column(col1) 단위 readOnly 를 반영한 gridView 동적 생성
+    await scwin.createReadOnlyGridView(vGrid, vCol);
+
+    // Cell(row0, col1) 단위 readOnly 반영 : 미설정('') 이면 설정하지 않아 빈문자열(상속) 상태 유지
+    if (vCell === 'true' || vCell === 'false') {
+        target1.setCellReadOnly(0, 0, vCell === 'true');
+    }
+}
+
+
+
+// GridView 단위(readOnly) + col1(대상 Column) 단위(readOnly) 를 각각 설정한 gridView 동적 생성
+//  - col1 : readOnly=vCol (미설정 '' 이면 상위 GridView 상속)
+//  - col2 : readOnly="false" 명시 (override 대조군 - grid=true 여도 편집 가능)
+scwin.createReadOnlyGridView = async function (vGrid, vCol) {
+    let grp_comp = document.querySelector('.tc_group_basic');
+    let ns = $c.gcm.getNameSpace();
+
+    // GridView 단위 : 미설정('') 이면 속성 미추가(기본 false), 값이 있으면 명시
+    let gridAttr = '';
+    if (vGrid === 'true' || vGrid === 'false') {
+        gridAttr = ' readOnly="' + vGrid + '"';
+    }
+
+    // col1(대상 Column) 단위 : 항상 명시. 미설정('') 이면 readOnly="" 로 상속 상태를 표현
+    let col1Attr = ' readOnly="' + vCol + '"';
+
+    let s = '';
+    s += '<w2:gridView ' + ns + gridAttr + ' checkAllType="false" id="" dataList="data:dlt_bind" focusMode="cell" readOnlyBackgroundColor="#D3D3D3" style="width:500px;height:300px;" ev:oncelldblclick="scwin.target1_oncelldblclick">';
+    s += '<w2:caption style="" id="caption1" value="Column readOnly 상속/override 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="120" style="" inputType="text" id="column1" value="col1(대상/상속)"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column2" value="col2(false명시)"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="120" style="" inputType="text" id="col1" editType="text"' + col1Attr + '></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col2" editType="text" readOnly="false"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 셀 더블클릭 -> 편집 진입 후 isEditing() 으로 실제 편집 가능여부 확인 (readonly 셀은 편집 진입 불가 → false)
+scwin.target1_oncelldblclick = function (row, col) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncelldblclick 이벤트 발생 (row: " + row + ", col: " + col + ")");
+    wf_body_bottom.getObj("scwin").setReturnValue("isEditing() : " + target1.isEditing());
+}
+
+
+
+// readOnly 상태 확인 :
+//  [단위별 자체값] 각 단위의 자체 readOnly 원본값 (getXxxReadOnly, '' 는 미설정 → 상위 단위 상속 대상) : 보조 정보
+//    · Column readOnly="" 는 원본 그대로 "" 를 반환할 뿐 상속 결과가 드러나지 않으므로, 아래 편집 동작 대비로 상속을 입증
+//  [실효/편집] 각 셀에 실제 편집 진입(setFocusedCell editMode=true)을 시도하여
+//    - getReadOnly("all") : 상속/단위 계산이 반영된 실효 readonly
+//    - isEditing() : 실제 편집 진입 성공 여부(검증 수단, 프로그래밍 진입은 .w2input_focus 미부여이므로 isEditing 으로 판별)
+//    로 '' 상속 · 하위(Cell) 명시 override · 단위 관리를 편집 동작 대비로 입증한다.
+scwin.btn_checkReadOnly_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // 보조 : 각 단위의 자체 설정 원본값 ('' 는 미설정→상속 대상)
+    b.setReturnValue("[단위별 자체값] GridView : " + JSON.stringify(target1.getGridReadOnly()) + " / col1 Column : " + JSON.stringify(target1.getColumnReadOnly(0)) + " / col2 Column : " + JSON.stringify(target1.getColumnReadOnly(1)) + " / cell(0,col1) Cell : " + JSON.stringify(target1.getCellReadOnly(0, 0)));
+
+    // 검증 수단 : 실제 편집 진입 대비
+    //  cell(0,col1) : Cell/Column/GridView 계산 / cell(1,col1) : Column/GridView 계산(cell 미설정→col1 상속) / cell(0,col2) : col2 readOnly=false 명시(override, GridView 무관 편집가능)
+    let cells = [[0, 0, "cell(0,col1) [col1 상속]"], [1, 0, "cell(1,col1) [col1 상속]"], [0, 1, "cell(0,col2) [col2 false 명시]"]];
+    for (let i = 0; i < cells.length; i++) {
+        let r = cells[i][0], c = cells[i][1], nm = cells[i][2];
+        let eff = target1.getReadOnly("all", r, c);
+        target1.setFocusedCell(r, c, true);
+        let editing = target1.isEditing();
+        target1.setFocusedCell(-1, -1);
+        b.setReturnValue(nm + " -> 실효 readonly : " + eff + " / 편집진입(isEditing) : " + editing);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="GridView readOnly" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_gridReadOnly" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="col1(Column) readOnly" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_columnReadOnly" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="cell(0,col1)(Cell) readOnly" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_cellReadOnly" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkReadOnly_onclick" id="btn_checkReadOnly"
+							label="readOnly 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

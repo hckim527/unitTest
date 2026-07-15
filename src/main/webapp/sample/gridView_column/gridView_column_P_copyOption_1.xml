@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView.column] copyOption" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260713" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_copyOption" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="label" name="label"></w2:column>
+						<w2:column dataType="text" id="value" name="value"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><label><![CDATA[]]></label><value><![CDATA[]]></value></w2:row>
+						<w2:row><label><![CDATA[dataList]]></label><value><![CDATA[dataList]]></value></w2:row>
+						<w2:row><label><![CDATA[display]]></label><value><![CDATA[display]]></value></w2:row>
+					</w2:data>
+				</w2:dataList>
+				<w2:dataList baseNode="list" id="dlt_copyType" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="label" name="label"></w2:column>
+						<w2:column dataType="text" id="value" name="value"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><label><![CDATA[default]]></label><value><![CDATA[default]]></value></w2:row>
+						<w2:row><label><![CDATA[native]]></label><value><![CDATA[native]]></value></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > column > P > copyOption]<br/>Body Cell 값을 복사(Ctrl+C) 또는 잘라내기(Ctrl+X)할 때 화면에 표시된 값을 반영할지 설정합니다.",
+    "validation" : [
+        "미설정 시, GridView 의 copyOption 속성값이 적용됩니다.",
+        "'dataList' 설정 시, Body Cell 값을 복사/잘라내기 시 DataCollection 에 저장된 원본 데이터가 반영됩니다.",
+        "'dataList' 설정 시, displayFormat, customFormatter 등 포맷이 적용되지 않은 원본 데이터가 클립보드에 복사됩니다.",
+        "'display' 설정 시, Body Cell 값을 복사/잘라내기 시 GridView 에 표시된 값이 반영됩니다.",
+        "'display' 설정 시, displayFormat, customFormatter 등 포맷이 적용되어 화면에 표시된 값이 클립보드에 복사됩니다.",
+        "Body Cell 값이 텍스트 단위로 선택된 경우 copyOption 은 항상 'display' 로 동작하며, 따라서 GridView 의 copyType='native' 인 경우 copyOption 은 항상 'display' 로 동작합니다.",
+        "잘라내기(Ctrl+X) 시 클립보드에 복사되는 값은 copyOption 속성으로 정해지고, 원본 데이터는 빈 문자열로 초기화됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 편집 가능한 GridView (gBody 4 Column, editType=text), 데이터 4건
+//  - 대상 Column = col2(금액) 에 displayFormat="#,##0" 적용 → 원본("1234567") 과 표시값("1,234,567") 이 다름
+//  - copyOption 을 con_copyOption 선택값(미설정/dataList/display) 으로 대상 Column(col2) 에 설정 (Column 레벨)
+//    · con_copyOption="" (미설정) 이면 col2 의 copyOption 속성 자체를 제외 → GridView 의 copyOption(=display 고정) 이 적용
+//    · con_copyOption="dataList" → col2 복사/잘라내기 시 원본("1234567") 복사
+//    · con_copyOption="display"  → col2 복사/잘라내기 시 표시값("1,234,567") 복사
+//  - GridView(그리드) 레벨 copyOption 은 "display" 로 고정 → Column 미설정 시 fallback 동작 확인용
+//  - copyType 은 con_copyType 선택값(default/native) 으로 적용 (native 시 copyOption 무관 항상 display)
+//  - copyOption 은 @dynamic N (렌더 시 결정) 이므로 con 변경은 Target 재생성 버튼으로 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정
+    let conCopyOption = con_copyOption.getValue();
+    let conCopyType = con_copyType.getValue();
+
+    // GridView(그리드) 레벨 copyOption 은 "display" 로 고정 (Column 미설정 시 적용됨을 확인)
+    let properties = {
+        focusMode : "cell",
+        copyType : conCopyType,
+        copyOption : "display"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 복사 이벤트(oncustomcopy/oncustomcut) 바인딩
+    let eList = $c.gcm.createEList(["oncustomcopy", "oncustomcut"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblCopyOption = (conCopyOption === '') ? '미설정(GridView copyOption=display 적용)' : conCopyOption;
+    $c.gcm.createLabel('label="[전제] 대상 col2(금액) displayFormat #,##0 -> 원본(1234567) != 표시(1,234,567), GridView copyOption=display 고정\n[적용] col2 의 copyOption = ' + lblCopyOption + '\n[절차] col2 셀 클릭 후 Ctrl+C(또는 Ctrl+X) -> 붙여넣기 영역에 Ctrl+V\n[확인] dataList=원본 / display=표시값 / 미설정=GridView(display) 적용=표시값"', '', 'label1');
+
+    // dataList 생성 (col2 는 금액 원본값 — displayFormat 으로 천단위 콤마 표시)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "RowA", col2 : "1234567", col3 : "10", col4 : "TextA" },
+        { col1 : "RowB", col2 : "2200000", col3 : "20", col4 : "TextB" },
+        { col1 : "RowC", col2 : "30500",   col3 : "30", col4 : "TextC" },
+        { col1 : "RowD", col2 : "888",     col3 : "40", col4 : "TextD" }
+    ]);
+
+    // 대상 Column(col2) 의 copyOption 속성 (미설정 시 속성 자체 제외)
+    let col2CopyOptionAttr = (conCopyOption !== "") ? ' copyOption="' + conCopyOption + '"' : '';
+
+    // target 생성 (편집 가능 그리드 : gBody Column 에 editType="text")
+    //  - col2 : displayFormat="#,##0" + Column 레벨 copyOption (con 값) — 원본 != 표시
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:520px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="Column copyOption 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column2" value="금액(대상 col2)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column3" value="수량"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column4" value="비고"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="col2" editType="text" dataType="number" displayFormat="#,##0"' + col2CopyOptionAttr + '></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con_copyOption 변경 시 Target 재생성 안내 (con 변경은 Target 재생성 버튼으로 반영)
+scwin.con_copyOption_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+
+
+
+// con_copyType 변경 시 Target 재생성 안내 (con 변경은 Target 재생성 버튼으로 반영)
+scwin.con_copyType_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+
+
+
+// 포커스된 셀 위치 반환 (없으면 null)
+scwin.getFocusedCellPos = function () {
+    let rowIndex = target1.getFocusedRowIndex();
+    let colIndex = target1.getFocusedColumnIndex();
+    if (rowIndex === undefined || rowIndex === null || rowIndex < 0 || colIndex === undefined || colIndex === null || colIndex < 0) {
+        return null;
+    }
+    return { rowIndex : rowIndex, colIndex : colIndex };
+}
+
+
+
+// 붙여넣기 대상(txa_pasteTarget) 값 변경(붙여넣기) 시점에 출력
+//  - 붙여넣은 값 : 클립보드에 복사된 값 (col2 copyOption=dataList → 원본 / display → 표시값 / 미설정 → GridView(display))
+//  - 포커스 셀의 원본 데이터(getCellData) 와 표시값(getCellDisplayData) 을 함께 출력하여 어느 쪽이 복사됐는지 비교
+//  - 잘라내기(Ctrl+X) 이후라면 원본 데이터가 "" 로 초기화되어 있어야 함
+scwin.txa_pasteTarget_onchange = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let pasted = txa_pasteTarget.getValue();
+    bottom.setReturnValue("붙여넣은 값(클립보드) : " + pasted);
+
+    let pos = scwin.getFocusedCellPos();
+    if (pos) {
+        let colID = target1.getColumnID(pos.colIndex);
+        let rawData = dlt_bind.getCellData(pos.rowIndex, colID);
+        let displayData = target1.getCellDisplayData(pos.rowIndex, pos.colIndex);
+        bottom.setReturnValue("포커스 셀 원본 데이터(getCellData) : " + rawData);
+        bottom.setReturnValue("포커스 셀 표시값(getCellDisplayData) : " + displayData);
+    }
+}
+
+
+
+// oncustomcopy 핸들러 (복사 시도 시 발생 — 출력 없음, no-op)
+scwin.target1_oncustomcopy = function (e) {
+}
+
+
+
+// oncustomcut 핸들러 (잘라내기 시도 시 발생 — 출력 없음, no-op)
+scwin.target1_oncustomcut = function (e) {
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="copyOption(col2)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_copyOption_onchange" id="con_copyOption" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:dlt_copyOption">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="copyType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_copyType_onchange" id="con_copyType" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:dlt_copyType">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 대상" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_pasteTarget" ev:onchange="scwin.txa_pasteTarget_onchange" style="width:300px; height:70px;"></xf:textarea>
+									<w2:textbox class="" id="" label="col2(금액) 셀 클릭 후 Ctrl+C -> 이 영역에 Ctrl+V (dataList=원본 / display=표시값 / 미설정=GridView(display)). 잘라내기(Ctrl+X) 시 원본 데이터는 빈 문자열로 초기화됨" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

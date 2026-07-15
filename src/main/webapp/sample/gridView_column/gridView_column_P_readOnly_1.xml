@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView.column] readOnly" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260713" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > column > P > readOnly]<br/>특정 Body Cell 이 아닌 Body Column 의 읽기전용(readonly) 상태를 설정합니다.",
+    "validation" : [
+        "true 설정 시, Body Column 을 읽기전용(readonly) 상태로 설정합니다.",
+        "읽기전용(readonly) 상태일 때 사용자는 Cell 에 값을 직접 입력하거나 편집할 수 없습니다.",
+        "읽기전용(readonly) 상태일 때 disabled 속성과 달리 마우스/키보드 관련 이벤트는 발생합니다.",
+        "true 로 설정 시 readOnlyClass 속성값이 CSS 클래스로 적용됩니다.",
+        "Column 의 readOnly 속성을 설정해도 Cell 단위의 readOnly 속성은 ''(Empty String) 으로 설정됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 편집 가능한 GridView (gBody 4 Column, editType=text), 데이터 4건
+//  - 대상 Column = col2 에 Column 레벨 readOnly="true" 를 생성 시 고정 (con 셀렉트박스 없음)
+//    · col2 읽기전용 (편집 불가, readOnlyClass 적용)
+//  - col2 에는 readOnlyClass="tc_readonly_target" 지정 -> readOnly=true 시 셀에 해당 클래스 적용됨을 확인 (spec)
+//  - col1,col3,col4 는 바인딩된 편집 가능 컬럼 (편집 대조군)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 대상 col2 의 readOnly 값 : true (생성 시 고정)
+    let conReadOnly = "true";
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 대상 col2 의 readOnly = true (생성 시 고정), readOnlyClass=tc_readonly_target / col1,col3,col4 는 편집 가능\n[절차] col2 셀 더블클릭 -> 편집 미진입 확인, col1 셀 더블클릭 -> 편집 가능, 셀 클릭 및 키입력 시 이벤트 발생 확인\n[확인] readOnly 상태 확인 버튼으로 getColumnReadOnly(col2) / getCellReadOnly(cell) / readOnlyClass 적용 확인"', '', 'label1');
+
+    // dataList 생성 (col1~col4 4컬럼 바인딩)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { col1 : "RowA", col2 : "AAA", col3 : "10", col4 : "TextA" },
+        { col1 : "RowB", col2 : "BBB", col3 : "20", col4 : "TextB" },
+        { col1 : "RowC", col2 : "CCC", col3 : "30", col4 : "TextC" },
+        { col1 : "RowD", col2 : "DDD", col3 : "40", col4 : "TextD" }
+    ]);
+
+    // 대상 Column(col2) 의 readOnly 속성 (true 고정)
+    let col2ReadOnlyAttr = ' readOnly="' + conReadOnly + '"';
+
+    // GridView 레벨 readOnly 미설정(기본 false) -> col1,col3,col4 는 편집 가능, col2 는 Column readOnly=true 로 편집 불가
+    let eList = $c.gcm.createEList(["oncellclick", "oncelldblclick", "onkeydown"]);
+
+    // target 생성 (편집 가능 그리드 : gBody Column 에 editType="text")
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" focusMode="cell" checkAllType="false" readOnlyBackgroundColor="#D3D3D3" id="" style="width:460px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="Column readOnly 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column1" value="col1(편집)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column2" value="col2(대상)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column3" value="col3(편집)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column4" value="col4(편집)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col1" editType="text"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="col2" editType="text" readOnlyClass="tc_readonly_target"' + col2ReadOnlyAttr + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col3" editType="text"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col4" editType="text"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// readOnly 상태 확인 버튼
+//  - col2 getColumnReadOnly : Column readOnly 설정값 반영 (true)
+//  - col2 Cell(0) getCellReadOnly : Column readOnly 를 설정해도 Cell 단위 readOnly 는 "" 로 설정됨 (spec)
+//  - col2 Cell(0) readOnlyClass(tc_readonly_target) 적용 여부 : true 설정 시 CSS 클래스 적용 (spec)
+scwin.btn_checkReadOnly_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let colReadOnly = target1.getColumnReadOnly(1);
+    bottom.setReturnValue("col2 getColumnReadOnly : '" + colReadOnly + "'");
+
+    let cellReadOnly = target1.getCellReadOnly(0, 1);
+    bottom.setReturnValue("col2 Cell(0) getCellReadOnly : '" + cellReadOnly + "'");
+
+    let cell = document.querySelector("td[id*='target1_cell_0_1']");
+    let hasCls = cell ? (cell.className.indexOf("tc_readonly_target") > -1) : false;
+    bottom.setReturnValue("col2 Cell(0) readOnlyClass(tc_readonly_target) 적용 : " + hasCls);
+}
+
+
+
+// 셀 클릭 시 발생 (읽기전용 셀에서도 마우스 이벤트 발생 - spec)
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncellclick 발생 : Cell(" + rowIndex + "," + columnIndex + ") columnId=" + columnId);
+}
+
+
+
+// 셀 더블클릭 시 발생 (읽기전용 셀은 편집 진입 불가 -> isEditing=false, 편집 가능 셀은 isEditing=true)
+scwin.target1_oncelldblclick = function (rowIndex, columnIndex, columnId) {
+    let editing = target1.isEditing();
+    wf_body_bottom.getObj("scwin").setReturnValue("oncelldblclick 발생 : Cell(" + rowIndex + "," + columnIndex + ") isEditing=" + editing);
+}
+
+
+
+// 키다운 시 발생 (읽기전용 셀에서도 키보드 이벤트 발생 - spec)
+scwin.target1_onkeydown = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("onkeydown 발생 : keyCode=" + (e.keyCode || e.which));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkReadOnly_onclick" id="btn_checkReadOnly"
+							label="readOnly 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

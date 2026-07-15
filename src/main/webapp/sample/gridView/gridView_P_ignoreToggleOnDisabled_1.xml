@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ignoreToggleOnDisabled" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260713" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > ignoreToggleOnDisabled]<br/>inputType='drilldown' 인 Body Cell 이 비활성화(disabled) 상태일때 토글 버튼 클릭을 무시할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, 비활성화(disabled) 상태인 Body Cell 의 토글 버튼 클릭을 무시합니다.",
+        "false 설정 시, 비활성화(disabled) 상태와 관계없이 Body Cell 의 토글 버튼 클릭 시 펼침 상태를 토글합니다.",
+        "미설정 시, 비활성화(disabled) 상태와 관계없이 Body Cell 의 토글 버튼 클릭 시 펼침 상태를 토글합니다.",
+        "ignoreToggleOnDisabled 속성은 마우스로 클릭한 경우에만 적용됩니다. 메소드 실행이나 drilldownToggle='enter' 일때 Enter 키 입력엔 적용되지 않습니다.",
+        "ignoreToggleOnDisabled 속성에 의해 토글 버튼 클릭이 무시되면 oncellclick 이벤트도 발생하지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // con 기본값 지정 (정적 select1 은 초기 selectedIndex 미적용 → setValue 로 기본값 명시)
+    //  - con_ignoreToggleOnDisabled : gdl_boolean value '1' = 미설정(빈 라벨)
+    //  - con_drilldownToggle : '' = 미설정
+    con_ignoreToggleOnDisabled.setValue("1");
+    con_drilldownToggle.setValue("");
+    par_rowIndex.setValue("0"); // 기본 대상 : disabled 부모(개발본부, 표시 Row 0)
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - inputType="drilldown" 트리 컬럼 + depth(계층) 데이터로 DrillDown 그리드 구성
+//    · 초기 접힘(showDepth=1) 표시 Row : [display 0] 개발본부(부모) / [display 1] 영업본부(부모)
+//    · 각 부모의 자식 : 개발본부 > 개발1팀, 영업본부 > 영업1팀 (펼침 시 표시)
+//  - drilldown 컬럼(id="name") 전체를 setColumnDisabled 로 비활성화 → 모든 부모 Row 의 토글 셀이 disabled 처리되어
+//    특정 Row 인덱스에 의존하지 않고(Row mismatch 제거) ignoreToggleOnDisabled 검증이 안정적으로 성립
+//  - con_ignoreToggleOnDisabled : 미설정('') / true / false (@dynamic N → Target 재생성 시 반영)
+//    · true      : disabled 셀 토글 버튼을 마우스 클릭해도 무시(펼침 불변, oncellclick 미발생)
+//    · false/미설정 : disabled 여부와 무관하게 마우스 클릭으로 토글(펼침 변경)
+//  - con_drilldownToggle : 미설정('') / enter (enter 면 셀 포커스 후 Enter 키로 토글 → @spec 마우스 아닌 경로)
+//  - onbeforetoggleclick / ontoggleclick / oncellclick 바인딩 → 발생 즉시 한 줄 출력(oncellclick 미발생 @spec 검증)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 현재 con selectbox 적용값 (미설정이면 빈 문자열 → 속성 자체 미설정 = 엔진 기본값 false)
+    //  - ignoreToggleOnDisabled 는 gdl_boolean(값=인덱스) 바인딩이라 라벨(true/false/'') 을 쓰는 getText()
+    //  - drilldownToggle 은 자체 값('' / 'enter') selectbox 라 getValue()
+    let cIgnore = con_ignoreToggleOnDisabled.getText();
+    let cToggle = con_drilldownToggle.getValue();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 토글 클릭/Enter/메소드는 사용자 조작이므로 라벨로 조작 방법 안내
+    $c.gcm.createLabel('label="[전제] inputType=drilldown 트리 그리드(초기 접힘). 표시 Row : 개발본부(display 0, 부모) / 영업본부(display 1, 부모). drilldown 컬럼(name) 전체를 setColumnDisabled 로 비활성화 → 모든 부모 토글 셀이 disabled. con_ignoreToggleOnDisabled=(현재 [' + (cIgnore === '' ? '미설정' : cIgnore) + ']). con 변경은 Target 재생성 버튼으로 반영.\n[절차] disabled 부모(개발본부)의 +/- 토글 아이콘을 마우스 좌클릭. getOpenStatus/toggle 버튼(par_rowIndex=표시 Row 인덱스, 기본 0=개발본부)로 상태 확인. con_drilldownToggle=enter 후 셀 포커스+Enter 로도 시도.\n[확인] true=disabled 셀 마우스 클릭 무시(펼침 불변, oncellclick 미발생). false/미설정=disabled 여도 마우스 클릭으로 토글. 메소드 실행(toggle)/Enter 키는 true 여도 토글(마우스 클릭에만 적용)."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (부모=1, 자식=2)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모(depth1) 바로 아래 자식(depth2) 위치(엔진 drilldown 은 순서 기반)
+    //  - idx0 개발본부(부모, disabled 대상) > idx1 개발1팀(자식)
+    //  - idx2 영업본부(부모, enabled 대조) > idx3 영업1팀(자식)
+    //  - 초기 접힘(showDepth=1) 표시 Row : display 0=개발본부, display 1=영업본부
+    let jsonData = [
+        { "name": "개발본부", "amount": 200, "depth": 1 },
+        { "name": "개발1팀", "amount": 210, "depth": 2 },
+        { "name": "영업본부", "amount": 100, "depth": 1 },
+        { "name": "영업1팀", "amount": 110, "depth": 2 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // con 속성 문자열 (미설정이면 속성 자체를 넣지 않음 = 엔진 기본값)
+    let strAttr = '';
+    if (cIgnore !== '') {
+        strAttr += ' ignoreToggleOnDisabled="' + cIgnore + '"';
+    }
+    if (cToggle !== '') {
+        strAttr += ' drilldownToggle="' + cToggle + '"';
+    }
+
+    // target 그리드 직접 구성 (DrillDown 트리 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + strAttr + ' dataList="data:dlt_bind" rowNumVisible="true" ev:onbeforetoggleclick="scwin.target1_onbeforetoggleclick" ev:ontoggleclick="scwin.target1_ontoggleclick" ev:oncellclick="scwin.target1_oncellclick" id="" style="width:560px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ignoreToggleOnDisabled (disabled 셀 토글 클릭 무시) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="320" style="" inputType="text" id="hcol1" value="조직(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="320" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // disabled 구성 : inputType="drilldown" 컬럼(id="name") 전체를 setColumnDisabled 로 비활성화
+    //  - 컬럼 단위 비활성화라 모든 부모 Row 의 drilldown 토글 셀이 disabled=true 가 되어 Row 인덱스 mismatch 없이 안정적으로 검증됨
+    //  - Column 단위 disabled(GridView < Column < Cell 우선순위)이므로 개별 Row 지정 없이 drilldown 셀 전체에 적용
+    target1.setColumnDisabled("name", true);
+}
+
+
+
+// onbeforetoggleclick : 토글 동작 직전 발생. ignoreToggleOnDisabled 로 클릭이 무시되면 이 이벤트도 발생하지 않음.
+scwin.target1_onbeforetoggleclick = function (rowIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ onbeforetoggleclick rowIndex : " + rowIndex);
+};
+
+
+
+// ontoggleclick : 토글 상태가 모두 변경된 이후 발생.
+//  - collapsed : true=자식 Row 접힘 / false=자식 Row 펼쳐짐, rowIndex : 토글된 실제 Row 인덱스
+scwin.target1_ontoggleclick = function (collapsed, rowIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ontoggleclick collapsed : " + collapsed + ", rowIndex : " + rowIndex);
+};
+
+
+
+// oncellclick : 토글 버튼 클릭 경로의 마지막 이벤트. ignoreToggleOnDisabled 로 클릭이 무시되면 발생하지 않음(@spec).
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ oncellclick rowIndex : " + rowIndex + ", columnIndex : " + columnIndex + ", columnId : " + columnId);
+};
+
+
+
+// [getOpenStatus] : par_rowIndex Row 의 펼침 상태를 true/false 로 관측 (마우스 클릭 무시 여부 확인용)
+scwin.btn_getOpenStatus_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+    b.setReturnValue("getOpenStatus(" + rowIndex + ") 펼침상태 : " + target1.getOpenStatus(rowIndex));
+};
+
+
+
+// [toggle] : 메소드 실행 경로 → ignoreToggleOnDisabled=true 여도 disabled 셀이 토글됨(@spec: 마우스 클릭에만 적용)
+scwin.btn_toggle_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let rowIndex = parseInt(par_rowIndex.getValue(), 10);
+    let before = target1.getOpenStatus(rowIndex);
+    let result = target1.toggle(rowIndex);
+    let after = target1.getOpenStatus(rowIndex);
+    b.setReturnValue("toggle(" + rowIndex + ") 반환값 : " + result + " / 펼침상태 " + before + " -> " + after);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="ignoreToggleOnDisabled" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_ignoreToggleOnDisabled" chooseOption="" style="" submenuSize="auto" allOption="" appearance="minimal" ref="" label="label" value="value" selectedIndex="0">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:textbox class="" id="" label="drilldownToggle" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<xf:select1 id="con_drilldownToggle" chooseOption="" style="" submenuSize="auto" allOption="" appearance="minimal" ref="" label="label" value="value" selectedIndex="0">
+										<xf:choices>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+											<xf:item><xf:label>enter</xf:label><xf:value>enter</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" selectedIndex="2" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getOpenStatus_onclick" id="btn_getOpenStatus" label="getOpenStatus" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_toggle_onclick" id="btn_toggle" label="toggle" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

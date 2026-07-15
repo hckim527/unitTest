@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] resize" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260713" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 분리 샘플(_2) : @propval true 의 하위절 "Header Column 만 병합된 경우 각 Column 의 가상 경계 영역에서 Drag 가 가능" 담당
+//  - description 은 _1 과 동일 고정, validation 은 병합헤더 케이스만
+scwin.tData = {
+    "description" : "[gridView > P > resize]<br/>마우스 Drag 에 의한 Column 의 너비(Width) 변경을 허용할지 설정합니다.",
+    "validation" : [
+        "true(기본값) 설정 시, Header Column 만 병합된 경우 각 Column 의 가상 경계를 마우스로 Drag 하여 Column 의 너비를 변경할 수 있습니다.",
+        "false 설정 시, 병합 헤더에서도 마우스 Drag 로 너비를 변경할 수 없습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - con_resize(gdl_boolean) : 미설정('') / true / false. resize 는 @dynamic N 이라 con 변경은 Target 재생성으로 반영.
+//    · 미설정('') : resize 속성 자체 미설정 = 엔진 기본값(true) → 가상 경계 Drag 로 너비 변경 가능
+//    · true       : resize="true" → 병합 헤더 하위 각 Column 의 가상 경계 Drag 가능
+//    · false      : resize="false" → 병합 헤더에서도 Drag 로 너비 변경 불가
+//  - 구성 : Header Column '그룹A' 가 하위 Body Column col1/col2 를 colSpan=2 로 병합(Header 만 병합).
+//           Body Column(col1~col4)은 개별. 그룹A 아래 col1|col2 경계가 '가상 경계'(interior),
+//           그룹A 우측(col2|col3), col3|col4 는 일반(outer) 경계.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // resize 옵션 (gdl_boolean → getText 로 '' / true / false 라벨 사용)
+    let resize = con_resize.getText();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] resize=(현재 [' + (resize === '' ? '미설정' : resize) + ']). Header Column 그룹A 가 col1/col2 를 병합(Header 만 병합), Body Column(col1~col4)은 개별. con 변경은 Target 재생성 버튼으로 반영.\n[절차] 그룹A 아래 col1|col2 가상 경계(interior) 와 그룹A 우측/col3|col4 경계(outer)를 각각 좌우로 Drag → 너비 변경.\n[확인] [컬럼 너비 확인] 버튼으로 Drag 전후 너비 변화를 관찰. resize=false 면 어느 경계에서도 너비 불변."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList (4 Column, 4 Row)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "A2", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "A3", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "A4", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // con 값이 있으면 resize 속성 부여, 미설정이면 속성 자체 미부여(엔진 기본값 true)
+    let strAttr = '';
+    if (resize !== '') {
+        strAttr += ' resize="' + resize + '"';
+    }
+
+    // target 그리드 : Header 는 단일 행, 그룹A 가 col1/col2 를 colSpan=2 로 병합(Header 만 병합)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + strAttr + ' checkAllType="false" dataList="data:dlt_bind" id="" style="width:520px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="resize 병합헤더 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column colSpan="2" width="200" style="" inputType="text" id="hcol_group" value="그룹A (col1+col2)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="col3(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="col4(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+};
+
+
+
+// [컬럼 너비 확인] : 현재 각 Body Column 의 너비 출력
+//  - 가상 경계(col1|col2) / 일반 경계(col2|col3, col3|col4) Drag 전후로 클릭하여 너비 변화를 관찰
+//  - checkAllType=false, RowNum/RowStatus 미표시 → getColumnWidth 인덱스 : 0=col1, 1=col2, 2=col3, 3=col4
+scwin.btn_checkWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====현재 컬럼 너비 (resize=[" + (con_resize.getText() === '' ? '미설정' : con_resize.getText()) + "])=====");
+    bottom.setReturnValue("col1(0) [그룹A 좌/interior 좌] : " + target1.getColumnWidth(0));
+    bottom.setReturnValue("col2(1) [그룹A 우/interior 우] : " + target1.getColumnWidth(1));
+    bottom.setReturnValue("col3(2) : " + target1.getColumnWidth(2));
+    bottom.setReturnValue("col4(3) : " + target1.getColumnWidth(3));
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="resize" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_resize" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkWidth_onclick" id="btn_checkWidth"
+							label="컬럼 너비 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

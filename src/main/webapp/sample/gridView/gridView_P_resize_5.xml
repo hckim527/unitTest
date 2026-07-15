@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] resize" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260713" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 분리 샘플(_5) : @spec4 (autoFit 재조정) 담당
+//    "autoFit=true 이면 Column 너비 변경 시 나머지 Column 의 너비가 함께 재조정됩니다."
+//  - @spec4 의 'autoFit=true' 는 가이드 서술상의 표현이며, 엔진의 실제 재조정 동작값은 autoFit='allColumn' 이다
+//    (엔진 setColumnWidth → _setAutoFit 은 type==='allColumn' 분기에서만 나머지 Column 비율 재조정을 수행.
+//     autoFit='none' 은 재조정하지 않음). 따라서 con_autoFit 은 allColumn(재조정) / none(미재조정) 으로 검증.
+//  - description 은 _1 과 동일 고정, validation 은 autoFit 재조정 관련 2건(@spec4 + 대조)
+scwin.tData = {
+    "description" : "[gridView > P > resize]<br/>마우스 Drag 에 의한 Column 의 너비(Width) 변경을 허용할지 설정합니다.",
+    "validation" : [
+        "resize=true 이고 autoFit=true(allColumn) 이면, Column 의 오른쪽 경계를 Drag 하여 너비를 변경할 때 나머지 Column 의 너비가 함께 재조정됩니다.",
+        "autoFit=false(none) 이면, Column 너비를 변경해도 나머지 Column 의 너비는 재조정되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 기본값
+    //  - con_resize  : true (본 샘플은 resize=true 상태에서 autoFit 재조정을 검증)
+    //                  gdl_boolean 은 index0=미설정 / index1=true / index2=false → setSelectedIndex 로 지정
+    //  - con_autoFit : allColumn (정적 select1, selectedIndex="0" 속성으로 기본값 지정)
+    con_resize.setSelectedIndex(1);
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - con_resize(gdl_boolean) : 미설정('') / true / false. resize 는 @dynamic N 이라 con 변경은 Target 재생성으로 반영.
+//  - con_autoFit             : allColumn(재조정 O) / none(재조정 X). @dynamic Y 이나 재생성 시 함께 반영.
+//    · autoFit='allColumn' : GridView 너비에 맞춰 Column 이 채워지고, 특정 Column 너비 변경 시 나머지 Column 이 재조정됨(@spec4)
+//    · autoFit='none'      : Column 너비는 디자인값 유지. 특정 Column 너비를 변경해도 나머지 Column 은 불변(대조)
+//  - allColumn 재조정을 관찰하려면 Column 합이 GridView 너비를 채워야 하므로 그리드 너비(600px)에 맞춘다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // resize 옵션 (gdl_boolean → getText 로 '' / true / false 라벨 사용)
+    let resize = con_resize.getText();
+    // autoFit 옵션 (정적 select1 → getValue : allColumn / none)
+    let autoFit = con_autoFit.getValue();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] resize=(현재 [' + (resize === '' ? '미설정' : resize) + ']), autoFit=[' + autoFit + ']. GridView 너비(600px)에 Column 을 채움. con 변경은 Target 재생성 버튼으로 반영.\n[참고] @spec4 는 autoFit=true 로 서술하나 엔진의 실제 재조정 동작값은 allColumn 입니다. allColumn=재조정 O / none=재조정 X.\n[절차] col2(H) 오른쪽 경계를 오른쪽으로 Drag 하여 col2 너비를 넓힘. Drag 전/후로 [컬럼 너비 확인] 버튼 클릭.\n[확인] autoFit=allColumn 이면 col2 는 넓어지고 나머지 Column 너비가 함께 줄어듦(재조정). autoFit=none 이면 col2 만 변하고 나머지는 불변."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList (4 Column, 4 Row)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "col1": "A1", "col2": "B1", "col3": "C1", "col4": "D1" },
+        { "col1": "A2", "col2": "B2", "col3": "C2", "col4": "D2" },
+        { "col1": "A3", "col2": "B3", "col3": "C3", "col4": "D3" },
+        { "col1": "A4", "col2": "B4", "col3": "C4", "col4": "D4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // con 값이 있으면 resize 속성 부여, 미설정이면 속성 자체 미부여(엔진 기본값 true)
+    let strAttr = '';
+    if (resize !== '') {
+        strAttr += ' resize="' + resize + '"';
+    }
+    // autoFit 속성 부여 (allColumn / none)
+    strAttr += ' autoFit="' + autoFit + '"';
+
+    // target 그리드 : RowNum/RowStatus 표시. Column 합을 그리드 너비(600px)에 맞춤(allColumn 재조정 관찰).
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + strAttr + ' dataList="data:dlt_bind" rowNumVisible="true" rowNumHeaderValue="No." rowStatusVisible="true" rowStatusHeaderValue="St." id="" style="width:600px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="resize+autoFit 재조정 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="col1(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="col2(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="col3(H)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="col4(H)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+};
+
+
+
+// [컬럼 너비 확인] : 현재 각 Column 의 너비 출력
+//  - Drag 전/후로 클릭하여 나머지 Column 의 재조정 여부 관찰(@spec4 / 대조)
+//  - getColumnWidth 인덱스 : 0=RowNum, 1=RowStatus, 2=col1, 3=col2, 4=col3, 5=col4 (RowNum/RowStatus 포함)
+scwin.btn_checkWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====현재 컬럼 너비 (resize=[" + (con_resize.getText() === '' ? '미설정' : con_resize.getText()) + "], autoFit=[" + con_autoFit.getValue() + "])=====");
+    bottom.setReturnValue("col1(2) : " + target1.getColumnWidth(2));
+    bottom.setReturnValue("col2(3) : " + target1.getColumnWidth(3));
+    bottom.setReturnValue("col3(4) : " + target1.getColumnWidth(4));
+    bottom.setReturnValue("col4(5) : " + target1.getColumnWidth(5));
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="resize" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_resize" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFit" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_autoFit" label="label" ref="" selectedIndex="0"
+										style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>allColumn (재조정 O)</xf:label>
+												<xf:value>allColumn</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none (재조정 X)</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkWidth_onclick" id="btn_checkWidth"
+							label="컬럼 너비 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
