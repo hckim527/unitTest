@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] useFilterSearch" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260720" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > useFilterSearch]\nFilterList 에 검색어 필터 기능을 포함할지 설정합니다.",
+    "validation" : [
+        "GridView 의 useFilterList 속성으로 FilterList 기능이 적용된 경우에 동작합니다.",
+        "(FilterList 적용 전제) true 설정 시, FilterList 에 검색어 입력창이 표시되며 검색어 입력 시 즉시 필터링됩니다.",
+        "(FilterList 적용 전제) true 설정 시, 입력된 검색어는 '부분 일치 비교'로 Column 값을 필터링합니다.",
+        "(FilterList 적용 전제) false 설정 시, FilterList 에 검색어 입력창을 표시하지 않습니다.",
+        "(FilterList 적용 전제) 미설정 시, FilterList 에 검색어 입력창을 표시하지 않습니다.",
+        "검색어에 의해 필터링 된 데이터는 FilterList 의 데이터 목록에 표시되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // 공통 Global DataList(gdl_boolean 등) 생성
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1(gdl_boolean) 은 초기 selectedIndex 미적용 → 기본값 명시 설정
+    con_useFilterSearch.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (con 값은 렌더 시 결정 → Target 재생성 버튼으로만 반영)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 값 읽기 (gdl_boolean 바인딩 → getText : '' / 'true' / 'false')
+    let vSearch = con_useFilterSearch.getText();
+
+    // 현재 설정/검증 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let lbl = '';
+    lbl += '[전제] GridView 의 useFilterList=true 고정, 전체 Header Column 은 useFilter=true 고정 (FilterList 기능 적용 상태).';
+    lbl += '\n[전제] col1 값 = Apple / Banana / Grape / Orange / Pineapple. 현재 useFilterSearch=' + (vSearch === '' ? '(미설정=false)' : vSearch);
+    lbl += '\n[절차] col1 헤더의 필터 버튼을 클릭해 FilterList 를 연다 -> 검색어 입력창에 an 을 직접 입력한다.';
+    lbl += '\n[절차] 이후 (FilterList 표시목록 출력) 클릭 -> 검색어 입력창 표시 여부 / 입력된 검색어 / 표시 아이템이 출력된다.';
+    lbl += '\n[확인] 검색어 an 은 부분 일치 비교이므로 값의 중간에 an 을 포함한 Banana, Orange 만 남고 나머지는 목록에서 사라진다.';
+    $c.gcm.createLabel('label="' + lbl + '"', '', 'label1');
+
+    // dataList 직접 생성 (col1 = 부분 일치 확인용 5종 값)
+    let ns = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + ns + ' id="dlt_bind" baseNode="list" repeatNode="map" saveRemovedData="true">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    let arrDl = $p.data.getAllDataCollection("object");
+    scwin.dlt_bind = arrDl[arrDl.length - 1];
+
+    // Apple / Banana / Grape / Orange / Pineapple 중 an 을 포함하는 값은 Banana, Orange 뿐이며 둘 다 첫글자가 아님
+    let fruits = ["Apple", "Banana", "Grape", "Orange", "Pineapple"];
+    let jsonData = [];
+    for (let i = 0; i < 10; i++) {
+        jsonData.push({
+            "col1": fruits[i % 5],
+            "col2": "type_" + (i % 2),
+            "col3": "name_" + (i + 1),
+            "col4": "" + (i + 1)
+        });
+    }
+    scwin.dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 : 전체 컬럼 useFilter 고정 + useFilterList="true" 고정(FilterList 적용 전제), useFilterSearch 만 con 값 적용(미설정 시 속성 생략)
+    let attrSearch = (vSearch === '') ? '' : ' useFilterSearch="' + vSearch + '"';
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let s = '';
+    s += '<w2:gridView ' + ns + ' useFilterList="true"' + attrSearch + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:430px;height:220px;">';
+    s += '<w2:caption style="" id="caption1" value="useFilterSearch 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="100" style="" inputType="text" id="column1" value="col1" useFilter="true"></w2:column>';
+    s += '<w2:column width="100" style="" inputType="text" id="column2" value="col2" useFilter="true"></w2:column>';
+    s += '<w2:column width="110" style="" inputType="text" id="column3" value="col3" useFilter="true"></w2:column>';
+    s += '<w2:column width="100" style="" inputType="text" id="column4" value="col4" useFilter="true"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="100" style="" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    s += '<w2:column width="100" style="" inputType="text" dataType="text" id="col2" dataList="col2"></w2:column>';
+    s += '<w2:column width="110" style="" inputType="text" dataType="text" id="col3" dataList="col3"></w2:column>';
+    s += '<w2:column width="100" style="" inputType="text" dataType="text" id="col4" dataList="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// col1 FilterList 의 현재 상태 출력 (검색어 입력창 표시 여부 / 입력된 검색어 / 표시 아이템)
+// FilterList 는 그리드 밖을 클릭하면 닫히므로 DOM 가시성이 아닌 FilterList 컴포넌트의 데이터를 읽는다
+scwin.btn_dumpFilterList_onclick = function () {
+    let sv = function (s) { wf_body_bottom.getObj("scwin").setReturnValue(s); };
+    let gid = target1.id;
+    let filterList = target1.customFilterList;
+    if (!filterList) {
+        sv("col1 헤더의 필터 버튼을 먼저 클릭하여 FilterList 를 연 뒤 실행하세요.");
+        return;
+    }
+
+    // 검색어 입력창(FilterList 내부 input, id = {gridId}_customFilter_list_input)
+    let input = document.querySelector("[id='" + gid + "_customFilter_list_input']");
+
+    // FilterList 표시 아이템 (선두 2행은 사용자필터/전체선택 컨트롤 행이므로 제외)
+    let items = [];
+    let allData = filterList.getAllData();
+    for (let i = 0; i < allData.length; i++) {
+        let txt = (allData[i].id2 == null) ? '' : ('' + allData[i].id2).trim();
+        if (txt === '' || txt === '사용자필터' || txt === '전체선택') continue;
+        items.push(txt);
+    }
+
+    let vSearch = con_useFilterSearch.getText();
+    sv("===== [col1] useFilterSearch=" + (vSearch === '' ? '미설정=false' : vSearch) + " (useFilterList=true 고정) =====");
+    sv("검색어 입력창 표시 여부 : " + (input ? true : false));
+    sv("입력된 검색어 : " + (input && input.value ? input.value : "(없음)"));
+    sv("FilterList 표시 아이템 : " + (items.join(", ") || "(없음)"));
+}
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useFilterSearch" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useFilterSearch" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_dumpFilterList_onclick" id="btn_dumpFilterList"
+							label="FilterList 표시목록 출력" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

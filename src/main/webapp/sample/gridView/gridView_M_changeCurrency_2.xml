@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] changeCurrency" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260720" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > changeCurrency]<br/>Body Column 의 ID 를 사용하여 특정 Body Column 의 dataType 속성을 화폐 단위값으로 설정합니다.",
+    "validation" : [
+        "delimiter(선택) 파라미터로 천 단위 구분자를 설정할 수 있어야 합니다.",
+        "delimiter(선택) 파라미터 값을 지정하지 않으면 dataType 파라미터값이 'number', 'float', 'rupee' 인 경우 ','(콤마)가 적용됩니다.",
+        "delimiter(선택) 파라미터 값을 지정하지 않으면 dataType 파라미터값이 'euro' 인 경우 '.'(마침표)가 적용됩니다.",
+        "delimiter(선택) 파라미터 값을 지정하지 않으면 dataType 파라미터값이 'tenge' 인 경우 ' '(공백)이 적용됩니다.",
+        "decimalDelimiter(선택) 파라미터로 소수점 구분자를 설정할 수 있어야 합니다.",
+        "decimalDelimiter(선택) 파라미터 값을 지정하지 않으면 dataType 파라미터값이 'number', 'float', 'rupee' 인 경우 '.'(마침표)가 적용됩니다.",
+        "decimalDelimiter(선택) 파라미터 값을 지정하지 않으면 dataType 파라미터값이 'euro', 'tenge' 인 경우 ','(콤마)가 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] Body Column col1~col4 는 dataType 미설정(기본 text), Row 0 원본 데이터는 모두 1234567\n[전제] 구분자는 displayFormat 마스크의 구분자 문자와 일치할 때 셀 표시값에 적용되므로, 본 샘플은 선택한(생략 시 dataType 기본) 구분자로 displayFormat 마스크를 구성하여 호출한다\n[절차] columnId + dataType 을 고른 뒤 delimiter/decimalDelimiter 를 선택 (빈값 선택 시 해당 파라미터를 생략하여 호출)\n[확인] 결과창의 셀 표시값에서 적용된 천 단위 구분자와 소수점 구분자를 확인"', '', 'label1');
+
+    // dataList 생성 + 바인딩
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // 화폐 포맷 검증용 초기 데이터 설정
+    dlt_bind.setJSON([
+        { "col1": "1234567", "col2": "1234567", "col3": "1234567", "col4": "1234567" }
+    ]);
+
+    // 화폐 포맷 적용 후 값이 잘리지 않도록 Column 너비 자동 조정 (검증 대상 아닌 표시 편의용 고정 설정)
+    let properties = { dataList: "data:dlt_bind", autoFit: "allColumn" };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 (기본 4컬럼 col1~col4)
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// dataType 별 delimiter / decimalDelimiter 기본값 (파라미터 생략 시 적용되는 값)
+scwin.DEFAULT_DELIMITER = { "float": ",", "number": ",", "rupee": ",", "euro": ".", "tenge": " " };
+scwin.DEFAULT_DECIMAL_DELIMITER = { "float": ".", "number": ".", "rupee": ".", "euro": ",", "tenge": "," };
+
+// 구분자는 displayFormat 마스크의 구분자 문자와 일치할 때 적용되므로 적용될 구분자로 마스크를 구성
+scwin.getDisplayFormat = function (dataType, delimiter, decimalDelimiter) {
+    let strDelimiter = delimiter || scwin.DEFAULT_DELIMITER[dataType];
+    let strDecimalDelimiter = decimalDelimiter || scwin.DEFAULT_DECIMAL_DELIMITER[dataType];
+
+    // rupee 는 2-2-3 자리 묶음을 사용
+    if (dataType === "rupee") {
+        return "##" + strDelimiter + "##" + strDelimiter + "##0" + strDecimalDelimiter + "00";
+    }
+
+    return "#" + strDelimiter + "##0" + strDecimalDelimiter + "00";
+}
+
+// 셀에 실제로 표시된 값을 조회
+scwin.getDisplayValue = function (columnId) {
+    let colIndex = Number(columnId.replace("col", "")) - 1;
+
+    return target1.getCellDisplayData(0, colIndex);
+}
+
+
+
+scwin.btn_changeCurrency_onclick = function () {
+    let columnId = par_columnId.getValue();
+    let dataType = par_dataType.getValue();
+    let delimiter = par_delimiter.getValue();
+    let decimalDelimiter = par_decimalDelimiter.getValue();
+
+    // 공백 구분자 선택값 변환
+    if (delimiter === '__space') {
+        delimiter = ' ';
+    }
+
+    // config.xml 에 화폐 마스크가 없어 displayFormat 을 적용될 구분자에 맞춰 구성하여 전달
+    let displayFormat = scwin.getDisplayFormat(dataType, delimiter, decimalDelimiter);
+
+    // 선택 파라미터(delimiter / decimalDelimiter)는 빈값 선택 시 뒤에서부터 생략
+    let args = [columnId, dataType, displayFormat];
+
+    if (delimiter !== '' || decimalDelimiter !== '') {
+        args.push(delimiter === '' ? undefined : delimiter);
+    }
+    if (decimalDelimiter !== '') {
+        args.push(decimalDelimiter);
+    }
+
+    target1.changeCurrency.apply(target1, args);
+
+    let callDesc = "changeCurrency(" + args.map(function (v) {
+        return (v === undefined) ? "undefined" : "'" + v + "'";
+    }).join(", ") + ")";
+
+    wf_body_bottom.getObj("scwin").setReturnValue(callDesc + " | " + columnId + " 셀 표시값 : " + scwin.getDisplayValue(columnId));
+}
+
+
+
+scwin.btn_checkAppliedValue_onclick = function () {
+    let columnId = par_columnId.getValue();
+
+    wf_body_bottom.getObj("scwin").setReturnValue("현재 " + columnId + " 셀 표시값 : " + scwin.getDisplayValue(columnId));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnId" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnId" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[col1]]></xf:label>
+												<xf:value><![CDATA[col1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col2]]></xf:label>
+												<xf:value><![CDATA[col2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col3]]></xf:label>
+												<xf:value><![CDATA[col3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[col4]]></xf:label>
+												<xf:value><![CDATA[col4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_dataType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[float]]></xf:label>
+												<xf:value><![CDATA[float]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[euro]]></xf:label>
+												<xf:value><![CDATA[euro]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[rupee]]></xf:label>
+												<xf:value><![CDATA[rupee]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[tenge]]></xf:label>
+												<xf:value><![CDATA[tenge]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="delimiter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_delimiter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[, (콤마)]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[. (마침표)]]></xf:label>
+												<xf:value><![CDATA[.]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[(공백)]]></xf:label>
+												<xf:value><![CDATA[__space]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[- (하이픈)]]></xf:label>
+												<xf:value><![CDATA[-]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="decimalDelimiter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_decimalDelimiter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[. (마침표)]]></xf:label>
+												<xf:value><![CDATA[.]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[, (콤마)]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[- (하이픈)]]></xf:label>
+												<xf:value><![CDATA[-]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_changeCurrency_onclick" id="btn_changeCurrency"
+							label="changeCurrency" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkAppliedValue_onclick" id="btn_checkAppliedValue"
+							label="적용값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

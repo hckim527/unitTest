@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setHeaderValue" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260720" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<!-- par_value 셀렉트박스의 아이템 바인딩용 DataList (par_headerId 선택에 따라 행을 교체) -->
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_parvalue">
+					<w2:columnInfo>
+						<w2:column id="pLabel" name="pLabel" dataType="text"></w2:column>
+						<w2:column id="pValue" name="pValue" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setHeaderValue]<br/>Header Cell 정보를 사용하여 특정 Header Cell 의 데이터를 설정합니다.",
+    "validation" : [
+        "inputType='text','checkbox','select','checkcombobox' 인 Header Cell 에서 동작해야 합니다.",
+        "headerId(필수) 파라미터로 데이터를 설정할 Header Cell 의 ID 를 설정할 수 있어야 합니다.",
+        "value(필수) 파라미터로 Header Cell 의 inputType 속성에 맞게 설정할 데이터 값을 설정할 수 있어야 합니다.",
+        "Header Cell 의 inputType 이 'text' 인 경우 value(필수) 파라미터로 데이터를 문자열로 설정해야 합니다.",
+        "Header Cell 의 inputType 이 'checkbox' 인 경우 value(필수) 파라미터로 데이터를 Boolean 으로 설정하며 기존 값과 다른 경우 Header Cell 클릭이 발생해야 합니다.",
+        "Header Cell 의 inputType 이 'select','checkcombobox' 인 경우 value(필수) 파라미터로 아이템의 Value 값을 설정해야 합니다.",
+    ]
+}
+
+
+
+// 헤더 클릭 발생 관측용 (checkbox 헤더의 클릭 발생 여부 확인 목적)
+scwin.gVar = {
+    "headerClickCnt" : 0
+};
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 정적 select1 기본값 설정
+    par_headerId.setSelectedIndex(0);
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Header : hText(text) / hCheck(checkbox) / hSelect(select) / hCombo(checkcombobox)
+//  - Body   : col1 ~ col4 (dlt_bind 컬럼 ID 와 동일하게 구성)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_item !== 'undefined') {
+        $p.data.remove("dlt_item");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 헤더 4종 구성 - hText(text) / hCheck(checkbox) / hSelect(select) / hCombo(checkcombobox), select 계열 아이템은 A=최우수, B=우수, C=보통\n[절차] par_headerId 에서 대상 헤더를 선택하면 par_value 의 아이템 목록이 해당 inputType 에 맞게 교체되고 현재 헤더 값과 다른 값이 기본 선택됨 (par_value 에서 다른 아이템 선택 가능), 이후 (setHeaderValue) 클릭\n[확인] text 는 헤더 표시 문자열, checkbox 는 체크상태와 클릭 발생 여부, select/checkcombobox 는 설정된 아이템 Value(A/B/C) 와 헤더 표시 label 을 결과창에서 확인\n[참고] par_value 를 그대로 두고 (setHeaderValue) 를 연속 클릭하면 두번째는 기존 값과 동일한 값으로 설정됨"', '', 'label1');
+
+    // 헤더 select/checkcombobox 아이템 DataList (iValue=value, iLabel=label)
+    let strItem = '';
+    strItem += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_item" baseNode="list" repeatNode="map">';
+    strItem += '<w2:columnInfo>';
+    strItem += '<w2:column id="iValue" name="iValue" dataType="text"></w2:column>';
+    strItem += '<w2:column id="iLabel" name="iLabel" dataType="text"></w2:column>';
+    strItem += '</w2:columnInfo>';
+    strItem += '<w2:data use="true"></w2:data>';
+    strItem += '</w2:dataList>';
+    $p.data.create(strItem);
+    dlt_item.setJSON([
+        { "iValue": "A", "iLabel": "최우수" },
+        { "iValue": "B", "iLabel": "우수" },
+        { "iValue": "C", "iLabel": "보통" }
+    ], false);
+
+    // Body 데이터용 DataList (컬럼 ID = col1 ~ col4)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "col1": "노트북", "col2": "false", "col3": "A", "col4": "재고확인" },
+        { "col1": "모니터", "col2": "false", "col3": "B", "col4": "신규입고" },
+        { "col1": "키보드", "col2": "false", "col3": "C", "col4": "할인적용" },
+        { "col1": "마우스", "col2": "false", "col3": "A", "col4": "주문대기" }
+    ], false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 헤더 아이템 바인딩 조각 (select / checkcombobox 헤더용) : label ref=iLabel, value ref=iValue
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_item"><w2:label ref="iLabel"></w2:label><w2:value ref="iValue"></w2:value></w2:itemset></w2:choices>';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="include" ev:onheaderclick="scwin.target1_onheaderclick" id="" style="width:560px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setHeaderValue 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" inputType="text" id="hText" value="품명(text)"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="checkbox" id="hCheck" value=""></w2:column>';
+    strTarget += '<w2:column width="150" inputType="select" id="hSelect" value="">' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="170" inputType="checkcombobox" id="hCombo" value="">' + itemset + '</w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="140" inputType="text" id="col1" dataList="col1" displayType="label"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="checkbox" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="col3" dataList="col3" displayType="label"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="col4" dataList="col4" displayType="label"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 선택된 Header Cell 의 inputType 에 맞는 value 자동 설정
+    scwin.par_headerId_onchange();
+}
+
+
+
+// Header Cell 클릭 발생 관측용 핸들러 (checkbox 헤더의 클릭 발생 여부 확인 목적)
+scwin.target1_onheaderclick = function (headerId) {
+    scwin.gVar.headerClickCnt++;
+}
+
+
+
+// par_headerId 변경 시 : 대상 Header Cell 의 inputType 에 맞는 아이템 목록으로 par_value 를 교체하고
+//                        현재 Header 값과 다른 값을 기본 선택 (값 변경을 눈으로 확인하기 위함)
+scwin.par_headerId_onchange = function () {
+    let headerId = par_headerId.getValue();
+    let ctrl = target1.headerObj[headerId];
+    let items = [];
+    let defaultValue = '';
+
+    if (headerId === 'hCheck') {
+        // checkbox : Boolean 아이템, 기본 선택은 현재 체크 상태의 반대값 (기존 값과 달라 Header Cell 클릭이 발생하는 조건)
+        items = [
+            { "pLabel": "true", "pValue": "true" },
+            { "pLabel": "false", "pValue": "false" }
+        ];
+        defaultValue = String(!ctrl.checked);
+    } else if (headerId === 'hSelect' || headerId === 'hCombo') {
+        // select / checkcombobox : 아이템 Value(A/B/C), 기본 선택은 현재 선택된 아이템의 다음 Value
+        items = [
+            { "pLabel": "A (최우수)", "pValue": "A" },
+            { "pLabel": "B (우수)", "pValue": "B" },
+            { "pLabel": "C (보통)", "pValue": "C" }
+        ];
+        let valueArr = ['A', 'B', 'C'];
+        defaultValue = valueArr[(valueArr.indexOf(ctrl.getValue()) + 1) % valueArr.length];
+    } else {
+        // text : 문자열 아이템, 기본 선택은 현재 표시 문자열과 다른 문자열
+        items = [
+            { "pLabel": "품명(text)", "pValue": "품명(text)" },
+            { "pLabel": "품명(변경)", "pValue": "품명(변경)" },
+            { "pLabel": "상품 구분", "pValue": "상품 구분" }
+        ];
+        let curText = target1.getHeaderLayer('hText').textContent;
+        defaultValue = (curText === '품명(변경)') ? '품명(text)' : '품명(변경)';
+    }
+
+    // 아이템 목록 교체 (바인딩된 DataList 의 행을 setJSON 으로 교체하면 itemset 이 갱신됨)
+    dlt_parvalue.setJSON(items, false);
+
+    // 아이템 교체 후 기본 선택값 명시 설정 (정적 select1 은 초기 selectedIndex 가 적용되지 않음)
+    par_value.setValue(defaultValue);
+}
+
+
+
+// setHeaderValue 실행 (메인 검증)
+//  - useFormat(선택) 파라미터는 생략하여 호출
+scwin.btn_setHeaderValue_onclick = function () {
+    let headerId = par_headerId.getValue();
+    let rawValue = par_value.getValue();
+
+    // Header Cell 의 inputType 에 맞는 타입으로 전달 (checkbox 는 Boolean, 그 외는 문자열)
+    let value = rawValue;
+    if (rawValue === 'true') {
+        value = true;
+    } else if (rawValue === 'false') {
+        value = false;
+    }
+
+    scwin.gVar.headerClickCnt = 0;
+
+    target1.setHeaderValue(headerId, value);
+
+    setTimeout(function () {
+        let td = target1.getHeaderLayer(headerId);
+        let ctrl = target1.headerObj[headerId];
+        let prefix = "setHeaderValue('" + headerId + "', " + rawValue + ") -> ";
+
+        if (headerId === 'hText') {
+            wf_body_bottom.getObj("scwin").setReturnValue(prefix + "[text] 헤더 표시값 : " + td.textContent);
+        } else if (headerId === 'hCheck') {
+            let chk = td.querySelector("input[type='checkbox']");
+            wf_body_bottom.getObj("scwin").setReturnValue(prefix + "[checkbox] 헤더 체크상태 : " + chk.checked + " / 헤더 클릭 발생 : " + (scwin.gVar.headerClickCnt > 0));
+        } else {
+            // select / checkcombobox : 설정된 아이템의 Value 와 헤더에 표시되는 Label 을 함께 확인
+            let iType = (headerId === 'hSelect') ? 'select' : 'checkcombobox';
+            let iValue = (ctrl && typeof ctrl.getValue === 'function') ? ctrl.getValue() : '';
+            wf_body_bottom.getObj("scwin").setReturnValue(prefix + "[" + iType + "] 헤더 선택 아이템 value : " + iValue + " / 헤더 표시 label : " + td.textContent);
+        }
+    }, 200);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="headerId" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" ev:onchange="scwin.par_headerId_onchange" id="par_headerId" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[hText (text 헤더)]]></xf:label><xf:value><![CDATA[hText]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[hCheck (checkbox 헤더)]]></xf:label><xf:value><![CDATA[hCheck]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[hSelect (select 헤더)]]></xf:label><xf:value><![CDATA[hSelect]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[hCombo (checkcombobox 헤더)]]></xf:label><xf:value><![CDATA[hCombo]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="value" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_value" nodeSet="data:dlt_parvalue" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:dlt_parvalue">
+												<xf:label ref="pLabel"></xf:label>
+												<xf:value ref="pValue"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setHeaderValue_onclick" id="btn_setHeaderValue"
+							label="setHeaderValue" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

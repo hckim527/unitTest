@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] loadCount" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260720" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > loadCount]<br/>onscrollend 이벤트를 발생시킬 Row 의 위치값을 설정합니다.",
+    "validation" : [
+        "Number 값 설정 시, onscrollend 이벤트를 발생시킬 남은 Row 수가 설정되어야 합니다.",
+        "Number 값 설정 시, 마지막 Row 에서 속성값을 뺀 위치의 Row 가 처음 GridView 에 표시될때 onscrollend 이벤트가 발생해야 합니다.",
+        "loadCount 설정 시 onscrollend 이벤트는 한번만 발생해야 합니다.",
+        "속성값을 설정하지 않거나 0 으로 설정 시 세로 스크롤이 최하단에 닿을때마다 onscrollend 이벤트가 발생해야 합니다.",
+        "loadCount=5 이고 데이터가 100 개인 경우 인덱스가 94 이상인 Row 가 GridView 에 처음 표시될때 onscrollend 이벤트가 발생해야 합니다.",
+        "데이터가 새로 로드되거나 append 방식으로 추가되면 onscrollend 이벤트가 다시 발생해야 합니다.",
+    ]
+}
+
+
+
+// onscrollend 발생 횟수 누적 (loadCount 설정 시 1회만 발생하는지 확인용)
+scwin.gVar = {
+    "endCount" : 0
+};
+
+
+
+// 테스트용 Row 데이터 생성 (startNo 부터 rowCount 건)
+scwin.makeRows = function (startNo, rowCount) {
+    let jsonData = [];
+    for (let i = startNo; i < startNo + rowCount; i++) {
+        jsonData.push({
+            "col1": "col1_" + i,
+            "col2": "col2_" + i,
+            "col3": "col3_" + i,
+            "col4": "col4_" + i
+        });
+    }
+    return jsonData;
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - loadCount 는 dynamic=N 이므로 con_loadCount 선택값을 생성 시점에 전달
+//    ('' 미설정 / '0' / '5')
+//  - 데이터 100 건, GridView 높이 220px 로 세로 스크롤을 발생시킴
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 발생 횟수 초기화
+    scwin.gVar.endCount = 0;
+
+    // con_ 설정값 수집 (빈값이면 속성 미설정)
+    let vLoadCount = con_loadCount.getValue();
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+
+    // loadCount : 미설정('') 이면 속성 자체를 추가하지 않음
+    if (vLoadCount !== '' && vLoadCount !== null && vLoadCount !== undefined) {
+        properties.loadCount = vLoadCount;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onscrollend"]);
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 데이터 100 건 / GridView 높이 220px (세로 스크롤 발생) / 현재 loadCount=' + (vLoadCount === '' ? '(미설정)' : vLoadCount) + '\n[절차] GridView 세로 스크롤을 아래로 내려 onscrollend 발생 여부를 확인\n[확인] 결과창에 출력되는 발생 횟수와 표시 중 Row 인덱스 범위로 판단. 데이터 append / 재로드 버튼 실행 후 다시 스크롤하여 재발생 확인"', '', 'label1');
+
+    // dataList 생성 (빈 상태로 생성)
+    //  - 엔진은 GridView 렌더 이후 DataList 에 데이터가 로드될때 loadCount 판정 플래그를 활성화하므로
+    //    데이터는 GridView 생성 이후에 로드한다.
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 0);
+
+    // target 생성
+    await $c.gcm.createBasicGridView(cList, eList);
+
+    // 세로 스크롤 생성을 위해 height 변경
+    target1.setStyle("height", "220px");
+
+    // 데이터 로드 (100 건)
+    dlt_bind.setJSON(scwin.makeRows(1, 100), false);
+}
+
+
+
+// onscrollend 발생 시점의 적용값(loadCount) / 데이터 건수 / 발생 기준 Row 인덱스 / 표시 중 Row 인덱스 범위를 출력
+//  - 발생 기준 Row 인덱스 = 데이터 건수 - loadCount - 1 (마지막 Row 에서 loadCount 만큼 뺀 위치)
+//    loadCount=5 / 데이터 100 건이면 94 이며, 표시 중 마지막 Row 인덱스가 94 이상일때 발생
+//  - loadCount 미설정/0 이면 기준 Row 없이 최하단에 닿을때마다 발생하므로 기준 인덱스는 '-' 로 표시
+scwin.target1_onscrollend = function () {
+    scwin.gVar.endCount++;
+
+    let loadCount = Number(target1.options.loadCount);
+    let dataLength = dlt_bind.getRowCount();
+
+    let topIndex = target1.getTopRowIndex();
+    let lastIndex = topIndex + target1.getVisibleRowNum() - 1;
+
+    let triggerIndex = (loadCount > 0) ? (dataLength - loadCount - 1) : "-";
+
+    wf_body_bottom.getObj("scwin").setReturnValue("onscrollend 발생 [" + scwin.gVar.endCount + "회] loadCount : " + (loadCount > 0 ? loadCount : "(미설정/0)") + " / 데이터 건수 : " + dataLength + " / 발생 기준 Row 인덱스 : " + triggerIndex + " / 표시 중 Row 인덱스 : " + topIndex + " ~ " + lastIndex);
+}
+
+
+
+// append 방식으로 데이터 20 건 추가 후 onscrollend 재발생 확인
+scwin.btn_appendData_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let beforeCount = dlt_bind.getRowCount();
+
+    // 두번째 인자 true = append
+    dlt_bind.setJSON(scwin.makeRows(beforeCount + 1, 20), true);
+
+    bottom.setReturnValue("데이터 append : " + beforeCount + "건 -> " + dlt_bind.getRowCount() + "건. 스크롤을 다시 내려 onscrollend 재발생을 확인하세요.");
+}
+
+
+
+// 데이터를 새로 로드(append 아님) 후 onscrollend 재발생 확인
+scwin.btn_reloadData_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    // 두번째 인자 false = 신규 로드
+    dlt_bind.setJSON(scwin.makeRows(1, 60), false);
+
+    bottom.setReturnValue("데이터 재로드 : " + dlt_bind.getRowCount() + "건. 스크롤을 다시 내려 onscrollend 재발생을 확인하세요.");
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="loadCount" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_loadCount" label="label" ref="" selectedIndex="0" style=""
+										submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>5</xf:label>
+												<xf:value>5</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_appendData_onclick" id="btn_appendData"
+							label="데이터 append" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_reloadData_onclick" id="btn_reloadData"
+							label="데이터 재로드" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

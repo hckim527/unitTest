@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260720" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript">// https://inswave01.atlassian.net/browse/WAEA-1028
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    &quot;description&quot; : &quot;[gridView &gt; M &gt; removeCellImageSrc]&lt;br/&gt;Body Cell 정보를 사용하여 특정 Body Cell 의 imageSrc 속성값을 제거합니다.&quot;,
+    &quot;validation&quot; : [
+        &quot;Body Cell 의 imageSrc 속성값이 제거되면 Column 의 imageSrc 속성이 적용되어야 합니다.&quot;,
+        &quot;rowIndex(필수) 파라미터로 imageSrc 속성값을 제거할 Body Cell 의 Row 인덱스를 설정할 수 있어야 합니다.&quot;,
+        &quot;Row 인덱스는 0 부터 시작하며 GridView 에 표시된 Row 를 기준으로 인덱스가 설정되어야 합니다.&quot;,
+        &quot;columnInfo(필수) 파라미터로 imageSrc 속성값을 제거할 Body Cell 의 Column 인덱스를 설정할 수 있어야 합니다.&quot;,
+        &quot;Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정되어야 합니다.&quot;,
+        &quot;파라미터에 해당하는 Body Cell 의 imageSrc 속성값 제거 성공 여부를 true/false 로 반환해야 합니다.&quot;,
+        &quot;파라미터가 유효하지 않으면 false 를 반환해야 합니다.&quot;,
+        &quot;Body Cell 의 imageSrc 속성값 제거에 성공하면 undefined 값이 설정되어야 합니다.&quot;,
+        &quot;removeCellImageSrc() 메소드는 Body Cell 의 inputType 속성값에 관계없이 동작해야 합니다.&quot;,
+        &quot;removeCellImageSrc() 메소드는 Body Cell 의 imageSrc 속성값을 제거하며 Column 단위의 imageSrc 속성값은 제거하지 않아야 합니다.&quot;
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 파라미터 기본 선택값 설정 (정적 select1 은 초기 selectedIndex 미적용)
+    par_rowIndex.setSelectedIndex(0);
+    par_columnInfo.setSelectedIndex(2);
+    par_imageSrc.setSelectedIndex(0);
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj(&quot;scwin&quot;).createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - Column 구성(정의 인덱스) : 0 name(text) / 1 hid(textImage+icon, 숨김) / 2 timg(textImage+icon, Column imageSrc 설정) / 3 timg2(textImage+icon, Column imageSrc 미설정)
+//    · 인덱스 1 을 setColumnVisible(1, false) 로 숨김 → 숨겨진 Column 도 인덱스에 포함되므로
+//      화면상 두번째로 보이는 timg 의 Column 인덱스는 2 가 됨
+//    · comp_init 에서 Column 1/2/3 의 모든 Row 에 Body Cell imageSrc 를 미리 설정 → 제거 대상 확보
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove(&quot;dlt_bind&quot;);
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label=&quot;[전제] Column 구성(인덱스) : 0 = name(text) / 1 = hid(textImage+icon, setColumnVisible 로 숨김) / 2 = timg(textImage+icon, Column imageSrc = /cm/images/base/ico_grid_del.svg 설정) / 3 = timg2(textImage+icon, Column imageSrc 미설정)\n[전제] Target 재생성 시 Column 1 / 2 / 3 의 모든 Row 에 Body Cell imageSrc = /cm/images/base/ico_grid_add.svg 가 setCellImageSrc 로 미리 설정됩니다.\n[절차] rowIndex 와 columnInfo 를 선택하고 removeCellImageSrc 버튼을 클릭하세요. 다시 제거 대상을 만들려면 imageSrc 를 선택하고 setCellImageSrc 버튼을 클릭하세요.\n[확인] 결과창의 반환값 / 제거 후 getCellImageSrc / Cell 이미지 경로 와 그리드 화면의 아이콘 표시를 비교하세요. rowIndex = 99 와 columnInfo = 99 는 유효하지 않은 파라미터 확인용입니다.&quot;', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    let strDlt = '';
+    strDlt += '&lt;w2:dataList ' + strNameSpace + ' id=&quot;dlt_bind&quot; baseNode=&quot;list&quot; repeatNode=&quot;map&quot;&gt;';
+    strDlt += '&lt;w2:columnInfo&gt;';
+    strDlt += '&lt;w2:column id=&quot;name&quot; name=&quot;name&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;hid&quot; name=&quot;hid&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;timg&quot; name=&quot;timg&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;w2:column id=&quot;timg2&quot; name=&quot;timg2&quot; dataType=&quot;text&quot;&gt;&lt;/w2:column&gt;';
+    strDlt += '&lt;/w2:columnInfo&gt;';
+    strDlt += '&lt;w2:data use=&quot;true&quot;&gt;&lt;/w2:data&gt;';
+    strDlt += '&lt;/w2:dataList&gt;';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { &quot;name&quot;: &quot;John&quot;, &quot;hid&quot;: &quot;H0&quot;, &quot;timg&quot;: &quot;수정&quot;, &quot;timg2&quot;: &quot;보기&quot; },
+        { &quot;name&quot;: &quot;Jane&quot;, &quot;hid&quot;: &quot;H1&quot;, &quot;timg&quot;: &quot;수정&quot;, &quot;timg2&quot;: &quot;보기&quot; },
+        { &quot;name&quot;: &quot;Mike&quot;, &quot;hid&quot;: &quot;H2&quot;, &quot;timg&quot;: &quot;수정&quot;, &quot;timg2&quot;: &quot;보기&quot; },
+        { &quot;name&quot;: &quot;Amy&quot;,  &quot;hid&quot;: &quot;H3&quot;, &quot;timg&quot;: &quot;수정&quot;, &quot;timg2&quot;: &quot;보기&quot; }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성
+    let strTarget = '';
+    strTarget += '&lt;w2:gridView ' + strNameSpace + ' dataList=&quot;data:dlt_bind&quot; id=&quot;&quot; style=&quot;width:640px;height:220px;&quot;&gt;';
+    strTarget += '&lt;w2:caption style=&quot;&quot; id=&quot;caption1&quot; value=&quot;removeCellImageSrc test grid&quot;&gt;&lt;/w2:caption&gt;';
+    strTarget += '&lt;w2:header style=&quot;&quot; id=&quot;header1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;row1&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;150&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol1&quot; value=&quot;name (0, text)&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol2&quot; value=&quot;hid (1, 숨김)&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;200&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol3&quot; value=&quot;timg (2, Column imageSrc 설정)&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;hcol4&quot; value=&quot;timg2 (3, Column imageSrc 미설정)&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:header&gt;';
+    strTarget += '&lt;w2:gBody style=&quot;&quot; id=&quot;gBody1&quot;&gt;';
+    strTarget += '&lt;w2:row style=&quot;&quot; id=&quot;row2&quot;&gt;';
+    strTarget += '&lt;w2:column width=&quot;150&quot; style=&quot;&quot; inputType=&quot;text&quot; id=&quot;name&quot; dataList=&quot;name&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;120&quot; style=&quot;&quot; inputType=&quot;textImage&quot; viewType=&quot;icon&quot; id=&quot;hid&quot; dataList=&quot;hid&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;200&quot; style=&quot;&quot; inputType=&quot;textImage&quot; viewType=&quot;icon&quot; imageSrc=&quot;/cm/images/base/ico_grid_del.svg&quot; id=&quot;timg&quot; dataList=&quot;timg&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;w2:column width=&quot;*&quot; style=&quot;&quot; inputType=&quot;textImage&quot; viewType=&quot;icon&quot; id=&quot;timg2&quot; dataList=&quot;timg2&quot;&gt;&lt;/w2:column&gt;';
+    strTarget += '&lt;/w2:row&gt;';
+    strTarget += '&lt;/w2:gBody&gt;';
+    strTarget += '&lt;/w2:gridView&gt;';
+
+    scwin.target1 = await $p.dynamicCreate(
+        &quot;target1&quot;,
+        &quot;gridView&quot;,
+        strTarget,
+        grp_comp
+    );
+
+    // 인덱스 1 (hid) 숨김 → 숨겨진 Column 도 인덱스에 포함됨을 검증
+    target1.setColumnVisible(1, false);
+
+    // 제거 대상 확보 : textImage Column(1, 2, 3) 의 모든 Row 에 Body Cell imageSrc 설정
+    for (let r = 0; r &lt; 4; r++) {
+        target1.setCellImageSrc(r, 1, &quot;/cm/images/base/ico_grid_add.svg&quot;);
+        target1.setCellImageSrc(r, 2, &quot;/cm/images/base/ico_grid_add.svg&quot;);
+        target1.setCellImageSrc(r, 3, &quot;/cm/images/base/ico_grid_add.svg&quot;);
+    }
+}
+
+
+
+// 반환값을 undefined / ''(Empty String) / 일반 문자열이 구분되도록 표기
+scwin.fmtReturn = function (value) {
+    if (value === undefined) {
+        return &quot;undefined (설정된 값 없음)&quot;;
+    }
+    if (value === null) {
+        return &quot;null&quot;;
+    }
+    if (typeof value === &quot;string&quot;) {
+        return (value === &quot;&quot;) ? &quot;'' (Empty String)&quot; : &quot;'&quot; + value + &quot;'&quot;;
+    }
+    return String(value);
+}
+
+
+
+// Cell 에 실제 표시된 이미지 경로 확인
+scwin.getCellImgSrc = function (rowIndex, colIndex) {
+    let cellEl = document.querySelector(&quot;td[id*='target1_cell_&quot; + rowIndex + &quot;_&quot; + colIndex + &quot;']&quot;);
+    if (!cellEl) {
+        return &quot;(Cell 없음)&quot;;
+    }
+    let imgEl = cellEl.querySelector(&quot;img&quot;);
+    if (!imgEl || !imgEl.getAttribute(&quot;src&quot;)) {
+        return &quot;(이미지 미표시)&quot;;
+    }
+    return imgEl.getAttribute(&quot;src&quot;);
+}
+
+
+
+// Cell 에 실제 렌더된 텍스트 확인 (DataList 바인딩 정상 여부)
+scwin.getCellText = function (rowIndex, colIndex) {
+    let cellEl = document.querySelector(&quot;td[id*='target1_cell_&quot; + rowIndex + &quot;_&quot; + colIndex + &quot;']&quot;);
+    if (!cellEl) {
+        return &quot;(Cell 없음)&quot;;
+    }
+    return &quot;'&quot; + cellEl.textContent.trim() + &quot;'&quot;;
+}
+
+
+
+// removeCellImageSrc : 검증 대상 API
+scwin.btn_removeCellImageSrc_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getText());
+    let columnInfo = Number(par_columnInfo.getText());
+
+    // 동일 Column 의 다른 Row (Column 단위 imageSrc 유지 확인용)
+    let otherRow = (rowIndex === 3) ? 0 : 3;
+
+    let rtn = target1.removeCellImageSrc(rowIndex, columnInfo);
+
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;removeCellImageSrc(&quot; + rowIndex + &quot;, &quot; + columnInfo + &quot;) : &quot; + rtn);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;제거 후 getCellImageSrc(&quot; + rowIndex + &quot;, &quot; + columnInfo + &quot;) : &quot; + scwin.fmtReturn(target1.getCellImageSrc(rowIndex, columnInfo)));
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;제거 후 Cell 이미지 경로 : &quot; + scwin.getCellImgSrc(rowIndex, columnInfo));
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;동일 Column 미제거 Row &quot; + otherRow + &quot; 의 Cell 이미지 경로 : &quot; + scwin.getCellImgSrc(otherRow, columnInfo));
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;제거 후 Cell 텍스트 : &quot; + scwin.getCellText(rowIndex, columnInfo));
+}
+
+
+
+// setCellImageSrc : removeCellImageSrc 의 제거 대상을 다시 만들기 위한 전제 설정용
+scwin.btn_setCellImageSrc_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getText());
+    let columnInfo = Number(par_columnInfo.getText());
+    let imageSrc = par_imageSrc.getText();
+
+    let rtn = target1.setCellImageSrc(rowIndex, columnInfo, imageSrc);
+
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[전제 설정] setCellImageSrc(&quot; + rowIndex + &quot;, &quot; + columnInfo + &quot;, '&quot; + imageSrc + &quot;') : &quot; + rtn);
+    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;[전제 설정] Cell 이미지 경로 : &quot; + scwin.getCellImgSrc(rowIndex, columnInfo));
+}</script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[99]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[99]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="imageSrc" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_imageSrc" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[/cm/images/base/ico_grid_add.svg]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/cm/images/base/ico_fav_on.svg]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/img/png.png]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/img/gif.gif]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_removeCellImageSrc_onclick" id="btn_removeCellImageSrc"
+							label="removeCellImageSrc(rowIndex, columnInfo)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellImageSrc_onclick" id="btn_setCellImageSrc"
+							label="setCellImageSrc(rowIndex, columnInfo, imageSrc)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
