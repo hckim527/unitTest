@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > groupby]<br/>Body Column 을 기준으로 데이터를 그룹핑하여 Group Header/Footer 함께 표시합니다.",
+    "validation" : [
+        "closeGroup(선택) 에 true 설정 시, 마지막 그룹에서 실제 데이터를 표시하지 않고 접습니다.",
+        "closeGroup(선택) 에 false 설정 시, 마지막 그룹에서 실제 데이터를 펼쳐서 모두 표시합니다.",
+        "closeGroup(선택) 미설정 시, 마지막 그룹에서 실제 데이터를 펼쳐서 모두 표시합니다. (기본값 false)",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 정적 select1 기본값 명시 설정 (초기 selectedIndex 미적용 회피) - closeGroup 미설정(코드값 1)
+    par_closeGroup.setValue("1");
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼/데이터 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column 0:지역 1:부서 2:등급 3:점수, 부서(1) 단일 그룹핑(개발/기획/영업). groupbyHeader 만 사용(토글+그룹명), Footer 미사용(hideFooter=true)로 Header + 데이터만 표시 → Footer 없이 closeGroup 접힘/펼침을 데이터 Row 로 관측.\n[절차] closeGroup 선택 후 [groupby 실행].\n[확인] closeGroup=true → 최하위 그룹 데이터 접힘(데이터 Row 0, Group Header 만) / false·미설정 → 펼침(데이터 Row 6 전체). 데이터 Row 개수(DOM)로 관측."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id) (_1~_3 통일 데이터)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 그룹핑 검증용 데이터 (_1~_3 와 통일) : 부서(dept) 기준 3 그룹 (개발 3행 / 기획 1행 / 영업 2행) → 데이터 Row 6개
+    let jsonData = [
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 60 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼) - Header + 데이터 Row 가 모두 렌더되도록 height 넉넉히 (Header3 + 데이터6 = 9 Row)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:600px;height:500px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="groupby closeGroup 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 초기 표시 : closeGroup 미설정(생략, 기본 false = 펼침) 으로 그룹핑
+    scwin._applyGroupby(undefined);
+}
+
+
+
+// groupby 옵션 구성/실행 (공통) - closeGroup 전용 샘플
+//  - closeGroupVal : undefined(생략, 기본 false) / true / false
+//  ※ groupbyFooter 는 설정하지 않고 groupbyHeader 만 사용. hideFooter=true 로 빈 Footer Row 도 숨겨 Header + 데이터만 표시.
+//     (hideFooter 자체의 검증은 _1 담당 → 여기서는 closeGroup 관측을 위한 화면 정리용 설정일 뿐 validation 미추가)
+scwin._applyGroupby = function (closeGroupVal) {
+    let options = {
+        sortIndex: [1],   // 부서(dept) 기준 단일 그룹핑
+        sortOrder: [1],   // 오름차순
+        hideFooter: true, // Footer 미사용 (Header + 데이터만) - closeGroup 관측용 화면 정리
+        groupbyHeader: [
+            { inputType: "toggleButton", depthVisible: true, colSpan: 3, align: "left" },  // 앞 3칸 : 토글 + 그룹명
+            { value: "", align: "right" }
+        ]
+    };
+    // closeGroup 은 필수여부 N → 미설정 시 옵션 키 자체를 생략(기본값 false 동작)
+    if (closeGroupVal !== undefined) {
+        options.closeGroup = closeGroupVal;
+    }
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    target1.groupby(options);
+};
+
+
+
+// depth 계층 가시화 들여쓰기 : depth×2칸 순수 공백 (depth_0 은 0칸, 깊을수록 2칸씩 누적)
+scwin._depthMark = function (depth) {
+    return "  ".repeat(depth);
+};
+
+// 화면(tbody) 렌더 순서 그대로 각 Row 의 표시 텍스트 + 데이터/그룹 Row 수 실측
+//  - 각 Row = 표시 셀 텍스트를 " | " 로 이어붙이고 Row 는 "\n" 구분 (colSpan 누적으로 Body 컬럼 수(4) 도달 시 종료)
+//  - 숨김 filler Row(w2grid_hidedRow, display:none) 제외
+//  - depth 계층 : Group Header 행은 w2grid_groupby_depth_N 의 N, 데이터 행은 그룹 Depth 수(sortIndexArr.length) 기준 들여쓰기
+scwin._screen = function () {
+    let depthCount = (target1.groupbyStatus && target1.groupbyStatus.sortIndexArr) ? target1.groupbyStatus.sortIndexArr.length : 1;
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody ? tbody.querySelectorAll("tr") : [];
+    let screenLines = [];
+    let dataRows = 0, groupRows = 0;
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) {
+            continue;
+        }
+        let isGroup = tr.querySelector("td.w2grid_groupby") ? true : false;
+        if (isGroup) groupRows++; else dataRows++;
+        let cells = [];
+        let colAcc = 0;
+        let tdList = tr.querySelectorAll("td");
+        for (let k = 0; k < tdList.length && colAcc < 4; k++) {
+            let td = tdList[k];
+            if (td.style.display === "none") continue;
+            colAcc += parseInt(td.getAttribute("colSpan") || "1", 10);
+            cells.push((td.textContent || "").replace(/ /g, " ").trim());
+        }
+        let rowDepth = depthCount;
+        let gtd = tr.querySelector("td[class*='w2grid_groupby_depth_']");
+        if (gtd) {
+            let m = gtd.className.match(/w2grid_groupby_depth_(\d+)/);
+            if (m) rowDepth = parseInt(m[1], 10);
+        }
+        screenLines.push(scwin._depthMark(rowDepth) + cells.join(" | "));
+    }
+    return { screenLines: screenLines, dataRows: dataRows, groupRows: groupRows };
+};
+
+
+
+// [groupby 실행] closeGroup(par) 적용 후 데이터 Row 접힘/펼침 실측
+scwin.btn_groupby_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let txt = par_closeGroup.getText();   // gdl_boolean : 미설정('') / 'true' / 'false'
+    let cg = undefined, applied = "미설정(생략, 기본 false)";
+    if (txt === "true") { cg = true; applied = "true"; }
+    else if (txt === "false") { cg = false; applied = "false"; }
+
+    scwin._applyGroupby(cg);
+    let s = scwin._screen();
+
+    // 출력 : closeGroup 적용값 + 데이터 Row 수(접힘/펼침) + 화면 표시 순서(Group Header + 데이터)
+    //  - closeGroup=true → 최하위 그룹 데이터 접힘(데이터 Row 0, Group Header 만 표시)
+    //  - false/미설정 → 펼침(데이터 Row 6 전체 표시)
+    let out = "[적용] closeGroup=" + applied
+        + " | 데이터 Row수=" + s.dataRows + (s.dataRows === 0 ? " (최하위 그룹 접힘 : Group Header 만)" : " (펼침 : 데이터 전체 표시)")
+        + " | Group Header Row수=" + s.groupRows
+        + "\n[화면 표시 순서]\n" + (s.screenLines.length ? s.screenLines.join("\n") : "(표시 Row 없음)");
+    b.setReturnValue(out);
+};
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 순수 공백 들여쓰기가 안 보이던 문제 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="closeGroup" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_closeGroup" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="groupby 실행" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

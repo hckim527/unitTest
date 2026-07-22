@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > groupby]<br/>Body Column 을 기준으로 데이터를 그룹핑하여 Group Header/Footer 함께 표시합니다.",
+    "validation" : [
+        "groupbyFooter(선택) 파라미터로 Group Footer 의 Row 가 구성되는 옵션값을 객체 배열로 설정 시, 모든 Group Depth 에 동일한 형식이 적용됩니다.",
+        "groupbyFooter(선택) 파라미터의 하위 파라미터 구조는 groupbyHeader 파라미터와 동일합니다. (colSpan/inputType/depthVisible/expression/value/align/className)",
+        "groupbyFooter(선택) 미설정 시, Group Footer 는 빈 Row 로 표시됩니다. (기본값 undefined)",
+        "Group Footer 엔 Group 토글 버튼이 표시되어도 클릭 시 접기/펼치기가 동작하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기) - 내부에서 groupbyFooter(객체배열) 초기 적용
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 초기 groupby 적용 상태를 결과창에 자동 출력 (버튼 클릭 없이도 Footer 2단계+회색+화면순서 표시)
+    scwin._outputCurrent();
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼/데이터 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column 0:지역 1:부서 2:등급 3:점수, 지역(0) 다중 그룹핑 부서(1) (2 Depth). groupbyFooter 는 객체 배열(실사용 SubTotal) 형식이라 모든 depth 에 동일 적용 → Footer 2단계(depth_1 부서 소계 + depth_0 지역 소계, depth 들여쓰기로 계층 구분). 각 Footer 셀은 회색 배경(grp_footer_cell)으로 Header 와 구분. 초기 로딩부터 groupbyFooter 적용 상태로 표시(Footer 항상 펼침).\n[절차] 초기 화면에서 Footer 2단계+회색 배경 확인. [groupbyFooter 미설정] 버튼은 빈 Footer 확인. Group Footer 의 토글 버튼(+/-)을 직접 클릭하여 확인.\n[확인] (1) Footer 2단계(그룹명 소계 | 점수합계) + 회색 배경. (2) Group Footer 의 토글 버튼을 직접 클릭 → 데이터 Row 불변(미동작). 대조로 Group Header 의 토글 버튼을 클릭 → 데이터 Row 접힘(정상 동작)."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 그룹핑 검증용 데이터 (_1~_3 와 통일) : 부서(dept) 기준 3 그룹
+    //  - 개발 3행(20+10+30=60) / 기획 1행(60) / 영업 2행(40+50=90) → 데이터 Row 6개, 그룹별 점수 소계가 Footer 에 표시됨
+    let jsonData = [
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 60 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼) - 다중 Depth 그룹핑 시 Header/데이터/Footer Row 가 모두 렌더되도록 height 넉넉히 지정
+    // (펼침 케이스: 지역>부서 2 Depth → Header5 + 데이터6 + Footer5 ≈ 18 Row → 가상 스크롤로 미렌더되지 않게 충분히 확보)
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:600px;height:760px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="groupbyFooter(2단계 SubTotal) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 초기 표시 : groupbyFooter(객체배열)+Footer 토글버튼 포함 그룹핑 (Footer 는 항상 펼침 상태로 표시)
+    scwin._applyGroupby(true);
+}
+
+
+
+// groupby 옵션 구성/실행 (공통)
+//  - includeFooter : true 면 groupbyFooter(객체배열) 포함, false 면 생략(빈 Footer)
+//  ※ closeGroup 파라미터는 _7(closeGroup 전용 샘플) 담당 → 이 샘플에서는 다루지 않음(Footer 항상 펼침 상태)
+scwin._applyGroupby = function (includeFooter) {
+    let options = {
+        sortIndex: [0, 1],   // 지역(0) > 부서(1) 다중 그룹핑 (2 Depth) → Footer 가 부서 소계(depth_1) + 지역 소계(depth_0) 2단계로 렌더
+        sortOrder: [1, 1],   // 지역/부서 모두 오름차순
+        groupbyHeader: [
+            { inputType: "toggleButton", depthVisible: true, colSpan: 3, align: "left" },  // 앞 3칸 : 토글 + 그룹명
+            { value: "", align: "right" }
+        ]
+    };
+    // groupbyFooter : 객체 배열 형식 → 모든 Group Depth 에 동일 적용(= _4 담당). depth 별 다른 라벨은 객체(depth_{n}) 형식이며 그건 _6 담당 →
+    //  여기선 객체 배열이라 depth_0/depth_1 에 동일 " 소계" 라벨이 적용되고, 계층 구분은 depth 들여쓰기(화면 표시 순서)로 표현.
+    //  실사용 SubTotal Footer 형태로 구성 :
+    //   - col0(colSpan 3) : 토글버튼(@spec2 검증 대상) + 그룹명(depthVisible) + " 소계" 라벨(value)  ← 앞 3칸 병합
+    //   - 점수 칸        : sum('score') 로 그룹별 실제 점수 합계값 표시  ← 실사용 형태 재현 (depth_1=부서 소계, depth_0=지역 소계)
+    //   - className     : "grp_footer_cell" → <head><style> 의 회색 배경 클래스 (Group Header 와 시각 구분)
+    //  ※ sum 집계 계산값의 정확성 validation 은 _3(expression 내부메소드) 담당. 여기서 sum 은 "실사용 형태 재현"이며 계산 검증 대상이 아님.
+    //  ※ 빈 칼럼용 {value:""} 요소를 두지 않음(2개 요소만) → colSpan 3 이 나머지 칸을 덮어 깔끔하게 표시.
+    if (includeFooter) {
+        options.groupbyFooter = [
+            { inputType: "toggleButton", depthVisible: true, value: " 소계", colSpan: 3, align: "left", className: "grp_footer_cell" },
+            { inputType: "expression", expression: "sum('score')", align: "right", className: "grp_footer_cell" }
+        ];
+    }
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    target1.groupby(options);
+};
+
+
+
+// 표시 Row 유형 실측 : 엔진 상태 배열(rowNumArr) 기준 ("header"/"footer"/숫자=데이터) + Footer 셀 표시 텍스트
+scwin._measure = function () {
+    let arr = target1.rowNumArr || [];
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody ? tbody.querySelectorAll("tr") : [];
+    // 화면에 실제 표시되는 Row 만 (숨김 filler Row 제외) → rowNumArr 와 순서 정렬
+    let visible = [];
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) continue;
+        visible.push(tr);
+    }
+    let d = 0, h = 0, f = 0;
+    let footerTexts = [];
+    for (let i = 0; i < arr.length; i++) {
+        let t = arr[i];
+        let tr = visible[i];
+        if (t === "header") {
+            h++;
+        } else if (t === "footer") {
+            f++;
+            if (tr) {
+                let cells = tr.querySelectorAll("td.w2grid_groupby");
+                let x = [];
+                cells.forEach(function (c) { let s = (c.textContent || "").trim(); if (s) x.push(s); });
+                footerTexts.push(x.length ? "(" + x.join(" | ") + ")" : "(빈 Row)");
+            }
+        } else {
+            d++;   // 숫자 = 데이터 Row
+        }
+    }
+    return { dataRows: d, headerRows: h, footerRows: f, footerTexts: footerTexts };
+};
+
+
+
+// depth 계층 가시화 들여쓰기 : depth×2칸 순수 공백 (depth_0 은 0칸, 깊을수록 2칸씩 누적) (_2 확정 방식 이식)
+//  결과 출력영역을 left 정렬(<style> 에서 지정)로 고정했으므로 순수 공백 들여쓰기가 그대로 보인다. 마커 없이 순수 공백만 사용.
+scwin._depthMark = function (depth) {
+    return "  ".repeat(depth);
+};
+
+// 화면(tbody) 렌더 순서 그대로 각 Row 의 표시 텍스트 + 데이터/그룹 Row 수 실측 (_1 과 동일한 출력 방식)
+//  - 접두어([H]/[F]) 없이, 각 Row = 표시 셀 텍스트를 " | " 로 이어붙이고 Row 는 "\n" 구분
+//  - colSpan 을 누적해 Body 컬럼 수(4)에 도달하면 종료 → phantom 빈 td 는 제외
+//  - 숨김 filler Row(w2grid_hidedRow, display:none) 는 제외
+//  - depth 계층 시각화 : Group Header 행은 td 의 w2grid_groupby_depth_N 에서 depth 추출, 그 외(데이터/Footer) 행은
+//    그룹 depth 수(단일 그룹핑=1) 기준으로 _depthMark(depth) 순수 공백 들여쓰기(표현만, 셀 실측값은 그대로) (_2 확정 방식 이식)
+scwin._screen = function () {
+    // 데이터 행 들여쓰기 기준 = 그룹 Depth 수(sortIndexArr.length). 다중 그룹핑(지역>부서)이면 2 → 데이터는 최하위 depth 로 들여쓰기
+    let depthCount = (target1.groupbyStatus && target1.groupbyStatus.sortIndexArr) ? target1.groupbyStatus.sortIndexArr.length : 1;
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody ? tbody.querySelectorAll("tr") : [];
+    let screenLines = [];
+    let dataRows = 0, groupRows = 0;
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) {
+            continue;
+        }
+        let isGroup = tr.querySelector("td.w2grid_groupby") ? true : false;
+        if (isGroup) groupRows++; else dataRows++;
+        let cells = [];
+        let colAcc = 0;
+        let tdList = tr.querySelectorAll("td");
+        for (let k = 0; k < tdList.length && colAcc < 4; k++) {
+            let td = tdList[k];
+            if (td.style.display === "none") continue;
+            colAcc += parseInt(td.getAttribute("colSpan") || "1", 10);
+            cells.push((td.textContent || "").replace(/ /g, " ").trim());
+        }
+        // 행 depth 판정 : Group Header td(w2grid_groupby_depth_N) 있으면 그 N, 없으면 데이터/Footer 행 → depthCount
+        let rowDepth = depthCount;
+        let gtd = tr.querySelector("td[class*='w2grid_groupby_depth_']");
+        if (gtd) {
+            let m = gtd.className.match(/w2grid_groupby_depth_(\d+)/);
+            if (m) rowDepth = parseInt(m[1], 10);
+        }
+        screenLines.push(scwin._depthMark(rowDepth) + cells.join(" | "));
+    }
+    return { screenLines: screenLines, dataRows: dataRows, groupRows: groupRows };
+};
+
+
+
+// 현재 groupbyFooter 적용 상태를 결과창에 출력 (초기 로드/재적용 공통) - Footer 2단계 소계 + 회색 배경 + 화면 표시 순서
+scwin._outputCurrent = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    let m = scwin._measure();
+    let s = scwin._screen();
+    // (배경 구분은 화면으로 직접 보이므로 출력 텍스트엔 표기하지 않음. Footer 회색 배경 CSS 는 그대로 유지)
+    let out = "[초기 표시] groupbyFooter(객체배열, 실사용 SubTotal) 적용 상태 — Footer 항상 펼침"
+        + " | 데이터 Row수=" + s.dataRows
+        + " | Group Footer Row수=" + m.footerRows + " (부서 소계 + 지역 소계 2단계)"
+        + "\n[화면 표시 순서]\n" + (s.screenLines.length ? s.screenLines.join("\n") : "(표시 Row 없음)");
+    b.setReturnValue(out);
+};
+
+
+
+// [groupbyFooter 미설정] 파라미터 생략 시 Footer 가 빈 Row 로 표시되는지 확인
+scwin.btn_noFooter_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    scwin._applyGroupby(false);   // groupbyFooter 생략
+    let m = scwin._measure();
+    let s = scwin._screen();
+
+    // 출력 : Footer Row 는 표시되나 셀 값이 없어 빈 Row 로 나타남 → 화면 표시 순서에서 빈 Footer Row 로 확인 (_1 통일)
+    let out = "[적용] groupbyFooter 미설정"
+        + " | 데이터 Row수=" + s.dataRows
+        + " | Group Footer Row수=" + m.footerRows + " (빈 Row 로 표시)"
+        + "\n[화면 표시 순서]\n" + (s.screenLines.length ? s.screenLines.join("\n") : "(표시 Row 없음)");
+    b.setReturnValue(out);
+};
+
+
+
+
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 순수 공백 들여쓰기가 안 보이던 문제 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+/* Group Footer 셀 회색 배경 → Group Header(기본 흰색)와 시각 구분. groupbyFooter 각 항목 className:"grp_footer_cell" + 엔진이 붙이는 w2grid_groupby_depth_N 조합 셀렉터로 depth 별 배경을 다르게 지정 (객체 배열 유지, depth 별 옵션 분기 아님) */
+.grp_footer_cell.w2grid_groupby_depth_1 { background-color: rgb(230,230,230) !important; }  /* 부서 소계(하위 depth) : 연회색 */
+.grp_footer_cell.w2grid_groupby_depth_0 { background-color: rgb(200,200,200) !important; }  /* 지역 소계(상위 depth) : 진회색 */
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_noFooter_onclick" id="btn_noFooter" label="groupbyFooter 미설정" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

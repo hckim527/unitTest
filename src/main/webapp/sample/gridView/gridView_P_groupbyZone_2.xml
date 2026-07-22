@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyZone" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  분리 초점 : columnMove=true 이면 GroupBy Zone 이 표시되어도 Zone 으로 Drag&Drop 할 수 없고 ongroupby 도 발생하지 않음
+//  (columnMove 우선 → 헤더 드래그는 컬럼 순서이동으로 동작, 그룹핑/ongroupby 는 미동작)
+scwin.tData = {
+    "description" : "[gridView > P > groupbyZone]<br/>GridView 컴포넌트의 상단에 GroupBy Zone 을 표시할지 설정합니다.",
+    "validation" : [
+        "columnMove=true 이면 GroupBy Zone 이 표시되어도 GroupBy 영역으로 Column 을 Drag&Drop 할 수 없으며 ongroupby 이벤트도 발생하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    scwin.comp_init();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : groupbyZone=true + columnMove=true 고정
+//  - columnMove 가 우선하여 헤더 드래그는 컬럼 순서이동으로 동작하고, GroupBy Zone 으로의 그룹핑/ongroupby 는 발생하지 않음
+scwin.comp_init = async function () {
+    if (typeof dlt_bind !== 'undefined') { $p.data.remove("dlt_bind"); }
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+
+    scwin._ongroupbyCount = 0;   // ongroupby 발생 횟수(미발생=0 기대)
+
+    $c.gcm.createLabel('label="[전제] groupbyZone=true + columnMove=true 고정 (Zone 표시됨)\n[절차] 헤더(지역/부서 등)를 상단 GroupBy Zone 으로 드래그앤드롭 시도\n[확인] [그룹핑 확인] 클릭 → columnMove 우선으로 그룹핑 미적용/ongroupby 발생 X, 헤더 드래그는 컬럼 표시 순서 이동으로 동작"', '', 'label1');
+
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    await scwin.createGridView();
+}
+
+
+
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성 (groupbyZone=true, columnMove=true 고정 + ongroupby 핸들러)
+scwin.createGridView = async function () {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let cList = $c.gcm.createCList({ groupbyZone: true, columnMove: true });
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:560px;height:300px;">';
+    s += '<w2:caption style="" id="caption1" value="groupbyZone + columnMove 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="상세"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column3" value="구분"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// ongroupby : columnMove=true 이면 발생하지 않아야 함 → 발생 시 카운트(0 기대)
+scwin.target1_ongroupby = function (options) {
+    scwin._ongroupbyCount++;
+    options.hideFooter = true;
+    target1.groupby(options);
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] (columnMove=true 인데 발생함)");
+}
+
+
+
+// depth 계층 가시화 들여쓰기 : depth×2칸 순수 공백 (depth_0 은 0칸, 깊을수록 2칸씩 누적)
+scwin._depthMark = function (depth) {
+    return "  ".repeat(depth);
+};
+
+
+
+// 그룹핑 확인 : 현재 그리드에 표시되는 값을 화면 순서(위→아래) 그대로 출력 (_1 과 동일 포맷)
+//  - columnMove=true 이면 Zone 으로 드래그해도 그룹핑되지 않으므로 화면 순서는 평평한 데이터 순서 그대로 유지됨
+//  - 그룹핑되었다면 그룹행/데이터행이 depth 들여쓰기로 표시됨 (본 초점에서는 미발생 기대)
+scwin.btn_check_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let colCnt = 4;   // Body 컬럼 수(col1~col4)
+    let depthCount = (target1.groupbyStatus && target1.groupbyStatus.sortIndexArr)
+        ? target1.groupbyStatus.sortIndexArr.length : 0;
+
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody ? tbody.querySelectorAll("tr") : [];
+    let screenLines = [];
+
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        // 숨김 filler Row (w2grid_hidedRow, display:none) → 제외
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) {
+            continue;
+        }
+        // colSpan 을 누적해 컬럼 수 도달 시 종료(phantom 빈 td 제외)
+        let cells = [];
+        let colAcc = 0;
+        let tdList = tr.querySelectorAll("td");
+        for (let k = 0; k < tdList.length && colAcc < colCnt; k++) {
+            let td = tdList[k];
+            if (td.style.display === "none") continue;
+            colAcc += parseInt(td.getAttribute("colSpan") || "1", 10);
+            cells.push((td.textContent || "").replace(/ /g, " ").trim());
+        }
+        // 행 depth : 그룹 td(w2grid_groupby_depth_N) 있으면 그 N, 없으면 데이터 행 → depthCount
+        let rowDepth = depthCount;
+        let gtd = tr.querySelector("td[class*='w2grid_groupby_depth_']");
+        if (gtd) {
+            let m = gtd.className.match(/w2grid_groupby_depth_(\d+)/);
+            if (m) rowDepth = parseInt(m[1], 10);
+        }
+        screenLines.push(scwin._depthMark(rowDepth) + cells.join(" | "));
+    }
+
+    bottom.setReturnValue("[화면 표시 순서]\n" + (screenLines.length ? screenLines.join("\n") : "(표시 Row 없음)"));
+}]]></script>
+		<style type="text/css"><![CDATA[
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="그룹핑 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

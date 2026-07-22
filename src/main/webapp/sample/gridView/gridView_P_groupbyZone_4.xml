@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyZone" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  분리 초점 : GroupBy Zone 에 그룹으로 설정된 Column 의 순서를 Drag&Drop 으로 재조정할 수 있음
+scwin.tData = {
+    "description" : "[gridView > P > groupbyZone]<br/>GridView 컴포넌트의 상단에 GroupBy Zone 을 표시할지 설정합니다.",
+    "validation" : [
+        "GroupBy Zone 에 그룹으로 설정된 Column 의 순서를 Drag&Drop 으로 재조정할 수 있습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    scwin.comp_init();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.comp_init = async function () {
+    if (typeof dlt_bind !== 'undefined') { $p.data.remove("dlt_bind"); }
+    if (typeof target1 !== 'undefined') { target1.remove(); }
+
+    $c.gcm.createLabel('label="[전제] groupbyZone=true (Zone 표시됨)\n[절차] (1) 지역 헤더를 Zone 으로 드래그 (2) 부서 헤더를 Zone 으로 드래그 (3) Zone 의 부서를 드래그하여 지역과 순서 변경\n[확인] [그룹 순서 확인] 클릭 → 순서가 바뀜"', '', 'label1');
+
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    await scwin.createGridView();
+}
+
+
+
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "개발", col3: "A", col4: "100" },
+        { col1: "서울", col2: "영업", col3: "B", col4: "200" },
+        { col1: "부산", col2: "개발", col3: "C", col4: "300" },
+        { col1: "부산", col2: "영업", col3: "D", col4: "400" },
+        { col1: "서울", col2: "개발", col3: "E", col4: "500" },
+        { col1: "부산", col2: "영업", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+scwin.createGridView = async function () {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let cList = $c.gcm.createCList({ groupbyZone: true });
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:600px;height:460px;">';
+    s += '<w2:caption style="" id="caption1" value="groupbyZone 그룹 순서 재조정 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="부서"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column3" value="구분"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// ongroupby : 헤더를 Zone 으로 드래그할 때마다 발생 → 그룹 추가
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+    ];
+    options.hideFooter = true;
+    target1.groupby(options);
+}
+
+
+
+// 그룹 순서 확인 : Zone chip 순서(왼→오)와 그룹 기준 순서(sortIndex→헤더값)를 출력
+scwin.btn_checkOrder_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    // Zone 에 표시된 그룹 Column chip 순서(텍스트) — 재조정 전/후 순서 변화가 이 줄로 드러남
+    let chips = document.querySelectorAll(".w2grid_groupbyZone_column");
+    let chipTexts = [];
+    for (let i = 0; i < chips.length; i++) {
+        chipTexts.push((chips[i].textContent || "").replace(/ /g, " ").trim());
+    }
+
+    bottom.setReturnValue("[그룹 수] " + chipTexts.length + " (그룹 Column 을 2개 이상 만든 뒤 chip 을 드래그하여 순서 재조정)");
+    bottom.setReturnValue("[Zone chip 순서(왼→오)] " + (chipTexts.length ? chipTexts.join(" > ") : "(그룹 없음)"));
+}]]></script>
+		<style type="text/css"><![CDATA[
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkOrder_onclick" id="btn_checkOrder"
+							label="그룹 순서 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

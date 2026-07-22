@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > groupby]<br/>Body Column 을 기준으로 데이터를 그룹핑하여 Group Header/Footer 함께 표시합니다.",
+    "validation" : [
+        "groupby() 메소드 실행 시 기존 검색 상태가 모두 초기화 된 후 파라미터 설정에 맞게 GroupBy 기능이 적용됩니다.",
+        "groupby() 메소드 실행 시 기존 필터 상태가 모두 초기화 된 후 파라미터 설정에 맞게 GroupBy 기능이 적용됩니다.",
+        "groupby() 메소드 실행 시 기존 정렬 상태가 모두 초기화 된 후 파라미터 설정에 맞게 GroupBy 기능이 적용됩니다.",
+        "groupby() 메소드 실행 시 기존 포커스 상태가 모두 초기화 된 후 파라미터 설정에 맞게 GroupBy 기능이 적용됩니다.",
+        "GroupBy 기능이 적용되면 Header 클릭에 의한 정렬 기능이 동작하지 않습니다.",
+        "GroupBy 기능이 적용되면 기존에 설정한 Filter 기능이 동작하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 고정속성 sortable=true, sortEvent=ondblclick 그리드\n[절차] (1) [상태 설정] : 검색/필터/정렬(점수헤더 더블클릭)/포커스 상태 생성 (2) [groupby 실행] : 기존 상태 초기화 + 그룹 상태 필터 미동작 확인 (3) 그리드 Header 를 직접 더블클릭\n[확인] before/after 실측으로 정렬/포커스/표시행수 초기화 관찰. Header 를 더블클릭하면 groupby 전에는 정렬되지만 groupby 후에는 정렬되지 않고 화면 순서가 그대로 출력됩니다 (Header 클릭 정렬 미동작)."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 30 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "부산", "dept": "개발", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "영업", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "개발", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "A", "score": 60 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼)
+    //  - 상태변화(정렬/필터) 검증 전제 속성을 고정으로 부여
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id=""';
+    strTarget += ' sortable="true" sortEvent="ondblclick"';
+    strTarget += ' style="width:640px;height:900px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="groupby 초기화/기능 미동작 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // Header 더블클릭 관찰 리스너 : 헤더 영역 더블클릭 시 화면 순서 출력 (사용자 직접 정렬 미동작 확인)
+    let headTable = document.getElementById(target1.id + "_head_table");
+    if (headTable) headTable.addEventListener("dblclick", scwin.onHeaderDblclick);
+}
+
+
+
+// 표시 중인 body Row 를 그룹Row(G)/데이터Row(D) 로 분류하여 개수/데이터순서 반환
+scwin.readRows = function () {
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody.querySelectorAll("tr");
+    let dataCnt = 0;
+    let groupCnt = 0;
+    let order = [];
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) continue;
+        if (tr.querySelector("td.w2grid_groupby")) {
+            groupCnt++;
+        } else {
+            dataCnt++;
+            // 점수(col 3) 표시값으로 데이터 순서 파악
+            let td = tr.querySelector("td[id*='_cell_'][id$='_3']");
+            order.push(td ? td.textContent : "?");
+        }
+    }
+    return { dataCnt: dataCnt, groupCnt: groupCnt, order: order.join(",") };
+}
+
+// 점수 헤더 더블클릭(정렬 트리거, sortEvent=ondblclick) : 실제 dblclick 이벤트 디스패치
+scwin.clickScoreHeader = function () {
+    let scoreTh = document.getElementById(target1.id + "_hcol4");
+    if (scoreTh) scoreTh.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window }));
+}
+
+// Header 더블클릭 관찰 핸들러 : 사용자가 헤더를 더블클릭한 시점의 화면 순서(셀 값)를 결과창에 출력
+//  - groupby 후에는 헤더 더블클릭해도 정렬되지 않아(정렬 미동작) 출력 순서가 groupby 순서 그대로 유지됨을 사용자가 직접 확인
+scwin.onHeaderDblclick = function () {
+    // 동일 더블클릭에 대해 이벤트가 중복 전달되는 경우 1회만 출력
+    let now = Date.now();
+    if (scwin._lastHdrDbl && (now - scwin._lastHdrDbl) < 150) return;
+    scwin._lastHdrDbl = now;
+    setTimeout(function () {
+        let grouped = !!(target1.groupbyStatus && target1.groupbyStatus.grouped);
+        let depthCount = (grouped && target1.groupbyStatus.sortIndexArr) ? target1.groupbyStatus.sortIndexArr.length : 1;
+        let sl = scwin.readScreenLines(depthCount);
+        let head = grouped
+            ? "[Header 더블클릭 관찰] 그룹 상태 : 헤더를 더블클릭해도 정렬되지 않고 화면 순서가 groupby 순서 그대로 유지됩니다 (Header 클릭 정렬 미동작)."
+            : "[Header 더블클릭 관찰] 그룹 아님 : 헤더 더블클릭으로 정렬이 적용됩니다.";
+        wf_body_bottom.getObj("scwin").setReturnValue(head + "\n[화면 표시 순서]\n" + (sl.length ? sl.join("\n") : "(표시 Row 없음)"));
+    }, 0);
+}
+
+// 현재 상태 실측 스냅샷
+scwin.readState = function () {
+    // 정렬 상태 : 사용자가 클릭 정렬한 컬럼(score) 이 headerSortStatusArr 에 남아있는지
+    //  (groupby 후 남는 grade 항목은 groupby 자체의 그룹정렬이므로 제외)
+    let userSorted = (target1.headerSortStatusArr || []).some(function (x) { return x.colID === "score"; });
+    let sorted = userSorted ? "정렬됨(점수 헤더)" : "정렬없음";
+    // 포커스 셀 : body 의 focusedTd 클래스 td 수
+    let body = document.getElementById(target1.id + "_body_tbody");
+    let focusCnt = body ? body.querySelectorAll("td.focusedTd").length : -1;
+    let rows = scwin.readRows();
+    return { sorted: sorted, focusCnt: focusCnt, dataCnt: rows.dataCnt, groupCnt: rows.groupCnt };
+}
+
+// depth 계층 가시화 들여쓰기 : depth×2칸 순수 공백 (depth_0 은 0칸, 깊을수록 2칸씩 누적)
+//  결과 출력영역을 left 정렬(<style> 에서 지정)로 고정했으므로 순수 공백 들여쓰기가 그대로 보인다.
+scwin._depthMark = function (depth) {
+    return "  ".repeat(depth);
+};
+
+// groupby 후 tbody 렌더 Row 를 화면 순서(위→아래) 그대로 순회하여 표시 텍스트 반환 (_1 출력 형식과 통일)
+//  - 각 Row = 표시 셀 textContent 를 " | " 로 이어붙임
+//  - colSpan 을 누적해 Body 컬럼 수(4) 에 도달하면 종료 → colSpan 뒤 phantom 빈 td 제외
+//  - 숨김 filler Row(w2grid_hidedRow / display:none) 제외 / nbsp(U+00A0)→공백 치환
+//  - depth 계층 시각화 : Group 행은 td 의 w2grid_groupby_depth_N 에서 depth 추출, 데이터 행은 그룹 depth 수(depthCount) 기준으로
+//    _depthMark(depth) 순수 공백 들여쓰기(표현만, 셀 실측값은 그대로)
+scwin.readScreenLines = function (depthCount) {
+    depthCount = depthCount || 1;   // 데이터 행 들여쓰기 기준(그룹 depth 수 = sortIndex 개수, 기본 1)
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody.querySelectorAll("tr");
+    let screenLines = [];
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) continue;
+        let gtd = tr.querySelector("td.w2grid_groupby");
+        if (gtd) {
+            // 그룹 행 : 그룹 셀 텍스트(그룹명) 만 출력, depth 는 w2grid_groupby_depth_N 에서 추출
+            let rowDepth = depthCount;
+            let dc = tr.querySelector("td[class*='w2grid_groupby_depth_']");
+            if (dc) {
+                let m = dc.className.match(/w2grid_groupby_depth_(\d+)/);
+                if (m) rowDepth = parseInt(m[1], 10);
+            }
+            screenLines.push(scwin._depthMark(rowDepth) + (gtd.textContent || "").replace(/ /g, " ").trim());
+        } else {
+            // 데이터 행 : 4개 Body 컬럼을 컬럼 id 접미사(_0.._3)로 직접 읽음(숨김 셀도 실제값 표시)
+            let cells = [];
+            for (let c = 0; c < 4; c++) {
+                let td = tr.querySelector("td[id*='_cell_'][id$='_" + c + "']");
+                cells.push(td ? (td.textContent || "").replace(/ /g, " ").trim() : "");
+            }
+            screenLines.push(scwin._depthMark(depthCount) + cells.join(" | "));
+        }
+    }
+    return screenLines;
+}
+
+
+
+// ① 상태 설정 : groupby 전에 검색/필터/정렬/포커스 상태를 만들어 둠
+scwin.btn_setStates_onclick = function () {
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    // 필터 : 지역=서울 (DataList 필터 -> 표시 행 감소)
+    dlt_bind.setColumnFilter(0, "서울", "=");
+    // 검색 : 부서에 개발 포함 (searchData 는 검색결과로 필터링)
+    target1.searchData({ column: "dept", data: "개발" });
+    // 정렬 : 점수 헤더를 실제 클릭 -> 헤더 클릭 정렬
+    scwin.clickScoreHeader();
+    // 포커스 : (0,0) 셀
+    target1.setFocusedCell(0, 0);
+
+    let s = scwin.readState();
+    let out = "[① 상태 설정 - groupby 전] 정렬=" + s.sorted
+        + " 포커스셀=" + s.focusCnt
+        + " 표시데이터행=" + s.dataCnt + " (필터/검색으로 감소)";
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+// ② groupby 실행 : 기존 상태(검색/필터/정렬/포커스) 초기화 + 그룹 상태에서 기존 Filter 미동작 확인
+scwin.btn_groupby_onclick = function () {
+    let before = scwin.readState();
+
+    // groupby 실행 (sortIndex/sortOrder 는 고정 : 등급(2) 오름차순)
+    //  groupbyHeader : 빈 Group Header 대신 토글버튼 + 그룹명(등급값) 최소 표시 (toggle()+depthStr())
+    let gbOptions = {
+        sortIndex: [2],
+        sortOrder: [1],
+        groupbyHeader: [
+            { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+        ]
+    };
+    target1.groupby(gbOptions);
+
+    let after = scwin.readState();
+
+    // 그룹 상태에서 기존 Filter 미동작 관측 : setColumnFilter 적용을 시도해도 표시행이 변하지 않음
+    let filterBefore = scwin.readRows().dataCnt;
+    dlt_bind.setColumnFilter(0, "서울", "=");
+    let filterAfter = scwin.readRows().dataCnt;
+    let filterResult = (filterBefore === filterAfter) ? "표시행 불변 (필터 미동작)" : "표시행 변함 (동작)";
+    dlt_bind.removeColumnFilter("region");
+
+    // groupby 후 그리드 상태를 화면 순서 텍스트로 병기 (_1 출력 형식과 통일)
+    let screenLines = scwin.readScreenLines(gbOptions.sortIndex.length);
+
+    let out = "[② groupby 실행 - 기존 상태 초기화 + 기존 Filter 미동작]"
+        + " 정렬 [" + before.sorted + "] -> [" + after.sorted + "] (정렬없음=초기화)"
+        + " | 포커스셀 " + before.focusCnt + "->" + after.focusCnt + " (0=초기화)"
+        + " | 표시데이터행 " + before.dataCnt + "->" + after.dataCnt + " (6=검색/필터 초기화, 전체표시)"
+        + " | GroupRow수=" + after.groupCnt + " (그룹핑 적용)"
+        + " | 그룹 상태 필터 적용 시도(지역=서울): " + filterBefore + "->" + filterAfter + " (" + filterResult + ")"
+        + "\n[안내] 이후 그리드의 Header 를 더블클릭하면 정렬되지 않고 화면 순서가 그대로 출력됩니다 (Header 클릭 정렬 미동작)."
+        + "\n[화면 표시 순서]\n" + (screenLines.length ? screenLines.join("\n") : "(표시 Row 없음)");
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 순수 공백 들여쓰기가 안 보이던 문제 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setStates_onclick" id="btn_setStates"
+							label="① 상태 설정 (검색/필터/정렬/포커스)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby"
+							label="② groupby 실행 (초기화 + 필터 미동작 확인)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

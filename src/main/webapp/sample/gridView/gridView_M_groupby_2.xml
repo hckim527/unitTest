@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ※ 본 샘플(_2)은 groupbyHeader 를 "객체 배열" 형식(= 모든 Group Depth 에 동일 적용)으로 설정할 때
+//    하위 파라미터(inputType/depthVisible/colSpan/align/className/value)가 Group Header Row 의 td 에 어떻게 반영되는지 검증한다.
+scwin.tData = {
+    "description" : "[gridView > M > groupby]<br/>Body Column 을 기준으로 데이터를 그룹핑하여 Group Header/Footer 함께 표시합니다.",
+    "validation" : [
+        "groupbyHeader(선택) 파라미터를 객체 배열로 설정 시, 모든 Group Depth 에 동일하게 적용됩니다.",
+        "inputType 파라미터를 'toggleButton' 으로 설정 시, Group Depth 에 맞게 들여쓰기가 적용된 Group 토글 버튼이 표시되며 depthVisible, colSpan, className 등의 파라미터가 적용됩니다.",
+        "inputType 파라미터를 'expression' 으로 설정 시, Column 의 표시 형식을 자유롭게 설정하며 expression, value, colSpan, className 등의 파라미터가 적용됩니다.",
+        "inputType 파라미터 미설정 시, 별도 표시 유형이 적용되지 않습니다.",
+        "depthVisible(선택) 파라미터를 true 로 설정 시(inputType='toggleButton'), 현재 Depth 의 그룹 기준이 되는 데이터값을 표시하며 Depth 구분자로 ' - ' 문자가 적용됩니다.",
+        "depthVisible(선택) 파라미터를 false 로 설정 시, 그룹 기준이 되는 데이터값을 표시하지 않습니다.",
+        "depthVisible(선택) 파라미터 미설정 시, 기본값 false 로 동작하여 그룹 기준이 되는 데이터값을 표시하지 않습니다.",
+        "colSpan(선택) 파라미터로 현재 Group Header Column 부터 병합할 Column 수를 설정합니다.",
+        "colSpan(선택) 파라미터 미설정 시, 기본값 0 으로 동작하여 Column 을 병합하지 않습니다.",
+        "value(선택) 파라미터로 depthVisible 또는 expression 파라미터값이 적용된 후 표시할 텍스트를 설정합니다.",
+        "value(선택) 파라미터 미설정 시, 추가 텍스트를 표시하지 않습니다.",
+        "align(선택) 파라미터로 현재 Group Header Column 에 적용할 텍스트 정렬을 설정합니다.",
+        "align(선택) 파라미터 미설정 시, 기본값 'center' 로 동작합니다.",
+        "className(선택) 파라미터로 현재 Group Header Column 에 적용할 클래스의 이름을 설정합니다.",
+        "className(선택) 파라미터 미설정 시, 별도 클래스를 적용하지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // 공통 DataList(gdl_boolean 등) 생성 : par_depthVisible 셀렉트박스가 data:gdl_boolean 을 바인딩하므로 필요
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 정적 select1 은 초기 selectedIndex 가 렌더에 미적용 → onpageload 에서 기본값 명시 지정
+    par_inputType.setValue("toggleButton");   // 기본: toggleButton
+    par_depthVisible.setValue("2");            // gdl_boolean 코드값 "2" = true
+    par_colSpan.setValue("");                  // (미설정)
+    par_align.setValue("");                    // (미설정)
+    par_className.setValue("gh_custom");       // 기본 className (정적 select1 초기 selectedIndex 미적용 회피)
+    par_value.setValue("");                    // (미설정)
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 4컬럼(지역/부서/이름/금액) 그리드를 지역(idx0) > 부서(idx1) 2Depth 로 groupby. groupbyHeader 를 객체 배열 1개 항목으로 설정 -> 모든 Depth(0,1) 에 동일 적용됨을 확인.\n[절차] par 로 inputType/depthVisible/colSpan/align/className/value 값을 지정 후 (groupby 실행) 클릭.\n[확인] Group Header 첫 컬럼 td 의 colspan/class/textContent 및 내부 span 의 toggle 아이콘 들여쓰기(margin-left=Depth*20px)/float(align) 를 depth_0, depth_1 각각 확인.\n[참고] align 은 td 의 text-align 이 아니라 내부 span 의 float 로 적용됨(값 center 는 float 로 무효)."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) : 그룹 반복 데이터 (지역/부서 컬럼에 반복값) ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="지역" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="부서" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="이름" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="금액" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 지역(col1) 2그룹 x 부서(col2) 2그룹 → 그룹 반복 데이터
+    let jsonData = [
+        { "col1": "서울", "col2": "영업", "col3": "김영업", "col4": 100 },
+        { "col1": "서울", "col2": "영업", "col3": "이영업", "col4": 200 },
+        { "col1": "서울", "col2": "개발", "col3": "박개발", "col4": 300 },
+        { "col1": "부산", "col2": "영업", "col3": "최영업", "col4": 400 },
+        { "col1": "부산", "col2": "개발", "col3": "정개발", "col4": 500 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (4컬럼, body column id = DataList 컬럼 id 일치)
+    let strTarget = '';
+    // height 넉넉히 : 지역2>부서 groupby 시 Group Header(depth_0 2 + depth_1 4) + 데이터 5 = 최대 11 Row 가 모두 렌더(숨김 filler 로 빠지지 않게)되어 모든 그룹 속성 검증이 가능하도록 함
+    strTarget += '<w2:gridView ' + strNameSpace + ' defaultCellHeight="28" dataList="data:dlt_bind" id="" style="width:520px;height:460px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="groupbyHeader (객체 배열) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="지역"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="이름"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="number" displayFormat="#,###" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+};
+
+
+
+// par 값으로 groupbyHeader 객체 배열 1개 항목을 구성한다 (미설정 값은 항목에서 생략 → 기본값 동작).
+scwin._buildHeaderEntry = function () {
+    let entry = {};
+    let it = par_inputType.getValue();                 // '', 'toggleButton', 'expression'
+    let dv = par_depthVisible.getText();               // gdl_boolean 라벨 : '', 'true', 'false'
+    let cs = par_colSpan.getValue();                   // '', '1', '2', '3'
+    let al = par_align.getValue();                     // '', 'left', 'center', 'right'
+    let cn = par_className.getValue();                 // 클래스명 텍스트 (빈값이면 미설정)
+    let vl = par_value.getValue();                     // 표시 텍스트 (빈값이면 미설정)
+
+    if (it) entry.inputType = it;
+    // depthVisible 은 toggleButton 컨텍스트 파라미터(guide #24 : inputType='toggleButton' 시 depth 데이터값 표시).
+    //  inputType='expression' 시엔 expression(=depthStr()) 이 depth 표시를 담당하므로 depthVisible 을 함께 보내면
+    //  depth 값이 이중 렌더(예: '부산부산요약')됨 → expression 일 때는 depthVisible 을 적용하지 않아 중복 방지.
+    if (it !== 'expression') {
+        if (dv === 'true') entry.depthVisible = true;
+        else if (dv === 'false') entry.depthVisible = false;
+    }
+    if (cs) entry.colSpan = Number(cs);
+    if (al) entry.align = al;
+    if (cn) entry.className = cn;
+    if (vl) entry.value = vl;
+
+    // inputType='expression' : "표시 형식을 자유롭게 설정"함이 드러나도록 텍스트 리터럴 + 내부메소드 조합을 사용.
+    //  → 예: [부산] 건수:2  (toggleButton = 토글버튼+그룹명 과 확연히 다른 자유 형식)
+    //  ※ 본 샘플은 "자유 형식 렌더" 여부만 확인. count() 등 내부메소드의 계산값 정확성(예: 건수=2 O/X) 검증은 _3 담당이라 추가하지 않음.
+    if (it === 'expression') entry.expression = '"[" + depthStr() + "] 건수:" + count()';
+    return entry;
+};
+
+// depth 계층 가시화 들여쓰기 : depth×2칸 순수 공백 (depth_0 은 0칸, 깊을수록 2칸씩 누적)
+//  결과 출력영역을 left 정렬(<style> 에서 지정)로 고정했으므로 순수 공백 들여쓰기가 그대로 보인다.
+scwin._depthMark = function (depth) {
+    return "  ".repeat(depth);
+};
+
+// 단일 td 의 속성 조합 문자열(일관성 판정용) : colspan / align(float) / gh_custom 실적용 / toggle아이콘
+//  - align : td 의 text-align 이 아니라 내부 span 의 float 로 적용됨([참고] 라벨 참조)
+//  - gh_custom : class 문자열 반영 + getComputedStyle 로 .gh_custom 스타일(bg)이 실제 렌더에 먹었는지 압축(유령 클래스 방지)
+//  - toggle : toggleButton 들여쓰기 검증용 아이콘(.w2grid_plus/.w2grid_minus 존재 + margin-left=Depth*20px)
+scwin._tdAttrStr = function (td) {
+    let colspan = td.getAttribute("colspan");
+    let flt = "";
+    let spans = td.querySelectorAll("span");
+    for (let i = 0; i < spans.length; i++) {
+        let f = spans[i].style.cssFloat || spans[i].style.float;
+        if (f) { flt = f; break; }
+    }
+    let bg = window.getComputedStyle(td).backgroundColor;
+    let ghStr = /\bgh_custom\b/.test(td.className) ? ("적용(bg " + bg + ")") : "미적용";
+    let ic = td.querySelector(".w2grid_plus, .w2grid_minus");
+    let toggleStr = ic ? (ic.className + "(margin-left:" + (ic.style.marginLeft || "0px") + ")") : "없음";
+    return "colspan=" + colspan + " / align=" + (flt || "미설정") + " / gh_custom=" + ghStr + " / toggle=" + toggleStr;
+};
+
+// Group Header 6개(지역 depth_0 2개 + 부서 depth_1 4개)를 화면(tbody) 순서대로 각각 개별 라인으로 반환.
+//  ※ td.w2grid_groupby_depth_N 은 대표 셀 + 뒤따르는 filler 빈 셀에 모두 붙으므로, 각 Group Header "행" 의
+//    첫 w2grid_groupby 셀(대표 셀)만 사용(데이터 행이면 null → 제외). Group Footer 는 hideFooter 로 억제됨.
+//  각 라인 : depth 만큼 순수 공백 들여쓰기 + [그룹명] + colspan/align/gh_custom/toggle 실측값.
+//  배열 형식 groupbyHeader 는 모든 Header 에 동일 적용 → 6개 라인의 colspan/align/gh_custom/toggle 이 일관돼야 정상.
+scwin._groupHeaderLines = function () {
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let rows = tbody.querySelectorAll("tr");
+    let lines = [];
+    for (let i = 0; i < rows.length; i++) {
+        let tr = rows[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) continue;
+        let cell = tr.querySelector("td.w2grid_groupby");   // 그룹 Header 행의 대표 셀 (데이터 행이면 null → 제외)
+        if (!cell) continue;
+        let m = cell.className.match(/w2grid_groupby_depth_(\d+)/);
+        let depth = m ? parseInt(m[1], 10) : 0;
+        let text = (cell.textContent || "").trim();
+        lines.push(scwin._depthMark(depth) + "[" + text + "] " + scwin._tdAttrStr(cell));
+    }
+    return lines;
+};
+
+
+
+// [groupby 실행] : par 로 구성한 groupbyHeader 객체 배열(1개 항목)로 지역>부서 2Depth 그룹핑 후 Group Header td 실측
+scwin.btn_groupby_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    let entry = scwin._buildHeaderEntry();
+    let options = {
+        sortIndex: [0, 1],      // 지역(col1), 부서(col2) → 2 Depth (groupby 전제, _1 담당이라 검증대상 아님)
+        sortOrder: [1, 1],
+        hideFooter: true,       // Footer 는 _4 담당이라 억제 (전제)
+        groupbyHeader: [entry]  // 객체 배열 형식 = 모든 Depth 동일 적용
+    };
+    // 매 실행을 깨끗한 상태에서 시작 : 이전 그룹핑 잔재 초기화 후 재그룹핑 (_1 과 동일 패턴)
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    target1.groupby(options);
+
+    // === Group Header 6개(지역 depth_0 2개 + 부서 depth_1 4개)만 개별 라인으로 출력 ===
+    //  화면(tbody) 순서대로 각 Group Header 대표 셀의 검증값(colspan/align/gh_custom/toggle/text)을 한 줄씩.
+    //  데이터 행·Group Footer 제외. depth 만큼 순수 공백 들여쓰기(지역 0칸 / 부서 2칸)로 계층 구분.
+    //  배열 형식 groupbyHeader 는 모든 Header 에 동일 적용 → 6개 라인의 colspan/align/gh_custom/toggle 이 일관돼야 정상.
+    let lines = scwin._groupHeaderLines();
+    let out = "[적용] groupbyHeader[0] = " + JSON.stringify(entry)
+        + "\n[Group Header " + lines.length + "개]\n" + (lines.length ? lines.join("\n") : "(Header 없음)");
+    b.setReturnValue(out);
+};]]></script>
+		<style type="text/css"><![CDATA[
+/* className 검증용 : par_className='gh_custom' 설정 시 Group Header td 에 실제로 스타일이 먹는지(유령 클래스 아님) getComputedStyle 로 확인하기 위한 정의 */
+.gh_custom { background-color: rgb(255, 235, 59) !important; color: rgb(33, 33, 33) !important; font-weight: bold !important; }
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 순수 공백 들여쓰기가 안 보이던 문제 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_inputType" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[toggleButton]]></xf:label><xf:value><![CDATA[toggleButton]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[expression]]></xf:label><xf:value><![CDATA[expression]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="depthVisible" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_depthVisible" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colSpan" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_colSpan" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="align" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_align" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[left]]></xf:label><xf:value><![CDATA[left]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[center]]></xf:label><xf:value><![CDATA[center]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[right]]></xf:label><xf:value><![CDATA[right]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="className" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_className" ref="" selectedIndex="0" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[gh_custom]]></xf:label><xf:value><![CDATA[gh_custom]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="value" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_value" ref="" selectedIndex="0" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[그룹]]></xf:label><xf:value><![CDATA[그룹]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[요약]]></xf:label><xf:value><![CDATA[요약]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="groupby 실행" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

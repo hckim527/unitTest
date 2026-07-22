@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260721" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ※ 본 샘플(_9)은 rowNumVisible/rowStatusVisible=true 전제에서 groupby 옵션의
+//    rowNumHeader/rowStatusHeader/rowNumFooter/rowStatusFooter 4종이 Group Header/Footer Row 의
+//    RowNum/RowStatus Column 을 구성하는지 검증한다. (rowNum/rowStatus 구성이 주인공)
+//    groupbyHeader/groupbyFooter 는 rowNum/rowStatus 를 걸 Group Header/Footer Row 를 만들기 위한
+//    최소 기본 구성(값 표시 목적)만 두며, 객체(depth_{n}) 형식의 Depth 별 매핑 검증은 _6 담당이라 여기선 다루지 않는다.
+scwin.tData = {
+    "description" : "[gridView > M > groupby]<br/>Body Column 을 기준으로 데이터를 그룹핑하여 Group Header/Footer 함께 표시합니다.",
+    "validation" : [
+        "rowNumHeader(선택) 파라미터로 GridView 의 rowNumVisible=true 일때 Group Header Row 의 RowNum Column 을 구성하는 옵션값(value/className 등)을 설정합니다.",
+        "rowNumFooter(선택) 파라미터로 GridView 의 rowNumVisible=true 일때 Group Footer Row 의 RowNum Column 을 구성하는 옵션값(value/className 등)을 설정합니다.",
+        "rowStatusHeader(선택) 파라미터로 GridView 의 rowStatusVisible=true 일때 Group Header Row 의 RowStatus Column 을 구성하는 옵션값(value/className 등)을 설정합니다.",
+        "rowStatusFooter(선택) 파라미터로 GridView 의 rowStatusVisible=true 일때 Group Footer Row 의 RowStatus Column 을 구성하는 옵션값(value/className 등)을 설정합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // 공통 DataList(gdl_boolean 등) 생성
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 4컬럼(region/dept/grade/score) 그리드를 region(idx0) > dept(idx1) 2Depth 로 groupby. rowNumVisible/rowStatusVisible=true 이라 종료 컬럼은 6개(RowNum + RowStatus + Body 4).\n[절차] (groupby 실행) 클릭. groupbyHeader/groupbyFooter 는 값 표시용 최소 구성만 두고, rowNumHeader/rowStatusHeader/rowNumFooter/rowStatusFooter 4종으로 Group Header/Footer 의 RowNum/RowStatus 칸을 구성.\n[확인] 4종에 위치 마커 value 설정(Header RowNum=HR/RowStatus=HS, Footer RowNum=FR/RowStatus=FS). 각 그룹행(Header/Footer × depth) RowNum/RowStatus 칸 textContent 를 실측. rowNum/rowStatus 는 depth-객체 미지원이라 depth_0/depth_1 헤더행에 동일 마커가 찍혀 depth 숫자는 못 붙이고 위치(H/F, R/S)만 구분됨을 관찰."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) : 그룹 반복 데이터 (_1~_3 통일 스키마 region/dept/grade/score) ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // region(idx0) 2그룹 x dept(idx1) → 그룹 반복 데이터 (Depth 0=region, Depth 1=dept) — _1~_3 과 동일 데이터
+    let jsonData = [
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 60 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 직접 구성 (4컬럼, body column id = DataList 컬럼 id 일치)
+    //  - rowNumVisible/rowStatusVisible=true : rowNumHeader/rowStatusHeader/rowNumFooter/rowStatusFooter 검증 전제
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' defaultCellHeight="28" rowNumVisible="true" rowStatusVisible="true" dataList="data:dlt_bind" id="" style="width:620px;height:640px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="rowNum/rowStatus Header/Footer 구성 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="region(0)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="dept(1)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="grade(2)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="score(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+};
+
+
+
+// depth 계층 가시화 들여쓰기 : depth×2칸 순수 공백 (depth_0 은 0칸, 깊을수록 2칸씩 누적)
+//  결과 출력영역을 left 정렬(<style> 에서 지정)로 고정했으므로 순수 공백 들여쓰기가 그대로 보인다.
+scwin._depthMark = function (depth) {
+    return "  ".repeat(depth);
+};
+
+// [groupby 실행] : groupbyHeader/groupbyFooter 는 값 표시용 최소 구성(배열 형식)만 두고,
+//  rowNumHeader/rowStatusHeader/rowNumFooter/rowStatusFooter 4종으로 Group Header/Footer 의 RowNum/RowStatus 칸을 구성 후 실측
+//  - rowNum/rowStatus 4종이 주인공 : 각 셀에 부여한 className(rnh/rsh/rnf/rsf) 이 해당 위치(Header·Footer × RowNum·RowStatus)에
+//    정확히 부착되는지, <style> 에서 부여한 배경색(Header 파랑 / Footer 주황)이 getComputedStyle 로 실측되는지(유령클래스 아님) 검증
+//  - 4종에 위치 마커 value 설정(HR/HS/FR/FS) → 각 그룹행(Header/Footer × depth) RowNum/RowStatus 칸 textContent 실측
+//    · rowNum/rowStatus 는 depth-객체({depth_0,depth_1}) 미지원(_drawGroupData 가 최상위 value/className 만 읽음) → depth_0/depth_1 헤더행에 동일 마커, depth 숫자 불가·위치만 구분(관찰 사실)
+//  - groupbyHeader/Footer 는 배열 형식(모든 depth 동일)으로 최소만 : 객체(depth_{n}) 형식 Depth 별 매핑 검증은 _6 담당
+scwin.btn_groupby_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    let options = {
+        sortIndex: [0, 1],   // region(idx0) > dept(idx1) → 2 Depth (groupby 전제, _1 담당)
+        sortOrder: [1, 1],
+        // groupbyHeader : 값 표시용 최소 구성(배열) — 첫 Column 그룹 토글+그룹명, score Column 합계 (Group Header Row 를 만들어 rowNum/rowStatus 를 걸 목적)
+        groupbyHeader: [
+            { inputType: "expression", expression: "toggle() + depthStr()", align: "left" },
+            {},
+            {},
+            { inputType: "expression", expression: "sum('score')", align: "right" }
+        ],
+        // groupbyFooter : 값 표시용 최소 구성(배열) — 첫 Column 소계 라벨, score Column 합계 (Group Footer Row 를 만들어 rowNum/rowStatus 를 걸 목적)
+        groupbyFooter: [
+            { value: "소계", align: "left" },
+            {},
+            {},
+            { inputType: "expression", expression: "sum('score')", align: "right" }
+        ],
+        // === 검증 핵심 : rowNum/rowStatus Header·Footer — [H/F][R/S] 위치 마커 ===
+        //  ※ 엔진 실측/소스(_drawGroupData L1439~ : tdOptions.value/className 을 최상위에서만 읽음, depth 미인덱싱)상
+        //    rowNum/rowStatus 는 depth-객체({depth_0,depth_1})를 지원하지 않아 depth 별 다른 value 불가 → depth 숫자 없이 위치만 구분되는 단일 value 사용
+        //  · HR=Header RowNum, HS=Header RowStatus, FR=Footer RowNum, FS=Footer RowStatus (depth_0/depth_1 헤더행엔 동일 HR 이 찍힘)
+        rowNumHeader:    { value: "HR", className: "rnh" },
+        rowStatusHeader: { value: "HS", className: "rsh" },
+        rowNumFooter:    { value: "FR", className: "rnf" },
+        rowStatusFooter: { value: "FS", className: "rsf" }
+    };
+
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    target1.groupby(options);
+
+    // DOM 실측 : body tbody 의 각 Row 를 화면 표시 순서(위→아래) 그대로 순회
+    //  - 각 Row = 표시 셀 textContent 를 " | " 로 이어붙이고 Row 간 "\n" 구분 (앞에 depth×2칸 순수 공백 들여쓰기)
+    //  - colSpan 을 누적해 전체 컬럼 수(6 = RowNum 1 + RowStatus 1 + Body 4)에 도달하면 종료 → 뒤에 붙는 phantom 빈 td 제외
+    //    · rowNumVisible/rowStatusVisible=true 이므로 종료 기준은 Body 4 가 아니라 RowNum/RowStatus 포함 전체 6 (실측: 모든 Row 가 6 td)
+    //  - 데이터보다 많은 Row Slot 은 숨김 filler Row(w2grid_hidedRow, display:none) → 제외, nbsp→공백
+    let TOTAL_COL = 6;   // RowNum(1) + RowStatus(1) + Body(4)
+    let depthCount = options.sortIndex.length;   // 데이터 행 들여쓰기 기준(그룹 depth 수)
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody.querySelectorAll("tr");
+    let screenLines = [];   // 화면(tbody)에 렌더된 순서대로 각 Row 의 표시 텍스트
+    let groupRowCnt = 0;
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) {
+            continue;
+        }
+        if (tr.querySelector("td.w2grid_groupby")) groupRowCnt++;
+        // 화면 표시 순서 그대로 : 실제 표시되는 셀 텍스트를 컬럼 순서대로 이어붙임
+        let cells = [];
+        let colAcc = 0;
+        let tdList = tr.querySelectorAll("td");
+        for (let k = 0; k < tdList.length && colAcc < TOTAL_COL; k++) {
+            let td = tdList[k];
+            if (td.style.display === "none") continue;
+            colAcc += parseInt(td.getAttribute("colSpan") || "1", 10);
+            cells.push((td.textContent || "").replace(/ /g, " ").trim());
+        }
+        // 행 depth 판정 : 그룹 td(w2grid_groupby_depth_N) 있으면 그 N, 없으면 데이터 행 → depthCount
+        let rowDepth = depthCount;
+        let gtd = tr.querySelector("td[class*='w2grid_groupby_depth_']");
+        if (gtd) {
+            let m = gtd.className.match(/w2grid_groupby_depth_(\d+)/);
+            if (m) rowDepth = parseInt(m[1], 10);
+        }
+        screenLines.push(scwin._depthMark(rowDepth) + cells.join(" | "));
+    }
+
+    // 실측 헬퍼 : rnh/rsh/rnf/rsf 셀의 배경색 조회 (tbody 스코프, className 은 rowNum/rowStatus 위치 식별용)
+    let tdBg = function (sel) { let td = tbody.querySelector(sel); return td ? window.getComputedStyle(td).backgroundColor : "(td없음)"; };
+
+    // 출력 : 적용요약 + 화면표시순서 + [H/F][depth]별 rowNum/rowStatus value textContent 실측표 + depth-객체 지원 여부 + 내부검증
+    let out = "[적용] sortIndex=[0,1] sortOrder=[1,1]"
+        + " | rowNum/rowStatus value=[H/F][R/S] 위치 마커(depth-객체 미지원)"
+        + " | Group Row수=" + groupRowCnt
+        + "\n[화면 표시 순서]\n" + (screenLines.length ? screenLines.join("\n") : "(표시 Row 없음)")
+        + "\n Header RowNum=" + tdBg("td.rnh") + " RowStatus=" + tdBg("td.rsh")
+        + "\n Footer RowNum=" + tdBg("td.rnf") + " RowStatus=" + tdBg("td.rsf");
+    b.setReturnValue(out);
+};]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 순수 공백 들여쓰기가 안 보이던 문제 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+
+/* rowNum/rowStatus Header·Footer 4종 배경색 (A 방식, _2/_4 와 통일) : 4종 className 에 실제 CSS 부여 → 유령클래스 해소.
+   Header=파랑 / Footer=주황 으로 Header·Footer 를 색으로 구분. 엔진 그룹행 기본 배경보다 우선하도록 !important 지정(getComputedStyle 실측 결정성 확보). */
+td.rnh, td.rsh { background-color: rgb(180, 205, 240) !important; }          /* RowNum/RowStatus Header (파랑) */
+td.rnf, td.rsf { background-color: rgb(245, 205, 175) !important; }          /* RowNum/RowStatus Footer (주황) */
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="groupby 실행" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
