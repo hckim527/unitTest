@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyMaxCount" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > groupbyMaxCount]<br/>GroupBy 기능 적용 시 그룹핑할 수 있는 최대 Column 수를 설정합니다.",
+    "validation" : [
+        "groupbyZone=true 일 때 GroupBy Zone 으로 Header Column 을 Drag&Drop 하여 그룹핑하거나 groupby() 메소드 실행 시 적용됩니다.",
+        "최대 Column 수를 -1 또는 1 이상 정수로 설정합니다.",
+        "-1 설정 시, 제한 없이 그룹핑할 수 있습니다.",
+        "미설정 시, -1 이 적용되어 제한 없이 그룹핑할 수 있습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (groupbyMaxCount 미설정 = -1 = 제한 없음 상태로 시작)
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 정적 select1 기본값 명시 설정 (초기 selectedIndex 미적용 회피)
+    //  - con_groupbyMaxCount : 자체 값 selectbox → setValue 로 코드/값 직접 지정
+    par_sortIndex.setValue("[0,1]");   // 기본 2컬럼 그룹 시도
+};
+
+
+
+// comp 생성
+//  - con_groupbyMaxCount : 자체 값 selectbox → getValue() ('' 미설정 / '-1' / '1' / '2')
+//  - groupbyMaxCount 는 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+//  - 전제 : groupbyZone=true 고정 (D&D 그룹핑/groupby() 적용 대상)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : 자체 값 selectbox → getValue() ('' / '-1' / '1' / '2')
+    let vMax = con_groupbyMaxCount.getValue();
+
+    // groupbyMaxCount : 미설정('') 이면 속성 자체를 추가하지 않음(엔진 기본 -1 = 제한 없음)
+    let properties = { groupbyZone: true, dataList: "data:dlt_bind" };
+    if (vMax !== '') {
+        properties.groupbyMaxCount = parseInt(vMax, 10);
+    }
+
+    let lblDesc = '[전제] groupbyZone=true, Body 4컬럼 (0:지역 1:부서 2:등급 3:점수), 6행'
+        + '\n[전제] con 에서 groupbyMaxCount 선택 후 [Target 재생성] (현재: '
+        + (vMax === '' ? '(미설정)' : vMax) + ')'
+        + '\n[동작] groupby({sortIndex}) 실행 시 그룹 컬럼수(Depth)가 groupbyMaxCount 를 초과하면 그룹핑이 적용되지 않음'
+        + '\n[동작] groupbyMaxCount=-1 또는 미설정 이면 제한 없이 다컬럼 그룹핑 가능'
+        + '\n[절차] 시도할 그룹 컬럼수(sortIndex) 선택 후 [groupby 실행]'
+        + '\n[확인] 결과창의 적용값 / 시도 Depth / 그룹 적용여부';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 그룹핑 시연용 데이터 : region/dept/grade 모두 중복값 → 최대 3컬럼(3 Depth) 그룹 가능
+    let jsonData = [
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "개발", "grade": "B", "score": 30 },
+        { "region": "서울", "dept": "영업", "grade": "A", "score": 40 },
+        { "region": "부산", "dept": "개발", "grade": "B", "score": 50 },
+        { "region": "부산", "dept": "영업", "grade": "A", "score": 60 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 70 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼) - 다중 Depth 그룹핑 시 Group Header Row 까지 렌더되도록 height 넉넉히 지정
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" ev:ongroupby="scwin.target1_ongroupby" style="width:600px;height:520px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="groupbyMaxCount 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// ongroupby : GroupBy Zone 으로 Header Column 을 Drag&Drop 하면 발생 (D&D 그룹핑 경로)
+//  - 드래그로 쌓인 그룹 컬럼(options.sortIndex)이 groupbyMaxCount 를 초과하면 groupby() 내부에서 차단됨
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+    ];
+    options.hideFooter = true;
+
+    target1.groupby(options);
+
+    let grouped = (target1.groupbyStatus && target1.groupbyStatus.grouped);
+    let depth = grouped ? target1.groupbyStatus.sortIndexArr.length : 0;
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby(D&D)] 시도 컬럼수=" + options.sortIndex.length
+        + " / 결과=" + (grouped ? "그룹핑 적용됨 (" + depth + " Depth)" : "그룹핑 차단됨 (최대 Column 수 초과)"));
+}
+
+
+
+// groupby 실행 + 실측 검증
+//  - par_sortIndex : 시도할 그룹 컬럼 배열 ([0] 1컬럼 / [0,1] 2컬럼 / [0,1,2] 3컬럼)
+//  - sortOrder : sortIndex 원소 수만큼 오름차순(1) 자동 구성
+//  - 검증 : groupbyMaxCount 적용값 / 시도 Depth / 그룹 적용여부(grouped)
+//    · 시도 Depth 가 groupbyMaxCount 초과 → 엔진이 return 하여 그룹핑 차단(grouped=false)
+//    · 이내(또는 -1/미설정) → 정상 그룹핑(grouped=true)
+scwin.btn_groupby_onclick = function () {
+    let si = JSON.parse(par_sortIndex.getValue());
+    let so = si.map(function () { return 1; });   // 모두 오름차순
+    let options = {
+        sortIndex: si,
+        sortOrder: so,
+        groupbyHeader: [
+            { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+        ],
+        hideFooter: true
+    };
+
+    // 이전 그룹핑 상태 초기화 후 재시도 (차단 판정을 위해 grouped 초기화)
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    target1.groupby(options);
+
+    // groupbyMaxCount 적용값 : 미설정 시 undefined → 엔진 기본 -1(제한 없음)
+    let maxDisp = (typeof target1.options.groupbyMaxCount === 'undefined')
+        ? "미설정(-1)" : String(target1.options.groupbyMaxCount);
+    let grouped = (target1.groupbyStatus && target1.groupbyStatus.grouped);
+    let appliedDepth = grouped ? target1.groupbyStatus.sortIndexArr.length : 0;
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[적용] groupbyMaxCount=" + maxDisp
+        + " / 시도 sortIndex=" + JSON.stringify(si) + " (그룹 컬럼수=" + si.length + ")"
+        + " / 결과=" + (grouped ? "그룹핑 적용됨 (" + appliedDepth + " Depth)" : "그룹핑 차단됨 (최대 Column 수 초과)"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyMaxCount" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyMaxCount" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+											<xf:item><xf:label>-1 (제한 없음)</xf:label><xf:value>-1</xf:value></xf:item>
+											<xf:item><xf:label>1</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2</xf:label><xf:value>2</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortIndex (그룹 컬럼 시도)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_sortIndex" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>[0] 1컬럼 (지역)</xf:label><xf:value>[0]</xf:value></xf:item>
+											<xf:item><xf:label>[0,1] 2컬럼 (지역+부서)</xf:label><xf:value>[0,1]</xf:value></xf:item>
+											<xf:item><xf:label>[0,1,2] 3컬럼 (지역+부서+등급)</xf:label><xf:value>[0,1,2]</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby"
+							label="groupby 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

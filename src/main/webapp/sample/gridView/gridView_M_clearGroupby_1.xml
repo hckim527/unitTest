@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] clearGroupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > clearGroupby]<br/>GroupBy 기능으로 설정된 그룹핑을 제거합니다.",
+    "validation" : [
+        "GroupBy 기능으로 GridView 컴포넌트에 설정된 그룹핑을 제거합니다.",
+        "clearGroupby() 실행 시 정렬이 초기화됩니다.",
+        "clearGroupby() 실행 시 포커스가 초기화됩니다.",
+        "clearGroupby() 실행 시 필터가 초기화됩니다.",
+        "customFilterBox=true 로 동작할 때 clearGroupby() 를 실행하면 필터 조건은 초기화되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : gdl_boolean 코드값 "1"(=미설정)
+    //  - 정적 select1 은 초기 selectedIndex 미적용이므로 onpageload 에서 명시 설정
+    con_customFilterBox.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 고정 전제 : groupbyZone / groupbyFilterBox / useFilterList / sortable(ondblclick) 항상 true, 헤더 컬럼 useFilter=true
+//  - con_customFilterBox : gdl_boolean → getText() ('' 미설정 / 'true' / 'false')
+//  - customFilterBox 는 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : gdl_boolean 은 getText() 로 라벨('' / 'true' / 'false') 읽기
+    let vCustomFilterBox = con_customFilterBox.getText();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let lblDesc = '[전제] 고정속성 groupbyZone=true, groupbyFilterBox=true, useFilterList=true, sortable=true(sortEvent=ondblclick) / 헤더 컬럼 useFilter=true / 원본 6행(지역 서울3 부산3)'
+        + '\n현재 customFilterBox=' + (vCustomFilterBox === '' ? '(미설정)' : vCustomFilterBox) + ' (con 선택 후 [Target 재생성])'
+        + '\n[그룹핑 방법] (a) [상태 설정] 버튼(등급 기준 groupby) 또는 (b) 헤더 컬럼을 상단 GroupBy Zone 으로 드래그(ongroupby 발생 -> 드래그 컬럼 기준 groupby)'
+        + '\n[그룹/정렬/포커스 초기화 확인] (1) [상태 설정] 클릭 : 등급(2) 기준 groupby + 데이터셀 포커스 (2) [clearGroupby 실행] 클릭'
+        + '\n[필터 초기화/유지 확인] (1) 지역 헤더를 GroupBy Zone 으로 드래그(지역 기준 그룹핑) (2) 지역 헤더의 필터 아이콘으로 지역=서울 필터 적용(표시 3행) (3) [clearGroupby 실행] 클릭'
+        + '\n(그룹 컬럼=필터 컬럼=지역 시나리오. (2) 필터 적용 시 화면 그룹행은 사라지고 필터결과 3행이 평면 표시되나 내부 그룹 상태 groupbyStatus.grouped 는 유지됨 -> (3) 은 그룹 상태에서의 clearGroupby)'
+        + '\n[확인] before/after 실측 : 그룹제거(GroupRow 0)/정렬 초기화(원본순서 복귀)/포커스 초기화(0) / 필터는 customFilterBox=미설정 이면 초기화(6행 복귀), true 이면 유지(3행 유지)';
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 원본(그룹 섞인) 순서 : groupby 후 등급 오름차순으로 재정렬됨 → clearGroupby 후 아래 원본 순서로 복귀(정렬 초기화)
+    let jsonData = [
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 30 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "부산", "dept": "개발", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "영업", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "개발", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "A", "score": 60 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // customFilterBox : 미설정('') 이면 속성 자체를 추가하지 않음(기본 false)
+    let properties = { dataList: "data:dlt_bind" };
+    if (vCustomFilterBox === 'true') {
+        properties.customFilterBox = true;
+    } else if (vCustomFilterBox === 'false') {
+        properties.customFilterBox = false;
+    }
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼) : 그룹핑/필터/정렬/포커스 전제 속성 고정
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id=""';
+    strTarget += ' groupbyZone="true" groupbyFilterBox="true" groupbyFilterBoxLocation="top" useFilterList="true" showSortableUseFilter="true"';
+    strTarget += ' sortable="true" sortEvent="ondblclick"';
+    strTarget += ' ev:ongroupby="scwin.target1_ongroupby"';
+    strTarget += ' style="width:640px;height:760px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="clearGroupby 초기화 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="지역(0)" useFilter="true"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서(1)" useFilter="true"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol3" value="등급(2)" useFilter="true"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)" useFilter="true"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 표시 중인 body Row 를 그룹Row(G)/데이터Row(D) 로 분류하여 개수/데이터순서 반환
+scwin.readRows = function () {
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let trs = tbody.querySelectorAll("tr");
+    let dataCnt = 0;
+    let groupCnt = 0;
+    let order = [];
+    for (let i = 0; i < trs.length; i++) {
+        let tr = trs[i];
+        if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) continue;
+        if (tr.querySelector("td.w2grid_groupby")) {
+            groupCnt++;
+        } else {
+            dataCnt++;
+            // 점수(col 3) 표시값으로 데이터 순서 파악
+            let td = tr.querySelector("td[id*='_cell_'][id$='_3']");
+            order.push(td ? td.textContent : "?");
+        }
+    }
+    return { dataCnt: dataCnt, groupCnt: groupCnt, order: order.join(",") };
+}
+
+// 현재 상태 실측 스냅샷 : 그룹수 / 데이터행수 / 포커스셀수 / 데이터순서 / GroupFilterBox 조건
+scwin.readState = function () {
+    let body = document.getElementById(target1.id + "_body_tbody");
+    let focusCnt = body ? body.querySelectorAll("td.focusedTd").length : -1;
+    let rows = scwin.readRows();
+    // GroupFilterBox(groupbyFilterBox 영역) 에 적재된 필터 이력 조건 실측
+    //  - histLen : groupbyFilterBox_history 배열 길이(적재된 조건 이력 수)
+    //  - boxCond : FilterBox 셀렉트에 표시된 현재 조건 라벨
+    let histLen = (target1.groupbyFilterBox_history) ? target1.groupbyFilterBox_history.length : 0;
+    let lblDom = document.getElementById(target1.id + "_groupbyFilterBox_select_label");
+    let boxCond = lblDom ? (lblDom.textContent || "").trim() : "";
+    return { focusCnt: focusCnt, dataCnt: rows.dataCnt, groupCnt: rows.groupCnt, order: rows.order, histLen: histLen, boxCond: boxCond };
+}
+
+// 점수 헤더 더블클릭(정렬 트리거, sortEvent=ondblclick) : 실제 dblclick 이벤트 디스패치
+scwin.clickScoreHeader = function () {
+    let scoreTh = document.getElementById(target1.id + "_hcol4");
+    if (scoreTh) scoreTh.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window }));
+}
+
+
+
+// ongroupby : 헤더 컬럼을 상단 GroupBy Zone 으로 드래그하면 발생
+//  - 드래그한 컬럼 정보(sortIndex/sortOrder)가 options 로 전달되며, groupbyHeader 를 정의 후
+//    target1.groupby(options) 를 수동 호출해야 실제 그룹핑이 적용됨 (엔진 규약)
+//  - 드래그로 그룹핑 → [clearGroupby 실행] 으로 제거하는 실사용 흐름 완성
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        { colSpan: 4, inputType: "expression", expression: "toggle() + depthStr()", align: "left" }
+    ];
+
+    target1.groupby(options);
+
+    let s = scwin.readState();
+    let out = "[ongroupby 발생] 헤더를 GroupBy Zone 으로 드래그하여 그룹핑이 적용되었습니다."
+        + "\n그룹Row수=" + s.groupCnt + " | 표시데이터행=" + s.dataCnt
+        + "\n[안내] [clearGroupby 실행] 을 클릭하면 그룹핑이 제거됩니다.";
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+// ① 상태 설정 : 등급(2) 기준 groupby + 데이터셀 포커스 설정
+//  - groupby 는 데이터를 등급 오름차순으로 재정렬(정렬 상태) + 그룹 Header/Footer 표시
+//  - 포커스는 데이터 행 셀(표시행 1, 점수열 3)에 설정 (표시행 0 은 Group Header 라 데이터 포커스 대상 아님)
+//  - 필터는 사용자가 헤더 필터 아이콘으로 직접 적용(라벨 안내) - 그리드 자체 UI 조작
+//    (필터 적용 시 화면 그룹행은 사라지고 필터결과가 평면 표시되나, 내부 그룹 상태 groupbyStatus.grouped 는 유지 → 이어지는 clearGroupby 는 그룹 상태에서 실행됨)
+scwin.btn_setStates_onclick = function () {
+    // 이미 그룹 상태이면 초기화 후 재설정
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    // groupby : 등급(2) 오름차순, Group Header 는 토글+그룹명 최소 표시
+    let gbOptions = {
+        sortIndex: [2],
+        sortOrder: [1],
+        groupbyHeader: [
+            { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+        ]
+    };
+    target1.groupby(gbOptions);
+
+    // 포커스 : 데이터 행 셀 (표시행 1 = 첫 데이터행, 점수열 3)
+    target1.setFocusedCell(1, 3);
+
+    let s = scwin.readState();
+    let out = "[① 상태 설정] 등급(2) 기준 groupby + 데이터셀 포커스"
+        + "\n그룹Row수=" + s.groupCnt + " (그룹핑 적용)"
+        + " | 포커스셀=" + s.focusCnt
+        + " | 표시데이터행=" + s.dataCnt
+        + " | 데이터순서(점수)=" + s.order + " (등급 오름차순 재정렬)"
+        + "\n[안내] 이 버튼은 정렬/포커스 초기화(@spec1) 확인용입니다. 필터 초기화/유지(@spec2)는 지역 헤더를 GroupBy Zone 으로 드래그(지역 그룹핑) -> 지역=서울 필터 적용(표시 3행) -> [clearGroupby 실행] 순으로 확인하세요.";
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+// ② clearGroupby 실행 : 그룹핑 제거 + 정렬/포커스/필터 초기화 실측 (customFilterBox=true 시 필터 유지)
+//  - 그룹/정렬/포커스 : before/after 로 초기화 관찰
+//  - 필터 : (a) 실제 적용 필터(표시데이터행) 와 (b) GroupFilterBox 에 적재된 조건(이력수/조건라벨) 을 함께 실측
+//    · customFilterBox=true → clearGroupby 후 실제 필터가 재적용되어 필터행이 유지됨
+//    · customFilterBox=미설정 → clearGroupby 후 실제 필터가 해제되어 전체행 복귀
+scwin.btn_clearGroupby_onclick = function () {
+    let before = scwin.readState();
+
+    target1.clearGroupby();
+
+    let after = scwin.readState();
+
+    // 필터 적용 여부 : clearGroupby 직전 표시데이터행이 전체(6)보다 적으면 필터가 적용된 상태
+    let filterApplied = before.dataCnt < 6;
+    let cfb = target1.options.customFilterBox ? "true" : "(미설정/false)";
+    let filterMsg;
+    if (!filterApplied) {
+        filterMsg = "필터 미적용 (표시데이터행 " + before.dataCnt + "→" + after.dataCnt + ") - 필터 확인은 라벨 안내대로 필터 적용 후 재실행";
+    } else if (target1.options.customFilterBox) {
+        filterMsg = "customFilterBox=true → 필터 조건 유지 : 표시데이터행 " + before.dataCnt + "→" + after.dataCnt + " (필터 유지)"
+            + " / GroupFilterBox 조건 [" + before.boxCond + "] → [" + after.boxCond + "] (이력수 " + before.histLen + "→" + after.histLen + ")";
+    } else {
+        filterMsg = "customFilterBox 미설정 → 필터 초기화 : 표시데이터행 " + before.dataCnt + "→" + after.dataCnt + " (전체 6행 복귀, 적용 필터 해제)"
+            + " / GroupFilterBox 조건 라벨 [" + before.boxCond + "] → [" + after.boxCond + "] (이력수 " + before.histLen + "→" + after.histLen + ")";
+    }
+
+    let out = "[② clearGroupby 실행] customFilterBox=" + cfb
+        + "\n그룹Row수 " + before.groupCnt + "→" + after.groupCnt + " (0=그룹 제거)"
+        + "\n포커스셀 " + before.focusCnt + "→" + after.focusCnt + " (0=포커스 초기화)"
+        + "\n데이터순서(점수) [" + before.order + "] → [" + after.order + "] (원본순서 복귀=정렬 초기화)"
+        + "\n" + filterMsg;
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 순수 공백/순서가 안 보이던 문제 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="customFilterBox" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_customFilterBox" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setStates_onclick" id="btn_setStates"
+							label="① 상태 설정 (groupby + 포커스)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearGroupby_onclick" id="btn_clearGroupby"
+							label="② clearGroupby 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

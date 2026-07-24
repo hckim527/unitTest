@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyFilterBoxFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > groupbyFilterBoxFormatter]<br/>GroupFilterBox 의 필터링 이력 라벨을 생성하기 위한 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "groupbyZone=true, groupbyFilterBox=true 인 경우에만 동작합니다.",
+        "설정한 사용자 정의 함수가 GroupFilterBox 에 필터링 이력이 표시될 때 라벨을 생성합니다.",
+        "사용자 정의 함수는 data, isGroupby 를 파라미터로 전달받으며, 각각 필터조건 배열과 그룹핑 여부값을 갖습니다.",
+        "사용자 정의 함수의 반환값이 필터링 이력의 라벨로 적용됩니다.",
+        "새로 설정된 필터링 정보가 이미 이력에 있으면 반영되지 않습니다.",
+        "data(첫번째 파라미터) 는 새로 설정된 필터링 정보를 배열로 갖습니다.",
+        "data.header 는 필터링 대상이 되는 Column 의 Header 텍스트를 갖습니다.",
+        "data.filter 는 필터링 조건을 갖는 객체입니다.",
+        "data.filter.labels 는 필터링으로 표시되는 데이터의 Label 값 배열을 갖습니다.",
+        "data.filter.values 는 필터링으로 표시되는 데이터의 Value 값 배열을 갖습니다.",
+        "data.filter.operator 는 필터링 연산자를 갖습니다.",
+        "data.filter.gate 는 CustomFilter 기능으로 필터링 시 접속어를 갖습니다.",
+        "isGroupby(두번째 파라미터) 는 customFilterBox=true 일때 현재 GroupBy 여부를 true/false 로 갖습니다.",
+        "customFilterBox=false 이면 isGroupby 파라미터는 항상 false 값을 갖습니다.",
+        "customFilterBox=true 이면 GroupBy 없이 CustomFilter, FilterList 로 필터가 적용되면 사용자 정의 함수가 호출되고 이력이 저장됩니다.",
+        "GroupBy 상태에서 필터 조건이 변경되면 customFilterBox 속성값에 관계없이 사용자 정의 함수가 호출되고 이력이 저장됩니다.",
+        "사용자 정의 함수에서 undefined 또는 false 를 반환하면 내장된 라벨 생성이 적용됩니다.",
+    ]
+}
+
+
+
+// 포맷터 반환 모드 (con_groupbyFilterBoxFormatter 선택값 저장)
+//  - "custom"    : 커스텀 라벨 반환 (반환값이 이력 라벨로 적용)
+//  - "undefined" : undefined 반환 (내장 라벨 적용 @spec)
+//  - "false"     : false 반환 (내장 라벨 적용 @spec)
+scwin.gVar = { "formatterMode" : "" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 초기값
+    //  - con_groupbyFilterBoxFormatter : 자체값 selectbox → 기본 "custom"(커스텀 라벨 반환)
+    //  - con_customFilterBox : 공통 gdl_boolean → 코드값 "2"(=true) (GroupBy 없이도 필터 이력 저장/포맷터 호출되도록)
+    con_groupbyFilterBoxFormatter.setValue("custom");
+    con_customFilterBox.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 고정 전제 : groupbyZone=true, groupbyFilterBox=true, useFilterList=true, showSortableUseFilter=true
+//    (groupbyFilterBoxFormatter 는 groupbyZone=true, groupbyFilterBox=true 에서만 동작)
+//  - con_groupbyFilterBoxFormatter : 미설정('')=포맷터 미적용(내장 라벨) / custom / undefined / false
+//  - con_customFilterBox : gdl_boolean → getText() ('' 미설정 / 'true' / 'false')
+//  - 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 읽기
+    let vFormatter = con_groupbyFilterBoxFormatter.getValue();           // 자체값 selectbox
+    let vCustomFilterBox = con_customFilterBox.getText();                // gdl_boolean 은 getText()
+    scwin.gVar.formatterMode = vFormatter;
+
+    // 고정 전제 (groupbyFilterBoxLocation="top" : GroupFilterBox 를 GroupBy Zone 상단에 표시)
+    let properties = { groupbyZone: true, groupbyFilterBox: true, groupbyFilterBoxLocation: "top", useFilterList: true, showSortableUseFilter: true };
+
+    // groupbyFilterBoxFormatter : 미설정('')이면 속성 미추가(내장 라벨). custom/undefined/false 는 사용자 함수명 설정
+    if (vFormatter !== '') {
+        properties.groupbyFilterBoxFormatter = "scwin.target1_groupbyFilterBoxFormatter";
+    }
+
+    // customFilterBox : 미설정('')이면 속성 미추가(기본 false)
+    if (vCustomFilterBox === 'true') {
+        properties.customFilterBox = true;
+    } else if (vCustomFilterBox === 'false') {
+        properties.customFilterBox = false;
+    }
+
+    let lblDesc = '[전제] groupbyZone=true / groupbyFilterBox=true / groupbyFilterBoxLocation=top / useFilterList=true 고정, col1~col4 헤더 useFilter=true (필터 아이콘 표시)'
+        + '\n현재 groupbyFilterBoxFormatter=' + (vFormatter === '' ? '(미설정: 내장 라벨)' : vFormatter)
+        + ' / customFilterBox=' + (vCustomFilterBox === '' ? '(미설정)' : vCustomFilterBox) + ' (con 선택 후 [Target 재생성])'
+        + '\n[절차] 필터 아이콘 클릭 -> 값 선택 후 적용 시 포맷터(data, isGroupby) 호출 -> 결과창에 data 하위속성/isGroupby 출력'
+        + '\n[gate 검증] 필터 아이콘 -> 사용자필터 체크 -> 조건 2개 입력(둘째 조건 접속어 or/and 선택) -> 확인 시 data.filter.gate 가 or/and 로 전달됨 (FilterList 체크박스 경로는 gate=undefined)'
+        + '\n[확인] 포맷터 반환값이 GroupFilterBox 목록 라벨로 적용 / undefined,false 반환 또는 미설정이면 내장 라벨'
+        + '\n[확인] [GroupFilterBox 상태 확인] 버튼으로 목록 라벨 / 이력 수 / 표시 행 수 관찰'
+        + '\n[관찰] 같은 필터 재적용 시 이력 미추가(중복 미반영) / customFilterBox=false 이면 GroupBy 없이는 포맷터 미호출';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 6 Row : 그룹핑/필터 시연용 중복 데이터)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성
+    await scwin.createGridView(cList);
+}
+
+
+
+// 그룹핑/필터 시연용 데이터 (col1 에 중복값 → 필터 기준 컬럼으로 사용)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성 (useFilter="true" Header Column + ongroupby 이벤트 연결)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:560px;height:480px;">';
+    s += '<w2:caption style="" id="caption1" value="groupbyFilterBoxFormatter 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역" useFilter="true"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="상세" useFilter="true"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column3" value="구분" useFilter="true"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값" useFilter="true"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// groupbyFilterBoxFormatter : 필터 적용 시 엔진이 (data, isGroupby) 로 호출
+//  - data : 새 필터정보 배열. 하위 header / filter[].labels / filter[].values / filter[].operator / filter[].gate
+//  - isGroupby : customFilterBox=true 이고 현재 GroupBy 상태면 true, 아니면 false
+//  - 반환값이 GroupFilterBox 목록 라벨로 적용. undefined/false 반환 시 내장 라벨 적용(@spec)
+scwin.target1_groupbyFilterBoxFormatter = function (data, isGroupby) {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    // 포맷터 호출 및 파라미터 실측 출력 (검증 수단)
+    bottom.setReturnValue("[포맷터 호출됨] isGroupby=" + isGroupby + " / data 배열 길이=" + data.length);
+    for (let i = 0; i < data.length; i++) {
+        let d = data[i];
+        bottom.setReturnValue(" data[" + i + "].header=" + d.header);
+        for (let j = 0; j < d.filter.length; j++) {
+            let f = d.filter[j];
+            bottom.setReturnValue("   filter[" + j + "] operator=" + f.operator
+                + " / values=" + JSON.stringify(f.values)
+                + " / labels=" + JSON.stringify(f.labels)
+                + " / gate=" + f.gate);
+        }
+    }
+
+    // 반환 모드에 따라 라벨 반환
+    let mode = scwin.gVar.formatterMode;
+    if (mode === 'undefined') {
+        return undefined;   // 내장 라벨 적용
+    }
+    if (mode === 'false') {
+        return false;       // 내장 라벨 적용
+    }
+
+    // custom : 커스텀 라벨 조립
+    let label = "";
+    for (let i = 0; i < data.length; i++) {
+        let d = data[i];
+        let parts = [];
+        for (let j = 0; j < d.filter.length; j++) {
+            let lbl = d.filter[j].labels;
+            parts.push(Array.isArray(lbl) ? lbl.join("/") : lbl);
+        }
+        label += "<" + d.header + ": " + parts.join("/") + ">";
+    }
+    if (isGroupby) {
+        label = "[Group] " + label;
+    }
+    return label;
+}
+
+
+
+// ongroupby : 헤더 컬럼을 GroupBy Zone 으로 드래그하면 발생 (GroupBy 상태에서 포맷터 isGroupby=true 시연용)
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        {colSpan: 4, inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: 'left'}
+    ];
+    options.hideFooter = true;
+
+    target1.groupby(options);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] GroupBy 적용 (이후 필터 변경 시 포맷터 isGroupby 확인)");
+}
+
+
+
+// 확인 : GroupFilterBox 목록 라벨(포맷터 반환값 or 내장 라벨) / 이력 수 / 표시 행 수 실측 출력
+scwin.btn_check_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[옵션] groupbyFilterBoxFormatter=" + target1.options.groupbyFilterBoxFormatter
+        + " / customFilterBox=" + target1.options.customFilterBox);
+
+    let box = document.querySelector("div[id$='_groupbyFilterBox_div']");
+    bottom.setReturnValue("[GroupFilterBox 영역] " + (box !== null ? "활성화(표시됨)" : "비활성화(표시안됨)"));
+
+    let histLen = (target1.groupbyFilterBox_history) ? target1.groupbyFilterBox_history.length : 0;
+    bottom.setReturnValue("[저장된 필터 이력 수] " + histLen + " 건");
+
+    // 현재 선택된 GroupFilterBox 목록 라벨 (포맷터 반환값 or 내장 라벨)
+    let selLabel = (target1.groupbyFilterBox_select && target1.groupbyFilterBox_select.getText) ? target1.groupbyFilterBox_select.getText() : "";
+    bottom.setReturnValue("[GroupFilterBox 목록 라벨] " + selLabel);
+
+    // 현재 화면에 표시된 데이터 행 수 (필터 적용 결과 방증)
+    let tbody = document.getElementById(target1.id + "_body_tbody");
+    let dataRows = 0;
+    if (tbody) {
+        let trs = tbody.querySelectorAll("tr");
+        for (let i = 0; i < trs.length; i++) {
+            let tr = trs[i];
+            if (tr.style.display === "none" || tr.className.indexOf("w2grid_hidedRow") >= 0) {
+                continue;
+            }
+            dataRows++;
+        }
+    }
+    bottom.setReturnValue("[현재 화면 표시 행 수] " + dataRows + " 행");
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 좌측정렬이 자연스러움 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyFilterBoxFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyFilterBoxFormatter" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>custom (커스텀 라벨 반환)</xf:label>
+												<xf:value>custom</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>undefined 반환</xf:label>
+												<xf:value>undefined</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>false 반환</xf:label>
+												<xf:value>false</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="customFilterBox" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_customFilterBox" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="GroupFilterBox 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

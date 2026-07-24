@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] getGroupbyData" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > getGroupbyData]<br/>적용된 GroupBy 정보를 반환합니다.",
+    "validation" : [
+        "groupbyZone=true 인 경우에만 유효한 값을 반환합니다.",
+        "jsonType(선택) 파라미터에 true 설정 시, GroupBy 정보를 JSON 객체로 반환합니다.",
+        "jsonType(선택) 파라미터에 false 설정 시, GroupBy 정보를 JSON 문자열(JSON.stringify 형태)로 반환합니다.",
+        "jsonType(선택) 파라미터 미설정 시, 기본값 true 로 동작하여 JSON 객체로 반환합니다.",
+        "groupbyZone=false 이거나 GroupBy 가 적용되지 않은 상태이면 undefined 를 반환합니다.",
+        "반환값의 sortIndex 는 그룹핑 기준 Body Column 인덱스 배열입니다.",
+        "반환값의 sortOrder 는 정렬 방향 배열이며 1 은 오름차순, -1 은 내림차순입니다.",
+        "반환값의 hideHeader 는 전체 Group Header 숨김 여부(Boolean)입니다.",
+        "반환값의 hideFooter 는 전체 Group Footer 숨김 여부(Boolean)입니다.",
+        "반환값의 groupbyHeader 는 Group Header 구성 옵션(Array 또는 Object)입니다.",
+        "반환값의 groupbyFooter 는 Group Footer 구성 옵션(Array 또는 Object)입니다.",
+        "반환값의 closeGroup 은 그룹의 초기 닫힘 여부(Boolean)입니다.",
+        "반환값의 showOnlyLastDepth 는 최하위 Depth 만 표시 여부(Boolean)입니다.",
+        "반환값의 rowNumHeader 는 rowNumVisible=true 일때 Group Header Row 의 RowNum Column 구성 옵션입니다.",
+        "반환값의 rowStatusHeader 는 rowStatusVisible=true 일때 Group Header Row 의 RowStatus Column 구성 옵션입니다.",
+        "반환값의 rowNumFooter 는 rowNumVisible=true 일때 Group Footer Row 의 RowNum Column 구성 옵션입니다.",
+        "반환값의 rowStatusFooter 는 rowStatusVisible=true 일때 Group Footer Row 의 RowStatus Column 구성 옵션입니다.",
+        "hideGroupbyZone() 으로 GroupBy Zone 을 숨겨도 groupbyZone=true 이고 GroupBy 적용 상태이면 getGroupbyData() 는 유효한 값을 반환합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // 공통 DataList(gdl_boolean 등) 생성
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : gdl_boolean 코드값 "2"(=true) → groupbyZone=true 로 생성
+    //  (정적 select1 은 초기 selectedIndex 미적용이므로 onpageload 에서 명시 설정)
+    con_groupbyZone.setValue("2");
+
+    // par_jsonType 기본값 : true (정적 select1 초기 selectedIndex 미적용 회피 → 명시 설정)
+    par_jsonType.setValue("true");
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 적용할 GroupBy 옵션(반환값 대조 기준) — btn_groupby 에서 적용, getGroupbyData 반환과 대조
+scwin.gVar = { "appliedOptions": null };
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - con_groupbyZone : gdl_boolean → getText() ('' 미설정=속성제외 / 'true' / 'false')
+//  - rowNumVisible/rowStatusVisible=true 고정 : 반환값 rowNumHeader/rowStatusHeader/rowNumFooter/rowStatusFooter 확인 전제
+//  - groupbyZone 은 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    scwin.gVar.appliedOptions = null;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // con 값 : gdl_boolean 은 getText() 로 라벨('' / 'true' / 'false') 읽기
+    let vZone = con_groupbyZone.getText();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let lblZone = (vZone === '' ? '(미설정=false)' : vZone);
+    $c.gcm.createLabel('label="[전제] 4컬럼(region/dept/grade/score) 그리드, rowNumVisible/rowStatusVisible=true 고정. groupbyZone 현재값=' + lblZone + ' (con 변경 후 [Target 재생성]).\n[절차] (1) [groupby 적용] 으로 region(0 오름) > dept(1 내림) 2Depth + 각종 옵션 적용 (2) [getGroupbyData(true)]/[getGroupbyData(false)] 로 반환 확인.\n[확인] getGroupbyData(true)=적용옵션과 동일한 JSON 객체 / (false)=JSON 문자열 / groupbyZone=false 또는 groupby 미적용/clearGroupby 후=undefined / hideGroupbyZone 후에도 유효값 반환."', '', 'label1');
+
+    // groupbyZone : 미설정('') 이면 속성 자체를 추가하지 않음(기본 false)
+    let zoneAttr = '';
+    if (vZone === 'true') {
+        zoneAttr = 'groupbyZone="true" ';
+    } else if (vZone === 'false') {
+        zoneAttr = 'groupbyZone="false" ';
+    }
+
+    // === 바인딩 DataList(dlt_bind) : region(0) > dept(1) 2Depth 그룹 반복 데이터 ===
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 60 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 (rowNumVisible/rowStatusVisible=true, groupbyZone=con값)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + zoneAttr + 'rowNumVisible="true" rowStatusVisible="true" defaultCellHeight="28" dataList="data:dlt_bind" id="" style="width:640px;height:720px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="getGroupbyData 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="region(0)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="dept(1)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="grade(2)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="score(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+};
+
+
+
+// GroupBy 적용 : 반환 필드 전부(sortIndex/sortOrder/hideHeader/hideFooter/groupbyHeader/groupbyFooter/
+//  closeGroup/showOnlyLastDepth/rowNumHeader/rowStatusHeader/rowNumFooter/rowStatusFooter)를 채워 적용
+scwin.btn_groupby_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    let options = {
+        sortIndex: [0, 1],              // region(0) > dept(1) 2 Depth
+        sortOrder: [1, -1],             // region 오름차순 / dept 내림차순
+        hideHeader: false,
+        hideFooter: false,
+        closeGroup: false,
+        showOnlyLastDepth: false,
+        // groupbyHeader : Array 형식 (Body 4컬럼 매핑) — 첫 컬럼 그룹토글+그룹명, score 합계
+        groupbyHeader: [
+            { inputType: "expression", expression: "toggle() + depthStr()", align: "left" },
+            {},
+            {},
+            { inputType: "expression", expression: "sum('score')", align: "right" }
+        ],
+        // groupbyFooter : Object(depth_{n}) 형식 — depth_0=합계 / depth_1=소계 + 그룹 건수
+        groupbyFooter: {
+            depth_0: [
+                { value: "합계", colSpan: 3, align: "right" },
+                { inputType: "expression", expression: "count()", align: "center" }
+            ],
+            depth_1: [
+                { value: "소계", colSpan: 3, align: "right" },
+                { inputType: "expression", expression: "count()", align: "center" }
+            ]
+        },
+        // rowNum/rowStatus Header/Footer : 위치 마커 value (rowNumVisible/rowStatusVisible=true 전제)
+        rowNumHeader:    { value: "HR", className: "rnh" },
+        rowStatusHeader: { value: "HS", className: "rsh" },
+        rowNumFooter:    { value: "FR", className: "rnf" },
+        rowStatusFooter: { value: "FS", className: "rsf" }
+    };
+
+    if (target1.groupbyStatus && target1.groupbyStatus.grouped) {
+        target1.clearGroupby();
+    }
+    target1.groupby(options);
+
+    // 반환값 대조 기준으로 보관 (깊은 복사 — 이후 getGroupbyData 반환과 JSON 비교)
+    scwin.gVar.appliedOptions = JSON.parse(JSON.stringify(options));
+
+    b.setReturnValue("[groupby 적용] sortIndex=[0,1] sortOrder=[1,-1] + hideHeader/hideFooter/closeGroup/showOnlyLastDepth/groupbyHeader/groupbyFooter/rowNum·rowStatus Header·Footer 옵션 적용 완료. 이제 [getGroupbyData(true)] / [getGroupbyData(false)] 를 확인하세요.");
+};
+
+
+
+// getGroupbyData 실행 : par_jsonType 값(미설정/true/false)에 따라 인자를 달리 호출
+//  - 미설정('') → getGroupbyData()  (인자 생략 → 기본값 true → JSON 객체)
+//  - true       → getGroupbyData(true)   (JSON 객체 → 반환필드 12종 적용옵션 대조)
+//  - false      → getGroupbyData(false)  (JSON 문자열 → typeof==='string' + JSON.parse)
+scwin.btn_getGroupbyData_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // par_jsonType : 자체값 selectbox('' / 'true' / 'false') → getValue()
+    let jt = par_jsonType.getValue();
+
+    let data, callLabel;
+    if (jt === "true") {
+        data = target1.getGroupbyData(true);
+        callLabel = "getGroupbyData(true)";
+    } else if (jt === "false") {
+        data = target1.getGroupbyData(false);
+        callLabel = "getGroupbyData(false)";
+    } else {
+        data = target1.getGroupbyData();   // 인자 생략(미설정) → 기본값 true
+        callLabel = "getGroupbyData() 인자생략(기본 true)";
+    }
+
+    // groupbyZone=false 또는 groupby 미적용 → undefined
+    if (typeof data === "undefined") {
+        b.setReturnValue("[" + callLabel + "] 반환값 = undefined (groupbyZone=false 이거나 GroupBy 미적용 상태)");
+        return;
+    }
+
+    // jsonType=false → JSON 문자열 검증
+    if (jt === "false") {
+        let isStr = (typeof data === "string");
+        let parsedOk = false;
+        let sortIndexFromStr = "";
+        try {
+            let obj = JSON.parse(data);
+            parsedOk = true;
+            sortIndexFromStr = JSON.stringify(obj.sortIndex);
+        } catch (e) {
+            parsedOk = false;
+        }
+        b.setReturnValue("[" + callLabel + "] typeof = " + typeof data
+            + " (문자열 여부=" + isStr + ") / JSON.parse 성공=" + parsedOk
+            + " / parse 후 sortIndex=" + sortIndexFromStr
+            + "\n원본 문자열 = " + data);
+        return;
+    }
+
+    // jsonType=true 또는 미설정 → JSON 객체 : 반환필드 12종을 적용옵션과 대조
+    let applied = scwin.gVar.appliedOptions || {};
+    let eq = function (a, bv) { return JSON.stringify(a) === JSON.stringify(bv); };
+    let mark = function (key) {
+        return "[" + (eq(data[key], applied[key]) ? "일치" : "불일치") + "] " + key + " = " + JSON.stringify(data[key]);
+    };
+
+    let lines = [];
+    lines.push("[" + callLabel + "] typeof = " + (Array.isArray(data) ? "array" : typeof data) + " (JSON 객체)");
+    lines.push(mark("sortIndex"));
+    lines.push(mark("sortOrder"));
+    lines.push(mark("hideHeader"));
+    lines.push(mark("hideFooter"));
+    lines.push(mark("closeGroup"));
+    lines.push(mark("showOnlyLastDepth"));
+    lines.push(mark("groupbyHeader"));
+    lines.push(mark("groupbyFooter"));
+    lines.push(mark("rowNumHeader"));
+    lines.push(mark("rowStatusHeader"));
+    lines.push(mark("rowNumFooter"));
+    lines.push(mark("rowStatusFooter"));
+
+    b.setReturnValue(lines.join("\n"));
+};
+
+
+
+// clearGroupby : GroupBy 해제 후 getGroupbyData → undefined (미적용 상태) 실측
+scwin.btn_clearGroupby_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    target1.clearGroupby();
+    scwin.gVar.appliedOptions = null;
+
+    let data = target1.getGroupbyData(true);
+    b.setReturnValue("[clearGroupby 후 getGroupbyData(true)] 반환값 = "
+        + (typeof data === "undefined" ? "undefined (GroupBy 미적용 → 반환 없음)" : JSON.stringify(data)));
+};
+
+
+
+// hideGroupbyZone : GroupBy Zone 숨긴 뒤에도 getGroupbyData 유효값 반환 실측 (@spec)
+scwin.btn_hideZone_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // 적용된 GroupBy 가 없으면 안내
+    if (!(target1.groupbyStatus && target1.groupbyStatus.grouped)) {
+        b.setReturnValue("[hideGroupbyZone] 먼저 [groupby 적용] 후 실행하세요. (현재 GroupBy 미적용)");
+        return;
+    }
+
+    target1.hideGroupbyZone();
+
+    // Zone DOM 숨김 여부 실측
+    let zone = document.querySelector("div[id$='_groupbyZone_div']");
+    let zoneHidden = (zone === null) || (zone.offsetHeight === 0) || (zone.style.display === "none");
+
+    // Zone 을 숨긴 뒤에도 getGroupbyData 는 유효값 반환
+    let data = target1.getGroupbyData(true);
+    b.setReturnValue("[hideGroupbyZone 후] GroupBy Zone 숨김=" + zoneHidden
+        + " / getGroupbyData(true) 반환 유효=" + (typeof data !== "undefined")
+        + " / sortIndex=" + (typeof data !== "undefined" ? JSON.stringify(data.sortIndex) : "-"));
+};]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 여러 줄 출력 가독성 위해 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+
+/* rowNum/rowStatus Header·Footer 위치 마커 배경색 (Header=파랑 / Footer=주황) */
+td.rnh, td.rsh { background-color: rgb(180, 205, 240) !important; }
+td.rnf, td.rsf { background-color: rgb(245, 205, 175) !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyZone" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_groupbyZone" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="jsonType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_jsonType" ref="" selectedIndex="1" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+											<xf:item><xf:label>true</xf:label><xf:value>true</xf:value></xf:item>
+											<xf:item><xf:label>false</xf:label><xf:value>false</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="groupby 적용" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getGroupbyData_onclick" id="btn_getGroupbyData" label="getGroupbyData 실행" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearGroupby_onclick" id="btn_clearGroupby" label="clearGroupby" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hideZone_onclick" id="btn_hideZone" label="hideGroupbyZone" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

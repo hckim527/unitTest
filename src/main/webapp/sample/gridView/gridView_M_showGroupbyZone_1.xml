@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] showGroupbyZone" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260724" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > showGroupbyZone]<br/>GridView 컴포넌트의 상단에 GroupBy Zone 을 표시합니다.",
+    "validation" : [
+        "groupbyZone=true 인 GridView 에서 showGroupbyZone() 실행 시 상단에 GroupBy Zone 을 표시해야 합니다.",
+        "showGroupbyZone() 은 groupbyZone=true 인 경우에만 동작해야 합니다.",
+        "groupbyZone=false 이면 GroupBy Zone 이 생성되지 않아 showGroupbyZone() 이 동작하지 않아야 합니다.",
+        "showGroupbyZone() 실행 후에도 groupbyZone 속성값은 변경되지 않아야 합니다.",
+        "showGroupbyZone() 실행 후에도 적용된 GroupBy 설정은 변경되지 않아야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : gdl_boolean 코드값 "2"(=true) 로 GroupBy Zone 시연
+    //  - 정적 select1 은 초기 selectedIndex 미적용이므로 onpageload 에서 명시 설정
+    con_groupbyZone.setValue("2");
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - con_groupbyZone : 공통 gdl_boolean → getText() ('' 미설정=속성제외 / 'true' / 'false')
+//  - groupbyZone 은 렌더타임 속성이므로 con 변경 후 [Target 재생성] 으로만 반영
+//  - groupbyZone=true 이면 생성 직후 region 기준 groupby 를 미리 적용 → @spec3(설정 불변) 검증용
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : gdl_boolean 은 getText() 로 라벨('' / 'true' / 'false') 읽기
+    let vGroupbyZone = con_groupbyZone.getText();
+
+    // groupbyZone : 미설정('') 이면 속성 자체를 추가하지 않음(기본 false)
+    let properties = {};
+    if (vGroupbyZone === 'true') {
+        properties.groupbyZone = true;
+    } else if (vGroupbyZone === 'false') {
+        properties.groupbyZone = false;
+    }
+
+    let lblDesc = '[전제] con 에서 groupbyZone 값 선택 후 [Target 재생성] 클릭 (현재: '
+        + (vGroupbyZone === '' ? '(미설정)' : vGroupbyZone) + ')'
+        + '\n[셋업] groupbyZone=true 면 생성 직후 상단에 GroupBy Zone 이 표시되고 region 기준 groupby 가 미리 적용됨'
+        + '\n[절차] groupbyZone=true 는 Zone 이 기본 표시라 showGroupbyZone 이 곧바로는 무동작 -> (1) [hideGroupbyZone (숨김 셋업)] 로 Zone 을 숨긴 뒤 (2) [showGroupbyZone] 으로 다시 표시'
+        + '\n[확인] 각 버튼 실행 후 Zone 표시여부 / groupbyZone 옵션값 / GroupBy 적용상태 출력. groupbyZone=false 로 재생성 시 무동작 확인';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 6 Row : 그룹핑 시연용 중복 데이터)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (4컬럼 Body 그리드)
+    await scwin.createGridView(cList);
+
+    // groupbyZone=true 인 경우, @spec3(설정 불변) 검증을 위해 region 기준 groupby 를 미리 적용
+    if (vGroupbyZone === 'true') {
+        let options = {
+            sortIndex: [0],
+            sortOrder: [1],
+            groupbyHeader: [
+                { inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", colSpan: 4, align: 'left' }
+            ],
+            hideFooter: true
+        };
+        target1.groupby(options);
+    }
+}
+
+
+
+// 그룹핑 시연용 데이터 (col1 에 중복값 → GroupBy 기준 컬럼으로 사용)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" style="width:560px;height:480px;">';
+    s += '<w2:caption style="" id="caption1" value="showGroupbyZone 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="상세"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column3" value="구분"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// GroupBy Zone 표시 여부 실측 : groupbyZoneStatus.groupbyZoneRender 의 offsetHeight 로 판정
+//  - exists=false : groupbyZone=false 라 Zone DOM 자체가 미생성
+//  - visible=true : Zone 이 화면에 표시됨(offsetHeight>0)
+scwin._zoneInfo = function () {
+    let render = target1.groupbyZoneStatus && target1.groupbyZoneStatus.groupbyZoneRender;
+    if (!render) {
+        return { exists: false, visible: false };
+    }
+    return { exists: true, visible: render.offsetHeight > 0 };
+};
+
+
+
+// 적용된 GroupBy 설정 상태 : groupbyStatus.grouped / sortIndexArr Depth
+scwin._groupbyInfo = function () {
+    let gs = target1.groupbyStatus;
+    let grouped = !!(gs && gs.grouped);
+    let depth = (gs && gs.sortIndexArr) ? gs.sortIndexArr.length : 0;
+    return grouped ? ("적용됨(" + depth + " Depth)") : "미적용";
+};
+
+
+
+// [셋업] hideGroupbyZone : showGroupbyZone 시연을 위해 Zone 을 먼저 숨김 (검증 대상 아님, 전제 조작용)
+scwin.btn_hide_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+
+    target1.hideGroupbyZone();
+
+    let z = scwin._zoneInfo();
+    b.setReturnValue("[hideGroupbyZone 셋업] Zone 표시="
+        + (z.exists ? (z.visible ? "표시됨" : "숨김") : "Zone 미생성")
+        + " -> 이제 [showGroupbyZone] 으로 다시 표시하세요.");
+};
+
+
+
+// [대상] showGroupbyZone : GroupBy Zone 을 상단에 표시. 실행 전/후 상태를 함께 출력하여 불변 검증
+scwin.btn_show_onclick = function () {
+    let b = wf_body_bottom.getObj("scwin");
+    b.btn_clear_onclick();
+
+    // 실행 전 상태 스냅샷
+    let beforeOpt = target1.options.groupbyZone;
+    let beforeGrouped = scwin._groupbyInfo();
+
+    // 대상 메소드 실행
+    target1.showGroupbyZone();
+
+    // 실행 후 상태
+    let z = scwin._zoneInfo();
+    let afterOpt = target1.options.groupbyZone;
+    let afterGrouped = scwin._groupbyInfo();
+
+    // (1)(2)(3) Zone 표시 결과 : true 면 표시됨 / false 면 무동작
+    b.setReturnValue("[showGroupbyZone] Zone 표시="
+        + (z.exists ? (z.visible ? "표시됨" : "표시안됨(무동작)") : "Zone 미생성(무동작)"));
+
+    // (4) groupbyZone 옵션값 불변
+    b.setReturnValue("[groupbyZone 옵션값] 실행 전=" + beforeOpt + " / 실행 후=" + afterOpt);
+
+    // (5) 적용된 GroupBy 설정 불변
+    b.setReturnValue("[GroupBy 설정] 실행 전=" + beforeGrouped + " / 실행 후=" + afterGrouped);
+};]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 여러 줄 출력 가독성 위해 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyZone" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyZone" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hide_onclick" id="btn_hide"
+							label="hideGroupbyZone (숨김 셋업)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_show_onclick" id="btn_show"
+							label="showGroupbyZone" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

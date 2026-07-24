@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyZoneHeight" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > groupbyZoneHeight]<br/>GroupBy Zone 의 높이(Height)를 설정합니다.",
+    "validation" : [
+        "groupbyZone=true 인 경우에만 동작합니다.",
+        "픽셀(px) 단위로 GroupBy Zone 의 높이를 설정합니다.",
+        "미설정 시, GroupBy Zone 의 높이로 50 이 적용됩니다.",
+        "설정한 높이는 GroupBy Zone 의 내부 div 영역 높이에 적용됩니다.",
+        "CSS 의 padding / border / margin 이 적용되면 실제 높이는 설정값보다 더 커질 수 있습니다.",
+        "GroupBy Zone 영역에는 스크롤이 생성되지 않으므로 그룹핑된 Column 버튼 크기를 고려하여 높이를 설정해야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : 정적 select1 은 초기 selectedIndex 미적용이므로 onpageload 에서 명시 설정
+    //  - "80" 으로 기본 50 과 확연히 다른 높이를 초기 시연 (미설정=50/80/120 전수 조합은 con 선택 후 재생성으로 검증)
+    con_groupbyZoneHeight.setValue("80");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - con_groupbyZoneHeight : 자체 값 selectbox → getValue() ('' 미설정 / '50' / '80' / '120')
+//  - groupbyZone 은 고정 전제(항상 true) : groupbyZoneHeight 는 groupbyZone=true 에서만 동작
+//  - groupbyZoneHeight 는 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+//  - 엔진은 groupbyZone=true 이면 <div id='..._groupbyZone_div'> 를 렌더하고 style.height = parseInt(groupbyZoneHeight)+'px' 로 설정(미설정 시 기본 '50')
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : 자체 값 selectbox 는 getValue() 로 읽기
+    let vHeight = con_groupbyZoneHeight.getValue();
+
+    // 고정 전제 : groupbyZone 은 항상 true
+    let properties = { groupbyZone: true };
+    // groupbyZoneHeight : 미설정('') 이면 속성 자체를 추가하지 않음(엔진 기본 '50')
+    if (vHeight !== '') {
+        properties.groupbyZoneHeight = vHeight;
+    }
+
+    let lblDesc = '[전제] groupbyZone=true 고정 (그리드 상단에 GroupBy Zone 표시)'
+        + '\n현재 groupbyZoneHeight=' + (vHeight === '' ? '(미설정 -> 기본 50)' : vHeight) + ' (con 선택 후 [Target 재생성])'
+        + '\n[동작] 설정한 px 값이 GroupBy Zone 내부 div 의 높이로 적용됨 (미설정 시 50)'
+        + '\n[확인] [Zone 높이 확인] 버튼으로 내부 div 의 설정 height / 실제 offsetHeight / 스크롤 유무 관찰'
+        + '\n[관찰] 헤더 컬럼을 상단 GroupBy Zone 으로 드래그하면 그룹핑 적용(ongroupby)';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 6 Row)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (4컬럼 Body 그리드)
+    await scwin.createGridView(cList);
+}
+
+
+
+// 시연용 데이터
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:560px;height:480px;">';
+    s += '<w2:caption style="" id="caption1" value="groupbyZoneHeight 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="상세"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column3" value="구분"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// ongroupby : 헤더 컬럼을 상단 GroupBy Zone 으로 드래그하면 발생
+//  - options 에 groupbyHeader 최소 구성을 정의한 뒤 groupby(options) 를 호출해야 실제 그룹핑이 적용됨
+//  - 설정한 groupbyZoneHeight 높이의 Zone 에 헤더를 끌어와 실사용 그룹핑을 시연
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        {colSpan: 4, inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: 'left'}
+    ];
+    options.hideFooter = true;
+
+    target1.groupby(options);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] 드래그한 컬럼 기준으로 그룹핑이 적용되었습니다.");
+}
+
+
+
+// 확인 : GroupBy Zone 내부 div 의 높이를 실측 출력
+//  - 엔진은 div[id$='_groupbyZone_div'] 에 style.height = 설정값(px) 을 세팅 (미설정 시 기본 50)
+//  - offsetHeight 는 border/padding 이 포함된 실제 높이 → 설정값보다 더 클 수 있음(@spec1)
+//  - GroupBy Zone 은 스크롤을 생성하지 않음(@spec2) → overflow-y 로 확인
+scwin.btn_check_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let vSel = con_groupbyZoneHeight.getValue();
+    let applied = target1.options.groupbyZoneHeight;
+    bottom.setReturnValue("[적용값] groupbyZoneHeight = " + applied
+        + (vSel === '' ? " (미설정 -> 기본 50)" : " (설정 " + vSel + ")"));
+
+    let zone = document.querySelector("div[id$='_groupbyZone_div']");
+    if (zone === null) {
+        bottom.setReturnValue("[GroupBy Zone] 표시안됨 (groupbyZone=true 필요)");
+        return;
+    }
+
+    let cs = window.getComputedStyle(zone);
+    // 설정 height(엔진이 style 로 지정한 값) vs 실제 offsetHeight
+    bottom.setReturnValue("[내부 div] style.height=" + zone.style.height
+        + " / offsetHeight=" + zone.offsetHeight + "px");
+    // @spec1 : padding/border 로 실제 높이 증가 관찰
+    bottom.setReturnValue("[실제높이 구성] content=" + cs.height
+        + " / padding(top/bottom)=" + cs.paddingTop + "/" + cs.paddingBottom
+        + " / border(top/bottom)=" + cs.borderTopWidth + "/" + cs.borderBottomWidth);
+    // @spec2 : 스크롤 미생성
+    bottom.setReturnValue("[스크롤] 세로 스크롤 " + ((cs.overflowY === 'scroll' || cs.overflowY === 'auto') ? "가능" : "없음"));
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 좌측정렬이 자연스러움 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyZoneHeight" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 appearance="minimal" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyZoneHeight" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[50]]></xf:label>
+												<xf:value><![CDATA[50]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[80]]></xf:label>
+												<xf:value><![CDATA[80]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[120]]></xf:label>
+												<xf:value><![CDATA[120]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="Zone 높이 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

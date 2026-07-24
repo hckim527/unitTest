@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] filterBoxvisibleRowNum" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260724" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > filterBoxvisibleRowNum]<br/>GroupFilterBox 의 아이템 리스트에 한번에 표시할 목록의 갯수를 설정합니다.",
+    "validation" : [
+        "groupbyZone=true, groupbyFilterBox=true 인 경우에만 동작합니다.",
+        "숫자 값 설정 시, GroupFilterBox 의 아이템 리스트에 한번에 표시할 목록의 갯수를 설정합니다.",
+        "숫자 값 설정 시, 아이템 리스트의 높이가 속성값에 맞게 변경되며 속성값보다 목록수가 많을 경우 스크롤이 생성됩니다.",
+        "속성값을 설정하지 않으면 4 로 적용됩니다.",
+    ]
+}
+
+
+
+// con 선택값(자체 값 selectbox) 저장 : '' 미설정 / '2' / '3' / '6'
+scwin.gVar = { "conNum" : "" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 초기값 : 미설정('') → 기본값 4 동작 시연 (정적 select1 은 초기 selectedIndex 미적용이므로 명시 설정)
+    con_filterBoxvisibleRowNum.setSelectedIndex(0);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - con_filterBoxvisibleRowNum : 자체 값 selectbox('' 미설정 / '2' / '3' / '6') → getValue()
+//  - 고정 전제 : groupbyZone / groupbyFilterBox / customFilterBox / useFilterList / showSortableUseFilter 는 항상 true
+//    · filterBoxvisibleRowNum 은 groupbyZone=true, groupbyFilterBox=true 에서만 동작
+//    · customFilterBox=true 로 필터 아이콘 적용 시 GroupFilterBox 목록(이력 select)에 이력을 쌓아 실체 확보
+//  - filterBoxvisibleRowNum 은 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+//  - 엔진 : filterBoxvisibleRowNum 은 이력 select(_groupbyFilterBox_select) 의 visibleRowNum 으로 전달됨.
+//    목록수 > 속성값 이면 세로 스크롤 생성, 미설정이면 기본 4 적용.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : 자체 값 selectbox 이므로 getValue() ('' / '2' / '3' / '6')
+    let vNum = con_filterBoxvisibleRowNum.getValue();
+    scwin.gVar.conNum = vNum;
+
+    // 고정 전제 : groupbyZone / groupbyFilterBox / customFilterBox / useFilterList / showSortableUseFilter 는 항상 true
+    let properties = { groupbyZone: true, groupbyFilterBox: true, customFilterBox: true, useFilterList: true, showSortableUseFilter: true };
+    // filterBoxvisibleRowNum : 미설정('') 이면 속성 자체를 추가하지 않음(기본 4)
+    if (vNum !== '') {
+        properties.filterBoxvisibleRowNum = vNum;
+    }
+
+    let lblDesc = '[전제] groupbyZone=true / groupbyFilterBox=true / customFilterBox=true / useFilterList=true 고정, col1 헤더 useFilter=true (필터 아이콘 표시), 데이터 col1 은 6종 구분값'
+        + '\n현재 filterBoxvisibleRowNum=' + (vNum === '' ? '(미설정: 기본 4)' : vNum) + ' (con 선택 후 [Target 재생성])'
+        + '\n[절차] 지역 컬럼 필터 아이콘 클릭 -> 서로 다른 단일 값(서울/부산/대구/광주/대전/인천)으로 5~6회 반복 적용 -> 매번 다른 필터가 이력 1건씩 GroupFilterBox 목록에 추가 (같은 필터 재적용은 미추가)'
+        + '\n[확인] [filterBoxvisibleRowNum 확인] 버튼으로 적용 옵션값 / 이력 수 / 목록에 한번에 보이는 행 수 / 스크롤 생성 여부 실측'
+        + '\n[관찰] 보이는 행 수 = min(속성값, 이력수), 이력수 > 속성값 이면 스크롤 생성 / 미설정은 4 로 동작';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 6 Row : col1 6종 구분값으로 필터 이력 다건 확보)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (지역 컬럼 useFilter Header)
+    await scwin.createGridView(cList);
+}
+
+
+
+// 필터 이력 다건 시연용 데이터 (col1 에 6종 구분값 → 서로 다른 단일값 필터로 이력을 5~6건까지 쌓음)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "부산", col2: "해운대", col3: "B", col4: "200" },
+        { col1: "대구", col2: "수성", col3: "C", col4: "300" },
+        { col1: "광주", col2: "서구", col3: "D", col4: "400" },
+        { col1: "대전", col2: "유성", col3: "E", col4: "500" },
+        { col1: "인천", col2: "연수", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성 (지역 컬럼 useFilter="true" + ongroupby 이벤트 연결)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:520px;height:460px;">';
+    s += '<w2:caption style="" id="caption1" value="filterBoxvisibleRowNum 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="180" style="" inputType="text" id="column1" value="지역" useFilter="true"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="column2" value="상세" useFilter="true"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="column3" value="구분" useFilter="true"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="column4" value="값" useFilter="true"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="180" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// ongroupby : 헤더 컬럼을 GroupBy Zone 으로 드래그하면 발생 (GroupBy 상태에서도 이력이 쌓이도록 지원)
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        {colSpan: 4, inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: 'left'}
+    ];
+    options.hideFooter = true;
+
+    target1.groupby(options);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] GroupBy 가 적용되었습니다.");
+}
+
+
+
+// 확인 : 결정적 검증 신호만 한 줄로 출력
+//  - 적용된 filterBoxvisibleRowNum (미설정이면 기본 4), 이력 건수, 한번에 보이는 행 수(정수), 스크롤 생성 여부(Y/N)
+//  - 목록(드롭다운)을 열어 아이템 리스트 컨테이너 높이/1행 높이로 보이는 행 수 산출, scrollHeight>clientHeight 로 스크롤 판정
+//    (픽셀 좌표는 산출에만 내부 사용하고 출력하지 않음)
+scwin.btn_check_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let opt = target1.options.filterBoxvisibleRowNum;   // 미설정이어도 엔진 기본 4
+    let sel = target1.groupbyFilterBox_select;
+    let hist = target1.groupbyFilterBox_history || [];
+
+    if (!sel || hist.length === 0) {
+        bottom.setReturnValue("이력 없음 - 지역 컬럼 필터 아이콘으로 서로 다른 값의 필터를 여러 건 적용한 뒤 다시 확인하세요.");
+        return;
+    }
+
+    // 목록(드롭다운)을 열어 표시 행수/스크롤 측정 (비동기 렌더이므로 잠시 뒤 측정)
+    sel.handleClickEvent();
+    setTimeout(function () {
+        let cont = document.querySelector("[id$='_groupbyFilterBox_select_itemTable']");
+        if (!cont || cont.getBoundingClientRect().height === 0) {
+            bottom.setReturnValue("목록 열기 실패");
+            return;
+        }
+        let firstTd = cont.querySelector("td");
+        let rowH = firstTd ? firstTd.offsetHeight : 0;
+        let visibleRows = rowH > 0 ? Math.round(cont.clientHeight / rowH) : 0;
+        let hasScroll = cont.scrollHeight > cont.clientHeight + 1;
+
+        bottom.setReturnValue("filterBoxvisibleRowNum=" + opt + " / 이력 " + hist.length + "건 / 표시 " + visibleRows + "행 / 스크롤 " + (hasScroll ? "Y" : "N"));
+
+        // 측정 후 목록 닫기
+        sel.handleClickEvent();
+    }, 300);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 좌측정렬이 자연스러움 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="filterBoxvisibleRowNum" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_filterBoxvisibleRowNum" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="filterBoxvisibleRowNum 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

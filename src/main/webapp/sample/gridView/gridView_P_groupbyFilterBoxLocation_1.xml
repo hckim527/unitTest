@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyFilterBoxLocation" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > groupbyFilterBoxLocation]<br/>GridView 에 GroupFilterBox 가 표시되는 위치를 설정합니다.",
+    "validation" : [
+        "groupbyZone=true, groupbyFilterBox=true 인 경우에만 동작합니다.",
+        "top 설정 시, GroupFilterBox 를 GroupBy Zone 상단에 표시합니다.",
+        "bottom 설정 시, GroupFilterBox 를 가로 스크롤바 상단에 표시합니다.",
+        "미설정 시, GroupFilterBox 를 가로 스크롤바 상단에 표시합니다.",
+        "top 설정 시, GroupFilterBox 아이템 리스트가 아래로 펼쳐집니다.",
+        "bottom 설정 시, GroupFilterBox 아이템 리스트가 위로 펼쳐집니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : 미설정('') → 기본값 bottom 동작 시연
+    //  - 정적 select1 은 초기 selectedIndex 미적용이므로 onpageload 에서 명시 설정
+    con_groupbyFilterBoxLocation.setSelectedIndex(0);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - con_groupbyFilterBoxLocation : 자체 값 selectbox('' 미설정 / 'top' / 'bottom') → getValue()
+//  - groupbyZone / groupbyFilterBox / customFilterBox / useFilterList / showSortableUseFilter 는 고정 전제(항상 true)
+//    · groupbyFilterBoxLocation 은 groupbyZone=true, groupbyFilterBox=true 에서만 동작
+//    · customFilterBox=true 로 필터 아이콘 적용 시 GroupFilterBox 목록에 이력을 쌓아 목록 실체 확보
+//  - groupbyFilterBoxLocation 은 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+//  - 엔진 렌더 위치(layoutController) : top → <div ..._groupbyFilterBox_div> top:0px (GroupBy Zone 상단),
+//    bottom → bottom:0px (가로 스크롤바 상단). 내부 목록 select direction : top→down(아래), bottom→up(위)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : 자체 값 selectbox 이므로 getValue() ('' / 'top' / 'bottom')
+    let vLoc = con_groupbyFilterBoxLocation.getValue();
+
+    // 고정 전제 : groupbyZone / groupbyFilterBox / customFilterBox / useFilterList / showSortableUseFilter 는 항상 true
+    let properties = { groupbyZone: true, groupbyFilterBox: true, customFilterBox: true, useFilterList: true, showSortableUseFilter: true };
+    // groupbyFilterBoxLocation : 미설정('') 이면 속성 자체를 추가하지 않음(기본 bottom)
+    if (vLoc === 'top') {
+        properties.groupbyFilterBoxLocation = 'top';
+    } else if (vLoc === 'bottom') {
+        properties.groupbyFilterBoxLocation = 'bottom';
+    }
+
+    let lblDesc = '[전제] groupbyZone=true / groupbyFilterBox=true / customFilterBox=true 고정, col1~col4 헤더 useFilter=true (필터 아이콘 표시)'
+        + '\n현재 groupbyFilterBoxLocation=' + (vLoc === '' ? '(미설정)' : vLoc) + ' (con 선택 후 [Target 재생성])'
+        + '\n[절차] 필터 아이콘 클릭 -> 필터 적용 시 GroupFilterBox 목록에 이력 추가 -> 목록(select) 을 열어 펼침 방향 관찰'
+        + '\n[확인] [GroupFilterBox 위치 확인] 버튼으로 박스 위치(Zone 상단 / 스크롤바 상단) 와 목록 펼침 방향(위/아래) 실측'
+        + '\n[관찰] top = 박스가 GroupBy Zone 위 + 목록 아래로 펼침 / bottom(미설정 포함) = 박스가 가로 스크롤바 위 + 목록 위로 펼침'
+        + '\n[그룹핑] 헤더 컬럼을 상단 GroupBy Zone 으로 드래그하면 ongroupby 발생 -> 실제 그룹핑 적용';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 6 Row : 그룹핑/필터 시연용 중복 데이터)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (useFilter Header Column 4개)
+    await scwin.createGridView(cList);
+}
+
+
+
+// 그룹핑/필터 시연용 데이터 (col1 에 중복값 → GroupBy / 필터 기준 컬럼으로 사용)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성 (useFilter="true" Header Column)
+//  - 그리드 높이를 충분히 주어 GroupFilterBox 박스 / GroupBy Zone / 가로 스크롤바 위치 차이가 드러나도록 함
+//  - 가로 스크롤바가 나타나도록 컬럼 폭 합을 그리드 폭보다 크게 설정
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:520px;height:460px;">';
+    s += '<w2:caption style="" id="caption1" value="groupbyFilterBoxLocation 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="180" style="" inputType="text" id="column1" value="지역" useFilter="true"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="column2" value="상세" useFilter="true"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="column3" value="구분" useFilter="true"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="column4" value="값" useFilter="true"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="180" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="180" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// ongroupby : 헤더 컬럼을 GroupBy Zone 으로 드래그하면 발생
+//  - options 에 groupbyHeader 를 정의한 뒤 groupby(options) 를 수동 호출해야 실제 그룹핑이 적용됨
+//  - 드래그는 사용자 조작 영역이므로 별도 실행 버튼은 두지 않고 이벤트 발생만 관찰/출력
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        {colSpan: 4, inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: 'left'}
+    ];
+    options.hideFooter = true;
+
+    target1.groupby(options);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] GroupBy 가 적용되었습니다.");
+}
+
+
+
+// 확인 : GroupFilterBox 박스 위치와 목록(select) 펼침 방향을 실측 출력
+//  - 박스 div(_groupbyFilterBox_div) 와 GroupBy Zone div(_groupbyZone_div), 가로 스크롤바 div(_scrollX_div) 의 좌표 비교로 위치 판정
+//    · top   : 박스가 GroupBy Zone 보다 위 (박스 top < Zone top)
+//    · bottom/미설정 : 박스가 가로 스크롤바 바로 위 (박스 top > Zone top, 박스가 스크롤바 위)
+//  - 펼침 방향은 내부 select 목록을 실제로 열어 열린 목록(itemTable) 과 select 박스의 좌표를 비교하여 판정
+//    (엔진 적용값 select.options.direction 은 참고로만 병기, 판정은 실측 좌표 기준)
+scwin.btn_check_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let loc = target1.options.groupbyFilterBoxLocation;
+    bottom.setReturnValue("[적용 옵션] groupbyFilterBoxLocation=" + loc
+        + " / groupbyZone=" + target1.options.groupbyZone + " / groupbyFilterBox=" + target1.options.groupbyFilterBox);
+
+    let box = document.querySelector("div[id$='_groupbyFilterBox_div']");
+    if (box === null) {
+        bottom.setReturnValue("[GroupFilterBox 영역] 표시안됨 (groupbyZone/groupbyFilterBox 확인)");
+        return;
+    }
+
+    // 위치 실측 : 박스 vs GroupBy Zone vs 가로 스크롤바
+    let zone = document.querySelector("div[id$='_groupbyZone_div']");
+    let scrollX = document.querySelector("div[id$='_scrollX_div']");
+    let bR = box.getBoundingClientRect();
+    let zR = zone ? zone.getBoundingClientRect() : null;
+    let sR = scrollX ? scrollX.getBoundingClientRect() : null;
+
+    let posConcl = (zR && bR.top < zR.top) ? "GroupBy Zone 상단" : "가로 스크롤바 상단";
+    bottom.setReturnValue("[GroupFilterBox 위치] " + posConcl
+        + " (박스 top=" + Math.round(bR.top) + " / Zone top=" + (zR ? Math.round(zR.top) : "-")
+        + " / 스크롤바 top=" + (sR ? Math.round(sR.top) : "-") + ")");
+
+    // 펼침 방향 실측 : 목록에 이력이 있어야 열 수 있으므로 이력 유무 확인
+    let sel = target1.groupbyFilterBox_select;
+    let hist = target1.groupbyFilterBox_history || [];
+    let engineDir = (sel && sel.options) ? sel.options.direction : "";
+    if (!sel || hist.length === 0) {
+        bottom.setReturnValue("[아이템 리스트 펼침 방향] 이력 없음 - 필터 아이콘으로 필터를 1건 이상 적용한 뒤 다시 확인하세요. (참고 direction=" + engineDir + ")");
+        return;
+    }
+
+    // 실제 목록(드롭다운) 을 열어 렌더 위치 측정 (검증 목적 조작)
+    let selDom = document.querySelector("div[id$='_groupbyFilterBox_select']");
+    sel.handleClickEvent();
+
+    // 목록 렌더 후 좌표 측정 (열림은 비동기 렌더이므로 잠시 뒤 측정)
+    setTimeout(function () {
+        let list = document.querySelector("[id$='_groupbyFilterBox_select_itemTable']");
+        if (!selDom || !list || list.getBoundingClientRect().height === 0) {
+            bottom.setReturnValue("[아이템 리스트 펼침 방향] 목록 열기 실패 (참고 direction=" + engineDir + ")");
+            return;
+        }
+        let selR = selDom.getBoundingClientRect();
+        let lR = list.getBoundingClientRect();
+
+        // 판정 : 리스트가 select 아래쪽이면 아래로, 위쪽이면 위로 (좌표 기준)
+        let measured;
+        if (lR.top >= selR.bottom - 3) {
+            measured = "아래로";
+        } else if (lR.bottom <= selR.top + 3) {
+            measured = "위로";
+        } else {
+            measured = ((lR.top + lR.bottom) / 2 >= (selR.top + selR.bottom) / 2) ? "아래로" : "위로";
+        }
+        bottom.setReturnValue("[아이템 리스트 펼침 방향-실측] " + measured
+            + " (select top=" + Math.round(selR.top) + " bottom=" + Math.round(selR.bottom)
+            + " / 리스트 top=" + Math.round(lR.top) + " bottom=" + Math.round(lR.bottom)
+            + " / 참고 direction=" + engineDir + ")");
+
+        // 측정 후 목록 닫기
+        sel.handleClickEvent();
+    }, 250);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 좌측정렬이 자연스러움 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyFilterBoxLocation" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyFilterBoxLocation" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[top]]></xf:label>
+												<xf:value><![CDATA[top]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bottom]]></xf:label>
+												<xf:value><![CDATA[bottom]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="GroupFilterBox 위치 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

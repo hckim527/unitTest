@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] groupbyZoneMessage" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260722" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1038
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > groupbyZoneMessage]<br/>GroupBy Zone 에 그룹핑된 Column 이 없을때 표시될 텍스트를 설정합니다.",
+    "validation" : [
+        "groupbyZone=true 인 경우에만 동작합니다.",
+        "안내 메시지 설정 시, GroupBy Zone 에 표시할 안내 메시지가 설정됩니다.",
+        "안내 메시지 설정 시, 안내 메시지는 GroupBy Zone 의 중앙에 표시됩니다.",
+        "안내 메시지 설정 시, 안내 메시지 영역에는 'w2grid_groupbyZone_message' 클래스가 설정됩니다.",
+        "GroupBy 기능으로 그룹핑이 적용된 경우 안내 메시지가 표시되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 셀렉트박스 초기값 : 안내 메시지 1번 항목으로 시연 (정적 select1 은 초기 selectedIndex 미적용이므로 명시 설정)
+    con_groupbyZoneMessage.setSelectedIndex(1);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 전제 : groupbyZone=true 고정 (groupbyZoneMessage 는 groupbyZone=true 일 때만 동작)
+//  - con_groupbyZoneMessage : 자체 값 selectbox (gdl_boolean 아님) → getValue() 로 안내 문구 읽기 ('' 이면 미설정)
+//  - groupbyZoneMessage 는 렌더타임 속성이므로 con 변경 후 [Target 재생성](btn_createTarget→comp_init)으로만 반영
+//  - groupbyZone=true + groupbyZoneMessage 설정 시 엔진이 Zone 중앙에 <div class='w2grid_groupbyZone_message'> 를 렌더
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 값 : 안내 메시지 문자열 ('' 이면 미설정)
+    let vMsg = con_groupbyZoneMessage.getValue();
+
+    // 전제 : groupbyZone 은 true 고정, groupbyZoneMessage 는 미설정('') 이면 속성 자체를 추가하지 않음
+    let properties = { groupbyZone: true };
+    if (vMsg !== '') {
+        properties.groupbyZoneMessage = vMsg;
+    }
+
+    let lblDesc = '[전제] groupbyZone=true 고정. con 에서 안내 메시지 선택 후 [Target 재생성] 클릭 (현재 메시지: '
+        + (vMsg === '' ? '(미설정)' : vMsg) + ')'
+        + '\n[동작] 그룹핑된 컬럼이 없을 때 Zone 중앙에 안내 메시지가 표시됨'
+        + '\n[확인] [안내 메시지 확인] 버튼으로 메시지 텍스트/클래스/중앙 위치 실측'
+        + '\n[관찰] 헤더 컬럼을 상단 GroupBy Zone 으로 드래그해 그룹핑하면 안내 메시지가 사라짐';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 6 Row : 그룹핑 시연용 중복 데이터)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (4컬럼 Body 그리드 + ongroupby 핸들러)
+    await scwin.createGridView(cList);
+}
+
+
+
+// 그룹핑 시연용 데이터 (col1 에 중복값 → GroupBy 기준 컬럼으로 사용)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성 (ongroupby 이벤트 연결)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:560px;height:480px;">';
+    s += '<w2:caption style="" id="caption1" value="groupbyZoneMessage 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="상세"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column3" value="구분"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// ongroupby : 헤더 컬럼을 GroupBy Zone 으로 드래그하면 발생 (사용자 조작)
+//  - groupby(options) 로 그룹핑을 적용하면 엔진이 안내 메시지를 숨김(display:none) → @spec 검증
+scwin.target1_ongroupby = function (options) {
+    options.groupbyHeader = [
+        {colSpan: 4, inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: 'left'}
+    ];
+    options.hideFooter = true;
+
+    target1.groupby(options);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] 그룹핑이 적용되어 안내 메시지가 숨겨집니다.");
+}
+
+
+
+// 확인 : GroupBy Zone 안내 메시지 실측 (텍스트 일치 / 클래스 / 중앙 위치 / 그룹핑 시 미표시)
+scwin.btn_check_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let appliedMsg = target1.options.groupbyZoneMessage;   // 그리드에 적용된 groupbyZoneMessage 값 (미설정이면 '')
+    let msgEl = document.querySelector(".w2grid_groupbyZone_message");
+
+    // (1) 메시지 영역 존재 + 텍스트 일치 + 클래스 설정 여부
+    if (msgEl) {
+        let text = (msgEl.textContent || "").trim();
+        let hasClass = msgEl.classList.contains("w2grid_groupbyZone_message");
+        bottom.setReturnValue("[안내 메시지] 적용값='" + appliedMsg
+            + "' / 메시지영역=존재 / textContent='" + text
+            + "' / 일치=" + (text === appliedMsg)
+            + " / 'w2grid_groupbyZone_message' 클래스=" + (hasClass ? "설정됨" : "없음"));
+
+        // (2) 중앙 표시 : position:absolute + top/left 50% (+ 음수 마진 절반) 로 Zone 중앙 배치
+        //  - Zone 중심 대비 메시지 중심의 실측 오차(dx/dy)를 함께 출력하여 실제 중앙 여부를 확인
+        //  - 엔진은 메시지 생성 시점의 크기로 음수 마진을 1회 계산하므로, 긴 문구가 생성 시점에 줄바꿈되면
+        //    정착 후 단일 줄 높이와 어긋나 수직 오차가 커질 수 있음(문구 길이 의존)
+        let cs = window.getComputedStyle(msgEl);
+        let zoneEl = document.querySelector("div[id$='_groupbyZone_div']");
+        let zr = zoneEl.getBoundingClientRect();
+        let mr = msgEl.getBoundingClientRect();
+        let dx = Math.round((mr.left + mr.width / 2) - (zr.left + zr.width / 2));
+        let dy = Math.round((mr.top + mr.height / 2) - (zr.top + zr.height / 2));
+        bottom.setReturnValue("[중앙 표시] position=" + cs.position
+            + " / top=" + cs.top + " / left=" + cs.left
+            + " / Zone중심대비 수평오차=" + dx + "px, 수직오차=" + dy + "px");
+
+        // (3) 그룹핑 여부에 따른 표시 상태 (그룹핑 적용 시 display:none 으로 숨김)
+        let grouped = (target1.groupbyStatus && target1.groupbyStatus.sortIndexArr
+            && target1.groupbyStatus.sortIndexArr.length > 0);
+        let shown = (cs.display !== "none" && msgEl.offsetParent !== null);
+        bottom.setReturnValue("[그룹핑 여부] 그룹 적용=" + (grouped ? "적용됨" : "미적용")
+            + " / 안내 메시지 표시=" + (shown ? "표시됨" : "표시안됨"));
+    } else {
+        // groupbyZoneMessage 미설정 시 메시지 영역이 렌더되지 않음
+        bottom.setReturnValue("[안내 메시지] 적용값='" + appliedMsg
+            + "' / 메시지영역=없음 (groupbyZoneMessage 미설정 시 안내 메시지가 렌더되지 않음)");
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 좌측정렬이 필요한 로그 가독성 확보 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyZoneMessage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyZoneMessage" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[그룹핑할 컬럼 헤더를 이 영역으로 끌어다 놓으세요]]></xf:label>
+												<xf:value><![CDATA[그룹핑할 컬럼 헤더를 이 영역으로 끌어다 놓으세요]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[여기에 헤더를 끌어와 그룹을 만들 수 있습니다]]></xf:label>
+												<xf:value><![CDATA[여기에 헤더를 끌어와 그룹을 만들 수 있습니다]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="안내 메시지 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
