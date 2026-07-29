@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] senseReader" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_2)은 senseReader=true 로 '변경이 적용되는' 동작 5건(@propval <true> 의 '✓ 다음 변경이 적용됩니다') 을 검증한다.
+//  - 강제 설정 3건(focusFlow=linear/embeddedInput/readOnly)·@spec·@description|·false default 는 _1(gridView_P_senseReader_1.xml) 담당이므로 제외.
+//  - description 은 @description 첫 문장 → _1 과 동일하게 유지.
+scwin.tData = {
+    "description" : "[gridView > P > senseReader]<br/>GridView 에 스크린리더 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, readonly 또는 disabled 상태의 Body Cell 에 키보드로 포커스 이동 시 건너뜁니다.",
+        "true 설정 시, inputType='radio' 인 Column 은 선택 상태의 Cell 만 키보드로 포커스 이동됩니다.",
+        "true 설정 시, inputType 속성값이 'link','button','image','expression','custom' 이 아니고 embeddedInput=true 로 동작하는 Body Cell 에 포커스 이동됩니다.",
+        "true 설정 시, focusMove=false 인 경우에도 Tab 키에 의한 포커스 이동됩니다.",
+        "true 설정 시, sortHeaderDiv=true 인 경우 Header Column 으로 정렬 시 세로 스크롤이 최상단으로 이동됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1(gdl_boolean)은 초기 selectedIndex 미적용 → 기본값 명시 설정 (코드값 미설정="1"/true="2"/false="3")
+    //  기본 시나리오(변경 적용 상태): senseReader=true("2"), focusMove=false("3"), sortHeaderDiv=true("2")
+    con_senseReader.setValue("2");
+    con_focusMove.setValue("3");
+    con_sortHeaderDiv.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - con_senseReader   : 공통 gdl_boolean → getText() ('true' 면 스크린리더 지원 변경 적용)
+//  - con_focusMove     : 공통 gdl_boolean → getText() ('false' 여도 senseReader=true 면 Tab 이동 허용 → 검증4)
+//  - con_sortHeaderDiv : 공통 gdl_boolean → getText() ('true' 면 정렬 아이콘 button 렌더 → senseReader 정렬시 세로 스크롤 top 이동 → 검증5)
+//  - sortable=true 고정 : 헤더 클릭 정렬 활성 (sortHeaderDiv=true 와 함께 showSortableImage/sortEvent=onclick 강제)
+//  - Body 셀 구성(편집 가능 셀 사이에 편집 불가/특수 inputType 배치):
+//      col1(text)=편집가능(embeddedInput 대상, 시작) / col2(text)=readOnly / col3(text)=disabled
+//      col4(radio, Y=선택) / col5(button, 특수 inputType) / col6(link, 특수 inputType) / col7(text)=편집가능(끝)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let vSenseReader   = con_senseReader.getText();
+    let vFocusMove     = con_focusMove.getText();
+    let vSortHeaderDiv = con_sortHeaderDiv.getText();
+
+    // focusMode 는 클릭으로 시작 셀 지정을 위해 cell 고정
+    //  readOnlyBackgroundColor(회색)/disabledBackgroundColor(노랑) 로 편집 불가 셀 시각 구분
+    let properties = {
+        focusMode : "cell",
+        readOnlyBackgroundColor : "#D3D3D3",
+        disabledBackgroundColor : "#FFF9C4"
+    };
+
+    // senseReader : 'true' 면 스크린리더 지원 변경 적용
+    if (vSenseReader === 'true') {
+        properties.senseReader = true;
+    } else if (vSenseReader === 'false') {
+        properties.senseReader = false;
+    }
+
+    // focusMove : '' 미설정 시 속성 제외(기본 true). 'false' 여도 senseReader=true 면 Tab 이동 허용
+    if (vFocusMove === 'true') {
+        properties.focusMove = "true";
+    } else if (vFocusMove === 'false') {
+        properties.focusMove = "false";
+    }
+
+    // sortHeaderDiv : '' 미설정 시 속성 제외(기본 false). 'true' 면 정렬 아이콘 button 렌더
+    if (vSortHeaderDiv === 'true') {
+        properties.sortHeaderDiv = true;
+    } else if (vSortHeaderDiv === 'false') {
+        properties.sortHeaderDiv = false;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let lblDesc = '[전제] col2=readOnly(text), col3=disabled(text), col4=radio, col5=button, col6=link (편집 가능 embeddedInput 셀: col1, col7)'
+        + '\n[배경색] readOnly 셀=회색(#D3D3D3), disabled 셀=노랑(#FFF9C4)'
+        + '\n[현재] senseReader=' + (vSenseReader === '' ? '(미설정=기본 false)' : vSenseReader)
+        + ', focusMove=' + (vFocusMove === '' ? '(미설정=기본 true)' : vFocusMove)
+        + ', sortHeaderDiv=' + (vSortHeaderDiv === '' ? '(미설정=기본 false)' : vSortHeaderDiv) + ', sortable=true(고정)'
+        + '\n[검증1/2/3/4: 포커스 이동] col1 셀 클릭 -> Tab 반복 : 이동한 셀마다 oncellindexchange 이벤트가 하단에 출력됨 (건너뛴 셀은 이벤트 미발생)'
+        + '\n  (검증1) col2(readOnly)/col3(disabled) 는 건너뜀 -> 해당 셀 이동 이벤트 미출력'
+        + '\n  (검증2) col4(radio) 는 선택(Y) 된 행의 셀만 이동 이벤트 출력, 미선택(N) 행은 건너뜀'
+        + '\n  (검증3) col1/col7(text) 는 embeddedInput 셀 내부 input 으로 포커스 (col5 button/col6 link 는 각 요소로 포커스)'
+        + '\n  (검증4) focusMove=false 여도 Tab 으로 이동됨 (방향키 이동은 차단)'
+        + '\n[검증5: 정렬 스크롤] 세로 스크롤을 아래로 내림 -> [세로 스크롤 위치 확인] 버튼(scrollTop>0) -> 헤더 클릭으로 정렬 -> [세로 스크롤 위치 확인] 버튼(scrollTop=0=최상단)'
+        + '\n[확인] 포커스 이동=하단 oncellindexchange 이벤트 출력 / 세로 스크롤=[세로 스크롤 위치 확인] 버튼';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // 포커스/스크롤 확인용 DataList 인라인 생성 (7컬럼 → 공통 헬퍼 4컬럼 한계로 인라인 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col5" name="col5" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col6" name="col6" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col7" name="col7" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    scwin.fillData();
+
+    // target 생성 (7컬럼 Body 그리드, 세로 스크롤 발생하도록 visibleRowNum 작게 + 데이터 많게)
+    await scwin.createGridView(cList);
+
+    // 편집 불가 셀 설정 (편집 가능 셀 사이에 편집 불가 셀 배치)
+    target1.setColumnReadOnly(1, true);   // col2(text) readOnly
+    target1.setColumnDisabled(2, true);   // col3(text) disabled
+
+    // 첫번째 편집 가능 셀(col1)에 포커스
+    target1.setFocusedCell(0, 0, true);
+}
+
+
+
+// 포커스/스크롤 확인용 데이터 (20행, 세로 스크롤 발생)
+//  - col4(radio) : Y(선택) / N(미선택) 을 교차 → 선택 셀만 포커스 이동(검증2)
+scwin.fillData = function () {
+    let rows = [];
+    for (let i = 1; i <= 20; i++) {
+        rows.push({
+            col1: "A" + i,
+            col2: "B" + i,
+            col3: "C" + i,
+            col4: (i % 2 === 1) ? "Y" : "N",
+            col5: "실행",
+            col6: "상세보기",
+            col7: "G" + i
+        });
+    }
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성
+//  - sortable="true" 고정 + sortHeaderDiv(con) : 헤더 클릭 정렬 활성
+//  - oncellindexchange : Tab/방향키 등으로 포커스 셀이 실제 이동할 때마다 발생
+//    (senseReader=true 로 건너 뛴 편집 불가/미선택 radio 셀에서는 발생하지 않음 → 로그로 확인)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' checkAllType="false" sortable="true" visibleRowNum="6" id="" dataList="data:dlt_bind" style="width:640px;height:220px;" ev:oncellindexchange="scwin.target1_oncellindexchange">';
+    s += '<w2:caption style="" id="caption1" value="senseReader (변경 적용) 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="80" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="column2" value="col2(RO)"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="column3" value="col3(DIS)"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="column4" value="col4(radio)"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="text" id="column5" value="col5(btn)"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="text" id="column6" value="col6(link)"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="column7" value="col7"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="80" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="radio" id="col4" dataList="col4" valueType="other" trueValue="Y" falseValue="N" groupName="grp_rdo"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="button" id="col5" dataList="col5"></w2:column>';
+    s += '<w2:column width="90" style="" inputType="link" id="col6" dataList="col6"></w2:column>';
+    s += '<w2:column width="80" style="" inputType="text" id="col7" dataList="col7"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 셀 포커스가 실제 이동(변경)될 때 호출 (oncellindexchange)
+//  - Tab 입력으로 포커스 셀이 바뀔 때마다 이동 셀과 이전 셀 위치를 하단에 누적 출력
+//  - senseReader=true 로 건너 뛴 편집 불가/미선택 radio 셀에서는 이 이벤트가 발생하지 않으므로,
+//    출력된 이동 셀 시퀀스로 어느 셀을 건너 뛰었는지 확인 (검증1/2/4)
+scwin.target1_oncellindexchange = function (rowIndex, columnIndex, oldRow, oldColumnIndex) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("oncellindexchange 발생 -> 이동 셀 (row: " + rowIndex + ", col: " + columnIndex
+        + "), 이전 셀 (row: " + oldRow + ", col: " + oldColumnIndex + ")");
+}
+
+
+
+// 세로 스크롤 위치 확인 (검증5 전용)
+//  - 현재 세로 스크롤 위치(scrollTop) 와 최상단 표시 rowIndex 를 출력
+//  - [절차] 스크롤을 아래로 내림 → 이 버튼(scrollTop>0 확인) → 헤더 정렬 클릭 → 이 버튼(scrollTop=0=최상단 확인)
+//  - senseReader=true + sortHeaderDiv=true 이면 정렬 시 세로 스크롤이 최상단으로 이동 → scrollTop 0, rowIndex 0
+scwin.btn_checkScroll_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let sy = document.querySelector("div[id*='" + target1.id + "_scrollY_div']");
+    let scrollTop = sy ? sy.scrollTop : "(스크롤 요소 없음)";
+
+    bottom.setReturnValue("현재 세로 스크롤 위치 -> scrollTop : " + scrollTop
+        + ", 최상단 표시 rowIndex : " + target1.rowIndex);
+}]]></script>
+		<style type="text/css"><![CDATA[/* gridView radio inputType(col4) 표시 보정
+   엔진(cellController.js)이 embedded radio 에 인라인 style='border-width:0px;' 를 강제하여
+   테두리로 원을 그리는 현재 테마(.w2grid input[type=radio]{border:1px solid;border-radius:50%;appearance:none})
+   에서 라디오버튼이 보이지 않는 문제를 !important 로 테두리 폭을 복원하여 표시한다. */
+.w2grid_embedded_radio { border-width: 1px !important; }]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="senseReader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMove" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMove" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortHeaderDiv" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_sortHeaderDiv" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkScroll_onclick" id="btn_checkScroll"
+							label="세로 스크롤 위치 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] adaptive" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_adaptive" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="label" name="label"></w2:column>
+						<w2:column dataType="text" id="value" name="value"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><label><![CDATA[]]></label><value><![CDATA[]]></value></w2:row>
+						<w2:row><label><![CDATA[crosstab]]></label><value><![CDATA[crosstab]]></value></w2:row>
+						<w2:row><label><![CDATA[list]]></label><value><![CDATA[list]]></value></w2:row>
+					</w2:data>
+				</w2:dataList>
+				<w2:dataList baseNode="list" id="dlt_threshold" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="label" name="label"></w2:column>
+						<w2:column dataType="text" id="value" name="value"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><label><![CDATA[]]></label><value><![CDATA[]]></value></w2:row>
+						<w2:row><label><![CDATA[400]]></label><value><![CDATA[400]]></value></w2:row>
+						<w2:row><label><![CDATA[2000]]></label><value><![CDATA[2000]]></value></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > adaptive]<br/>웹브라우저의 너비가 변경될 때 GridView 컴포넌트에 적응형 웹(Adaptive Web) 방식으로 적용될 레이아웃을 설정합니다.",
+    "validation" : [
+        "groupbyZone=false 이고, GridView 의 Header/Body/SubTotal 구조가 지원되는 구조에 해당해야 합니다.",
+        "Undefined 설정 시, 적응형 레이아웃 모드를 비활성화해야 합니다.",
+        "미설정 시, 적응형 레이아웃 모드를 비활성화해야 합니다.",
+        "'crosstab' 이외의 값은 모두 Undefined 로 처리되어야 합니다.",
+        "'crosstab' 설정 시, 행과 열의 위치를 서로 바꾼 교차표 형태의 레이아웃을 적용해야 합니다.",
+        "'crosstab' 설정 시, 다양한 화면 크기와 디바이스에 맞게 GridView 의 레이아웃을 행-열 전환(crosstab) 구조로 변환하는 적응형 웹 모드여야 합니다.",
+        "'crosstab' 설정 시, visibleRowNum 이 'all' 로 변경되어 모든 행이 표시되므로 세로 스크롤이 사실상 비활성화되어야 합니다.",
+        "'crosstab' 설정 시, 웹브라우저 너비가 adaptiveThreshold 속성값 이하일 때 적용되어야 합니다.",
+        "적응형 웹(Adaptive Web)이 적용되면 'w2grid_adaptive_crosstab' CSS 클래스가 추가되며, Footer 에는 'w2grid_adaptive_crosstab_footer' 클래스가 추가되어야 합니다.",
+        "적응형 웹(Adaptive Web)은 groupbyZone=false 이고, 웹브라우저 너비가 adaptiveThreshold 속성값 이하일 때 적용되어야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 기본값 명시 설정 (정적 select1 은 초기 selectedIndex 미적용)
+    //  - adaptive=crosstab / adaptiveThreshold=2000(현재 브라우저 너비보다 크게) 로 두어 최초 로딩 시 적응형이 적용된 상태로 표시
+    //  - groupbyZone 은 gdl_boolean 코드값 : 미설정='1' / true='2' / false='3'
+    con_adaptive.setValue("crosstab");
+    con_adaptiveThreshold.setValue("2000");
+    con_groupbyZone.setValue("3");
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - adaptive 는 @dynamic N 이므로 con 변경은 Target 재생성으로만 반영된다.
+//  - Header 1행 / Body 1행 / Footer 1행 구조 = 적응형 지원 구조
+//  - Footer 를 두어 w2grid_adaptive_crosstab_footer 클래스까지 확인 가능하게 구성
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 설정 (con_ 옵션을 properties 객체로 모아 createCList 로 속성 문자열 생성, 빈값 자동 제외)
+    let conAdaptive    = con_adaptive.getValue();
+    let conThreshold   = con_adaptiveThreshold.getValue();
+    let conGroupbyZone = con_groupbyZone.getText();
+
+    let properties = {
+        adaptive          : conAdaptive,
+        adaptiveThreshold : conThreshold,
+        groupbyZone       : conGroupbyZone,
+        dataList          : "data:dlt_bind",
+        visibleRowNum     : "3"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 테스트 참고 라벨 (target 생성 전, 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Header 1행 / Body 1행 / Footer 1행 구조, 데이터 6행, visibleRowNum=3\n[절차] con 에서 adaptive / adaptiveThreshold / groupbyZone 값 선택 -> Target 재생성 -> 아래 확인 버튼 클릭\n[확인] adaptiveThreshold 가 현재 브라우저 너비 이상(2000)이면 적응형 조건 충족, 미만(400)이거나 미설정(기본 480)이면 미충족. 브라우저 창 너비를 직접 줄였다 늘려도 즉시 반영됨"', '', 'label1');
+
+    // dataList 생성 (6행 : visibleRowNum=3 이므로 기본 레이아웃에서는 세로 스크롤 발생)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:700px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="adaptive 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column4" value="name4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="ft1" value="합계"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="ft2" value="footer2"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="ft3" value="footer3"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="ft4" value="footer4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// con_ 변경 시 Target 재생성 안내 (con 변경은 Target 재생성 버튼으로 반영)
+scwin.con_adaptive_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+scwin.con_adaptiveThreshold_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+scwin.con_groupbyZone_onchange = function () {
+    // 별도 동작 없음 (Target 재생성 버튼 클릭 시 comp_init 에서 반영)
+}
+
+
+
+// 적응형 웹(Adaptive Web) 적용 상태 확인
+//  - 적용 조건(브라우저 너비 / adaptiveThreshold / groupbyZone) 과 adaptive 옵션 반영값
+//  - w2grid_adaptive_crosstab / w2grid_adaptive_crosstab_footer 클래스 부여 여부를 실측
+scwin.btn_adaptiveCheck_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let clsArr = target1.render.className.split(/\s+/);
+
+    bottom.setReturnValue("[조건] 브라우저 너비 : " + window.innerWidth + "px, adaptiveThreshold 반영값 : " + (target1.options.adaptiveThreshold === "" ? "미설정(기본 480)" : target1.options.adaptiveThreshold) + ", groupbyZone 반영값 : " + target1.options.groupbyZone);
+    bottom.setReturnValue("adaptive 옵션 반영값 : " + (target1.options.adaptive === "" ? "미설정(Undefined)" : target1.options.adaptive));
+    bottom.setReturnValue("적응형 적용(w2grid_adaptive_crosstab 클래스) : " + (clsArr.indexOf("w2grid_adaptive_crosstab") > -1));
+    bottom.setReturnValue("Footer 적응형(w2grid_adaptive_crosstab_footer 클래스) : " + (clsArr.indexOf("w2grid_adaptive_crosstab_footer") > -1));
+}
+
+
+
+// 행-열 전환(crosstab) 레이아웃 확인
+//  - Header Cell 이 가로 나열인지 세로 나열인지, Body 행이 세로 나열인지 가로 나열인지 좌표로 실측
+scwin.btn_layoutCheck_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let arrHeadCell = target1.render.querySelectorAll("th.gridHeaderTDDefault");
+    let arrBodyRow = target1.render.querySelectorAll("tr.grid_body_row");
+
+    let sameTop = arrHeadCell[0].getBoundingClientRect().top === arrHeadCell[1].getBoundingClientRect().top;
+    let sameLeft = arrBodyRow[0].getBoundingClientRect().left === arrBodyRow[1].getBoundingClientRect().left;
+
+    bottom.setReturnValue("Header Cell 배치 : " + (sameTop ? "가로 나열(기본 레이아웃)" : "세로 나열(행-열 전환 레이아웃)"));
+    bottom.setReturnValue("Body 행 배치 : " + (sameLeft ? "세로 나열(기본 레이아웃)" : "가로 나열(행-열 전환 레이아웃)"));
+}
+
+
+
+// visibleRowNum / 세로 스크롤 확인
+//  - 적응형 적용 시 visibleRowNum 이 all 로 변경되어 전체 행이 표시되고 세로 스크롤이 사라지는지 실측
+scwin.btn_visibleRowNumCheck_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let objScrollY = target1.render.querySelector("div[id$='scrollY_div']");
+    let arrBodyRow = target1.render.querySelectorAll("tr.grid_body_row");
+    let bScrollY = objScrollY !== null && objScrollY.offsetHeight > 0;
+
+    bottom.setReturnValue("visibleRowNum 옵션 반영값 : " + target1.options.visibleRowNum + ", 표시된 Body 행 수 : " + arrBodyRow.length + " (전체 데이터 " + dlt_bind.getRowCount() + " 행)");
+    bottom.setReturnValue("세로 스크롤 유무 : " + bScrollY);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="adaptive" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_adaptive_onchange" id="con_adaptive" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:dlt_adaptive">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="adaptiveThreshold" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_adaptiveThreshold_onchange" id="con_adaptiveThreshold" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:dlt_threshold">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyZone" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_groupbyZone_onchange" id="con_groupbyZone" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_adaptiveCheck_onclick" id="btn_adaptiveCheck"
+							label="적응형 적용 상태 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_layoutCheck_onclick" id="btn_layoutCheck"
+							label="행-열 전환 레이아웃 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_visibleRowNumCheck_onclick" id="btn_visibleRowNumCheck"
+							label="visibleRowNum / 세로 스크롤 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

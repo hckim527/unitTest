@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] useStartEndDiv" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260727" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > useStartEndDiv]<br/>senseReader=true 일때 스크린리더 접근성을 위한 시작/끝 경계 div 를 생성할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, GridView 의 시작과 끝 경계 위치에 div 를 생성합니다.",
+        "미설정 시, GridView 의 시작과 끝 경계 위치에 div 를 생성합니다.",
+        "true 설정 시, 시작 div 는 CSS 클래스 'w2grid_start_div' 로 생성되며 '그리드 시작' 컨텐츠가 설정됩니다.",
+        "true 설정 시, 끝 div 는 CSS 클래스 'w2grid_end_div' 로 생성되며 '그리드 끝' 컨텐츠가 설정됩니다.",
+        "true 설정 시, GridView DOM 구조의 최상위와 최하단에 추가되며 스크린리더 사용자가 Tab 키로 GridView 영역의 진입/이탈을 인지할 수 있도록 포커스 가능한 탐색 지점을 제공합니다.",
+        "false 설정 시, GridView 의 시작과 끝 경계 위치에 div 를 생성하지 않습니다.",
+        "accessibility=true 이면 senseReader 속성이 true 로 강제 설정되므로 useStartEndDiv 속성도 적용됩니다.",
+        "senseReader=true, useStartEndDiv=true 이면 끝 div 까지 포커스가 이동된 후 다음 컴포넌트로 이동합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 미적용 -> 기본값 명시 설정 (gdl_boolean 코드값 미설정="1"/true="2"/false="3")
+    //  useStartEndDiv 기본값 true -> 코드 "2".  accessibility 는 전제조건(senseReader=true) 경로를 쓰도록 미설정("1") 시작.
+    con_useStartEndDiv.setValue("2");
+    con_accessibility.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  useStartEndDiv / senseReader / accessibility 는 렌더 시 결정되는 속성이므로
+//  con 변경 후 "Target 재생성"(btn_createTarget -> comp_init) 으로만 반영한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList / nextTabID 대상 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof input2 !== 'undefined') {
+        input2.remove();
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 테스트 참고 라벨 (가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] useStartEndDiv 는 senseReader=true 일 때만 의미 -> 본 샘플은 senseReader=true 고정(단, con_accessibility=true 선택 시 senseReader 를 명시하지 않고 accessibility=true 로 강제 유도). nextTabID=input2 지정(끝 div 다음 이동 대상, target1 前에 생성).\n[절차] (a)con_useStartEndDiv (true/false/미설정) 및 con_accessibility 선택 -> Target 재생성. (b)@spec2 확인: 그리드 마지막 Body Cell 에 포커스한 뒤 Tab 키 2회 입력(마지막 셀 -> 끝 div -> input2).\n[확인] (1)시작/끝 div 확인 버튼: true/미설정=div 생성(class/컨텐츠/DOM 최상위·최하단 위치), false=미생성. (2)accessibility 강제 senseReader 확인 버튼: accessibility=true 시 senseReader 강제 true + div 생성. (3)@spec2: Tab 2회로 input2 가 포커스를 받으면 onfocus 가 발화해 하단 결과창에 이동 메시지 출력(끝 div 다음 컴포넌트로 이동 확인)."', '', 'label1');
+
+    // con 선택값 (gdl_boolean 바인딩 -> getText() 로 라벨(''/'true'/'false') 분기)
+    let useStartEndDiv = con_useStartEndDiv.getText();
+    let accessibility = con_accessibility.getText();
+
+    // 본문 데이터리스트 (4컬럼 4행)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    // nextTabID 대상(input2)을 target1 前에 먼저 동적 생성해야 nextTabID 매칭이 적용됨
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strInput = '<xf:input ' + strNameSpace + ' id="input2" title="다음 컴포넌트(nextTabID 대상)" ev:onfocus="scwin.input2_onfocus" style="width:200px;height:30px;"></xf:input>';
+    scwin.input2 = await $p.dynamicCreate("input2", "input", strInput, grp_comp);
+
+    // 조건 설정
+    //  useStartEndDiv : con 값 (미설정이면 createCList 가 빈값을 제외 -> 엔진 기본값 true 적용)
+    //  nextTabID      : @spec2 검증 수단 (끝 div 다음으로 포커스가 이동할 대상)
+    //  senseReader    : 전제조건으로 true 고정. 단 accessibility=true 케이스는 senseReader 를 명시하지 않고
+    //                   accessibility=true 로 엔진이 senseReader 를 강제 true 로 만드는지 입증(@spec1).
+    let properties = {
+        dataList: "data:dlt_bind",
+        nextTabID: "input2",
+        useStartEndDiv: useStartEndDiv
+    };
+    if (accessibility === 'true') {
+        properties.accessibility = "true";
+    } else {
+        properties.senseReader = "true";
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// (검증1) 시작/끝 div 존재 여부 + class + 컨텐츠 + DOM 최상위/최하단 위치 확인
+//  @propval true(및 미설정=기본 true) : 시작/끝 div 생성 / @propval false : 미생성
+scwin.btn_checkDiv_onclick = function () {
+    let gridEl = document.getElementById('mf_target1');
+    if (!gridEl) {
+        wf_body_bottom.getObj("scwin").setReturnValue("grid(mf_target1) 미생성");
+        return;
+    }
+    let startDiv = gridEl.querySelector('.w2grid_start_div');
+    let endDiv = gridEl.querySelector('.w2grid_end_div');
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[useStartEndDiv 적용값] " + target1.options.useStartEndDiv);
+    if (startDiv) {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시작 div] 존재=true, class=w2grid_start_div, 컨텐츠='" + startDiv.textContent + "', DOM 최상위=" + (gridEl.firstElementChild === startDiv));
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("[시작 div] 존재=false");
+    }
+    if (endDiv) {
+        wf_body_bottom.getObj("scwin").setReturnValue("[끝 div] 존재=true, class=w2grid_end_div, 컨텐츠='" + endDiv.textContent + "', DOM 최하단=" + (gridEl.lastElementChild === endDiv));
+    } else {
+        wf_body_bottom.getObj("scwin").setReturnValue("[끝 div] 존재=false");
+    }
+}
+
+
+
+// (검증2) @spec1 : accessibility=true 이면 senseReader 가 true 로 강제되어 useStartEndDiv(=true) 가 적용됨
+scwin.btn_checkAccessibility_onclick = function () {
+    let gridEl = document.getElementById('mf_target1');
+    let startDiv = gridEl ? gridEl.querySelector('.w2grid_start_div') : null;
+    let endDiv = gridEl ? gridEl.querySelector('.w2grid_end_div') : null;
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[accessibility 적용값] " + target1.options.accessibility
+        + " -> [강제 senseReader] " + target1.options.senseReader
+        + " | [시작/끝 div 생성] " + (!!startDiv && !!endDiv));
+}
+
+
+
+// (검증3) @spec2 : senseReader=true, useStartEndDiv=true 이면 끝 div 까지 포커스가 이동된 후 다음 컴포넌트로 이동
+//  nextTabID 대상인 input2 가 실제로 포커스를 받으면(사용자가 마지막 Body Cell -> Tab 2회 = 끝 div -> input2)
+//  onfocus 가 발화하여 결과창에 이동 메시지를 출력한다. -> 사용자 조작 기반으로 @spec2 를 입증.
+scwin.input2_onfocus = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("input2 포커스 이동됨 -> 끝 div(w2grid_end_div) 다음 컴포넌트로 포커스 이동 확인");
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useStartEndDiv" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useStartEndDiv" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="accessibility (전제/강제)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_accessibility" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkDiv_onclick" id="btn_checkDiv"
+							label="시작/끝 div 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkAccessibility_onclick" id="btn_checkAccessibility"
+							label="accessibility 강제 senseReader 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

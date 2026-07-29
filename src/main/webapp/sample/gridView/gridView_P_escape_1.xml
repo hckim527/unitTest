@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] escape" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > escape]<br/>렌더링 과정에서 각 데이터의 표시값을 이스케이프 처리 할지 설정합니다.",
+    "validation" : [
+        "Body Column 의 escape 속성을 설정하지 않은 경우에 GridView 의 escape 속성이 적용됩니다.",
+        "true 설정 시, 데이터의 표시값에 '<', '>', '&', ''' 등의 특수문자를 이스케이프 처리합니다.",
+        "미설정 시, 데이터의 표시값에 '<', '>', '&', ''' 등의 특수문자를 이스케이프 처리합니다.",
+        "true 설정 시, 렌더링 과정에서 특수문자를 이스케이프 처리하므로 결과적으로 모든 문자가 표시됩니다.",
+        "false 설정 시, 데이터의 표시값에 이스케이프 처리를 하지 않습니다."
+    ]
+}
+
+
+
+scwin.gVar = { "gridEscape" : "" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 조건 셀렉트박스 기본값 설정 (정적 select1 은 초기 selectedIndex 미적용)
+    //  gdl_boolean 코드값 : 미설정='1' / true='2' / false='3' -> escape 기본값 true 로 시작
+    con_escape.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  escape 는 @dynamic N (렌더 시 결정) 이므로 con 변경 후 "Target 재생성"(btn_createTarget -> comp_init) 으로만 반영한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // con 선택값 (gdl_boolean 바인딩 -> getText 로 라벨('' / 'true' / 'false') 을 읽는다)
+    let escapeCon = con_escape.getText();
+    scwin.gVar.gridEscape = escapeCon;
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let escapeLabel = (escapeCon === '') ? '미설정' : escapeCon;
+    $c.gcm.createLabel('label="[전제] GridView escape = ' + escapeLabel + '. Column 구성 - 0:col1(text, 컬럼 escape 미설정 -> GridView escape 상속, 주 검증 대상) / 1:col2(text, 컬럼 escape=false 고정, 상속 대조용). 데이터 1행은 <b> 태그와 < > & 작은따옴표를 모두 포함한 값.\n[절차] con_escape 선택 -> Target 재생성 -> (표시값 확인) 버튼 클릭.\n[확인] 결과창에 렌더된 셀의 화면 표시값(textContent) 과 렌더 결과(innerHTML) 가 [컬럼ID] 형태로 출력된다. col1 과 col2 의 표시값을 비교해 컬럼 escape 미설정 시 GridView escape 가 상속되는지, 그리고 표시값에 원본 데이터의 <b> 태그와 특수문자가 빠짐없이 그대로 나타나는지 확인할 것."', '', 'label1');
+
+    // 바인딩 DataList 생성 (특수문자 포함 값은 XML 문자열이 아닌 setJSON 으로 주입)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 특수문자 픽스처 : HTML 태그(<b>) 와 <, >, &, 작은따옴표를 한 행에 모두 포함
+    let val = "<b>긴급</b> 반품 & 교환 '1차' 재고 5 < 10";
+    dlt_bind.setJSON([{ "col1" : val, "col2" : val }], false);
+
+    // GridView escape 속성 : con 미설정이면 속성 자체를 부여하지 않는다(createCList 가 빈값 제외)
+    let properties = {
+        dataList : "data:dlt_bind",
+        escape : escapeCon
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    //  col1 : 컬럼 escape 미설정 -> GridView escape 상속 (주 검증 대상)
+    //  col2 : 컬럼 escape="false" 고정 -> GridView escape 미적용 (상속 규칙 대조용)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" id="" style="width:960px;height:120px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="470" inputType="text" id="hcol1" value="0:col1 (컬럼 escape 미설정)"></w2:column>';
+    strTarget += '<w2:column width="470" inputType="text" id="hcol2" value="1:col2 (컬럼 escape=false 고정)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="470" inputType="text" dataType="text" id="col1"></w2:column>';
+    strTarget += '<w2:column width="470" inputType="text" dataType="text" escape="false" id="col2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 렌더된 Row0 의 각 Body Cell 을 순회하며 [{컬럼ID}] {값} 형태의 줄 목록을 만든다.
+//  값은 DataList 되읽기가 아니라 실제 렌더된 td 요소에서 실측한다.
+scwin.eachCellLines = function (fn) {
+    let colIds = ["col1", "col2"];
+    let lines = [];
+    for (let c = 0; c < colIds.length; c++) {
+        let td = document.querySelector("td[id*='target1_cell_0_" + c + "']");
+        lines.push("[" + colIds[c] + "] " + (td ? fn(td) : "(셀 없음)"));
+    }
+    return lines.join("\n");
+}
+
+
+
+// [확인] escape 적용 결과를 렌더된 셀의 실제 DOM 값으로 실측 출력한다.
+//  - textContent : 화면에 보이는 문자
+//  - innerHTML   : 렌더된 마크업 (이스케이프 처리 시 &lt; 형태, 미처리 시 태그 그대로)
+scwin.btn_checkDisplay_onclick = function () {
+    let out = wf_body_bottom.getObj("scwin");
+
+    // 화면 표시값
+    out.setReturnValue("[셀 화면 표시값(textContent)]\n" + scwin.eachCellLines(function (td) {
+        return td.textContent;
+    }));
+
+    // 렌더 마크업
+    out.setReturnValue("[셀 렌더 결과(innerHTML)]\n" + scwin.eachCellLines(function (td) {
+        return td.innerHTML;
+    }));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="escape" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_escape" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkDisplay_onclick" id="btn_checkDisplay"
+							label="표시값 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

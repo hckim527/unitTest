@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] enableAllDate" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260727" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > enableAllDate]<br/>inputType='calendar' 인 Body Column 의 팝업 달력에 적용된 날짜 비활성 제한을 모두 제거합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터는 Row 가 MultiLine(한 Row 가 여러 줄로 표시)이어도 모든 Column 은 고유의 인덱스값을 가지며, columnInfo 인덱스로 해당 calendar Column 의 날짜 비활성 제한을 모두 제거합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // par_columnInfo 기본값을 calendar 컬럼의 고유 인덱스(2)로 설정
+    par_columnInfo.setValue("2");
+};
+
+
+
+// comp 생성 (Body Row MultiLine 구성 + calendar 컬럼 날짜 비활성 제한)
+//  - gBody 에 <w2:row> 2개 -> 한 데이터 Row 가 2 Line 으로 표시
+//  - 1줄 = name(인덱스0) / birth(인덱스1), 2줄 = regDate(인덱스2, calendar) / memo(인덱스3)
+//  - Row 가 MultiLine 이어도 name~memo 는 각각 고유 인덱스(0~3) 를 가짐
+//  - calendar 컬럼 regDate 는 2줄에 있지만 고유 인덱스 2 -> columnInfo 인덱스 2 로 enableAllDate 호출
+//  - regDate 컬럼에 disableBeforeDate=20260110 / disableAfterDate=20260120 날짜 비활성 제한 설정
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body MultiLine(2줄). 인덱스 2 = 2줄 calendar 컬럼(regDate)의 고유 인덱스. 1/10 이전·1/20 이후 팝업 달력 비활성.\n[절차] calendar 셀 편집 진입 후 달력 아이콘으로 팝업 오픈 -> 비활성일 확인 -> par_columnInfo=2 로 enableAllDate -> 팝업 재오픈 후 비활성일 확인.\n[확인] 팝업 비활성일 개수가 enableAllDate 전 N개 -> 후 0개."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (MultiLine 2줄 : name/birth(1줄), regDate/memo(2줄))
+    //  - name    : text (1줄, 인덱스 0)
+    //  - birth   : text (1줄, 인덱스 1)
+    //  - regDate : date (2줄, 고유 인덱스 2) -> calendar 컬럼, 날짜 비활성 제한/해제 대상
+    //  - memo    : text (2줄, 인덱스 3)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="birth" name="birth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="regDate" name="regDate" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // regDate 값은 비활성 제한 범위(20260110~20260120) 내의 날짜로 구성 (date 컬럼이므로 리터럴 오염 없음)
+    let jsonData = [
+        { "name": "HONG", "birth": "19850315", "regDate": "20260111", "memo": "메모0" },
+        { "name": "KIM",  "birth": "19900720", "regDate": "20260115", "memo": "메모1" },
+        { "name": "LEE",  "birth": "19880103", "regDate": "20260118", "memo": "메모2" },
+        { "name": "PARK", "birth": "19920512", "regDate": "20260120", "memo": "메모3" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (Body Row MultiLine : gBody 에 <w2:row> 2개)
+    //  - 1줄 : name(0) / birth(1)
+    //  - 2줄 : regDate(2, calendar) / memo(3)
+    //  - Row 가 MultiLine 이어도 모든 Column 은 고유 인덱스(0~3)
+    //  - regDate calendar 컬럼 : disableBeforeDate/disableAfterDate 로 날짜 선택 제한
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:560px;height:320px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="enableAllDate MultiLine 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="생년월일"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="regDate(calendar, 2줄)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : name (text, 1줄)
+    strTarget += '<w2:column width="280" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 1 : birth (text, 1줄)
+    strTarget += '<w2:column width="*" inputType="text" id="birth" dataList="birth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // index 2 : regDate (calendar, 2줄) -> MultiLine 고유 인덱스 2, 날짜 비활성 제한/해제 대상
+    strTarget += '<w2:column width="280" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" viewType="icon" disableBeforeDate="20260110" disableAfterDate="20260120" id="regDate" dataList="regDate"></w2:column>';
+    // index 3 : memo (text, 2줄)
+    strTarget += '<w2:column width="*" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// enableAllDate 실행 : inputType=calendar 컬럼의 팝업 달력 날짜 비활성 제한(disableBeforeDate/disableAfterDate)을 모두 제거 (1인자, columnInfo=인덱스)
+//  주 검증은 [비활성일 확인] 의 팝업 비활성일 개수 변화(전 N개 -> 후 0개). 여기서는 옵션 제거 결과를 보조로 한 줄 출력.
+//  MultiLine(2줄) 이어도 calendar 컬럼은 고유 인덱스 2 로 지목됨.
+scwin.btn_enableAllDate_onclick = function () {
+    let columnInfo = Number(par_columnInfo.getValue());
+    let inputType = scwin.target1.getCellInfo(columnInfo).options.inputType;
+
+    let ret = scwin.target1.enableAllDate(columnInfo);
+
+    let afterOptions = scwin.target1.getCellInfo(columnInfo).options;
+
+    wf_body_bottom.getObj("scwin").setReturnValue(inputType === "calendar"
+        ? "enableAllDate(" + columnInfo + ") 실행 -> disableBeforeDate='" + afterOptions.disableBeforeDate + "' / disableAfterDate='" + afterOptions.disableAfterDate + "' (제거됨). 팝업 재오픈 후 비활성일 확인 시 0개"
+        : "enableAllDate(" + columnInfo + ") -> calendar 아닌 컬럼(inputType=" + inputType + ") : 미동작(반환 " + ret + ")");
+}
+
+
+
+// 비활성일 확인(주 검증 수단) : 열려 있는 grid calendar 팝업 달력의 취소선(비활성) 날짜 셀(class w2calendar_date_disable) textContent 목록을 출력.
+//  enableAllDate 전에는 날짜 목록(제한으로 비활성), 호출 후 재오픈하면 빈 목록 -> 목록 변화로 검증. 팝업 미오픈 시 안내 문구.
+scwin.btn_getDisabledDate_onclick = function () {
+    // 팝업 달력 렌더 여부 : 팝업 달력의 날짜 셀(td.w2calendar_col_date) 존재로 판별.
+    let calCells = Array.from(document.querySelectorAll("td[class*='w2calendar_col_date']"));
+
+    if (calCells.length === 0) {
+        wf_body_bottom.getObj("scwin").setReturnValue("팝업 달력을 한번 오픈해야 정보 가져올 수 있음 (calendar 셀 편집 진입 후 달력 아이콘 클릭)");
+        return;
+    }
+
+    let disabledDates = calCells.filter(function (td) {
+        return td.classList.contains("w2calendar_date_disable");
+    }).map(function (td) {
+        return td.textContent;
+    });
+
+    wf_body_bottom.getObj("scwin").setReturnValue("취소선 적용일 : " + disabledDates);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (고유 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>0 (1줄 name, text → 미동작)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>1 (1줄 birth, text → 미동작)</xf:label><xf:value>1</xf:value></xf:item>
+											<xf:item><xf:label>2 (2줄 regDate, calendar : 고유 인덱스)</xf:label><xf:value>2</xf:value></xf:item>
+											<xf:item><xf:label>3 (2줄 memo, text → 미동작)</xf:label><xf:value>3</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_enableAllDate_onclick" id="btn_enableAllDate"
+							label="enableAllDate 실행" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDisabledDate_onclick" id="btn_getDisabledDate"
+							label="비활성일 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

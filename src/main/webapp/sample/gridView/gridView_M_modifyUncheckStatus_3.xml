@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] modifyUncheckStatus" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260727" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > modifyUncheckStatus]<br/>Body Column 정보를 사용하여 특정 Column 에서 체크되지 않은 Row 의 상태값을 일괄로 변경합니다.",
+    "validation" : [
+        "columnInfo(필수) 파라미터는 Row 가 MultiLine(한 Row 가 여러 줄로 표시)이어도 모든 Column 은 고유의 인덱스값을 가지며, columnInfo 인덱스로 해당 Column 의 체크되지 않은 Row 상태값을 일괄로 변경합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Body Row MultiLine 구성)
+//  - gBody 에 <w2:row> 2개 -> 한 데이터 Row 가 2 Line 으로 표시
+//  - 1줄 = name(인덱스0) / birth(인덱스1), 2줄 = chk(인덱스2, checkbox) / memo(인덱스3)
+//  - Row 가 MultiLine 이어도 name~memo 는 각각 고유 인덱스(0~3) 를 가짐
+//  - checkbox 컬럼 chk 는 2줄에 있지만 고유 인덱스 2 -> columnInfo 인덱스 2 로 modifyUncheckStatus 호출
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // MultiLine 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body 가 MultiLine(2줄). 한 데이터 Row 가 2줄에 걸쳐 표시됨. 1줄 name(고유 인덱스 0)/birth(1), 2줄 chk(2, checkbox)/memo(3). 체크박스 chk 는 2줄에 있어도 고유 인덱스 2. 데이터 Row 5개, chk 체크=Row0,2,4 / 미체크=Row1,3.\n[절차] columnInfo(고유 인덱스) 와 status 선택 후 실행 -> 매 실행 전 전체 Row 를 U(갱신) 로 초기화한 뒤 체크되지 않은 Row 만 지정 status 로 일괄 변경. 인덱스 2 선택 시 2줄 checkbox 컬럼이 지목됨.\n[확인] getColumnID(인덱스) 매핑으로 MultiLine 이어도 인덱스 2 가 chk 컬럼을 정확히 지목함을 확인하고, 미체크 Row 만 status 로 바뀌고 체크 Row 는 U 로 유지됨을 확인."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (MultiLine 2줄 : name/birth(1줄), chk/memo(2줄))
+    //  - name  : text (1줄, 인덱스 0)
+    //  - birth : text (1줄, 인덱스 1)
+    //  - chk   : checkbox(binary) 원본값 1/0 (2줄, 고유 인덱스 2) -> 체크 조회/상태변경 대상 Column
+    //  - memo  : text (2줄, 인덱스 3)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="birth" name="birth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // chk : Row0/Row2/Row4 = 체크("1"), Row1/Row3 = 미체크("0") -> modifyUncheckStatus 대상은 Row1,3
+    let jsonData = [
+        { "name": "HONG", "birth": "19850315", "chk": "1", "memo": "메모0" },
+        { "name": "KIM",  "birth": "19900720", "chk": "0", "memo": "메모1" },
+        { "name": "LEE",  "birth": "19880103", "chk": "1", "memo": "메모2" },
+        { "name": "PARK", "birth": "19920512", "chk": "0", "memo": "메모3" },
+        { "name": "CHOI", "birth": "19870928", "chk": "1", "memo": "메모4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+        checkAllType: "false",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target 생성 (Body Row MultiLine : gBody 에 <w2:row> 2개)
+    //  - 1줄 : name(0) / birth(1)
+    //  - 2줄 : chk(2, checkbox) / memo(3)
+    //  - Row 가 MultiLine 이어도 모든 Column 은 고유 인덱스(0~3)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:560px;height:340px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="modifyUncheckStatus MultiLine 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol2" value="생년월일"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="280" inputType="text" id="hcol3" value="chk(checkbox, 2줄)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : name (text, 1줄)
+    strTarget += '<w2:column width="280" inputType="text" id="name" dataList="name"></w2:column>';
+    // index 1 : birth (text, 1줄)
+    strTarget += '<w2:column width="*" inputType="text" id="birth" dataList="birth"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    // index 2 : chk (checkbox, valueType=binary, 2줄) -> MultiLine 고유 인덱스 2, 체크 조회/상태변경 대상
+    strTarget += '<w2:column width="280" inputType="checkbox" valueType="binary" id="chk" dataList="chk" trueValue="1" falseValue="0"></w2:column>';
+    // index 3 : memo (text, 2줄)
+    strTarget += '<w2:column width="*" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// modifyUncheckStatus 실행 : par_columnInfo(고유 인덱스) / par_status 로 호출
+//  - MultiLine(2줄) 이어도 chk 컬럼은 고유 인덱스 2 로 지목됨 -> getColumnID(인덱스) 매핑으로 확인
+//  - 매 실행 전 전체 Row 를 U 로 초기화 -> 미체크 Row 만 지정 status 로 바뀌고 체크 Row 는 U 유지됨을 확인
+scwin.btn_modifyUncheckStatus_onclick = function () {
+    // columnInfo 는 MultiLine 상의 고유 컬럼 인덱스(Number) 로 전달
+    let colIndex = Number(par_columnInfo.getValue());
+    let status = par_status.getValue();
+
+    // 인덱스 -> 컬럼 ID 매핑 (MultiLine 이어도 고유 인덱스가 정확한 컬럼을 지목함을 확인)
+    let colID = target1.getColumnID(colIndex);
+
+    // 매 실행 전 전체 Row 를 U(갱신) 상태로 초기화
+    let len = dlt_bind.getRowCount();
+    for (let i = 0; i < len; i++) {
+        dlt_bind.modifyRowStatus(i, "U");
+    }
+
+    // 체크되지 않은 Row 인덱스 (검증용)
+    let uncheckedRows = target1.getUncheckedIndex(colIndex);
+
+    // 체크되지 않은 Row 상태 일괄 변경
+    target1.modifyUncheckStatus(colIndex, status);
+
+    // 각 Row 의 rowStatus 조회
+    let after = [];
+    for (let i = 0; i < len; i++) {
+        after.push(i + "=" + dlt_bind.getRowStatus(i));
+    }
+
+    let out = "modifyUncheckStatus(" + colIndex + ", " + status + ") [고유 인덱스 " + colIndex + " -> getColumnID : " + colID + "] / 미체크 Row [" + uncheckedRows.join(", ") + "] / rowStatus(전체 U 초기화 후): " + after.join(" ");
+    wf_body_bottom.getObj("scwin").setReturnValue(out);
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo (고유 인덱스)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>0 (1줄 name, text → 미동작)</xf:label><xf:value>0</xf:value></xf:item>
+											<xf:item><xf:label>2 (2줄 chk, checkbox : 고유 인덱스)</xf:label><xf:value>2</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="status" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_status" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>R (초기)</xf:label><xf:value>R</xf:value></xf:item>
+											<xf:item><xf:label>U (갱신)</xf:label><xf:value>U</xf:value></xf:item>
+											<xf:item><xf:label>C (삽입)</xf:label><xf:value>C</xf:value></xf:item>
+											<xf:item><xf:label>D (삭제)</xf:label><xf:value>D</xf:value></xf:item>
+											<xf:item><xf:label>V (삽입 후 삭제)</xf:label><xf:value>V</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_modifyUncheckStatus_onclick" id="btn_modifyUncheckStatus"
+							label="modifyUncheckStatus 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

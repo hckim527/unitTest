@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] subtotalStyleFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > subtotalStyleFormatter]<br/>SubTotal Row 에 inputType='expression' 인 Cell 에 CSS 클래스를 적용하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "사용자 정의 함수를 설정하면, SubTotal Row 에 inputType='expression' 인 Cell 에 CSS 클래스를 적용할 수 있습니다.",
+        "사용자 함수는 계산된 원본값, 포맷이 적용된 값, Cell ID 값을 파라미터로 전달 받습니다.",
+        "사용자 함수의 반환값이 CSS 클래스명이어야 하며 해당 Cell 의 className 에 추가됩니다.",
+        "SubTotal Row 의 전체 소계 Cell 에 동일한 사용자 함수가 적용됩니다.",
+        "사용자 정의 함수의 value 파라미터로 현재 소계 Cell 의 원본 계산값이 전달됩니다.",
+        "사용자 정의 함수의 formattedValue 파라미터로 포맷이 적용된 계산값이 전달됩니다.",
+        "사용자 정의 함수의 subtotalColumnId 파라미터로 현재 소계 Cell 의 ID 값이 전달됩니다.",
+        "SubTotal Row 의 소계 Cell 이 재계산되면 사용자 정의 함수가 다시 실행됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - subtotalStyleFormatter 검증용 : dept 그룹별 SubTotal(소계) + amount 소계 Cell(inputType="expression") 구성
+//  - 소계값이 양수/음수/0 이 되도록 데이터 구성 (Sales=+300, Dev=-400, QA=0)
+//      -> formatter 반환 : 양수 "subtotal_plus_css" / 음수 "subtotal_minus_css" / 0(또는 NaN) 미적용
+//  - subtotalStyleFormatter="scwin.target1_subtotalStyleFormatter" : 함수명 문자열로 설정
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // formatter 파라미터 추적 초기화 (@spec1 파라미터 전달 / @spec2 재실행 검증용)
+    scwin.gVar = { calls: [] };
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 부서(dept) 그룹별 SubTotal(소계) 구성. 금액 소계 셀은 inputType=expression. subtotalStyleFormatter 설정.\n[데이터] Sales 소계=+300(양수) / Dev 소계=-400(음수) / QA 소계=0.\n[확인] 양수 소계 셀=subtotal_plus_css(파랑 굵게), 음수 소계 셀=subtotal_minus_css(빨강 굵게), 0 소계 셀=미적용(클래스 없음).\n[버튼] (className 확인) 소계 셀 className 실측. (파라미터 확인) value/formattedValue/subtotalColumnId 전달 확인. (소계 재계산 트리거) 소계값 변경 후 formatter 재실행 확인."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - dept(그룹 기준), amount(소계 대상 number). SubTotal 은 dept 값이 바뀌는 지점마다 소계 Row 삽입 -> 정렬된 데이터 사용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 : Sales(+100,+200 -> 소계 +300 양수) / Dev(-300,-100 -> 소계 -400 음수) / QA(+500,-500 -> 소계 0)
+    let jsonData = [
+        { "name": "John", "dept": "Sales", "amount": 100 },
+        { "name": "Jane", "dept": "Sales", "amount": 200 },
+        { "name": "Mike", "dept": "Dev",   "amount": -300 },
+        { "name": "Amy",  "dept": "Dev",   "amount": -100 },
+        { "name": "Tom",  "dept": "QA",    "amount": 500 },
+        { "name": "Kim",  "dept": "QA",    "amount": -500 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정 (createCList 공통 함수)
+    //  - subtotalStyleFormatter : 함수명 문자열로 설정 (엔진이 scope 에서 해석)
+    let properties = {
+        dataList: "data:dlt_bind",
+        subtotalStyleFormatter: "scwin.target1_subtotalStyleFormatter"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // Header(이름/부서/금액) + gBody(데이터) + SubTotal(부서별 소계, amount 는 inputType="expression")
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:600px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="subtotalStyleFormatter (SubTotal expression 셀 CSS 클래스 적용) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row. amount 소계 셀은 inputType="expression"(sum) -> formatter 적용 대상
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol1" value="소계(SubTotal)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="amount" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+}
+
+
+
+// subtotalStyleFormatter 사용자 정의 함수 (@propval / @spec1)
+//  - 파라미터 : value(원본 계산값), formattedValue(포맷 적용값), subtotalColumnId(소계 Cell ID)
+//  - 반환값(CSS 클래스명)이 해당 소계 Cell 의 className 에 추가된다.
+//  - value>0 -> "subtotal_plus_css" / value<0 -> "subtotal_minus_css" / 0 또는 NaN -> 미적용(반환 없음)
+scwin.target1_subtotalStyleFormatter = function (value, formattedValue, subtotalColumnId) {
+    // 파라미터 전달(@spec1) 및 재계산 재실행(@spec2) 확인용 호출 기록
+    scwin.gVar.calls.push({ "value": value, "formattedValue": formattedValue, "subtotalColumnId": subtotalColumnId });
+
+    if (isNaN(value) || value === 0) return;         // 0 / NaN -> 미적용
+    if (value > 0) return "subtotal_plus_css";       // 양수 -> 파랑
+    return "subtotal_minus_css";                     // 음수 -> 빨강
+};
+
+
+
+// [className 확인] SubTotal 소계(expression) 셀에 formatter 반환 클래스가 실제 className 에 추가됐는지 DOM 실측
+//  - 양수 소계 셀=subtotal_plus_css / 음수 소계 셀=subtotal_minus_css / 0 소계 셀=클래스 없음
+scwin.btn_checkClass_onclick = function () {
+    let plus = document.querySelectorAll(".subtotal_plus_css");
+    let minus = document.querySelectorAll(".subtotal_minus_css");
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[SubTotal 소계 셀 className 실측] subtotal_plus_css(양수) 셀 수=" + plus.length + " / subtotal_minus_css(음수) 셀 수=" + minus.length);
+    for (let i = 0; i < plus.length; i++) {
+        wf_body_bottom.getObj("scwin").setReturnValue("  [양수] 소계값=" + plus[i].textContent + " / className=" + plus[i].className);
+    }
+    for (let i = 0; i < minus.length; i++) {
+        wf_body_bottom.getObj("scwin").setReturnValue("  [음수] 소계값=" + minus[i].textContent + " / className=" + minus[i].className);
+    }
+};
+
+
+
+// [파라미터 확인] formatter 가 전달받은 value / formattedValue / subtotalColumnId 출력 (@spec1)
+scwin.btn_checkParams_onclick = function () {
+    if (!scwin.gVar || !scwin.gVar.calls || scwin.gVar.calls.length === 0) {
+        wf_body_bottom.getObj("scwin").setReturnValue("formatter 호출 기록 없음");
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("[formatter 파라미터 전달 실측] 소계 셀별 호출 " + scwin.gVar.calls.length + " 회");
+    for (let i = 0; i < scwin.gVar.calls.length; i++) {
+        let c = scwin.gVar.calls[i];
+        wf_body_bottom.getObj("scwin").setReturnValue("  value=" + c.value + " / formattedValue=" + c.formattedValue + " / subtotalColumnId=" + c.subtotalColumnId);
+    }
+};
+
+
+
+// [소계 재계산 트리거] Sales 그룹 첫 행 금액을 변경하여 소계를 재계산 -> formatter 재실행(@spec2)
+//  - Sales 소계 +300(양수) -> -400(음수) 로 바뀌면 className 이 subtotal_plus_css -> subtotal_minus_css 로 갱신되어야 함
+scwin.btn_recalc_onclick = function () {
+    // 재실행 여부 확인을 위해 호출 기록 초기화
+    scwin.gVar.calls = [];
+    // Sales 그룹(row0) 금액을 -600 으로 변경 -> Sales 소계 (+300) -> (-600+200=-400) 음수
+    dlt_bind.setCellData(0, "amount", -600);
+    wf_body_bottom.getObj("scwin").setReturnValue("[소계 재계산 트리거] Sales 그룹 첫 행 금액 -> -600 변경 (소계 +300 -> -400). 변경 후 formatter 재실행 호출 수=" + scwin.gVar.calls.length + " -> (className 확인) / (파라미터 확인) 버튼으로 갱신 결과를 확인하세요.");
+};
+
+]]></script>
+		<style type="text/css"><![CDATA[
+.subtotal_plus_css { color: blue; font-weight: bold; background-color: #e6f0ff; }
+.subtotal_minus_css { color: red; font-weight: bold; background-color: #ffe6e6; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkClass_onclick" id="btn_checkClass" label="className 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkParams_onclick" id="btn_checkParams" label="파라미터 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_recalc_onclick" id="btn_recalc" label="소계 재계산 트리거" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

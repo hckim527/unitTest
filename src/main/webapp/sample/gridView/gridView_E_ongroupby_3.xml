@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ongroupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > ongroupby]<br/>groupbyZone=true 일때 GroupBy 기능이 설정되거나 변경되면 발생합니다.",
+    "validation" : [
+        "result.filter 파라미터는 필터가 적용된 Group Column 값을 객체로 갖습니다.",
+        "groupbyZone=true 일때 Drag&Drop 으로 GroupBy 를 적용하거나 Group Column 을 필터링했을때만 result.filter 가 전달됩니다.",
+        "result.filterRegExp 파라미터는 필터가 적용된 Group Column 의 필터 조건값을 객체로 갖습니다.",
+        "groupbyZone=true 일때 Group Column 을 필터링했을때만 result.filterRegExp 가 전달됩니다.",
+        "Group Column 의 Group FilerList 기능을 사용하여 필터를 적용하거나 필터 조건을 변경한 경우 ongroupby 이벤트가 발생합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - groupbyZone=true 고정 전제 : ongroupby 자체가 groupbyZone=true 에서만 발생하고
+//    Group FilterList 도 GroupBy Zone 의 Group Column(칩) 클릭으로만 열린다.
+//  - Group FilterList 는 useFilterList / groupbyFilterBox 등 추가 속성 없이 groupbyZone 만으로 동작한다.
+//  - 지역(col1) 은 값 5종 x 2행 = 10행 : filterRegExp 는 체크 해제 개수가 적을 때(대부분 체크 유지)만 생성되므로
+//    값 종류가 5개 이상이어야 filter 만 오는 경우와 filter+filterRegExp 가 오는 경우를 모두 재현할 수 있다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let lblDesc = '[전제] groupbyZone=true 고정 / 지역 컬럼 값 5종 (서울, 부산, 대구, 인천, 광주) 각 2행 = 총 10행'
+        + '\n[절차1] 지역 헤더를 상단 GroupBy Zone 으로 Drag&Drop (Drag&Drop 만 한 시점)'
+        + '\n[절차2] GroupBy Zone 의 지역 칩을 클릭해 Group FilterList 를 열고 값 1개만 체크 해제 (필터 적용)'
+        + '\n[절차3] 지역 칩을 다시 클릭해 Group FilterList 를 열고 값을 1개 더 체크 해제 (필터 조건 변경)'
+        + '\n[절차4] 필터가 적용된 상태에서 상세 헤더를 GroupBy Zone 으로 Drag&Drop'
+        + '\n[확인] 각 조작마다 출력되는 [filter] / [filterRegExp] 값 비교 (전달되지 않으면 undefined 로 표시)'
+        + '\n[참고] Group FilterList 는 조작마다 GroupBy Zone 의 빈 영역을 클릭해 닫은 뒤 다음 조작을 진행';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // 고정 전제 : groupbyZone = true
+    let properties = { groupbyZone: true };
+    let cList = $c.gcm.createCList(properties);
+
+    // GridView 와 바인딩할 DataList 동적 생성 (4 Column, 10 Row)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 10);
+    scwin.fillData();
+
+    // target 생성 (ongroupby 핸들러 연결)
+    await scwin.createGridView(cList);
+}
+
+
+
+// GroupBy / Group FilterList 시연용 데이터
+//  - col1(지역) : 값 5종 x 2행 → Group Column 및 Group FilterList 의 필터 대상
+scwin.fillData = function () {
+    let rows = [
+        { col1: "서울", col2: "강남", col3: "A", col4: "100" },
+        { col1: "서울", col2: "송파", col3: "B", col4: "200" },
+        { col1: "부산", col2: "해운대", col3: "C", col4: "300" },
+        { col1: "부산", col2: "수영", col3: "D", col4: "400" },
+        { col1: "대구", col2: "수성", col3: "E", col4: "500" },
+        { col1: "대구", col2: "달서", col3: "F", col4: "600" },
+        { col1: "인천", col2: "연수", col3: "G", col4: "700" },
+        { col1: "인천", col2: "부평", col3: "H", col4: "800" },
+        { col1: "광주", col2: "서구", col3: "I", col4: "900" },
+        { col1: "광주", col2: "북구", col3: "J", col4: "1000" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성 (ongroupby 이벤트 연결 : ev:ongroupby, on 중복 없음)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' id="" dataList="data:dlt_bind" ev:ongroupby="scwin.target1_ongroupby" style="width:560px;height:420px;">';
+    s += '<w2:caption style="" id="caption1" value="ongroupby 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="140" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column2" value="상세"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="column3" value="구분"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="column4" value="값"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="140" style="" inputType="text" id="col1"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col2"></w2:column>';
+    s += '<w2:column width="140" style="" inputType="text" id="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 파라미터 출력용 직렬화
+//  - 미전달(undefined) 여부가 드러나야 하므로 undefined / 빈 객체를 구분해 표시
+//  - filterRegExp 의 값은 RegExp 객체라 JSON.stringify 로는 {} 가 되므로 toString() 으로 출력
+scwin.stringifyParam = function (obj) {
+    if (typeof obj === "undefined") {
+        return "undefined";
+    }
+    if (obj === null) {
+        return "null";
+    }
+    let keys = Object.keys(obj);
+    if (keys.length === 0) {
+        return "{}";
+    }
+    let arr = [];
+    for (let i = 0; i < keys.length; i++) {
+        let v = obj[keys[i]];
+        arr.push(keys[i] + " : " + ((v instanceof RegExp) ? v.toString() : JSON.stringify(v)));
+    }
+    return "{ " + arr.join(", ") + " }";
+}
+
+
+
+// ongroupby : Header Column 의 Drag&Drop, Group Column 의 Group FilterList 필터 적용/변경 시 발생
+//  - 사용자 조작으로만 발생하므로 자동 실행 버튼 없이 발생 시점의 파라미터만 출력
+//  - groupby() 호출 전에 출력해야 엔진이 전달한 원본 파라미터가 그대로 관찰됨
+scwin.target1_ongroupby = function (result) {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    bottom.setReturnValue("[filter] " + scwin.stringifyParam(result.filter));
+    bottom.setReturnValue("[filterRegExp] " + scwin.stringifyParam(result.filterRegExp));
+
+    result.groupbyHeader = [
+        {colSpan: 4, inputType: 'expression', expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: 'left'}
+    ];
+    result.hideFooter = true;
+
+    target1.groupby(result);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 정규식 문자열이 읽기 어려움 → 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

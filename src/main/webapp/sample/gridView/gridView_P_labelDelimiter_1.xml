@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > labelDelimiter]<br/>inputType='checkbox','radio' 인 Body Cell 의 Label 값이 조합될때 표시될 구분자를 설정합니다.",
+    "validation" : [
+        "Column 의 checkboxLabelColumn 또는 radioLabelColumn 속성에 두 개 이상의 Column 정보를 설정한 경우 동작합니다.",
+        "Column 의 checkboxLabelDelimiter 또는 radioLabelDelimiter 속성이 설정되어 있으면 labelDelimiter 속성은 무시됩니다.",
+        "구분자 설정 시, inputType='checkbox','radio' 인 Body Cell 의 Label 값이 조합될 때 설정한 구분자로 표시됩니다.",
+        "미설정 시, ' '(Space)가 적용됩니다.",
+        "Column 의 checkboxLabel 또는 radioLabel 속성이 설정된 경우 Body Cell 의 Label 값 마지막에 구분자와 함께 추가됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 미적용 → 기본값 '-' 명시 설정
+    con_labelDelimiter.setValue("-");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 조건 라벨 생성 (검증 참고용)
+    $c.gcm.createLabel('label="[chk 컬럼] checkboxLabelColumn=name,dept + checkboxLabel=확인 -> 그리드 labelDelimiter 로 조합"', '', 'label1');
+    $c.gcm.createLabel('label="[rdo 컬럼] radioLabelColumn=name,dept + radioLabelDelimiter=/ -> 컬럼 구분자 우선(그리드 labelDelimiter 무시)"', '', 'label2');
+    $c.gcm.createLabel('label="[확인] con 에서 labelDelimiter 선택 -> Target 재생성 -> 라벨 조합값 확인 버튼 (Row0 = 홍길동 / 영업1팀)"', '', 'label3');
+
+    // dataList 생성 (chk, rdo = checkbox/radio 상태값, name/dept = 라벨 조합 대상 컬럼)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    let strDataList = '<w2:dataList ' + strNameSpace + ' baseNode="list" id="dlt_bind" repeatNode="map" useStatusValue="true">';
+    strDataList += '<w2:columnInfo>';
+    strDataList += '<w2:column dataType="text" id="chk" inputType="text" name="chk"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="rdo" inputType="text" name="rdo"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="name" inputType="text" name="name"></w2:column>';
+    strDataList += '<w2:column dataType="text" id="dept" inputType="text" name="dept"></w2:column>';
+    strDataList += '</w2:columnInfo>';
+    strDataList += '<w2:data use="true">';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo><name>홍길동</name><dept>영업1팀</dept></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo><name>김철수</name><dept>개발2팀</dept></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo><name>이영희</name><dept>인사팀</dept></w2:row>';
+    strDataList += '<w2:row><chk>F</chk><rdo>F</rdo><name>박민수</name><dept>재무팀</dept></w2:row>';
+    strDataList += '</w2:data>';
+    strDataList += '</w2:dataList>';
+    // dataList 는 dynamicCreate 미지원 → $p.data.create(strXml) 로 생성
+    $p.data.create(strDataList);
+
+    // 조건 설정 - labelDelimiter (미설정이면 속성 자체를 부여하지 않음 → 엔진 기본값 Space)
+    let labelDelimiterText = con_labelDelimiter.getText();
+    let labelDelimiterAttr = labelDelimiterText === '' ? '' : 'labelDelimiter="' + labelDelimiterText + '" ';
+
+    // target 생성
+    //  - chk 컬럼 : inputType=checkbox, checkboxLabelColumn="name,dept"(2컬럼 조합) + checkboxLabel="확인"(@spec: 마지막에 구분자와 함께 추가)
+    //              → 컬럼 checkboxLabelDelimiter 미설정 이므로 그리드 labelDelimiter 로 조합
+    //  - rdo 컬럼 : inputType=radio, radioLabelColumn="name,dept"(2컬럼 조합) + radioLabelDelimiter="/"(고정)
+    //              → 컬럼 구분자가 설정되어 그리드 labelDelimiter 무시
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + labelDelimiterAttr + 'checkAllType="false" dataList="data:dlt_bind" id="" style="width:640px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="labelDelimiter 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" inputType="text" id="chk" value="chk (checkbox + name,dept 조합)"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="text" id="rdo" value="rdo (radio + name,dept 조합)"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="name" value="name"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="dept" value="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" inputType="checkbox" id="chk" checkboxLabelColumn="name,dept" checkboxLabel="확인"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="radio" id="rdo" radioLabelColumn="name,dept" radioLabelDelimiter="/"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="name"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 라벨 조합값 확인
+//  - Row0(홍길동/영업1팀) 의 checkbox / radio 셀에 렌더된 조합 Label 텍스트를 DOM 실측
+//  - chk : 그리드 labelDelimiter 로 조합 + checkboxLabel('확인') 마지막에 구분자와 함께 추가
+//  - rdo : 컬럼 radioLabelDelimiter('/') 우선 → 그리드 labelDelimiter 무시
+scwin.btn_checkLabel_onclick = function () {
+    let delimText = con_labelDelimiter.getText();
+    let curDelim = delimText === '' ? "(미설정 -> Space)" : delimText;
+
+    let chkCell = document.querySelector("td[id*='target1_cell_0_0']");
+    let rdoCell = document.querySelector("td[id*='target1_cell_0_1']");
+    let chkLabel = chkCell ? chkCell.querySelector(".w2checkbox_label") : null;
+    let rdoLabel = rdoCell ? rdoCell.querySelector(".w2radio_label") : null;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("=====labelDelimiter 라벨 조합 확인=====");
+    wf_body_bottom.getObj("scwin").setReturnValue("현재 그리드 labelDelimiter : " + curDelim);
+    wf_body_bottom.getObj("scwin").setReturnValue("[chk] name,dept 조합 + checkboxLabel(확인) 라벨 : " + (chkLabel ? chkLabel.textContent : "라벨 없음"));
+    wf_body_bottom.getObj("scwin").setReturnValue("[rdo] name,dept 조합 (radioLabelDelimiter=/ 우선) 라벨 : " + (rdoLabel ? rdoLabel.textContent : "라벨 없음"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="labelDelimiter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_labelDelimiter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[-]]></xf:label>
+												<xf:value><![CDATA[-]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/]]></xf:label>
+												<xf:value><![CDATA[/]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[,]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkLabel_onclick" id="btn_checkLabel"
+							label="라벨 조합값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

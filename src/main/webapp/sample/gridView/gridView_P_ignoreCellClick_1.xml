@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ignoreCellClick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > ignoreCellClick]<br/>inputType='drilldown' 인 Body Cell 의 토글 버튼 영역 클릭 시 oncellclick 이벤트 발생 여부를 설정합니다.",
+    "validation" : [
+        "true 설정 시, Body Cell 의 토글 버튼 영역 클릭 시 oncellclick 이벤트를 발생시키지 않습니다.",
+        "true 설정 시, 자식 Row 가 없는 Cell 에서 Leaf 이미지 영역을 클릭하는 경우에도 oncellclick 이벤트가 발생하지 않습니다.",
+        "false 설정 시, Body Cell 의 토글 버튼 영역 클릭 시 oncellclick 이벤트를 발생시킵니다.",
+        "미설정 시, Body Cell 의 토글 버튼 영역 클릭 시 oncellclick 이벤트를 발생시킵니다.",
+        "ignoreCellClick 속성값에 관계없이 토글 버튼 클릭에 의한 토글 동작은 수행되며 ontoggleclick 이벤트도 발생합니다.",
+        "토글 버튼 또는 Leaf 이미지 영역이 아닌 Body Cell 영역을 클릭하면 oncellclick 이벤트가 발생합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // con 기본값 지정 (정적 select1 은 초기 selectedIndex 미적용 → setValue 로 기본값 명시)
+    //  - con_ignoreCellClick : gdl_boolean value '1' = 미설정(빈 라벨, 엔진 기본 false 와 동일 동작)
+    con_ignoreCellClick.setValue("1");
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - inputType="drilldown" 트리 컬럼 + depth(계층) 데이터로 DrillDown 그리드 구성
+//    · 부모 Row(자식 보유 → 토글 버튼 +/- 표시) : 영업본부(idx0), 개발본부(idx2)
+//    · 자식 Row : 영업1팀(idx1), 개발1팀(idx3)
+//    · Leaf Row(자식 없음 → Leaf 이미지 표시) : 관리팀(독립)(idx4, depth1)
+//    · 초기 접힘(showDepth=1) 표시 Row : [display 0] 영업본부 / [display 1] 개발본부 / [display 2] 관리팀
+//  - con_ignoreCellClick : 미설정('') / true / false (@dynamic N → Target 재생성 시 반영)
+//    · true      : 토글 버튼 영역/ Leaf 이미지 영역 마우스 클릭 시 oncellclick 미발생 (단 토글 동작·ontoggleclick 은 수행)
+//    · false/미설정 : 토글 버튼 영역 클릭 시 oncellclick 발생
+//  - oncellclick / ontoggleclick 바인딩 → 발생 즉시 한 줄 출력
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 현재 con selectbox 적용값 (미설정이면 빈 문자열 → 속성 자체 미설정 = 엔진 기본값 false)
+    //  - ignoreCellClick 은 gdl_boolean(값=코드) 바인딩이라 라벨(true/false/'') 을 쓰는 getText()
+    let cIgnore = con_ignoreCellClick.getText();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  - 토글 버튼/Leaf/셀 본문 클릭은 사용자 조작이므로 라벨로 조작 방법 안내
+    $c.gcm.createLabel('label="[전제] inputType=drilldown 트리 그리드(초기 접힘). 표시 Row : 영업본부(display 0, 부모 토글) / 개발본부(display 1, 부모 토글) / 관리팀(display 2, Leaf). con_ignoreCellClick=(현재 [' + (cIgnore === '' ? '미설정' : cIgnore) + ']). con 변경은 Target 재생성 버튼으로 반영.\n[절차] (1) 부모 Row 의 +/- 토글 버튼 영역을 좌클릭 (2) Leaf(관리팀) Cell 의 Leaf 이미지 영역을 좌클릭 (3) 셀 본문(텍스트) 영역을 좌클릭.\n[확인] true=토글 버튼/Leaf 이미지 클릭 시 oncellclick 미발생(단 토글 동작 수행+ontoggleclick 발생). false/미설정=토글 버튼 클릭 시 oncellclick 발생. 값 무관하게 토글 아닌 셀 본문 영역 클릭 시 oncellclick 발생."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (부모=1, 자식=2)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 계층 데이터 : 부모(depth1) 바로 아래 자식(depth2) 위치(엔진 drilldown 은 순서 기반)
+    //  - idx0 영업본부(부모) > idx1 영업1팀(자식)
+    //  - idx2 개발본부(부모) > idx3 개발1팀(자식)
+    //  - idx4 관리팀(독립, depth1, 자식 없음) → Leaf
+    let jsonData = [
+        { "name": "영업본부",     "amount": 100, "depth": 1 },
+        { "name": "영업1팀",      "amount": 110, "depth": 2 },
+        { "name": "개발본부",     "amount": 200, "depth": 1 },
+        { "name": "개발1팀",      "amount": 210, "depth": 2 },
+        { "name": "관리팀(독립)", "amount": 300, "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // con 속성 문자열 (미설정이면 속성 자체를 넣지 않음 = 엔진 기본값 false)
+    let strAttr = '';
+    if (cIgnore !== '') {
+        strAttr += ' ignoreCellClick="' + cIgnore + '"';
+    }
+
+    // target 그리드 직접 구성 (DrillDown 트리 컬럼)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + strAttr + ' dataList="data:dlt_bind" rowNumVisible="true" ev:oncellclick="scwin.target1_oncellclick" ev:ontoggleclick="scwin.target1_ontoggleclick" id="" style="width:560px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ignoreCellClick (토글/Leaf 셀 클릭 oncellclick 발생 여부) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="320" style="" inputType="text" id="hcol1" value="조직(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="320" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+};
+
+
+
+// oncellclick : 셀 클릭 시 발생. ignoreCellClick=true 이면 토글 버튼/Leaf 이미지 영역 클릭에서는 발생하지 않음.
+//  - rowIndex : 클릭된 셀의 행 인덱스, columnIndex : 컬럼 인덱스, columnId : 컬럼 아이디
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ oncellclick rowIndex : " + rowIndex + ", columnIndex : " + columnIndex + ", columnId : " + columnId);
+};
+
+
+
+// ontoggleclick : 토글 버튼 클릭 시 발생. ignoreCellClick 값과 무관하게 토글 동작 수행 후 발생(@spec).
+//  - collapsed : true=자식 Row 접힘 / false=자식 Row 펼쳐짐, rowIndex : 토글된 실제 Row 인덱스
+scwin.target1_ontoggleclick = function (collapsed, rowIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ontoggleclick collapsed : " + collapsed + ", rowIndex : " + rowIndex);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="ignoreCellClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_ignoreCellClick" chooseOption="" style="" submenuSize="auto" allOption="" appearance="minimal" ref="" label="label" value="value" selectedIndex="0">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

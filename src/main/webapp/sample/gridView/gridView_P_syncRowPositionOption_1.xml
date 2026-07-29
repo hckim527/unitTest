@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] syncRowPositionOption" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > syncRowPositionOption]<br/>바인딩된 DataList 모듈의 rowPosition 이 변경될때 GridView 포커스를 동기화 할지 설정합니다.",
+    "validation" : [
+        "focusMode 속성값이 'none' 이 아닌 경우에 동작합니다.",
+        "none 설정 시, DataList 모듈의 rowPosition 이 변경되어도 GridView 포커스를 동기화하지 않습니다.",
+        "미설정 시, DataList 모듈의 rowPosition 이 변경되어도 GridView 포커스를 동기화하지 않습니다.",
+        "style 설정 시, DataList 모듈의 rowPosition 변경 시 GridView 의 해당 Row 로 포커스를 동기화합니다.",
+        "style 설정 시, GridView 에 실제 포커스는 이동하지 않고 논리적 포커스만 동기화됩니다.",
+        "style 설정 시, focusMode='cell' 이면 포커스된 Body Cell 이 존재해야 동작합니다.",
+        "DataList 모듈의 BroadCast 기능이 꺼진 상태이면 syncRowPositionOption 속성은 'none' 으로 동작합니다.",
+        "GridView 에 GroupBy 기능이 적용된 상태이면 syncRowPositionOption 속성은 'none' 으로 동작합니다.",
+        "syncRowPositionOption 속성에 의해 포커스가 이동하면 onrowindexchange, oncellindexchange 이벤트가 발생합니다.",
+    ]
+}
+
+
+
+// 이벤트 발생 추적용 (setRowPosition 에 의한 포커스 이동 시 onrowindexchange / oncellindexchange 발생 여부 확인)
+scwin.gVar = { lastRowIndexChange : null, lastCellIndexChange : null };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1(자체 값) 은 초기 selectedIndex 미적용 → 기본값 명시 설정
+    //  - syncRowPositionOption = style, focusMode = cell 로 두어 기본 동기화 동작을 바로 관찰 가능하게 함
+    con_syncRowPositionOption.setValue("style");
+    con_focusMode.setValue("cell");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - con_syncRowPositionOption / con_focusMode 두 옵션을 con 으로 반영하여 GridView 동적 생성
+//  - selectedCellColor(red) / selectedRowColor(blue) 로 포커스 동기화된 Row/Cell 을 배경색으로 구분 관찰
+//  - onrowindexchange / oncellindexchange 이벤트 등록 (동기화 이동 시 발생 확인)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // con 옵션 수집 (자체 값 selectbox → getValue, 빈값(미설정)은 createCList 가 자동 제외)
+    let cSync = con_syncRowPositionOption.getValue();
+    let cFocusMode = con_focusMode.getValue();
+
+    let properties = {
+        syncRowPositionOption : cSync,
+        focusMode             : cFocusMode,
+        selectedCellColor     : "red",
+        selectedRowColor      : "blue"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 동기화에 의한 포커스 이동 시 발생하는 이벤트 등록
+    let eList = $c.gcm.createEList(["onrowindexchange", "oncellindexchange"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    let lblSync = (cSync === '') ? '미설정' : cSync;
+    let lblFocus = (cFocusMode === '') ? '미설정' : cFocusMode;
+    let lbl = '';
+    lbl += '[전제] dlt_bind 바인딩 그리드. syncRowPositionOption=' + lblSync + ' / focusMode=' + lblFocus + ' 로 생성';
+    lbl += '\n   (selectedCellColor=red, selectedRowColor=blue). focusMode!=none 이면 초기 포커스 셀(0,0) 설정됨';
+    lbl += '\n[절차] rowPosition 값 선택 후 (RowPosition 변경) -> dlt_bind.setRowPosition 호출';
+    lbl += '\n[확인] style + focusMode!=none 이면 포커스 Row 가 rowPosition 으로 동기화(getFocusedRowIndex 변경).';
+    lbl += '\n   (가이드상 논리 포커스만 이동해야 하나, 현재 엔진은 실제 DOM 포커스(activeElement)도 함께 이동함)';
+    lbl += '\n   (BroadCast off) / (GroupBy 적용) 버튼은 style 이어도 동기화 미동작 확인';
+    $c.gcm.createLabel('label="' + lbl + '"', '', 'label1');
+
+    // dataList 생성 (4 Row 바인딩)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (4컬럼 Body 그리드)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:520px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="syncRowPositionOption 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="name4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 초기 RowPosition 정렬 + 기본 포커스 셀 설정
+    //  - focusMode != 'none' 이면 사전 포커스 셀(0,0)이 있어야 이후 RowPosition 변경 시 동기화가 동작
+    //    (특히 cell 모드는 사전 포커스 셀이 없으면 동기화가 동작하지 않음 → @propval)
+    dlt_bind.setRowPosition(0);
+    let effMode = (cFocusMode === '') ? 'cell' : cFocusMode;
+    if (effMode !== 'none') {
+        target1.setFocusedCell(0, 0);
+    }
+}
+
+
+
+// document.activeElement 를 'TAG#id' 형태 문자열로 반환 (실제 DOM 포커스 위치 확인용)
+scwin.getActiveElementDesc = function () {
+    let ae = document.activeElement;
+    if (!ae) return '(none)';
+    return ae.tagName + (ae.id ? ('#' + ae.id) : '');
+}
+
+
+
+// "RowPosition 변경" 버튼
+//  - DataList 의 rowPosition 을 par_rowPosition 값으로 변경 (setRowPosition)
+//  - style + focusMode!=none 이면 포커스 Row 가 rowPosition 으로 논리적 동기화(getFocusedRowIndex 변경)
+//    실제 DOM 포커스(activeElement)는 이동하지 않음
+//  - none / 미설정 / focusMode=none 이면 동기화 미동작(getFocusedRowIndex 불변)
+//  - 동기화 이동 시 onrowindexchange / oncellindexchange 이벤트 발생
+scwin.btn_setRowPosition_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let newPos = parseInt(par_rowPosition.getValue(), 10);
+    let sync = target1.options.syncRowPositionOption;
+    let mode = target1.options.focusMode;
+
+    // 이벤트 추적 초기화
+    scwin.gVar.lastRowIndexChange = null;
+    scwin.gVar.lastCellIndexChange = null;
+
+    // 변경 전 상태
+    let beforeRow = target1.getFocusedRowIndex();
+    let beforeActive = scwin.getActiveElementDesc();
+
+    // DataList rowPosition 변경 → 동기화 조건이면 GridView 포커스 이동
+    dlt_bind.setRowPosition(newPos);
+
+    // 변경 후 상태
+    let afterRow = target1.getFocusedRowIndex();
+    let afterActive = scwin.getActiveElementDesc();
+    let synced = (afterRow === newPos);
+
+    let optStr = "syncRowPositionOption=" + (sync === '' ? '미설정' : sync) + "/focusMode=" + (mode === '' ? '미설정' : mode);
+    let rc = scwin.gVar.lastRowIndexChange;
+    let cc = scwin.gVar.lastCellIndexChange;
+
+    // 동기화 여부 (논리 포커스 Row)
+    bottom.setReturnValue("[" + optStr + "] setRowPosition(" + newPos + ") -> getFocusedRowIndex " + beforeRow + "->" + afterRow + " (동기화 " + (synced ? "O" : "X") + ")");
+    // 실제 DOM 포커스(activeElement) : style 동기화 시 논리 포커스만 이동해야 하나 실제 포커스도 이동(가이드 위배)
+    bottom.setReturnValue("실제 DOM 포커스(activeElement) " + beforeActive + "->" + afterActive + " (" + (beforeActive === afterActive ? "불변" : "이동됨 - 가이드는 논리 포커스만 이라 명시") + ")");
+    // @spec2 : 동기화로 포커스 이동 시 onrowindexchange / oncellindexchange 발생
+    bottom.setReturnValue("이벤트 발생 : onrowindexchange " + (rc ? ("O(rowIndex=" + rc.rowIndex + ",oldRow=" + rc.oldRow + ")") : "X") + " / oncellindexchange " + (cc ? ("O(rowIndex=" + cc.rowIndex + ",columnIndex=" + cc.columnIndex + ")") : "X"));
+}
+
+
+
+// "BroadCast off" 버튼
+//  - dlt_bind.setBroadcast(false) 후 setRowPosition → BroadCast 꺼지면 syncRowPositionOption 이 'none' 으로 동작
+//    (style 이어도 포커스 동기화 미동작 : getFocusedRowIndex 불변)
+//  - 확인 후 BroadCast 를 다시 켜 원복
+scwin.btn_broadcastOff_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let newPos = parseInt(par_rowPosition.getValue(), 10);
+    let sync = target1.options.syncRowPositionOption;
+
+    let beforeRow = target1.getFocusedRowIndex();
+
+    // BroadCast off 후 rowPosition 변경
+    dlt_bind.setBroadcast(false);
+    let bc = dlt_bind.getBroadcast();
+    dlt_bind.setRowPosition(newPos);
+    let afterRow = target1.getFocusedRowIndex();
+    let dltPos = dlt_bind.getRowPosition();
+
+    // 원복 (이후 케이스 정상 동작)
+    dlt_bind.setBroadcast(true, true);
+
+    bottom.setReturnValue("[BroadCast off(getBroadcast=" + bc + ") / sync=" + (sync === '' ? '미설정' : sync) + "] setRowPosition(" + newPos + ") -> DataList rowPosition=" + dltPos + " 이나 getFocusedRowIndex " + beforeRow + "->" + afterRow + " (none 동작=동기화 " + (beforeRow === afterRow ? "X" : "O") + ")");
+}
+
+
+
+// "GroupBy 적용" 버튼
+//  - target1.groupby(...) 로 col1 기준 그룹핑 적용 후 setRowPosition → GroupBy 적용 상태면 'none' 으로 동작
+//    (style 이어도 포커스 동기화 미동작). 원복은 Target 재생성 버튼으로 수행
+scwin.btn_groupBy_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let newPos = parseInt(par_rowPosition.getValue(), 10);
+    let sync = target1.options.syncRowPositionOption;
+    let mode = target1.options.focusMode;
+
+    // col1(인덱스 0) 기준 그룹핑 적용
+    target1.groupby({
+        sortIndex: [0],
+        sortOrder: [1],
+        groupbyHeader: { depth_0: [{ colSpan: "4", inputType: "expression", expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: "left" }] },
+        hideFooter: true
+    });
+
+    // 그룹핑 후 사전 포커스 셀 재설정
+    if (mode !== 'none') {
+        target1.setFocusedCell(0, 0);
+    }
+
+    let beforeRow = target1.getFocusedRowIndex();
+    dlt_bind.setRowPosition(newPos);
+    let afterRow = target1.getFocusedRowIndex();
+
+    bottom.setReturnValue("[GroupBy 적용 / sync=" + (sync === '' ? '미설정' : sync) + "] setRowPosition(" + newPos + ") -> getFocusedRowIndex " + beforeRow + "->" + afterRow + " (none 동작=동기화 " + (beforeRow === afterRow ? "X" : "O") + ") [원복:Target 재생성]");
+}
+
+
+
+// onrowindexchange : 포커스 셀의 행이 변경될 때 발생 (동기화 이동 포함)
+scwin.target1_onrowindexchange = function (rowIndex, oldRow) {
+    scwin.gVar.lastRowIndexChange = { rowIndex : rowIndex, oldRow : oldRow };
+}
+
+
+
+// oncellindexchange : 포커스 셀이 변경될 때 발생 (동기화 이동 포함)
+scwin.target1_oncellindexchange = function (rowIndex, columnIndex, oldRow, oldColumnIndex) {
+    scwin.gVar.lastCellIndexChange = { rowIndex : rowIndex, columnIndex : columnIndex, oldRow : oldRow, oldColumnIndex : oldColumnIndex };
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="syncRowPositionOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_syncRowPositionOption" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>style</xf:label>
+												<xf:value>style</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMode" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>cell</xf:label>
+												<xf:value>cell</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>row</xf:label>
+												<xf:value>row</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>both</xf:label>
+												<xf:value>both</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowPosition" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowPosition" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setRowPosition_onclick" id="btn_setRowPosition"
+							label="RowPosition 변경" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_broadcastOff_onclick" id="btn_broadcastOff"
+							label="BroadCast off" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupBy_onclick" id="btn_groupBy"
+							label="GroupBy 적용" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

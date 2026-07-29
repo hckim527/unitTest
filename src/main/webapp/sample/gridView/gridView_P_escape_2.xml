@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] escape" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > escape]<br/>렌더링 과정에서 각 데이터의 표시값을 이스케이프 처리 할지 설정합니다.",
+    "validation" : [
+        "Body Cell 이 편집 모드인 경우엔 항상 이스케이프 처리된 데이터가 표시됩니다.",
+        "customFormatter 가 설정된 경우 escape 속성이 적용된 데이터가 formattedData 파라미터로 전달됩니다."
+    ]
+}
+
+
+
+// customFormatter 로 전달되는 파라미터 보관용 (escape 적용 데이터가 formattedData 로 전달되는지 확인)
+scwin.gVar = { "gridEscape" : "", "fmtData" : "", "fmtFormatted" : "" };
+
+
+
+// col2 에 설정되는 customFormatter.
+//  표시값을 바꾸지 않도록 formattedData 를 그대로 반환하고, 전달받은 파라미터를 보관하여 버튼에서 출력한다.
+scwin.fmtEscape = function (data, formattedData, rowIndex, columnIndex) {
+    scwin.gVar.fmtData = data;
+    scwin.gVar.fmtFormatted = formattedData;
+    return formattedData;
+};
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 조건 셀렉트박스 기본값 설정 (정적 select1 은 초기 selectedIndex 미적용)
+    //  gdl_boolean 코드값 : 미설정='1' / true='2' / false='3' -> escape 기본값 true 로 시작
+    con_escape.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  escape 는 @dynamic N (렌더 시 결정) 이므로 con 변경 후 "Target 재생성"(btn_createTarget -> comp_init) 으로만 반영한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // con 선택값 (gdl_boolean 바인딩 -> getText 로 라벨('' / 'true' / 'false') 을 읽는다)
+    let escapeCon = con_escape.getText();
+    scwin.gVar.gridEscape = escapeCon;
+    scwin.gVar.fmtData = "";
+    scwin.gVar.fmtFormatted = "";
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    let escapeLabel = (escapeCon === '') ? '미설정' : escapeCon;
+    $c.gcm.createLabel('label="[전제] GridView escape = ' + escapeLabel + '. 두 컬럼 모두 컬럼 escape 미설정 -> GridView escape 상속. Column 구성 - 0:col1(text, 편집 모드 검증 대상) / 1:col2(text, customFormatter=scwin.fmtEscape). 데이터 1행은 <b> 태그와 < > & 작은따옴표를 모두 포함한 값.\n[절차] con_escape 선택 -> Target 재생성 -> (customFormatter 파라미터 확인) 버튼 클릭. 이어서 col1 의 Row0 셀을 더블 클릭해 편집 모드로 들어갈 것.\n[확인] col1 편집 모드 진입 시 표시 모드 값과 편집창 표시값이 자동 출력되므로 두 값을 대비할 것. customFormatter 는 버튼 클릭 시 data / formattedData 파라미터가 출력된다."', '', 'label1');
+
+    // 바인딩 DataList 생성 (특수문자 포함 값은 XML 문자열이 아닌 setJSON 으로 주입)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 특수문자 픽스처 : HTML 태그(<b>) 와 <, >, &, 작은따옴표를 한 행에 모두 포함
+    let val = "<b>긴급</b> 반품 & 교환 '1차' 재고 5 < 10";
+    dlt_bind.setJSON([{ "col1" : val, "col2" : val }], false);
+
+    // GridView escape 속성 : con 미설정이면 속성 자체를 부여하지 않는다(createCList 가 빈값 제외)
+    let properties = {
+        dataList : "data:dlt_bind",
+        escape : escapeCon
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    //  col1 : 편집 모드 진입 시 표시되는 데이터 확인 대상
+    //  col2 : customFormatter -> formattedData 로 전달되는 값 확인 대상
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" ev:onbeforeedit="scwin.target1_onbeforeedit" id="" style="width:960px;height:120px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="470" inputType="text" id="hcol1" value="0:col1 (편집 모드 검증)"></w2:column>';
+    strTarget += '<w2:column width="470" inputType="text" id="hcol2" value="1:col2 (customFormatter)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="470" inputType="text" dataType="text" id="col1"></w2:column>';
+    strTarget += '<w2:column width="470" inputType="text" dataType="text" customFormatter="scwin.fmtEscape" id="col2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// [확인] customFormatter 에 전달된 파라미터 출력
+scwin.btn_checkFormatter_onclick = function () {
+    let out = wf_body_bottom.getObj("scwin");
+
+    out.setReturnValue("[col2 customFormatter data 파라미터] " + scwin.gVar.fmtData);
+    out.setReturnValue("[col2 customFormatter formattedData 파라미터] " + scwin.gVar.fmtFormatted);
+}
+
+
+
+// 편집 모드 진입 시점의 편집창 표시값 확인
+//  onbeforeedit 는 편집창 생성 전에 발생하므로 다음 틱에 편집창(input) 값을 읽는다.
+//  같은 셀의 표시 모드 값(textContent) 을 함께 출력하여 편집 모드 값과 직접 대비한다.
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    if (scwin.target1.getColumnID(columnIndex) !== "col1") {
+        return;
+    }
+    let td = document.querySelector("td[id*='target1_cell_" + rowIndex + "_" + columnIndex + "']");
+    let displayText = td ? td.textContent : "(셀 없음)";
+
+    setTimeout(function () {
+        let inp = td ? td.querySelector("input, textarea") : null;
+        if (inp === null) {
+            let act = document.activeElement;
+            if (act && (act.tagName === "INPUT" || act.tagName === "TEXTAREA")) {
+                inp = act;
+            }
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            "[col1 편집 모드 진입] 표시 모드 값 = " + displayText
+            + " | 편집창 표시값 = " + (inp ? inp.value : "(편집창 미확인)"));
+    }, 50);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="escape" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_escape" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFormatter_onclick" id="btn_checkFormatter"
+							label="customFormatter 파라미터 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

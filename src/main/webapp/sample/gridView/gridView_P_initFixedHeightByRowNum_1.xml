@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] initFixedHeightByRowNum" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > initFixedHeightByRowNum]<br/>SubTotal Row 를 포함하여 Body 영역에 표시할 Row 의 갯수를 설정합니다.",
+    "validation" : [
+        "visibleRowNum 속성 설정 시 initFixedHeightByRowNum 속성은 무시됩니다.",
+        "Number 설정 시, GridView 의 Body 영역에 한번에 표시할 Row 의 갯수를 숫자로 설정합니다.",
+        "Number 설정 시, GridView 의 높이가 설정값에 맞게 변경되며 설정값보다 데이터 수가 많을 경우 스크롤이 생성됩니다.",
+        "Number 설정 시, 디자인 시 설정한 GridView 의 높이보다 작아지지 않습니다.",
+        "Number 설정 시, SubTotal Row 도 설정값의 Row 갯수에 포함됩니다.",
+        "initFixedHeightByRowNum 속성이 0 보다 크고 visibleRowNum 이 '' 이면 visibleRowNum 속성이 initFixedHeightByRowNum 속성값으로 설정됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con 기본값 설정 (정적 select1 은 초기 selectedIndex 미적용 -> 명시 설정)
+    //  - 기본: initFixedHeightByRowNum=6 (디자인 높이보다 큼 -> 높이 확장 + 스크롤), visibleRowNum 미설정('')
+    con_initFixedHeightByRowNum.setValue("6");
+    con_visibleRowNum.setValue("");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - initFixedHeightByRowNum 검증용 : Header + gBody + SubTotal(dept 그룹 소계) 그리드 동적 생성
+//  - 데이터 11행 + SubTotal 4행 = 총 15행 -> 설정값(N)보다 많아 스크롤/높이 차이 확인
+//  - 디자인 높이(height:150px)를 작게 설정 -> N 이 크면 높이 확장, N 이 작으면 디자인 높이 유지(작아지지 않음)
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 부서(dept) 그룹별 SubTotal(소계) Row 4개 + 데이터 11행 = 총 15행\n[조건] con 에서 initFixedHeightByRowNum / visibleRowNum 값 선택 후 (Target 재생성)\n[확인1] visibleRowNum 미설정 + initFixedHeightByRowNum=N -> 높이가 N행에 맞춰지고 visibleRowNum 이 N 으로 설정 (SubTotal Row 도 N 에 포함)\n[확인2] visibleRowNum 을 숫자로 설정 -> initFixedHeightByRowNum 무시 (visibleRowNum 우선)\n[확인3] N 이 디자인 높이(15행 중 약 4행)보다 작으면 디자인 높이 유지 / 데이터가 많으면 세로 스크롤"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (name/dept/amount) — dept 그룹 SubTotal 용
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 데이터 11건 (Sales 3 + Dev 3 + QA 3 + HR 2) -> dept 그룹 4개 -> SubTotal Row 4개
+    let jsonData = [
+        { "name": "John",  "dept": "Sales", "amount": 100 },
+        { "name": "Jane",  "dept": "Sales", "amount": 200 },
+        { "name": "Paul",  "dept": "Sales", "amount": 150 },
+        { "name": "Mike",  "dept": "Dev",   "amount": 300 },
+        { "name": "Amy",   "dept": "Dev",   "amount": 400 },
+        { "name": "Kevin", "dept": "Dev",   "amount": 250 },
+        { "name": "Tom",   "dept": "QA",    "amount": 500 },
+        { "name": "Sara",  "dept": "QA",    "amount": 350 },
+        { "name": "Leo",   "dept": "QA",    "amount": 450 },
+        { "name": "Nina",  "dept": "HR",    "amount": 600 },
+        { "name": "Owen",  "dept": "HR",    "amount": 550 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // 조건 설정 (con 값이 '' 이면 createCList 가 빈 속성을 제외 -> Property 미설정 상태로 생성)
+    let properties = {
+        visibleRowNum: con_visibleRowNum.getValue(),
+        initFixedHeightByRowNum: con_initFixedHeightByRowNum.getValue(),
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // 디자인 높이를 작게(height:150px, 약 4행) 설정 -> initFixedHeightByRowNum 값에 따른 높이 변화 관찰
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:600px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="initFixedHeightByRowNum 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row (dept 값이 바뀌는 지점마다 삽입) -> initFixedHeightByRowNum 갯수에 포함되는지 확인
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="scol1" value="소계(SubTotal)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate('target1', 'gridView', strTarget, grp_comp);
+
+    // 초기 렌더 결과 자동 출력
+    setTimeout(function () { scwin.btn_check_onclick(); }, 300);
+}
+
+
+
+// initFixedHeightByRowNum 적용 결과 확인
+//  - options.initFixedHeightByRowNum / options.visibleRowNum (@spec1 : visibleRowNum='' 이면 visibleRowNum 이 N 으로 설정 / 무시 시 -1)
+//  - getVisibleRowNum(), 렌더 높이(offsetHeight), 세로 스크롤 유무, 그리드 내 SubTotal Row 수
+scwin.btn_check_onclick = function (e) {
+    let elem = target1.render;
+    let height = elem ? elem.offsetHeight : 'N/A';
+
+    // Body 세로 스크롤 영역 -> 스크롤 유무 판단
+    let scrollArea = elem ? elem.querySelector('.w2grid_scrollY') : null;
+    let hasScroll = scrollArea ? (scrollArea.scrollHeight > scrollArea.clientHeight) : 'N/A';
+
+    // 표시 영역에 렌더된 SubTotal(소계) Row 수 — 렌더 소계 셀(td.gridSubtotalDefault_data)의 부모 Row 중 화면 표시된 것
+    let subCells = elem ? elem.querySelectorAll("td.gridSubtotalDefault_data") : [];
+    let subRowSet = new Set();
+    for (let i = 0; i < subCells.length; i++) {
+        let tr = subCells[i].closest("tr");
+        if (tr && tr.offsetParent !== null) subRowSet.add(tr);
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[con] initFixedHeightByRowNum : '" + con_initFixedHeightByRowNum.getValue() + "' / visibleRowNum : '" + con_visibleRowNum.getValue() + "'");
+    wf_body_bottom.getObj("scwin").setReturnValue("[적용값] options.initFixedHeightByRowNum : " + target1.options.initFixedHeightByRowNum + " / options.visibleRowNum : " + target1.options.visibleRowNum);
+    wf_body_bottom.getObj("scwin").setReturnValue("getVisibleRowNum() (표시 영역 Row 수, SubTotal 포함) : " + target1.getVisibleRowNum());
+    wf_body_bottom.getObj("scwin").setReturnValue("GridView 렌더 높이(offsetHeight) : " + height + "px / 세로 스크롤 생성 여부 : " + hasScroll);
+    wf_body_bottom.getObj("scwin").setReturnValue("표시 영역 내 SubTotal Row 수 : " + subRowSet.size + " (SubTotal Row 도 표시 Row 갯수에 포함되어 높이 계산됨)");
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="initFixedHeightByRowNum" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_initFixedHeightByRowNum" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>3 (디자인 높이보다 작음)</xf:label>
+												<xf:value>3</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>6</xf:label>
+												<xf:value>6</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>10</xf:label>
+												<xf:value>10</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="visibleRowNum" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_visibleRowNum" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>5 (설정 시 initFixedHeightByRowNum 무시)</xf:label>
+												<xf:value>5</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check"
+							label="initFixedHeightByRowNum 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

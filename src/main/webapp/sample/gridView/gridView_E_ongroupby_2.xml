@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ongroupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1065
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > ongroupby]<br/>groupbyZone=true 일때 GroupBy 기능이 설정되거나 변경되면 발생합니다.",
+    "validation" : [
+        "result.rowNumHeader 는 rowNumVisible=true 일때 Group Header 의 RowNum Column 이 구성되는 옵션값을 갖습니다.",
+        "result.rowStatusHeader 는 rowStatusVisible=true 일때 Group Header 의 RowStaus Column 이 구성되는 옵션값을 갖습니다.",
+        "result.rowNumFooter 는 rowNumVisible=true 일때 Group Footer 의 RowNum Column 이 구성되는 옵션값을 갖습니다.",
+        "result.rowStatusFooter 는 rowStatusVisible=true 일때 Group Footer 의 RowStaus Column 이 구성되는 옵션값을 갖습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - groupbyZone / rowNumVisible / rowStatusVisible 은 본 샘플의 전제이므로 true 로 고정
+//  - groupbyZone=true 이면 그리드 상단에 GroupBy Zone 이 렌더되고, Header Column 을 Drag&Drop 하면 ongroupby 발생
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 테스트 참고 라벨 (target 생성 전 가장 먼저 생성)
+    let lblDesc = '[전제] groupbyZone=true / rowNumVisible=true / rowStatusVisible=true 고정 (RowNum, RowStatus Column 표시)'
+        + '\n[조작] Header Column (지역/부서/등급/점수) 을 그리드 상단 GroupBy Zone 으로 Drag&Drop (반복하면 Group Column 추가)'
+        + '\n[확인] 결과창은 동일한 4개 속성을 [A] 이벤트 전달값 / [B] 엔진 보관값 두 구간으로 대비 출력합니다.'
+        + '\n         [A] : 가이드상 result 로 전달되어야 하는 기대값 → ongroupby 핸들러가 실제로 받은 값'
+        + '\n         [B] : 핸들러가 4개 속성을 직접 설정해 groupby() 를 적용한 뒤 getGroupbyData() 로 조회한 엔진 보관값'
+        + '\n         [B] 는 보관 O 인데 [A] 가 전달 X 이면, 옵션값이 엔진에는 남아 있고 이벤트 전달만 누락된 것입니다.'
+        + '\n[참고] 설정한 옵션의 화면 반영 : Group Header 의 RowNum 칸=H, RowStatus 칸=그룹 / Group Footer 의 RowNum 칸=F, RowStatus 칸=계';
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // 이벤트 발생 횟수 초기화 (Target 재생성 시 함께 초기화)
+    scwin.evtCnt = 0;
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 그룹핑 시연용 데이터 : 부서(dept) 기준 3 그룹 (개발 3행 / 기획 1행 / 영업 2행)
+    let jsonData = [
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 60 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    await scwin.createGridView();
+}
+
+
+
+// gridView 동적 생성 (ongroupby 이벤트 연결)
+scwin.createGridView = async function () {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' id="" dataList="data:dlt_bind" groupbyZone="true" rowNumVisible="true" rowStatusVisible="true" ev:ongroupby="scwin.target1_ongroupby" style="width:700px;height:480px;">';
+    s += '<w2:caption style="" id="caption1" value="ongroupby RowNum/RowStatus Header,Footer 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="120" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    s += '<w2:column width="100" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="120" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    s += '<w2:column width="100" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 값 표시용 : undefined 는 JSON.stringify 결과가 문자열이 아니므로 별도 표기
+scwin._fmt = function (v) {
+    return (typeof v === "undefined") ? "undefined" : JSON.stringify(v);
+};
+
+// 출력 정렬용 : 속성명 뒤를 고정폭으로 맞춤
+scwin._pad = function (str, len) {
+    let s = String(str);
+    while (s.length < len) { s += " "; }
+    return s;
+};
+
+// 검증 대상 4개 속성 (출력 순서 = validation 순서)
+scwin._optKeys = ["rowNumHeader", "rowStatusHeader", "rowNumFooter", "rowStatusFooter"];
+
+// 속성값이 없을 때 표시할 가이드상 의미 (기대값 자리)
+scwin._optDesc = {
+    "rowNumHeader": "Group Header 의 RowNum Column 옵션값",
+    "rowStatusHeader": "Group Header 의 RowStatus Column 옵션값",
+    "rowNumFooter": "Group Footer 의 RowNum Column 옵션값",
+    "rowStatusFooter": "Group Footer 의 RowStatus Column 옵션값"
+};
+
+// 핸들러가 직접 설정하는 4개 속성값 (groupby() 로 엔진에 보관되는 값)
+scwin._optValues = function () {
+    return {
+        "rowNumHeader": { value: "H", align: "center" },
+        "rowStatusHeader": { value: "그룹", align: "center" },
+        "rowNumFooter": { value: "F", align: "center" },
+        "rowStatusFooter": { value: "계", align: "center" }
+    };
+};
+
+
+
+// ongroupby : Header Column 을 GroupBy Zone 으로 Drag&Drop 하면 발생 (사용자 조작 트리거)
+//  - [A] 가이드상 result 로 전달되어야 하는 4개 속성의 기대값 ↔ 핸들러가 실제로 받은 값 대비
+//        (기대값은 직전 groupby() 로 엔진에 보관된 값, 최초 발생 시에는 가이드상 의미로 표기)
+//  - 이후 4개 속성을 직접 구성하여 groupby() 실행 → Group Header/Footer 의 RowNum, RowStatus Column 에 반영
+//  - [B] 적용 직후 getGroupbyData() 로 엔진 보관값을 조회하여 [A] 와 대비
+//        → "엔진 보관 O / 이벤트 전달 X" 가 한 화면에서 비교됨
+scwin.target1_ongroupby = function (result) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let keys = scwin._optKeys;
+    scwin.evtCnt = (scwin.evtCnt || 0) + 1;
+
+    // 이벤트 발생 시점의 엔진 보관값 (= 직전 groupby() 로 보관된 값 / 최초 발생 시 undefined)
+    let before = target1.getGroupbyData();
+    let passCnt = 0;
+
+    bottom.setReturnValue("■ ongroupby 발생 #" + scwin.evtCnt + " (Header Column 을 GroupBy Zone 으로 Drag&Drop)");
+    bottom.setReturnValue("[A] 이벤트 전달값 : 가이드상 result 로 전달되어야 하는 4개 속성 (기대 → 실제)");
+    for (let i = 0; i < keys.length; i++) {
+        let key = keys[i];
+        let expected = (before && typeof before[key] !== "undefined")
+            ? scwin._fmt(before[key]) + " (직전 groupby() 로 엔진에 보관된 값)"
+            : scwin._optDesc[key] + " (최초 GroupBy 라 엔진 보관값 없음)";
+        let actual = result[key];
+        let passed = (typeof actual !== "undefined");
+        if (passed) { passCnt++; }
+        bottom.setReturnValue(" (" + (i + 1) + ") result." + scwin._pad(key, 16)
+            + " 기대 " + expected
+            + " → 실제 " + scwin._fmt(actual) + (passed ? " (전달 O)" : " (전달 X)"));
+    }
+
+    // 4개 속성 구성 후 GroupBy 적용 (Group Header/Footer 의 RowNum, RowStatus 칸에 반영)
+    let opt = scwin._optValues();
+    result.rowNumHeader = opt.rowNumHeader;
+    result.rowStatusHeader = opt.rowStatusHeader;
+    result.rowNumFooter = opt.rowNumFooter;
+    result.rowStatusFooter = opt.rowStatusFooter;
+    result.groupbyHeader = [
+        { colSpan: 4, inputType: "expression", expression: " toggle() + depthStr() + ' [ ' + count() + ' 건 ] ' ", align: "left" }
+    ];
+    result.groupbyFooter = [
+        { colSpan: 4, value: "소계", align: "left" }
+    ];
+
+    target1.groupby(result);
+
+    // 적용 직후 엔진 보관값 조회 → 이벤트 전달값([A])과 대비
+    let after = target1.getGroupbyData();
+    let keepCnt = 0;
+
+    bottom.setReturnValue("[B] 엔진 보관값 : 위 4개 속성을 설정해 groupby() 적용 후 getGroupbyData() 조회");
+    for (let i = 0; i < keys.length; i++) {
+        let key = keys[i];
+        let kept = (after && typeof after[key] !== "undefined");
+        if (kept) { keepCnt++; }
+        bottom.setReturnValue(" (" + (i + 1) + ") " + scwin._pad(key, 16)
+            + " " + scwin._fmt(after ? after[key] : undefined) + (kept ? " (보관 O)" : " (보관 X)"));
+    }
+
+    let verdict = (keepCnt > 0 && passCnt === 0)
+        ? " → 엔진에는 보관되나 ongroupby 의 result 로는 전달되지 않음"
+        : ((keepCnt === passCnt && keepCnt > 0) ? " → 엔진 보관값이 result 로 그대로 전달됨" : "");
+    bottom.setReturnValue("[대비] 엔진 보관 " + keepCnt + "/4 · 이벤트 전달 " + passCnt + "/4" + verdict);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* 결과 출력영역(공통 body_bottom 의 return textarea)이 center 정렬이라 값 비교가 어려워 이 샘플 스코프에서만 left 정렬 고정 (공통 wframe 미수정) */
+/* [A] 이벤트 전달값 / [B] 엔진 보관값 대비가 스크롤 없이 한 화면에 보이도록 이 샘플 스코프에서만 높이 확대 */
+#mf_wf_body_bottom_tbx_return { text-align: left !important; height: 320px !important; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

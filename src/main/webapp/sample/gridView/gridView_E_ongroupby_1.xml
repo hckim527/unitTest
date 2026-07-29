@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ongroupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1065
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > ongroupby]<br/>groupbyZone=true 일때 GroupBy 기능이 설정되거나 변경되면 발생합니다.",
+    "validation" : [
+        "groupby(), clearGroupby() 메소드에 의해서는 이벤트가 발생하지 않습니다.",
+        "result 파라미터로 설정되거나 변경된 GroupBy 정보 전체를 JSON 객체로 반환합니다.",
+        "result.sortIndex 파라미터는 GroupBy 기능으로 그룹핑된 Body Column 의 인덱스를 배열로 갖습니다.",
+        "result.sortOrder 파라미터는 GroupBy 기능으로 그룹핑된 Body Column 의 정렬값을 배열로 갖습니다.",
+        "result.sortOrder 파라미터의 정렬값은 1 : 오름차순, -1 : 내림차순 입니다.",
+        "result.hideHeader 파라미터는 Group Header 의 숨김 여부를 true/false 로 갖습니다.",
+        "result.hideFooter 파라미터는 Group Footer 의 숨김 여부를 true/false 로 갖습니다.",
+        "result.groupbyHeader 파라미터는 Group Header 의 Row 가 구성되는 옵션값을 갖습니다.",
+        "result.groupbyFooter 파라미터는 Group Footer 의 Row 가 구성되는 옵션값을 갖습니다.",
+        "result.closeGroup 파라미터는 마지막 그룹에서 실제 데이터의 닫힘 여부를 true/false 로 갖습니다.",
+        "result.showOnlyLastDepth 파라미터는 현재 Depth 의 데이터값만 표시되는지 여부를 true/false 로 갖습니다.",
+        "ongroupby 이벤트 내에서 options 파라미터의 속성을 설정한 후 groupby() 메소드를 사용하여 GroupBy 기능을 적용합니다.",
+        "options 파라미터의 속성은 현재 GridView 에 적용된 GroupBy 설정에 따라 생략되거나 달라질 수 있습니다.",
+        "Header Column 을 GroupBy Zone 으로 Drag&Drop 하여 Group Column 을 추가하거나 제거한 경우 ongroupby 이벤트가 발생합니다.",
+        "Header 또는 Body Column 을 우클릭하여 컨텍스트 메뉴에서 '선택 컬럼 그룹', '선택 컬럼 그룹 해제' 항목을 선택한 경우 ongroupby 이벤트가 발생합니다."
+    ]
+}
+
+
+
+// 이벤트 발생 횟수 : groupby()/clearGroupby() 메소드 호출 전후로 비교하여 미발생을 입증
+scwin.gVar = { "fireCount": 0 };
+
+// result 하위 표시 옵션 6종(hideHeader/hideFooter/groupbyHeader/groupbyFooter/closeGroup/showOnlyLastDepth)의
+// 개별 출력 여부 플래그 : 페이지 로드 스코프로 유지하며 comp_init(Target 재생성)에서 초기화하지 않는다.
+//  - 최초 1회 이벤트에서만 개별 6줄 + 요약 줄을 출력하고, 이후 이벤트는 요약 줄만 출력한다.
+scwin.detailPrinted = false;
+
+
+
+scwin.onpageload = function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 정적 select1 기본값 명시 설정 (초기 selectedIndex 미적용 회피) - gdl_boolean 코드값 "1"=미설정
+    par_hideHeader.setValue("1");
+    par_hideFooter.setValue("1");
+    par_closeGroup.setValue("1");
+    par_showOnlyLastDepth.setValue("1");
+};
+
+
+
+// comp 생성
+//  - groupbyZone=true 는 ongroupby 이벤트 발생 전제이므로 고정
+//  - contextMenu=true / useHeaderContextMenu=true 는 컨텍스트 메뉴의 그룹 항목 사용 전제이므로 고정
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 이벤트 발생 횟수 초기화
+    scwin.gVar.fireCount = 0;
+
+    // 테스트 참고 라벨 (target 생성 전 가장 먼저 생성)
+    let lblDesc = '[전제] groupbyZone=true 고정 (이벤트 발생 전제)'
+        + '\n[전제] contextMenu=true, useHeaderContextMenu=true 고정 (컨텍스트 메뉴의 그룹 항목 사용)'
+        + '\n[절차1] 헤더 컬럼(예: 부서(1))을 그리드 상단 GroupBy Zone 영역으로 Drag&Drop -> Group Column 추가'
+        + '\n[절차2] GroupBy Zone 의 Group Column 우측 X 아이콘 클릭 -> Group Column 제거'
+        + '\n[절차3] 헤더 또는 Body 셀 우클릭 -> 컨텍스트 메뉴에서 [선택 컬럼 그룹] / [선택 컬럼 그룹 해제] 선택'
+        + '\n[par] hideHeader / hideFooter / closeGroup / showOnlyLastDepth 선택값이 핸들러에서 groupby 옵션으로 설정됨'
+        + '\n[확인] 이벤트 발생 시 result 의 각 속성이 결과창에 출력되고 그리드에 GroupBy 가 적용됨';
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 그룹핑 검증용 데이터 : 그룹별 행수를 다르게 구성 (부서 개발3/영업2/기획1, 지역 서울4/부산2)
+    let jsonData = [
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 60 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 40 },
+        { "region": "부산", "dept": "영업", "grade": "B", "score": 50 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+        groupbyZone: "true",
+        contextMenu: "true",
+        useHeaderContextMenu: "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // ongroupby 이벤트 연결 (ev:ongroupby="scwin.target1_ongroupby")
+    let eList = $c.gcm.createEList(["ongroupby"]);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼) - 그룹핑 시 Group Header/Footer Row 까지 모두 렌더되도록 height 넉넉히 지정
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:620px;height:700px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ongroupby 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 전달값 표기 : 미전달(undefined) 과 실제 값을 구분하여 표시
+scwin._val = function (v) {
+    if (typeof v === "undefined") {
+        return "undefined (미전달)";
+    }
+    return JSON.stringify(v);
+};
+
+
+
+// ongroupby : groupbyZone=true 일때 GroupBy 기능이 설정되거나 변경되면 발생
+//  - 발생 조건은 모두 사용자 조작(GroupBy Zone Drag&Drop / 컨텍스트 메뉴)이므로 자동 실행 버튼을 두지 않는다.
+//  - result(options) 의 각 속성을 [속성명] 값 형태로 출력한 뒤,
+//    par 선택값으로 옵션을 설정하고 groupby(result) 를 호출하여 GroupBy 를 적용한다.(@spec1)
+scwin.target1_ongroupby = function (result) {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    scwin.gVar.fireCount = scwin.gVar.fireCount + 1;
+
+    // result : 설정되거나 변경된 GroupBy 정보 전체 (JSON 객체)
+    bottom.setReturnValue("[ongroupby 발생 " + scwin.gVar.fireCount + "회] [result] " + JSON.stringify(result));
+
+    // result 하위 속성 개별 출력
+    bottom.setReturnValue("[result.sortIndex] " + scwin._val(result.sortIndex));
+    bottom.setReturnValue("[result.sortOrder] " + scwin._val(result.sortOrder));
+
+    // sortOrder 정렬값 해석 (1 : 오름차순, -1 : 내림차순)
+    let orderDesc = [];
+    if (result.sortOrder) {
+        for (let i = 0; i < result.sortOrder.length; i++) {
+            let o = result.sortOrder[i];
+            orderDesc.push(o + " = " + (o === 1 ? "오름차순" : (o === -1 ? "내림차순" : "정의되지 않은 값")));
+        }
+    }
+    bottom.setReturnValue("[result.sortOrder 정렬값 해석] " + (orderDesc.length ? orderDesc.join(" / ") : "(없음)"));
+
+    // 표시 옵션 6종은 매 이벤트 동일하게 반복되므로 페이지 로드 후 최초 1회 이벤트에서만 개별 출력한다.
+    //  - 2회차 이후에는 아래 [options 속성 전달 현황] 요약 줄로 동일 정보를 확인한다.
+    if (scwin.detailPrinted === false) {
+        scwin.detailPrinted = true;
+        bottom.setReturnValue("[result.hideHeader] " + scwin._val(result.hideHeader));
+        bottom.setReturnValue("[result.hideFooter] " + scwin._val(result.hideFooter));
+        bottom.setReturnValue("[result.groupbyHeader] " + scwin._val(result.groupbyHeader));
+        bottom.setReturnValue("[result.groupbyFooter] " + scwin._val(result.groupbyFooter));
+        bottom.setReturnValue("[result.closeGroup] " + scwin._val(result.closeGroup));
+        bottom.setReturnValue("[result.showOnlyLastDepth] " + scwin._val(result.showOnlyLastDepth));
+    }
+
+    // options 속성은 현재 GroupBy 설정에 따라 생략되거나 달라질 수 있음 (현재 result 를 실측하여 동적 생성)
+    let names = ["sortIndex", "sortOrder", "hideHeader", "hideFooter", "groupbyHeader", "groupbyFooter", "closeGroup", "showOnlyLastDepth"];
+    let passed = [];
+    let omitted = [];
+    for (let i = 0; i < names.length; i++) {
+        if (typeof result[names[i]] === "undefined") {
+            omitted.push(names[i]);
+        } else {
+            passed.push(names[i]);
+        }
+    }
+    bottom.setReturnValue("[options 속성 전달 현황] 전달=" + (passed.length ? passed.join(", ") : "없음")
+        + " / 생략=" + (omitted.length ? omitted.join(", ") : "없음"));
+
+    // @spec1 : options 파라미터의 속성을 설정한 후 groupby() 메소드로 GroupBy 적용
+    let applied = [];
+
+    let hh = par_hideHeader.getText();
+    if (hh === "true") { result.hideHeader = true; applied.push("hideHeader=true"); }
+    else if (hh === "false") { result.hideHeader = false; applied.push("hideHeader=false"); }
+    else { applied.push("hideHeader=미설정(생략)"); }
+
+    let hf = par_hideFooter.getText();
+    if (hf === "true") { result.hideFooter = true; applied.push("hideFooter=true"); }
+    else if (hf === "false") { result.hideFooter = false; applied.push("hideFooter=false"); }
+    else { applied.push("hideFooter=미설정(생략)"); }
+
+    let cg = par_closeGroup.getText();
+    if (cg === "true") { result.closeGroup = true; applied.push("closeGroup=true"); }
+    else if (cg === "false") { result.closeGroup = false; applied.push("closeGroup=false"); }
+    else { applied.push("closeGroup=미설정(생략)"); }
+
+    let sd = par_showOnlyLastDepth.getText();
+    if (sd === "true") { result.showOnlyLastDepth = true; applied.push("showOnlyLastDepth=true"); }
+    else if (sd === "false") { result.showOnlyLastDepth = false; applied.push("showOnlyLastDepth=false"); }
+    else { applied.push("showOnlyLastDepth=미설정(생략)"); }
+
+    // Group Header / Group Footer 구성 옵션
+    result.groupbyHeader = [
+        { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+    ];
+    result.groupbyFooter = [
+        { value: "소계", colSpan: 3, align: "right" },
+        { inputType: "expression", expression: "count()", align: "center" }
+    ];
+    applied.push("groupbyHeader=[toggle()+depthStr()]");
+    applied.push("groupbyFooter=[소계 + count()]");
+
+    target1.groupby(result);
+
+    bottom.setReturnValue("[options 설정 후 groupby(result) 적용] " + applied.join(" / "));
+};
+
+
+
+// groupby() 메소드 호출 : 메소드에 의해서는 ongroupby 이벤트가 발생하지 않음을 검증
+scwin.btn_groupby_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let before = scwin.gVar.fireCount;
+
+    target1.groupby({
+        sortIndex: [1],
+        sortOrder: [1],
+        groupbyHeader: [
+            { inputType: "expression", expression: "toggle() + depthStr()", colSpan: 4, align: "left" }
+        ]
+    });
+
+    bottom.setReturnValue("[groupby() 호출] ongroupby 발생 횟수 " + before + " -> " + scwin.gVar.fireCount);
+};
+
+
+
+// clearGroupby() 메소드 호출 : 메소드에 의해서는 ongroupby 이벤트가 발생하지 않음을 검증
+scwin.btn_clearGroupby_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let before = scwin.gVar.fireCount;
+
+    target1.clearGroupby();
+
+    bottom.setReturnValue("[clearGroupby() 호출] ongroupby 발생 횟수 " + before + " -> " + scwin.gVar.fireCount);
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideHeader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_hideHeader" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideFooter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_hideFooter" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="closeGroup" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_closeGroup" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="showOnlyLastDepth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_showOnlyLastDepth" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="groupby" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearGroupby_onclick" id="btn_clearGroupby" label="clearGroupby" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

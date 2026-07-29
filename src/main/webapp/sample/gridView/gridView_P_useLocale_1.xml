@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] useLocale" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - description : @description 첫 문장만.
+//  - @description 의 | 추가문(rowNumVisible/rowStatusVisible=true + rowNumLocaleRef/rowStatusLocaleRef 설정 시 동작) 은 validation 으로 분리.
+//    (개발가이드 참조 문구는 validation 아님)
+//  - @propval <true> 및 그 | (LocaleRef 에 Key 설정), <false (default)> 는 각각 반영(default 는 2분리).
+//  - @spec1(config.xml languagePack 설정 필요), @spec2(Key:Value JS 에서 Value 반영) + | (클라이언트 언어 JS 적용) 각각 반영.
+scwin.tData = {
+    "description" : "[gridView > P > useLocale]<br/>RowNum, RowStatus Column 의 Header 텍스트에 클라이언트 다국어 기능을 사용할지 설정합니다.",
+    "validation" : [
+        "rowNumVisible, rowStatusVisible 속성값이 true 이고, rowNumLocaleRef, rowStatusLocaleRef 속성이 설정된 경우 동작합니다.",
+        "true 설정 시, 클라이언트 다국어 기능을 사용하여 RowNum, RowStatus Column 의 Header 에 해당 언어의 텍스트를 표시합니다.",
+        "true 설정 시, rowNumLocaleRef, rowStatusLocaleRef 속성에 각 Column Header 에 표시할 라벨의 Key 값을 설정합니다.",
+        "false 설정 시, 클라이언트 다국어 기능을 사용하지 않습니다.",
+        "미설정 시, 클라이언트 다국어 기능을 사용하지 않습니다.",        
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 미적용 -> 기본값 명시 설정
+    //  - con_useLocale : gdl_boolean 바인딩(코드값 미설정='1'/true='2'/false='3').
+    //    다국어 반영을 먼저 보이도록 true('2') 로 시작.
+    con_useLocale.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - useLocale 은 렌더 시 결정되는 속성이므로 con 변경 후 "Target 재생성"(btn_createTarget -> comp_init) 으로만 반영한다.
+//  - 고정 전제 : rowNumVisible=true, rowStatusVisible=true, rowNumLocaleRef/rowStatusLocaleRef 에 langpack Key("websquare_name") 설정.
+//    lang/ko.js 에 websquare_name:"웹스퀘어" 가 정의되어 있어, useLocale=true 시 Header 에 "웹스퀘어"(다국어 Value) 가 표시된다.
+//  - rowNumHeaderValue="No.", rowStatusHeaderValue="St." : useLocale 미동작(false/미설정) 시 표시되는 대비값.
+scwin.comp_init = async function () {
+    // con 선택값 (gdl_boolean 라벨 : '' / 'true' / 'false')
+    let vUse = con_useLocale.getText();
+
+    // 기존 target / dataList 정리
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 안내 라벨 (가장 먼저 생성)
+    let useMsg = (vUse === '') ? "미설정(기본 false)" : vUse;
+    $c.gcm.createLabel('label="[전제] rowNumVisible=true, rowStatusVisible=true 고정. rowNumLocaleRef/rowStatusLocaleRef=(websquare_name) 로 langpack Key 설정. rowNumHeaderValue=(No.), rowStatusHeaderValue=(St.).\n[전제] lang/ko.js 에 websquare_name=(웹스퀘어) 정의됨. config.xml 에 languagePack 설정됨. 현재 브라우저 언어=ko.\n[현재] useLocale=(' + useMsg + ').\n[절차] con 에서 useLocale 값을 바꾼 뒤 (Target 재생성) 버튼으로 반영하고, (Header 텍스트 확인) 버튼을 누른다.\n[확인] true: RowNum/RowStatus Header 에 다국어 Value (웹스퀘어) 표시. false/미설정: 다국어 미사용 -> Header 에 rowNumHeaderValue(No.)/rowStatusHeaderValue(St.) 표시."', '', 'label1');
+
+    // 조건 설정
+    //  - useLocale : con 값에 따라 설정/미설정(미설정 시 속성 제외 -> 기본값 false 동작 확인)
+    let properties = {
+        rowNumVisible: true,
+        rowStatusVisible: true,
+        rowNumLocaleRef: "websquare_name",
+        rowStatusLocaleRef: "websquare_name",
+        rowNumHeaderValue: "No.",
+        rowStatusHeaderValue: "St.",
+        dataList: "data:dlt_bind"
+    };
+    if (vUse === 'true') {
+        properties.useLocale = true;
+    } else if (vUse === 'false') {
+        properties.useLocale = false;
+    }
+    // vUse === '' 이면 useLocale 미포함 -> 기본값(false) 동작 확인
+
+    let cList = $c.gcm.createCList(properties);
+
+    // dataList 생성 (기본 4행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (기본 4컬럼)
+    $c.gcm.createBasicGridView(cList);
+
+    // RowStatus 표시가 의미를 갖도록 행 상태 변경(삭제/수정)
+    dlt_bind.deleteRow(1);
+    dlt_bind.setCellData(2, "col1", "change");
+
+    // Header 텍스트 출력
+    scwin.btn_headerText_onclick();
+}
+
+
+
+// RowNum / RowStatus Header 텍스트 실측 출력
+//  - useLocale=true : 다국어 Value("웹스퀘어") / false·미설정 : rowNumHeaderValue(No.)·rowStatusHeaderValue(St.)
+scwin.btn_headerText_onclick = function () {
+    let rowNumEl = document.querySelector('th[id*="target1__headerRowNumber"]');
+    let rowStatusEl = document.querySelector('th[id*="target1__headerRowStatus"]');
+
+    let rowNumText = rowNumEl ? rowNumEl.textContent : '(없음)';
+    let rowStatusText = rowStatusEl ? rowStatusEl.textContent : '(없음)';
+
+    wf_body_bottom.getObj("scwin").setReturnValue("RowNum Header : " + rowNumText + " , RowStatus Header : " + rowStatusText);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useLocale" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useLocale" label="label" nodeSet="data:gdl_boolean"
+										ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_headerText_onclick" id="btn_headerText"
+							label="Header 텍스트 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] senseReader" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_1)은 senseReader=true 가 강제로 설정하는 속성(focusFlow/embeddedInput/readOnly) + 속성 레벨/@spec 을 담당한다.
+//  - '변경 적용' 5건(건너뜀/radio 선택만/embeddedInput cell 포커스/focusMove=false Tab/sortHeaderDiv 정렬 스크롤)은 _2 담당이므로 여기서 제외.
+//  - description 은 _2(gridView_P_senseReader_2.xml) 와 동일하게 유지(@description 첫 문장).
+scwin.tData = {
+    "description" : "[gridView > P > senseReader]<br/>GridView 에 스크린리더 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "accessibility=true 이면 senseReader 속성은 항상 true 로 동작합니다.",
+        "true 설정 시, focusFlow='linear' 로 강제 설정되어 각 Cell 에 tabIndex 가 부여되고 마지막 Cell 에서 다음 Cell 로 포커스가 이동합니다.",
+        "true 설정 시, embeddedInput 속성을 설정하지 않은 inputType='text','secret','textImage','select','checkbox','radio','calendar' 인 Column 은 embeddedInput=true 로 강제 설정됩니다.",
+        "true 설정 시, focusMode='none' 일때 inputType='text','secret','textImage' 인 Body Cell 은 readOnly=true 로 강제 설정됩니다.",
+        "false 설정 시, GridView 에 스크린리더 지원 기능을 적용하지 않습니다.",
+        "미설정 시, GridView 에 스크린리더 지원 기능을 적용하지 않습니다.",
+        "senseReader 속성은 Column 단위로 설정할 수 없으며 GridView 전체에 적용됩니다.",
+        "senseReader 속성은 focusMode='none', focusMove='false' 설정과 함께 사용할 것을 권장합니다.",
+        "senseReader 속성은 accessibility=false 일때도 단독으로 true 설정이 가능합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 미적용 -> 기본값 명시 설정
+    //  gdl_boolean 코드값 : 미설정="1" / true="2" / false="3"
+    con_senseReader.setValue("2");     // 기본 시나리오: senseReader=true (강제 설정 확인)
+    con_accessibility.setValue("1");   // accessibility 미설정 (단독 senseReader 경로)
+    con_focusMode.setValue("cell");    // 기본 focusMode=cell -> text/secret 도 embeddedInput 강제(강제② 확인). readOnly 강제(강제③)는 none 선택 시.
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  senseReader / accessibility / focusMode 는 렌더 시 결정되는 속성이므로
+//  con 변경 후 "Target 재생성"(btn_createTarget -> comp_init) 으로만 반영한다.
+//  - con_senseReader / con_accessibility : 공통 gdl_boolean -> getText() ('' 미설정 / 'true' / 'false')
+//  - con_focusMode : 자체 값 select -> getValue() ('' 미설정 / 'none' / 'cell')
+//  - focusMove="false" 는 @spec2 권장 조합으로 고정.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_grade !== 'undefined') {
+        $p.data.remove("dlt_grade");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let vSense = con_senseReader.getText();      // ''/'true'/'false'
+    let vAcc = con_accessibility.getText();      // ''/'true'/'false'
+    let vFocusMode = con_focusMode.getValue();   // ''/'none'/'cell'
+
+    // 조건 설정
+    //  focusMove : @spec2 권장 조합(focusMode=none, focusMove=false)의 일부로 고정
+    //  accessibility=true : senseReader 를 명시하지 않고 accessibility 로 강제 true 유도(@description |)
+    //  accessibility=false : @spec3(단독 true) 검증용으로 명시 설정
+    let properties = { focusMove: "false" };
+    if (vFocusMode !== '') {
+        properties.focusMode = vFocusMode;
+    }
+    if (vAcc === 'true') {
+        properties.accessibility = "true";
+    } else {
+        if (vAcc === 'false') {
+            properties.accessibility = "false";
+        }
+        if (vSense === 'true') {
+            properties.senseReader = "true";
+        } else if (vSense === 'false') {
+            properties.senseReader = "false";
+        }
+        // vSense === '' (미설정) 이면 senseReader 속성 제외 -> 엔진 기본값 false
+    }
+
+    // 테스트 참고 라벨 (target 생성 전 가장 먼저 생성)
+    let lbl = '';
+    lbl += '[전제] 컬럼 7종(text/secret/textImage/select/checkbox/radio/calendar), focusMove=false 고정.';
+    lbl += '\n[현재] senseReader=' + (vSense === '' ? '(미설정)' : vSense) + ', accessibility=' + (vAcc === '' ? '(미설정)' : vAcc) + ', focusMode=' + (vFocusMode === '' ? '(미설정=cell)' : vFocusMode);
+    lbl += '\n[절차] con 조합 선택 -> Target 재생성 -> [강제 설정 확인] 클릭.';
+    lbl += '\n[확인] 출력 3줄(적용값 / embedded 카운트 / readOnly)에서 강제 설정 확인. 강제③(readOnly)은 focusMode=none 선택 필요.';
+    $c.gcm.createLabel('label="' + lbl + '"', '', 'label1');
+
+    let ns = $c.gcm.getNameSpace();
+
+    // select 컬럼 itemset 용 코드/라벨 DataList
+    let strGrade = '';
+    strGrade += '<w2:dataList ' + ns + ' id="dlt_grade" baseNode="list" repeatNode="map">';
+    strGrade += '<w2:columnInfo>';
+    strGrade += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strGrade += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strGrade += '</w2:columnInfo>';
+    strGrade += '<w2:data use="true"></w2:data>';
+    strGrade += '</w2:dataList>';
+    $p.data.create(strGrade);
+    dlt_grade.setJSON([
+        { "code": "A", "label": "최우수" },
+        { "code": "B", "label": "우수" },
+        { "code": "C", "label": "보통" }
+    ], false);
+
+    // 본문 데이터리스트 (7컬럼 -> 공통 헬퍼 4컬럼 한계로 인라인 사용)
+    let strDl = '';
+    strDl += '<w2:dataList ' + ns + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col5" name="col5" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col6" name="col6" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col7" name="col7" dataType="date"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col1": "사과", "col2": "1234", "col3": "이미지A", "col4": "A", "col5": "1", "col6": "Y", "col7": "20250115" },
+        { "col1": "바나나", "col2": "5678", "col3": "이미지B", "col4": "B", "col5": "0", "col6": "N", "col7": "20250220" },
+        { "col1": "포도", "col2": "9012", "col3": "이미지C", "col4": "C", "col5": "1", "col6": "Y", "col7": "20250312" }
+    ], false);
+
+    // target 생성 (7종 inputType Body 그리드) - cList 로 senseReader/accessibility/focusMode/focusMove 적용
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_grade"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    let cList = $c.gcm.createCList(properties);
+    let grp_comp = $c.gcm.getTestGroup();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' checkAllType="false" id="" dataList="data:dlt_bind" style="width:900px;height:220px;">';
+    s += '<w2:caption style="" id="caption1" value="senseReader 강제 설정 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="hrow1">';
+    s += '<w2:column width="110" inputType="text" id="hcol1" value="col1 (text)"></w2:column>';
+    s += '<w2:column width="110" inputType="text" id="hcol2" value="col2 (secret)"></w2:column>';
+    s += '<w2:column width="120" inputType="text" id="hcol3" value="col3 (textImage)"></w2:column>';
+    s += '<w2:column width="110" inputType="text" id="hcol4" value="col4 (select)"></w2:column>';
+    s += '<w2:column width="110" inputType="text" id="hcol5" value="col5 (checkbox)"></w2:column>';
+    s += '<w2:column width="100" inputType="text" id="hcol6" value="col6 (radio)"></w2:column>';
+    s += '<w2:column width="*" inputType="text" id="hcol7" value="col7 (calendar)"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="brow1">';
+    s += '<w2:column width="110" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    s += '<w2:column width="110" inputType="secret" dataType="text" id="col2" dataList="col2"></w2:column>';
+    s += '<w2:column width="120" inputType="textImage" dataType="text" id="col3" dataList="col3"></w2:column>';
+    s += '<w2:column width="110" inputType="select" dataType="text" id="col4" dataList="col4">' + itemset + '</w2:column>';
+    s += '<w2:column width="110" inputType="checkbox" dataType="text" trueValue="1" falseValue="0" id="col5" dataList="col5"></w2:column>';
+    s += '<w2:column width="100" inputType="radio" dataType="text" trueValue="Y" falseValue="N" groupName="grp_rdo" id="col6" dataList="col6"></w2:column>';
+    s += '<w2:column width="*" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col7" dataList="col7"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// (검증) 강제 설정 통합 확인 — con(senseReader/accessibility/focusMode) 조합 설정 후 Target 재생성 -> 이 버튼 1개로 모든 항목을 한 번에 출력
+//  - 적용값 줄 : senseReader/accessibility/focusMode/focusMove + 강제① focusFlow  (@description | 흡수: accessibility=true 조합 시 senseReader 강제 true / @spec③ 흡수: accessibility=false + senseReader=true 조합 시에도 focusFlow=linear)
+//  - 강제② 줄 : inputType 별 셀 내부 embedded 컴포넌트 개수 (senseReader 미적용 시 text/secret=0 로 대비)
+//  - 강제③ 줄 : focusMode="none" 일때 text/secret/textImage 컬럼 getColumnReadOnly=true (select 은 미강제)
+scwin.btn_checkForced_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let g = target1;
+    let gridEl = document.getElementById('mf_target1');
+    if (!g || !gridEl) {
+        bottom.setReturnValue("grid(mf_target1) 미생성");
+        return;
+    }
+    // 적용값 + 강제① focusFlow (@spec② 권장 조합 focusMove 도 함께 표시)
+    bottom.setReturnValue("[적용값] senseReader=" + g.options.senseReader + ", accessibility=" + g.options.accessibility
+        + ", focusMode=" + g.options.focusMode + ", focusMove=" + g.options.focusMove
+        + " | 강제① focusFlow=" + g.options.focusFlow + " (senseReader=true 이면 linear)");
+    // 강제② embeddedInput : 7종 inputType 별 셀 내부 embedded 에디터 렌더 셀 수 (컬럼 0~6 순서 고정)
+    //  embedded 렌더 감지: [class*=embedded](text/secret/select/checkbox/radio) 또는 .w2inputCalendar_div(calendar)
+    //  senseReader 미적용 시 전부 0. textImage 는 엔진이 config(textImage/embeddedInput) 미허용이라 강제 대상에서 제외되어 0.
+    let embNames = ['text', 'secret', 'textImage', 'select', 'checkbox', 'radio', 'calendar'];
+    let embParts = [];
+    for (let c = 0; c < 7; c++) {
+        let tds = gridEl.querySelectorAll("td[id*='_cell_'][id$='_" + c + "']");
+        let cnt = 0;
+        tds.forEach(function (td) { if (td.querySelector('[class*="embedded"], .w2inputCalendar_div')) cnt++; });
+        embParts.push(embNames[c] + '=' + cnt);
+    }
+    bottom.setReturnValue("[강제② embeddedInput] " + embParts.join(', ') + " (embedded 렌더 셀 수; senseReader 미적용 시 전부 0, textImage 는 config 미허용으로 미강제)");
+    // 강제③ readOnly 강제 여부 (focusMode=none 에서만)
+    bottom.setReturnValue("[강제③ readOnly] focusMode=none 시 강제 -> text(0)=" + g.getColumnReadOnly(0)
+        + ", secret(1)=" + g.getColumnReadOnly(1) + ", textImage(2)=" + g.getColumnReadOnly(2));
+}
+]]></script>
+		<style type="text/css"><![CDATA[/* gridView radio inputType(col6) embedded 표시 보정
+   엔진(cellController.js)이 embedded radio 에 인라인 style='border-width:0px;' 를 강제하여
+   현재 테마에서 라디오버튼이 보이지 않는 문제를 !important 로 테두리 폭을 복원하여 표시한다. */
+.w2grid_embedded_radio { border-width: 1px !important; }
+/* gridView calendar inputType(col7) embedded 표시 보정
+   senseReader/embeddedInput 강제로 셀에 그려지는 inputCalendar 버튼(.w2inputCalendar_button)이
+   현재 테마에서 접근성 라벨 텍스트('달력에서 선택')를 아이콘 배경 위에 함께 렌더하여 겹쳐 보이는 문제를
+   font-size:0 으로 라벨 텍스트만 숨겨 아이콘만 표시한다(라벨은 DOM 에 남아 스크린리더 접근성 유지). */
+td[id*="_cell_"] .w2inputCalendar_button { font-size: 0 !important; }]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="senseReader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="accessibility (전제/강제)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_accessibility" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[none]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cell]]></xf:label>
+												<xf:value><![CDATA[cell]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkForced_onclick" id="btn_checkForced"
+							label="강제 설정 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

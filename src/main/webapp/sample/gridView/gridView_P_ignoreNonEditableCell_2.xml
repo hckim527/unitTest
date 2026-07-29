@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ignoreNonEditableCell" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_2)은 ignoreNonEditableCell 이 '미적용'되는 조건을 검증한다.
+//    · focusMove 속성으로 키보드 포커스 이동이 차단되면 적용되지 않음 (@description |)
+//    · useShiftKey=true 로 Shift+방향키 선택 처리 시에는 적용되지 않음 (@propval true |)
+scwin.tData = {
+    "description" : "[gridView > P > ignoreNonEditableCell]<br/>키보드로 포커스 이동 시 편집 불가 상태(disabled, readonly)인 Body Cell 을 건너 뛸지 설정합니다.",
+    "validation" : [
+        "focusMove 속성에 의해 키보드에 의한 포커스 이동이 차단되면 ignoreNonEditableCell 속성은 적용되지 않습니다.",
+        "useShiftKey=true 일때 Shift, 방향키 조합으로 선택 처리 시에는 적용되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1(gdl_boolean)은 초기 selectedIndex 미적용 → 기본값 명시 설정
+    //  - ignoreNonEditableCell=true(코드 '2')로 고정 : 원래 건너뛰는 상태를 만든 뒤 '미적용' 조건을 검증
+    con_ignoreNonEditableCell.setValue("2");
+    con_focusMove.setValue("1");
+    con_useShiftKey.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - con_ignoreNonEditableCell : 공통 gdl_boolean → getText() ('' 미설정=기본 false / 'true' / 'false')
+//  - con_focusMove             : 공통 gdl_boolean → getText() ('false' 로 키보드 포커스 이동 차단 → 미적용 검증)
+//  - con_useShiftKey           : 공통 gdl_boolean → getText() ('true' 면 Shift+방향키 선택 시 미적용 검증)
+//  - focusMode="cell" 고정      : 키보드 셀 포커스 이동 확인용
+//  - Body col2 = readOnly, col3 = disabled 로 고정 (편집 가능 셀: col1, col4)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let vIgnore      = con_ignoreNonEditableCell.getText();
+    let vFocusMove   = con_focusMove.getText();
+    let vUseShiftKey = con_useShiftKey.getText();
+
+    // focusMode 는 키보드 포커스 이동 확인을 위해 cell 고정
+    //  - readOnlyBackgroundColor/disabledBackgroundColor : 편집 불가 셀 시각 구분(형제 _1 과 동일 색)
+    let properties = {
+        focusMode : "cell",
+        readOnlyBackgroundColor : "#D3D3D3",
+        disabledBackgroundColor : "#FFF9C4"
+    };
+
+    // ignoreNonEditableCell : '' 미설정 시 속성 제외(기본 false)
+    if (vIgnore === 'true') {
+        properties.ignoreNonEditableCell = true;
+    } else if (vIgnore === 'false') {
+        properties.ignoreNonEditableCell = false;
+    }
+
+    // focusMove : '' 미설정 시 속성 제외(기본 true). 'false' 면 키보드 포커스 이동 차단
+    if (vFocusMove === 'true') {
+        properties.focusMove = "true";
+    } else if (vFocusMove === 'false') {
+        properties.focusMove = "false";
+    }
+
+    // useShiftKey : 'true' 면 Shift+방향키 범위 선택 활성 (skip 미적용 검증), '' 미설정 시 속성 제외(기본 false)
+    if (vUseShiftKey === 'true') {
+        properties.useShiftKey = true;
+    } else if (vUseShiftKey === 'false') {
+        properties.useShiftKey = false;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let lblDesc = '[전제] ignoreNonEditableCell=' + (vIgnore === '' ? '(미설정=기본 false)' : vIgnore)
+        + ', col2=readOnly(회색 #D3D3D3), col3=disabled(노랑 #FFF9C4) (편집 가능 셀: col1, col4)'
+        + '\n[현재] focusMove=' + (vFocusMove === '' ? '(미설정=기본 true)' : vFocusMove)
+        + ', useShiftKey=' + (vUseShiftKey === '' ? '(미설정=기본 false)' : vUseShiftKey)
+        + '\n[절차A: focusMove 차단] focusMove=false 로 재생성 후 col1 셀 클릭 -> Tab : 포커스 이동 자체가 차단되어 건너뛰기 미적용'
+        + '\n[절차B: useShiftKey] useShiftKey=true 로 재생성 후 col1 셀 클릭 -> Shift+오른쪽방향키 : 편집 불가 셀도 선택 범위에 포함(건너뛰기 미적용)'
+        + '\n[확인] 하단 이동 로그(oncellindexchange) 와 [선택 포커스 확인] 버튼 출력';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // 포커스 이동 확인용 dataList 생성 (col1~col4, 6행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (4컬럼 Body 그리드)
+    await scwin.createGridView(cList);
+
+    // col2 = readOnly, col3 = disabled 설정 (편집 가능 셀 사이에 편집 불가 셀 배치)
+    target1.setColumnReadOnly(1, true);
+    target1.setColumnDisabled(2, true);
+
+    // 첫번째 편집 가능 셀(col1)에 포커스
+    target1.setFocusedCell(0, 0, true);
+}
+
+
+
+// 포커스 이동 확인용 데이터 (6행)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "A1", col2: "B1", col3: "C1", col4: "D1" },
+        { col1: "A2", col2: "B2", col3: "C2", col4: "D2" },
+        { col1: "A3", col2: "B3", col3: "C3", col4: "D3" },
+        { col1: "A4", col2: "B4", col3: "C4", col4: "D4" },
+        { col1: "A5", col2: "B5", col3: "C5", col4: "D5" },
+        { col1: "A6", col2: "B6", col3: "C6", col4: "D6" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성
+//  - oncellindexchange : Tab/Enter/방향키 등으로 포커스 셀이 실제 이동할 때마다 발생
+//    (ignoreNonEditableCell 로 건너 뛴 셀에서는 발생하지 않음 → 이동 로그로 확인)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' checkAllType="false" id="" dataList="data:dlt_bind" style="width:520px;height:300px;" ev:oncellindexchange="scwin.target1_oncellindexchange">';
+    s += '<w2:caption style="" id="caption1" value="ignoreNonEditableCell 미적용 조건 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column2" value="col2(RO)"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column3" value="col3(DIS)"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="120" style="" inputType="text" id="col1" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col2" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col3" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col4" value=""></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 셀 포커스가 실제 이동(변경)될 때 호출 (oncellindexchange)
+//  - focusMove=false 로 이동이 차단되면 이 이벤트가 발생하지 않음(로그 없음) → ignoreNonEditableCell 미적용
+//  - focusMove 미적용(기본 true) 상태에서 Tab 시 col1 -> col4 로 바로 이동하면 건너뛰기가 적용된 것
+scwin.target1_oncellindexchange = function (rowIndex, columnIndex, oldRow, oldColumnIndex) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("oncellindexchange 발생 -> 이동 셀 (row: " + rowIndex + ", col: " + columnIndex
+        + "), 이전 셀 (row: " + oldRow + ", col: " + oldColumnIndex + ")");
+}
+
+
+
+// 선택/포커스 확인 (useShiftKey=true + Shift+방향키 미적용 검증용)
+//  - col1 셀 클릭 후 Shift+오른쪽방향키 로 범위 선택한 뒤 호출.
+//  - getAllFocusedIndex() 로 선택된 Cell 의 {row, col} 목록과 개수를 출력.
+//  - 화면 선택 여부는 focusedTd 클래스가 적용된 <td> 개수로 확인.
+//  - useShiftKey=true : 편집 불가 셀(col2, col3)도 선택 범위에 포함(건너뛰기 미적용)
+//    반대로 shift 없이 일반 방향키만 이동하면 편집 불가 셀은 건너뛰어짐(적용).
+scwin.btn_checkFocused_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("[옵션] ignoreNonEditableCell=" + target1.options.ignoreNonEditableCell
+        + ", focusMove=" + target1.options.focusMove
+        + ", useShiftKey=" + target1.options.useShiftKey);
+
+    // 내부 포커스(선택) 인덱스 목록
+    let focused = target1.getAllFocusedIndex();
+    bottom.setReturnValue("getAllFocusedIndex : " + JSON.stringify(focused));
+
+    // 화면에 실제 선택 표시(focusedTd)된 Cell 개수
+    let focusedTds = document.querySelectorAll("td[id*='mf_target1_cell_'].focusedTd");
+    bottom.setReturnValue("화면 선택(focusedTd) Cell 개수 : " + focusedTds.length);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ignoreNonEditableCell" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ignoreNonEditableCell" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMove" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMove" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useShiftKey" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useShiftKey" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFocused_onclick" id="btn_checkFocused"
+							label="선택 포커스 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

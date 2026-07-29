@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setEditModeEvent" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260727" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setEditModeEvent]<br/>GridView 컴포넌트의 editModeEvent 속성을 설정합니다.",
+    "validation" : [
+        "editModeEvent(필수) 파라미터에 'onclick' 설정 시, Body Cell 을 클릭하면 편집 모드로 변경됩니다.",
+        "editModeEvent(필수) 파라미터에 'ondblclick' 설정 시, Body Cell 을 더블 클릭하면 편집 모드로 변경됩니다.",
+        "editModeEvent(필수) 파라미터에 'onsecondclick' 설정 시, 첫 클릭으로 포커스가 이동되고 다시 클릭해야 편집 모드로 변경됩니다.",
+        "bRefreshColumn(선택) 파라미터에 true 설정 시, Body Column 의 editModeEvent 속성을 함께 설정합니다.",
+        "bRefreshColumn(선택) 파라미터에 false 설정 시, GridView 의 editModeEvent 속성만 변경하고 Body Column 의 editModeEvent 속성값은 유지합니다.",
+        "bRefreshColumn(선택) 파라미터 미설정 시, 기본값 false 로 동작하여 GridView 의 editModeEvent 속성만 변경하고 Body Column 의 editModeEvent 속성값은 유지합니다.",
+        "Body Cell 이 inputType 이 'checkbox','radio' 이면 편집 모드로 변경되지 않습니다.",
+        "Body Cell 이 inputType='calendar','autoComplet' 일때 viewType='icon', viewTypeIconImage='true' 이면 editModeEvent 속성이 적용됩니다.",
+        "setEditModeEvent() 메소드는 editModeEventIcon 속성값에 영향을 주지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 파라미터 셀렉트박스 기본값 설정 (정적 select1 은 초기 selectedIndex 미적용)
+    par_editModeEvent.setValue("ondblclick");   // 자체 값 select
+    par_bRefreshColumn.setValue("1");           // gdl_boolean 코드값 : 1=미설정 / 2=true / 3=false
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  GridView 초기 editModeEvent="ondblclick"(기본). 이후 setEditModeEvent 메소드로 변경한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_ac !== 'undefined') {
+        $p.data.remove("dlt_ac");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] GridView 초기 editModeEvent=ondblclick(기본). col1(text)=컬럼 editModeEvent 미설정 -> GridView 값 상속(검증 대상). col2(text)=컬럼 editModeEvent=onclick 보유 -> 컬럼값 우선(bRefreshColumn 검증용). col3=checkbox(편집모드 미변경). col5=calendar viewType=icon + viewTypeIconImage=true, col6=autoComplete viewType=icon + viewTypeIconImage=true -> 두 경우 모두 editModeEventIcon 이 아닌 GridView editModeEvent 적용(검증 대상). Row 4개.\n[절차] par_editModeEvent / par_bRefreshColumn 선택 -> setEditModeEvent 실행. 이후 col1/col5/col6 셀을 설정값에 맞는 마우스 조작으로 편집 진입: onclick=단일클릭 / ondblclick=더블클릭 / onsecondclick=첫클릭 포커스 후 동일셀 재클릭. (col5/col6 는 아이콘이 아니라 텍스트 영역을 조작할 것 - 아이콘 클릭은 달력/목록 팝업만 뜸)\n[확인] setEditModeEvent 실행 시 리턴창에 GridView editModeEvent / col2(bRefreshColumn 반영 여부) / editModeEventIcon 불변 자동 출력. 셀이 편집모드 진입하는 순간 rowIndex/colIndex/columnID/적용 editModeEvent 가 자동 출력. col2 셀은 bRefreshColumn=false/미설정 이면 항상 단일클릭(onclick) 진입, true 면 GridView 값 따름. col3(checkbox) 은 편집모드 미진입."', '', 'label1');
+
+    // 본문 데이터리스트 (편집형 컬럼)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col5" name="col5" dataType="date"></w2:column>';
+    strDl += '<w2:column id="col6" name="col6" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    let arr1 = ['김철수', '이영희', '박민준', '최서연'];
+    let arr2 = ['A', 'B', 'C', 'D'];
+    let arr3 = ['1', '0', '1', '0'];
+    let arr4 = ['메모A', '메모B', '메모C', '메모D'];
+    let arr5 = ['20260101', '20260202', '20260303', '20260404'];
+    let arr6 = ['A', 'B', 'C', 'D'];  // autoComplete 저장값(코드) -> 표시값은 dlt_ac 라벨(서울/부산/대구/인천)
+    for (let r = 0; r < 4; r++) {
+        strDl += '<w2:row>';
+        strDl += '<col1>' + arr1[r] + '</col1>';
+        strDl += '<col2>' + arr2[r] + '</col2>';
+        strDl += '<col3>' + arr3[r] + '</col3>';
+        strDl += '<col4>' + arr4[r] + '</col4>';
+        strDl += '<col5>' + arr5[r] + '</col5>';
+        strDl += '<col6>' + arr6[r] + '</col6>';
+        strDl += '</w2:row>';
+    }
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // autoComplete 옵션용 DataList (코드/라벨) -> col6 itemset nodeset 바인딩
+    let strAc = '';
+    strAc += '<w2:dataList ' + strNameSpace + ' id="dlt_ac" baseNode="list" repeatNode="map">';
+    strAc += '<w2:columnInfo>';
+    strAc += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strAc += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strAc += '</w2:columnInfo>';
+    strAc += '<w2:data use="true"></w2:data>';
+    strAc += '</w2:dataList>';
+    $p.data.create(strAc);
+    dlt_ac.setJSON([
+        { "code": "A", "label": "서울" },
+        { "code": "B", "label": "부산" },
+        { "code": "C", "label": "대구" },
+        { "code": "D", "label": "인천" }
+    ], false);
+
+    // target 생성 (GridView editModeEvent 초기값 = ondblclick)
+    //  col1 : 컬럼 자체 editModeEvent 미설정 -> GridView editModeEvent 상속 (검증 대상)
+    //  col2 : 컬럼 자체 editModeEvent="onclick" 보유 -> 컬럼값 우선 (bRefreshColumn 효과 검증용)
+    //  col3 : inputType="checkbox" -> 편집모드로 변경되지 않음
+    //  col4 : text
+    //  col5 : inputType="calendar" + viewType="icon" + viewTypeIconImage="true" -> @spec: editModeEventIcon 이 아닌 GridView editModeEvent 가 적용됨 (검증 대상)
+    //  col6 : inputType="autoComplete" + viewType="icon" + viewTypeIconImage="true" -> @spec: calendar 와 동일 (검증 대상)
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_ac"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" editModeEvent="ondblclick" ev:onbeforeedit="scwin.target1_onbeforeedit" id="" style="width:960px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol1" value="col1 (editModeEvent 미설정)"></w2:column>';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol2" value="col2 (editModeEvent=onclick)"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="hcol3" value="col3 (checkbox)"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" id="hcol4" value="col4 (text)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="hcol5" value="col5 (calendar icon+iconImage)"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol6" value="col6 (autoComplete icon+iconImage)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="140" inputType="text" dataType="text" id="col1"></w2:column>';
+    strTarget += '<w2:column width="140" inputType="text" dataType="text" editModeEvent="onclick" id="col2"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="checkbox" dataType="text" trueValue="1" falseValue="0" id="col3"></w2:column>';
+    strTarget += '<w2:column width="100" inputType="text" dataType="text" id="col4"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="calendar" dataType="date" viewType="icon" viewTypeIconImage="true" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col5"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="autoComplete" dataType="text" viewType="icon" viewTypeIconImage="true" id="col6">' + itemset + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// setEditModeEvent 실행 : GridView 의 editModeEvent 속성을 설정 (editModeEvent, [bRefreshColumn])
+//  set 메소드 자체 효과 입증 : (1) GridView editModeEvent 적용값 (2) col2 컬럼 editModeEvent 변경 여부(bRefreshColumn) (3) editModeEventIcon 불변(@spec).
+//  bRefreshColumn 은 선택(N) : 미설정이면 파라미터 자체를 생략하여 기본값(false) 동작을 확인한다.
+scwin.btn_setEditModeEvent_onclick = function () {
+    let editModeEvent = par_editModeEvent.getValue();
+    let refreshText = par_bRefreshColumn.getText();   // '' | 'true' | 'false' (gdl_boolean 라벨)
+
+    // 설정 전 상태 : col2 는 컬럼 자체 editModeEvent="onclick" 보유 / editModeEventIcon 기본 "onclick"
+    let beforeCol2 = scwin.target1.getCellInfo(1).options.editModeEvent;
+    let beforeIcon = scwin.target1.options.editModeEventIcon;
+
+    if (refreshText === '') {
+        scwin.target1.setEditModeEvent(editModeEvent);
+    } else {
+        scwin.target1.setEditModeEvent(editModeEvent, (refreshText === 'true'));
+    }
+
+    // 설정 후 상태
+    let afterGrid = scwin.target1.options.editModeEvent;
+    let afterCol2 = scwin.target1.getCellInfo(1).options.editModeEvent;
+    let afterIcon = scwin.target1.options.editModeEventIcon;
+
+    let refLabel = (refreshText === '') ? '미설정(기본 false)' : refreshText;
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setEditModeEvent(" + editModeEvent + ", " + refLabel + ") 적용"
+        + " | GridView editModeEvent = " + afterGrid
+        + " | col2(컬럼 editModeEvent 보유) : " + beforeCol2 + " -> " + afterCol2
+        + (beforeCol2 === afterCol2 ? " (유지)" : " (함께 변경)")
+        + " | editModeEventIcon 불변 : " + (beforeIcon === afterIcon) + " (" + afterIcon + ")");
+}
+
+
+
+// Body Cell 이 실제로 편집 모드로 진입하는 순간(onbeforeedit) 검증값 자동 출력.
+//  사용자가 설정된 editModeEvent 에 맞는 마우스 조작으로 셀을 편집모드 진입시키면,
+//  그 시점의 rowIndex/colIndex/columnID 와 실제 적용된 editModeEvent(컬럼 우선 -> GridView 상속 판정)를 출력한다.
+//  -> @spec 규칙(편집모드 진입은 사용자 조작으로 검증, 강제 편집 버튼 금지)을 지키면서 setEditModeEvent 반영 결과를 실제 편집 진입으로 입증한다.
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    let colId = '';
+    try { colId = scwin.target1.getColumnID(columnIndex); } catch (ex) { colId = ''; }
+    let colOwn = '';
+    try { colOwn = scwin.target1.getCellInfo(columnIndex).options.editModeEvent || ''; } catch (ex) { colOwn = ''; }
+    let gridEvt = scwin.target1.options.editModeEvent;
+    let appliedEvt = colOwn || gridEvt;
+    let inherit = (colOwn === '');
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "[편집모드 진입] rowIndex=" + rowIndex + ", colIndex=" + columnIndex + ", columnID=" + colId
+        + " | 적용 editModeEvent = " + appliedEvt
+        + (inherit ? " (컬럼 미설정 -> GridView(" + gridEvt + ") 상속)" : " (컬럼값 우선)"));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editModeEvent" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_editModeEvent" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[onclick]]></xf:label>
+												<xf:value><![CDATA[onclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[ondblclick]]></xf:label>
+												<xf:value><![CDATA[ondblclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[onsecondclick]]></xf:label>
+												<xf:value><![CDATA[onsecondclick]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="bRefreshColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_bRefreshColumn" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setEditModeEvent_onclick" id="btn_setEditModeEvent"
+							label="setEditModeEvent" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

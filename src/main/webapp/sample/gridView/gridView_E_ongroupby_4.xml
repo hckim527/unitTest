@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ongroupby" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > E > ongroupby]<br/>groupbyZone=true 일때 GroupBy 기능이 설정되거나 변경되면 발생합니다.",
+    "validation" : [
+        "ongroupby 이벤트가 선언되어 있으면 setColumnOrder() 메소드가 실행되지 않습니다."
+    ]
+}
+
+
+
+// con 옵션 : ongroupby 이벤트 선언 여부 (true = 선언 O / false = 선언 X)
+scwin.gVar = { "cUseOngroupby" : "true" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 기본값 명시 설정 (초기 selectedIndex 미적용 회피)
+    con_useOngroupby.setValue("true");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// con 옵션 변경 : Target 재생성 버튼으로만 반영
+scwin.con_useOngroupby_onchange = function () {
+    scwin.gVar.cUseOngroupby = con_useOngroupby.getValue();
+};
+
+
+
+// comp 생성
+//  - groupbyZone=true 는 ongroupby 이벤트 발생 전제이므로 고정
+//  - con_useOngroupby 값에 따라 ev:ongroupby 속성을 붙이거나 빼서 이벤트 선언 여부를 대조
+scwin.comp_init = async function () {
+    // 기존 label / target / dataList 있으면 삭제 (동일 cID 재생성 시 기존 컴포넌트가 유지되는 것 방지)
+    if (typeof label1 !== 'undefined') {
+        label1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let bUse = (scwin.gVar.cUseOngroupby === "true");
+
+    // 테스트 참고 라벨 (target 생성 전 가장 먼저 생성)
+    let lblDesc = '[전제] groupbyZone=true 고정 (ongroupby 이벤트 발생 전제)'
+        + '\n[전제] 현재 ongroupby 선언 = ' + (bUse ? '선언 O (ev:ongroupby 부착)' : '선언 X (ev:ongroupby 미부착)')
+        + '\n[절차] con_useOngroupby 변경 -> Target 재생성 버튼 클릭 -> setColumnOrder 버튼 클릭'
+        + '\n[확인] setColumnOrder([3,2,1,0]) 호출 전후의 렌더된 Header/Body Column 표시 순서 실측값을 비교';
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (Body Column id 와 동일한 컬럼 id)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "region": "서울", "dept": "개발", "grade": "A", "score": 10 },
+        { "region": "서울", "dept": "영업", "grade": "B", "score": 20 },
+        { "region": "부산", "dept": "기획", "grade": "C", "score": 30 },
+        { "region": "부산", "dept": "개발", "grade": "A", "score": 40 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+        groupbyZone: "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // ongroupby 선언 여부 : 선언 O 인 경우에만 ev:ongroupby="scwin.target1_ongroupby" 부착
+    let eList = bUse ? $c.gcm.createEList(["ongroupby"]) : '';
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    // target 생성 (Body 4컬럼) - Header 값에 초기 인덱스를 표기하여 표시 순서 변화를 눈으로 확인
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:560px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="ongroupby 선언 여부별 setColumnOrder 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="지역(0)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="부서(1)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="등급(2)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="점수(3)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" dataType="number" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// ongroupby : 선언 O 인 경우에만 연결됨. 발생 사실을 출력하고 false 를 반환하여 엔진 기본 GroupBy 를 적용
+scwin.target1_ongroupby = function (result) {
+    wf_body_bottom.getObj("scwin").setReturnValue("[ongroupby 발생] 핸들러가 선언되어 실행되었습니다.");
+    return false;
+};
+
+
+
+// 렌더된 Header Column 의 실제 표시 순서 (DOM 순서의 Header 텍스트)
+scwin.getRenderedHeaderOrder = function () {
+    let headTable = document.querySelector("[id*='target1_head_table']");
+    if (!headTable) {
+        return "(head_table 없음)";
+    }
+    let ths = headTable.querySelectorAll("th[class*='_header__column']");
+    let arr = [];
+    for (let i = 0; i < ths.length; i++) {
+        arr.push((ths[i].textContent || "").trim());
+    }
+    return JSON.stringify(arr);
+};
+
+
+
+// 렌더된 Body Column 의 실제 표시 순서 (첫 Row 의 td DOM 순서 -> Column 인덱스 -> Column ID)
+scwin.getRenderedBodyOrder = function () {
+    let bodyTbody = document.querySelector("[id*='target1_body_tbody']");
+    if (!bodyTbody) {
+        return "(body_tbody 없음)";
+    }
+    let tr = bodyTbody.querySelector("tr");
+    if (!tr) {
+        return "(body row 없음)";
+    }
+    let tds = tr.querySelectorAll("td[id*='_cell_0_']");
+    let arr = [];
+    for (let i = 0; i < tds.length; i++) {
+        let matched = (tds[i].getAttribute("id") || "").match(/_cell_0_(\d+)$/);
+        if (matched) {
+            arr.push(target1.getColumnID(Number(matched[1])));
+        }
+    }
+    return JSON.stringify(arr);
+};
+
+
+
+// setColumnOrder 실행 : ongroupby 선언 O / X 두 경우 모두 호출 전후의 실제 표시 순서를 실측하여 실행 여부를 판정
+scwin.btn_setColumnOrder_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let beforeHeader = scwin.getRenderedHeaderOrder();
+    let beforeBody = scwin.getRenderedBodyOrder();
+    bottom.setReturnValue("[호출 전] Header 표시 순서 = " + beforeHeader + " / Body 표시 순서 = " + beforeBody);
+
+    let rtn = target1.setColumnOrder([3, 2, 1, 0]);
+
+    let afterHeader = scwin.getRenderedHeaderOrder();
+    let afterBody = scwin.getRenderedBodyOrder();
+    bottom.setReturnValue("[호출 후] Header 표시 순서 = " + afterHeader + " / Body 표시 순서 = " + afterBody);
+
+    let bChanged = (beforeHeader !== afterHeader) || (beforeBody !== afterBody);
+    bottom.setReturnValue("[ongroupby 선언 " + (scwin.gVar.cUseOngroupby === "true" ? "O" : "X") + "] setColumnOrder([3,2,1,0]) 반환값 = " + rtn
+        + " / 실행 여부 = " + (bChanged ? "실행됨 (표시 순서 변경)" : "미실행 (표시 순서 동일)"));
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ongroupby 선언 여부" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_useOngroupby_onchange" id="con_useOngroupby" label="label" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[선언]]></xf:label>
+												<xf:value>true</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[미선언]]></xf:label>
+												<xf:value>false</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnOrder_onclick" id="btn_setColumnOrder" label="setColumnOrder" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

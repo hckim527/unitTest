@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ignoreNonEditableCellTabEnter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260728" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > ignoreNonEditableCellTabEnter]<br/>상/하 방향키를 통한 포커스 이동 시 읽기전용(readonly) 상태인 Body Cell 로 이동을 허용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, 상/하 방향키로 포커스 이동 시 읽기전용(readonly) 상태의 Body Cell 도 포커스가 이동합니다.",
+        "true 설정 시, 비활성화(disabled) 상태의 Body Cell 은 건너 뛰고 편집 가능한 다음 Cell 로 포커스가 이동합니다.",
+        "ignoreNonEditableCell=true 인 경우에만 동작하며 상/하 방향키의 포커스 이동만 허용합니다.",
+        "false 설정 시, ignoreNonEditableCell 속성의 설정을 따릅니다.",
+        "미설정 시, ignoreNonEditableCell 속성의 설정을 따릅니다.",
+        "속성명에 'TabEnter' 가 포함되어 있으나 상/하 방향키에만 적용됩니다.",
+        "ignoreNonEditableCellTabEnter 속성에 의해 읽기전용(readonly) 상태인 Body Cell 이 포커스되면 oncellindexchange 이벤트가 발생합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1(gdl_boolean)은 초기 selectedIndex 미적용 → 기본값 명시 설정
+    //  - 속성 기본값은 false 이나, _1(핵심 동작)은 true 착지 동작을 우선 확인하도록 true('2') 로 시작
+    con_ignoreNonEditableCellTabEnter.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - 전제 고정 : ignoreNonEditableCell=true (이 속성은 ignoreNonEditableCell=true 일때만 동작)
+//  - con_ignoreNonEditableCellTabEnter : 공통 gdl_boolean → getText() ('' 미설정=속성제외 기본 false / 'true' / 'false')
+//  - focusMode="cell", enterKeyMove="down" 고정 : 상/하 방향키 및 Enter(아래 이동) 비교용
+//  - col1(0번 컬럼)에 편집 가능/불가 셀 혼합 배치 :
+//      row0=편집 가능(시작), row1=readOnly, row2=disabled, row3~=편집 가능
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let vTabEnter = con_ignoreNonEditableCellTabEnter.getText();
+
+    // 전제 : ignoreNonEditableCell 은 항상 true 고정 (이 속성 동작 전제)
+    //  - readOnlyBackgroundColor : 읽기전용(readonly) 셀을 연회색(#D3D3D3)으로 시각 구분 (상/하 방향키 착지 대상 readOnly 셀(row1))
+    //  - disabledBackgroundColor : 비활성화(disabled) 셀을 연노랑(#FFF9C4)으로 시각 구분 (건너뜀 대상 disabled 셀(row2))
+    let properties = {
+        ignoreNonEditableCell   : true,
+        focusMode               : "cell",
+        enterKeyMove            : "down",
+        readOnlyBackgroundColor : "#D3D3D3",
+        disabledBackgroundColor : "#FFF9C4"
+    };
+
+    // ignoreNonEditableCellTabEnter : '' 미설정 시 속성 제외(기본 false)
+    if (vTabEnter === 'true') {
+        properties.ignoreNonEditableCellTabEnter = true;
+    } else if (vTabEnter === 'false') {
+        properties.ignoreNonEditableCellTabEnter = false;
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let lblDesc = '[전제] ignoreNonEditableCell=true 고정 (이 속성은 그때만 동작)'
+        + '\n[셀구성] col1 -> row1=readOnly(연회색 배경), row2=disabled(연노랑 배경) (그 외 편집 가능)'
+        + '\n[현재] ignoreNonEditableCellTabEnter=' + (vTabEnter === '' ? '(미설정=기본 false)' : vTabEnter)
+        + '\n[절차] 로드 시 col1 row0 이 선택(비편집) 상태 -> 바로 ArrowDown / ArrowUp 입력 (셀 클릭 시 편집모드 진입하므로 재선택은 Target 재생성)'
+        + '\n[확인] true=readOnly 셀(row1)에도 착지 / disabled 셀(row2)은 건너뜀'
+        + '\n[비교] Enter(아래 이동)/Tab 은 이 속성 미적용 -> readOnly 착지 안 함';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="' + lblDesc + '"', '', 'label1');
+
+    // 포커스 이동 확인용 dataList 생성 (col1~col4, 6행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 6);
+    scwin.fillData();
+
+    // target 생성 (4컬럼 Body 그리드)
+    await scwin.createGridView(cList);
+
+    // col1 : row1=readOnly, row2=disabled (편집 가능 셀 사이에 편집 불가 셀 배치)
+    target1.setCellReadOnly(1, "col1", true);
+    target1.setCellDisabled(2, "col1", true);
+
+    // 첫번째 편집 가능 셀(col1 row0)을 셀-선택(비편집) 상태로 포커스
+    //  - 3번째 인자 false : 편집(input) 진입이 아닌 셀-선택 모드여야 상/하 방향키가 셀 이동을 처리함
+    //    (편집 input 포커스 상태에서는 방향키가 셀 이동이 아닌 캐럿 이동으로 처리됨)
+    target1.setFocusedCell(0, 0, false);
+}
+
+
+
+// 포커스 이동 확인용 데이터 (6행)
+scwin.fillData = function () {
+    let rows = [
+        { col1: "A1", col2: "B1", col3: "C1", col4: "D1" },
+        { col1: "A2", col2: "B2", col3: "C2", col4: "D2" },
+        { col1: "A3", col2: "B3", col3: "C3", col4: "D3" },
+        { col1: "A4", col2: "B4", col3: "C4", col4: "D4" },
+        { col1: "A5", col2: "B5", col3: "C5", col4: "D5" },
+        { col1: "A6", col2: "B6", col3: "C6", col4: "D6" }
+    ];
+    dlt_bind.setJSON(rows, false);
+}
+
+
+
+// gridView 동적 생성
+//  - oncellindexchange : 상/하 방향키 등으로 포커스 셀이 실제 이동할 때마다 발생
+//    (건너 뛴 셀에서는 발생하지 않음 → 착지한 셀 위치만 누적 출력)
+scwin.createGridView = async function (cList) {
+    let grp_comp = $c.gcm.getTestGroup();
+    let ns = $c.gcm.getNameSpace();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' checkAllType="false" id="" dataList="data:dlt_bind" style="width:520px;height:300px;" ev:oncellindexchange="scwin.target1_oncellindexchange">';
+    s += '<w2:caption style="" id="caption1" value="ignoreNonEditableCellTabEnter 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="row1">';
+    s += '<w2:column width="120" style="" inputType="text" id="column1" value="col1(RO/DIS)"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column2" value="col2"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="row2">';
+    s += '<w2:column width="120" style="" inputType="text" id="col1" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col2" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col3" value=""></w2:column>';
+    s += '<w2:column width="120" style="" inputType="text" id="col4" value=""></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// 셀 포커스가 실제 이동(변경)될 때 호출 (oncellindexchange)
+//  - 상/하 방향키 입력으로 포커스 셀이 바뀔 때마다 착지 셀과 이전 셀 위치를 하단에 누적 출력
+//  - ignoreNonEditableCellTabEnter=true 로 readOnly 셀에 착지하면 이 이벤트가 발생하므로,
+//    출력된 착지 셀 시퀀스로 readOnly 착지/ disabled 건너뜀을 확인
+scwin.target1_oncellindexchange = function (rowIndex, columnIndex, oldRow, oldColumnIndex) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("oncellindexchange 발생 → 착지 셀 (row: " + rowIndex + ", col: " + columnIndex
+        + "), 이전 셀 (row: " + oldRow + ", col: " + oldColumnIndex + ")");
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ignoreNonEditableCellTabEnter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ignoreNonEditableCellTabEnter" label="label" nodeSet="data:gdl_boolean" ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ignoreNonEditableCell" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="true (고정)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
