@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] accessibility" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_2)은 accessibility=true 의 '추가 설정' 연쇄 2건과 @spec2(senseReader 단독 설정) 를 담당한다.
+//    · senseReader=true 로 인한 추가 설정 : focusFlow="linear"
+//    · sortHeaderDiv=true 이고 sortable=true 인 경우의 연쇄 : showSortableImage=true / sortEvent="onclick"
+//    · @spec2 : senseReader 단독 true 설정 가능 + accessibility=true 인 경우와 다른 설정이 적용됨
+//  - 강제 설정 10종/false/미설정/@spec1 은 _1, 렌더링 변경 5건은 _3, @spec3 은 _4 담당이므로 제외.
+//  - description 은 @description 첫 문장 → _1 과 동일하게 유지.
+scwin.tData = {
+    "description" : "[gridView > P > accessibility]<br/>GridView 에 웹접근성 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, senseReader=true 로 인해 focusFlow='linear' 가 추가 설정되어 각 Cell 에 tabIndex 가 부여되고 마지막 Cell 에서 다음 Cell 로 포커스 이동합니다.",
+        "true 설정 시, sortHeaderDiv=true 이고 sortable=true 이면 연쇄적으로 showSortableImage=true 가 추가 설정되어 정렬 가능한 모든 Column 에 정렬 상태 아이콘을 항상 표시합니다.",
+        "true 설정 시, sortHeaderDiv=true 이고 sortable=true 이면 연쇄적으로 sortEvent='onclick' 이 추가 설정되어 Header 클릭으로 정렬이 실행됩니다.",
+        "senseReader 속성은 accessibility 없이도 단독으로 true 설정이 가능하며, accessibility=true 인 경우와 다른 설정이 적용됩니다."
+    ]
+}
+
+
+
+// 현재 target 에 실제 적용된 con 조합 (버튼 출력에 사용)
+scwin.gVar = { "acc" : "", "sense" : "" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1(gdl_boolean) 은 초기 selectedIndex 미적용 → 기본값 명시 설정
+    //  gdl_boolean 코드값 : 미설정="1" / true="2" / false="3"
+    con_accessibility.setValue("2");   // 기본 시나리오 : accessibility=true (추가 설정 연쇄 확인)
+    con_senseReader.setValue("1");     // senseReader 미설정 (accessibility 로만 강제되는 경로)
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (accessibility 는 @dynamic N → con 변경은 "Target 재생성" 으로만 반영)
+//  - con_accessibility / con_senseReader : 공통 gdl_boolean → getText() ('' 미설정 / 'true' / 'false')
+//  - 그리드 sortable="true" 고정, sortEvent 미설정(엔진 기본 ondblclick) → accessibility 연쇄로 onclick 이 되는지 관측
+//  - Header Column 은 정렬 가능(이름/점수) 과 정렬 불가(부서/등급, Column sortable="false") 를 함께 배치
+//  - Body Column 은 embeddedInput="false" 고정 : senseReader 의 embeddedInput 강제(_1 담당) 를 배제해야
+//    focusFlow="linear" 로 Cell(td) 에 부여되는 tabIndex 를 그대로 관측할 수 있다
+//    (embeddedInput=true 인 Cell 은 엔진이 td 대신 내부 입력 컴포넌트를 Tab 정지점으로 사용하여 td 에 tabIndex 를 넣지 않음)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let vAcc = con_accessibility.getText();     // ''/'true'/'false'
+    let vSense = con_senseReader.getText();     // ''/'true'/'false'
+    scwin.gVar.acc = (vAcc === '') ? '(미설정)' : vAcc;
+    scwin.gVar.sense = (vSense === '') ? '(미설정)' : vSense;
+
+    // 조건 설정 (미설정이면 속성 자체를 부여하지 않음)
+    let properties = {};
+    if (vAcc === 'true') {
+        properties.accessibility = "true";
+    } else if (vAcc === 'false') {
+        properties.accessibility = "false";
+    }
+    if (vSense === 'true') {
+        properties.senseReader = "true";
+    } else if (vSense === 'false') {
+        properties.senseReader = "false";
+    }
+
+    // 테스트 참고 라벨 (target 생성 전 가장 먼저 생성)
+    let lbl = '';
+    lbl += '[전제] 그리드 sortable=true, sortEvent 미설정(엔진 기본 ondblclick). 정렬 가능 Header=이름/점수, 정렬 불가 Header(Column sortable=false)=부서/등급.';
+    lbl += '\n[전제] Body Column 은 embeddedInput=false 고정 (Cell 내부 입력 컴포넌트를 배제하여 Cell(td) 의 tabIndex 부여를 그대로 관측).';
+    lbl += '\n[현재] accessibility=' + scwin.gVar.acc + ', senseReader=' + scwin.gVar.sense;
+    lbl += '\n[절차] con 조합 선택 -> Target 재생성 -> [연쇄 설정 확인] / [적용값 대비 확인] 클릭.';
+    lbl += '\n[대비] accessibility=true + senseReader 미설정 으로 1회, accessibility 미설정 + senseReader=true 로 1회 실행하여 [적용값 대비 확인] 출력 2줄을 비교.';
+    lbl += '\n[정렬] Header 이름 또는 점수 를 1회 클릭 -> 하단 onsort 출력 여부로 클릭 1회 정렬 실행을 확인 (부서/등급 클릭 시 미발생).';
+    $c.gcm.createLabel('label="' + lbl + '"', '', 'label1');
+
+    let ns = $c.gcm.getNameSpace();
+
+    // 정렬/포커스 확인용 DataList (4컬럼, 6행)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + ns + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "col1": "김철수", "col2": "영업부", "col3": 82, "col4": "B" },
+        { "col1": "이영희", "col2": "개발부", "col3": 95, "col4": "A" },
+        { "col1": "박민수", "col2": "총무부", "col3": 71, "col4": "C" },
+        { "col1": "최지우", "col2": "개발부", "col3": 88, "col4": "B" },
+        { "col1": "정한나", "col2": "영업부", "col3": 64, "col4": "D" },
+        { "col1": "강대현", "col2": "총무부", "col3": 90, "col4": "A" }
+    ], false);
+
+    // target 생성
+    let cList = $c.gcm.createCList(properties);
+    let grp_comp = $c.gcm.getTestGroup();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' checkAllType="false" sortable="true" id="" dataList="data:dlt_bind" style="width:620px;height:200px;" ev:onsort="scwin.target1_onsort">';
+    s += '<w2:caption style="" id="caption1" value="accessibility 추가 설정 연쇄 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="hrow1">';
+    s += '<w2:column width="150" style="" inputType="text" id="hcol1" value="이름 (정렬 가능)"></w2:column>';
+    s += '<w2:column width="150" style="" inputType="text" sortable="false" id="hcol2" value="부서 (정렬 불가)"></w2:column>';
+    s += '<w2:column width="150" style="" inputType="text" sortable="true" id="hcol3" value="점수 (정렬 가능)"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" sortable="false" id="hcol4" value="등급 (정렬 불가)"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="brow1">';
+    s += '<w2:column width="150" style="" inputType="text" dataType="text" embeddedInput="false" id="col1" dataList="col1"></w2:column>';
+    s += '<w2:column width="150" style="" inputType="text" dataType="text" embeddedInput="false" id="col2" dataList="col2"></w2:column>';
+    s += '<w2:column width="150" style="" inputType="text" dataType="number" embeddedInput="false" id="col3" dataList="col3"></w2:column>';
+    s += '<w2:column width="*" style="" inputType="text" dataType="text" embeddedInput="false" id="col4" dataList="col4"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+}
+
+
+
+// Header th 요소 목록 (Header 정의 순서)
+scwin.getHeaderThList = function () {
+    let headTable = document.getElementById(target1.id + "_head_table");
+    let result = [];
+    if (!headTable) {
+        return result;
+    }
+    let ths = headTable.querySelectorAll("th");
+    for (let i = 0; i < ths.length; i++) {
+        // filler(빈 여백) th 제외 : Header Column 으로 생성된 th 만 사용
+        if (ths[i].getAttribute("id")) {
+            result.push(ths[i]);
+        }
+    }
+    return result;
+}
+
+
+
+// (검증1/2/3) 연쇄 설정 확인
+//  - 1줄 : senseReader=true 로 인한 추가 설정 focusFlow 적용값 + 각 Body Cell 의 tabIndex 부여 개수
+//  - 2줄 : sortHeaderDiv=true && sortable=true 연쇄인 showSortableImage / sortEvent 적용값 +
+//          Header 별 (정렬 가능 여부 / 정렬 상태 아이콘 표시 여부) → 연쇄가 sortable 조건에 걸리는지 확인
+scwin.btn_checkChain_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let o = target1.options;
+
+    // 연쇄① focusFlow → Body Cell tabIndex 부여 여부
+    let gridEl = document.getElementById(target1.id);
+    let tds = gridEl.querySelectorAll("td[id*='_cell_']");
+    let tabCnt = 0;
+    for (let i = 0; i < tds.length; i++) {
+        if (tds[i].getAttribute("tabindex") !== null) {
+            tabCnt++;
+        }
+    }
+    bottom.setReturnValue("[연쇄1] focusFlow=" + o.focusFlow + ", sortHeaderDiv=" + o.sortHeaderDiv
+        + " | tabIndex 부여 Body Cell : " + tabCnt + " / " + tds.length);
+
+    // 연쇄②③ showSortableImage / sortEvent → Header 별 정렬 상태 아이콘 표시 여부
+    let ths = scwin.getHeaderThList();
+    let parts = [];
+    for (let i = 0; i < ths.length; i++) {
+        let th = ths[i];
+        let sortable = th.className.indexOf("w2grid_head_sortable") > -1;
+        let hasIcon = th.querySelector("[class*='w2grid_head_sort_none'], [class*='w2grid_head_sort_asc'], [class*='w2grid_head_sort_desc']") !== null
+            || th.className.indexOf("w2grid_head_sort_none") > -1;
+        parts.push(th.textContent.replace(/\s+/g, "") + " : sortable=" + sortable + ", 정렬아이콘=" + hasIcon);
+    }
+    bottom.setReturnValue("[연쇄2/3] showSortableImage=" + o.showSortableImage + ", sortEvent=" + o.sortEvent
+        + " | " + parts.join(" / "));
+}
+
+
+
+// (검증4 @spec2) 적용값 대비 확인
+//  - accessibility=true 인 경우와 senseReader 단독 true 인 경우를 각각 실행하여 두 줄을 비교한다.
+//  - 공통 : senseReader / focusFlow (senseReader=true 로 인한 추가 설정이라 두 경우 모두 동일)
+//  - 차이 : accessibility=true 일때만 강제/연쇄되는 속성들 (엔진 적용 옵션 실측값)
+scwin.btn_compareApplied_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let o = target1.options;
+
+    bottom.setReturnValue("[설정 accessibility=" + scwin.gVar.acc + ", senseReader=" + scwin.gVar.sense + "]"
+        + " 공통 적용 -> senseReader=" + o.senseReader + ", focusFlow=" + o.focusFlow
+        + " | 차이 적용 -> focusMove=" + o.focusMove + ", keyMoveEditMode=" + o.keyMoveEditMode
+        + ", autoResizeEmbeddedInput=" + o.autoResizeEmbeddedInput + ", scrollFocus=" + o.scrollFocus
+        + ", titleAuto=" + o.titleAuto + ", sortHeaderDiv=" + o.sortHeaderDiv
+        + ", drawType=" + o.drawType + ", visibleRowNum=" + o.visibleRowNum
+        + ", showSortableImage=" + o.showSortableImage + ", sortEvent=" + o.sortEvent);
+}
+
+
+
+// (검증3) Header 를 1회 클릭하여 정렬이 실행되면 발생
+//  - sortEvent 기본값은 ondblclick 이므로, 클릭 1회로 이 출력이 나오면 sortEvent="onclick" 연쇄가 적용된 것
+scwin.target1_onsort = function (sortInfo) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("onsort 발생 -> 정렬 Header : " + sortInfo.headerId + ", sortOrder : " + sortInfo.sortOrder);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_accessibility" label="label" nodeSet="data:gdl_boolean"
+										ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="senseReader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean"
+										ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkChain_onclick" id="btn_checkChain"
+							label="연쇄 설정 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_compareApplied_onclick" id="btn_compareApplied"
+							label="적용값 대비 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

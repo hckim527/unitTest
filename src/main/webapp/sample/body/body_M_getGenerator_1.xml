@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[body] getGenerator" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[scwin.gVar = {
+    "cInitClass" : null,
+    "cInitStyle" : ""
+}
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[body > M > getGenerator]<br/>컴포넌트가 Generator 컴포넌트의 자식으로 생성된 경우 부모 Generator 컴포넌트를 반환합니다.",
+    "validation" : [
+        "Generator 컴포넌트의 자식인 경우 부모 Generator 컴포넌트 객체를 반환하여야 합니다.",       
+        "Generator 컴포넌트의 자식이 아닌 경우 최상위 WFrame 컴포넌트를 반환하여야 합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Label 생성
+    $c.gcm.createLabel('label="Generator 내부 wframe 의 body 영역과 이 화면(자기 body) 을 각각 클릭하세요."', '', 'label1');
+};
+
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  body 는 동적 생성/삭제가 불가하므로 최초 렌더된 body 컴포넌트를 그대로 대상으로 사용하고,
+//  "Target 재생성" 은 최초 렌더 시점의 class / style 상태로 되돌리는 것으로 대응한다.
+scwin.comp_init = async function () {
+    let objBody = scwin.getBody();
+
+    if (scwin.gVar["cInitClass"] === null) {
+        // 최초 1회 : 초기 class / style 보관
+        scwin.gVar["cInitClass"] = objBody.render.className;
+        scwin.gVar["cInitStyle"] = objBody.render.getAttribute("style") || "";
+    } else {
+        // 재생성 : 초기 상태로 복원 + 기존 이벤트 해제
+        objBody.render.className = scwin.gVar["cInitClass"];
+        objBody.render.setAttribute("style", scwin.gVar["cInitStyle"]);
+        objBody.unbind("onclick", scwin.target1_onclick);
+    }
+
+    // 기존 generator 있으면 삭제
+    if (typeof generator1 !== 'undefined') {
+        generator1.remove();
+    }
+
+    // 유효성① 검증용 : Generator 템플릿 안에 wframe 을 배치하고 그 내부 페이지의 body 를 대상으로 삼는다.
+    //  body 는 페이지 root 요소라 Generator 의 직접 자식이 될 수 없으나,
+    //  getGenerator() 는 parentControl 체인을 거슬러 올라가므로
+    //  body -> wframe -> generator 체인이 되면 부모 Generator 를 반환한다.
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    let strGenerator = '';
+    strGenerator += '<w2:generator ' + strNameSpace + ' id="generator1">';
+    strGenerator += '<w2:wframe id="generator1_child" src="/sample/common_link/body_link_1.xml" style="width:300px;height:90px;"></w2:wframe>';
+    strGenerator += '</w2:generator>';
+
+    scwin.generator1 = await $p.dynamicCreate("generator1", "generator", strGenerator, grp_comp);
+
+    // wframe 자식은 비동기 로딩되며 자식 템플릿의 clone 소스는 현재 렌더 사이클이 끝난 뒤에 준비된다.
+    //  comp_init 을 블로킹하면 렌더가 진행되지 못해 계속 실패하므로 setTimeout 으로 지연 후 재시도한다(비블로킹).
+    scwin.wf_insertGenChild = function (tryCount) {
+        scwin.generator1.insertChildAsync().catch(function () {
+            if (tryCount > 0) {
+                setTimeout(function () { scwin.wf_insertGenChild(tryCount - 1); }, 100);
+            }
+        });
+    };
+    setTimeout(function () { scwin.wf_insertGenChild(20); }, 100);
+
+    // 유효성② 검증용 : Generator 자식이 아닌 이 화면 자신의 body
+    //  body 는 onclick 을 선언 이벤트로 제공하지 않으므로 bind() 로 등록한다.
+    objBody.bind("onclick", scwin.target1_onclick);
+}
+
+
+
+// (검증①) Generator 내부 wframe 의 body 에서 호출한 결과를 출력 (body_link_1.xml 에서 호출)
+scwin.setInnerResult = function (strValue) {
+    wf_body_bottom.getObj("scwin").setReturnValue(strValue);
+}
+
+
+
+// (검증②) 이 화면 자신의 body (Generator 자식이 아님) 클릭 시 발생
+scwin.target1_onclick = function (e) {
+    let pObj = scwin.getBody().getGenerator();
+    let strMsg = (pObj.getPluginName() == "generator") ? "Generator component" : "Not a Generator component";
+
+    wf_body_bottom.getObj("scwin").setReturnValue("자기 body : " + strMsg + " (반환 pluginName : " + pObj.getPluginName() + ")");
+}
+
+// body 컴포넌트 조회
+//  body 는 화면과 함께 렌더되는 컴포넌트로 $p.dynamicCreate / remove 대상이 아니고
+//  공통 생성 함수($c.gcm.createBasicXxx)도 없어 공통 base(common_M) wrap 패턴을 쓸 수 없다.
+//  <body id="target1"> 로 선언해도 body 는 root 요소라 scope 전역(target1)으로 등록되지 않으며
+//  $p.getComponentById("target1") 도 scope 접두어가 적용되지 않아 undefined 를 반환하므로,
+//  정적 선언된 자식(grp_main)의 parentControl 로 조회한다.
+scwin.getBody = function () {
+    return grp_main.parentControl;
+}
+]]></script>
+	</head>
+	<body id="target1" ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="grp_main" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

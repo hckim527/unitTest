@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] accessibility" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260729" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="엔진 동작과 불일치하는 유효성 2건 제거(rowStatus w2blind span / radio Tab 포커스 제한)" meta_date="20260730" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="03" meta_desc="radio Tab 포커스 유효성 복원(가이드 원문 유지, 실동작 차이는 WAEA-1070 등록)" meta_date="20260730" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1070
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_3)은 @propval <true> 의 "렌더링 측면에서 다음 변경이 적용됩니다" 를 담당한다.
+//  - 강제 설정 속성 10종/false/미설정/@spec1 은 _1, 연쇄 속성/@spec2 는 _2 담당이므로 여기서 제외.
+//  - radio 항목은 가이드 원문을 유지한다. 현재 엔진은 선택 여부와 무관하게 모든 행의 Radio 로
+//    Tab 포커스가 이동하여 원문과 다르게 동작하며, 이 차이는 결함으로 등록되어 있다(WAEA-1070,
+//    재현 샘플 : sample/jira/202607/fail_gridView_accessibility_radioTabFocus.xml).
+//    실동작 기준 기대값은 TSQA 자동화(ts_gridView_P_accessibility_3.xml) 쪽에서 관리한다.
+//  - rowStatus Column 의 w2blind span 항목은 엔진 미적용이므로 제외.
+//  - description 은 _1 과 동일하게 유지(@description 첫 문장).
+scwin.tData = {
+    "description" : "[gridView > P > accessibility]<br/>GridView 에 웹접근성 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, 정렬 가능한 Header 는 'th' 에 'button.w2grid_head_sort_div_main_btn_accessibility' 가 직접 배치됩니다.",
+        "true 설정 시, Tab 키로 포커스 이동이 가능하고 Space 또는 Enter 키를 누르면 정렬 상태가 '오름차순 -> 내림차순 -> 원래대로 -> 오름차순' 순환으로 변경됩니다.",
+        "true 설정 시, inputType='radio' 인 경우 선택된 Radio 의 행만 Tab 키로 포커스 이동이 가능하며, 선택되지 않은 행은 위아래 방향키로 값을 변경합니다.",
+        "true 설정 시, inputType='text','select','calendar','textarea','checkcombobox','autoComplete' 인 Column 의 입력 컴포넌트에 accessibility 옵션이 전파되어 접근성 모드로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 미적용 -> 기본값 명시 설정
+    //  gdl_boolean 코드값 : 미설정="1" / true="2" / false="3"
+    con_accessibility.setValue("2");   // 기본 시나리오 : accessibility=true
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  accessibility 는 @dynamic N 이므로 con 변경 후 "Target 재생성"(btn_createTarget -> comp_init) 으로만 반영한다.
+//  - con_accessibility : 공통 gdl_boolean -> getText() ('' 미설정 / 'true' / 'false')
+//  - sortable="true" 는 정렬 Header button 배치 / 정렬 순환 관측을 위한 고정 전제.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_code !== 'undefined') {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    // radio Tab 포커스 이동 관측용 focusin 리스너 재등록
+    if (scwin.radioFocusHandler) {
+        document.removeEventListener("focusin", scwin.radioFocusHandler, true);
+    }
+
+    let vAcc = con_accessibility.getText();   // ''/'true'/'false'
+
+    // 조건 설정
+    let properties = { sortable: "true" };
+    if (vAcc === 'true') {
+        properties.accessibility = "true";
+    } else if (vAcc === 'false') {
+        properties.accessibility = "false";
+    }
+    // vAcc === '' (미설정) 이면 accessibility 속성 제외 -> 엔진 기본값 false
+
+    // 테스트 참고 라벨 (target 생성 전 가장 먼저 생성)
+    let lbl = '';
+    lbl += '[전제] sortable=true 고정. Column 0:col1(text) 1:col2(radio, Header 만 sortable=false) 2:col3(select) 3:col4(calendar) 4:col5(textarea) 5:col6(checkcombobox) 6:col7(autoComplete). col2 의 선택된 Radio 는 2행.';
+    lbl += '\n[전제] accessibility 는 textarea/autoComplete Column 에 embeddedInput 을 강제하지 않으므로 col5/col7 에만 embeddedInput=true 를 명시했다.';
+    lbl += '\n[현재] accessibility=' + (vAcc === '' ? '(미설정)' : vAcc);
+    lbl += '\n[절차1] 정렬 순환 : col1 헤더에 Tab 키로 포커스를 옮긴 뒤 Space 또는 Enter 를 3회 이상 눌러 순환을 모두 돌린다.';
+    lbl += '\n[절차2] radio : 1행 col1 셀을 클릭한 뒤 Tab 키를 눌러 어느 행의 Radio 로 포커스가 가는지 확인하고, 그 상태에서 위아래 방향키를 누른다.';
+    lbl += '\n[확인] 절차1/절차2 결과는 반환영역에 자동 출력. 나머지 2개는 아래 확인 버튼 클릭.';
+    $c.gcm.createLabel('label="' + lbl + '"', '', 'label1');
+
+    let ns = $c.gcm.getNameSpace();
+
+    // select / checkcombobox / autoComplete 컬럼 itemset 용 코드/라벨 DataList
+    let strCode = '';
+    strCode += '<w2:dataList ' + ns + ' id="dlt_code" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_code.setJSON([
+        { "code": "A", "label": "서울" },
+        { "code": "B", "label": "부산" },
+        { "code": "C", "label": "대구" }
+    ], false);
+
+    // 본문 데이터리스트 (7컬럼 -> 공통 헬퍼 4컬럼 한계로 인라인 사용)
+    let strDl = '';
+    strDl += '<w2:dataList ' + ns + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col4" name="col4" dataType="date"></w2:column>';
+    strDl += '<w2:column id="col5" name="col5" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col6" name="col6" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col7" name="col7" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col1": "다래", "col2": "N", "col3": "A", "col4": "20250115", "col5": "첫번째 메모", "col6": "A B", "col7": "A" },
+        { "col1": "가지", "col2": "Y", "col3": "B", "col4": "20250220", "col5": "두번째 메모", "col6": "B", "col7": "B" },
+        { "col1": "나리", "col2": "N", "col3": "C", "col4": "20250312", "col5": "세번째 메모", "col6": "C", "col7": "C" },
+        { "col1": "마늘", "col2": "N", "col3": "A", "col4": "20250405", "col5": "네번째 메모", "col6": "A", "col7": "A" }
+    ], false);
+
+    // target 생성
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_code"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onsort", "onviewchange"]);
+    let grp_comp = $c.gcm.getTestGroup();
+
+    let s = '';
+    s += '<w2:gridView ' + ns + ' ' + cList + ' ' + eList + ' checkAllType="false" id="" dataList="data:dlt_bind" style="width:1000px;height:240px;">';
+    s += '<w2:caption style="" id="caption1" value="accessibility 렌더링 변경 테스트 그리드"></w2:caption>';
+    s += '<w2:header style="" id="header1">';
+    s += '<w2:row style="" id="hrow1">';
+    s += '<w2:column width="120" inputType="text" id="hcol1" value="col1 (text)"></w2:column>';
+    s += '<w2:column width="90" inputType="text" id="hcol2" sortable="false" value="col2 (radio)"></w2:column>';
+    s += '<w2:column width="110" inputType="text" id="hcol3" value="col3 (select)"></w2:column>';
+    s += '<w2:column width="130" inputType="text" id="hcol4" value="col4 (calendar)"></w2:column>';
+    s += '<w2:column width="140" inputType="text" id="hcol5" value="col5 (textarea)"></w2:column>';
+    s += '<w2:column width="150" inputType="text" id="hcol6" value="col6 (checkcombobox)"></w2:column>';
+    s += '<w2:column width="*" inputType="text" id="hcol7" value="col7 (autoComplete)"></w2:column>';
+    s += '</w2:row>';
+    s += '</w2:header>';
+    s += '<w2:gBody style="" id="gBody1">';
+    s += '<w2:row style="" id="brow1">';
+    s += '<w2:column width="120" inputType="text" dataType="text" id="col1" dataList="col1"></w2:column>';
+    s += '<w2:column width="90" inputType="radio" dataType="text" valueType="other" trueValue="Y" falseValue="N" id="col2" dataList="col2"></w2:column>';
+    s += '<w2:column width="110" inputType="select" dataType="text" id="col3" dataList="col3">' + itemset + '</w2:column>';
+    s += '<w2:column width="130" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col4" dataList="col4"></w2:column>';
+    s += '<w2:column width="140" inputType="textarea" embeddedInput="true" dataType="text" id="col5" dataList="col5"></w2:column>';
+    s += '<w2:column width="150" inputType="checkcombobox" dataType="text" id="col6" dataList="col6">' + itemset + '</w2:column>';
+    s += '<w2:column width="*" inputType="autoComplete" embeddedInput="true" dataType="text" id="col7" dataList="col7">' + itemset + '</w2:column>';
+    s += '</w2:row>';
+    s += '</w2:gBody>';
+    s += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", s, grp_comp);
+
+    // radio Tab 포커스 이동 결과 자동 출력용 리스너 등록
+    scwin.radioFocusHandler = function (e) {
+        let gridEl = document.getElementById("mf_target1");
+        let t = e.target;
+        if (!gridEl || !t || t.tagName !== "INPUT" || t.type !== "radio" || !gridEl.contains(t)) {
+            return;
+        }
+        let td = t.parentNode;
+        while (td && td.tagName !== "TD") {
+            td = td.parentNode;
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue("[radio Tab 포커스] " + (td ? td.id : "") + " 로 포커스 이동 (선택됨=" + t.checked + ")");
+    };
+    document.addEventListener("focusin", scwin.radioFocusHandler, true);
+}
+
+
+
+// (검증) 정렬 가능한 Header 의 button 배치 확인
+//  accessibility=true : 정렬 가능한 th 내부에 button.w2grid_head_sort_div_main_btn_accessibility 가 직속 자식으로 배치됨
+//  미적용 : 정렬 아이콘용 button 자체가 없음(hcol2 는 sortable=false 라 accessibility=true 에서도 button 없음)
+scwin.btn_checkSortHeader_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let gridEl = document.getElementById('mf_target1');
+    if (!gridEl) {
+        bottom.setReturnValue("grid(mf_target1) 미생성");
+        return;
+    }
+    let parts = [];
+    let ths = gridEl.querySelectorAll("th");
+    for (let i = 0; i < ths.length; i++) {
+        let th = ths[i];
+        let txt = (th.textContent || "").replace(/\s+/g, " ").trim();
+        if (txt.indexOf("col") !== 0) {
+            continue;
+        }
+        let accBtn = null;
+        let anyBtn = null;
+        for (let j = 0; j < th.children.length; j++) {
+            let ch = th.children[j];
+            if (ch.tagName === "BUTTON" && (ch.className || "").indexOf("w2grid_head_sort_div_main_btn_accessibility") >= 0) {
+                accBtn = ch;
+            } else if (ch.tagName === "BUTTON" && (ch.className || "").indexOf("w2grid_head_sort_div_main_btn") >= 0) {
+                anyBtn = ch;
+            }
+        }
+        parts.push(txt + "=" + (accBtn ? "th 직속 button.w2grid_head_sort_div_main_btn_accessibility" : (anyBtn ? "th 직속 button.w2grid_head_sort_div_main_btn" : "button 없음")));
+    }
+    bottom.setReturnValue("[정렬 Header button] " + parts.join(" / "));
+}
+
+
+
+// (검증) inputType 6종 입력 컴포넌트로의 accessibility 전파 확인
+//  각 Column 의 입력 컴포넌트를 찾아 options.accessibility 값을 출력한다.
+scwin.btn_checkPropagation_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    if (typeof target1 === 'undefined' || !target1) {
+        bottom.setReturnValue("grid(target1) 미생성");
+        return;
+    }
+    let map = [["text", "col1"], ["select", "col3"], ["calendar", "col4"], ["textarea", "col5"], ["checkcombobox", "col6"], ["autoComplete", "col7"]];
+    let parts = [];
+    for (let i = 0; i < map.length; i++) {
+        let comp = scwin.getCellComp(map[i][1], map[i][0]);
+        parts.push(map[i][0] + "=" + (comp ? comp.options.accessibility : "(컴포넌트 미생성)"));
+    }
+    bottom.setReturnValue("[전파] 입력 컴포넌트 options.accessibility : " + parts.join(", "));
+}
+
+
+
+// Column 의 입력 컴포넌트 조회
+//  embeddedInput 으로 Cell 마다 생성되는 컴포넌트는 grid.dom[td id + "_" + inputType] 에 보관된다.
+//  checkcombobox 는 embeddedInput 경로가 없어 Cell 편집 시점에 컴포넌트가 생성되므로 0 행 컴포넌트를 먼저 생성시킨 뒤 조회한다.
+scwin.getCellComp = function (colId, type) {
+    let g = target1;
+    let colIndex = g.getColumnIndex(colId);
+    let td = document.querySelector("td[id^='mf_target1_cell_0_'][id$='_" + colIndex + "']");
+    if (td && g.dom && g.dom[td.id + "_" + type]) {
+        return g.dom[td.id + "_" + type];
+    }
+    let ci = g.cellInfoHash ? g.cellInfoHash[colId] : null;
+    if (!ci) {
+        return null;
+    }
+    if (!ci[type] && typeof ci._createComponent === 'function') {
+        ci._createComponent(0);
+    }
+    return ci[type] || null;
+}
+
+
+
+// (자동 출력) 정렬 순환 : col1 Header 에 Tab 포커스 후 Space/Enter 를 누를 때마다 발생
+//  sortOrder 1(오름차순) -> -1(내림차순) -> 0(원래대로) -> 1 순환
+scwin.target1_onsort = function (sortInfo) {
+    let arr = [];
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        arr.push(target1.getCellData(i, 0));
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("[정렬 순환] sortOrder=" + sortInfo.sortOrder + " (1 오름차순 / -1 내림차순 / 0 원래대로), col1 표시순서=" + arr.join(","));
+}
+
+
+
+// (자동 출력) radio 값 변경 : 위아래 방향키로 선택 행이 바뀔 때 발생
+scwin.target1_onviewchange = function (info) {
+    if (info.colId !== "col2") {
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("[radio 방향키 값 변경] rowIndex=" + info.rowIndex + ", " + info.oldValue + " -> " + info.newValue);
+}
+]]></script>
+		<style type="text/css"><![CDATA[/* gridView radio inputType(col2) embedded 표시 보정
+   현재 테마에서 Cell 내부 Radio 의 테두리가 보이지 않아 테두리 폭을 복원하여 표시한다. */
+.w2grid_embedded_radio { border-width: 1px !important; }
+/* gridView calendar inputType(col4) embedded 표시 보정
+   accessibility/embeddedInput 강제로 셀에 그려지는 inputCalendar 버튼(.w2inputCalendar_button)이
+   현재 테마에서 접근성 라벨 텍스트를 아이콘 배경 위에 함께 렌더하여 겹쳐 보이는 문제를
+   font-size:0 으로 라벨 텍스트만 숨겨 아이콘만 표시한다(라벨은 DOM 에 남아 스크린리더 접근성 유지). */
+td[id*="_cell_"] .w2inputCalendar_button { font-size: 0 !important; }]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_accessibility" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSortHeader_onclick" id="btn_checkSortHeader"
+							label="정렬 Header button 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkPropagation_onclick" id="btn_checkPropagation"
+							label="inputType 전파 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
