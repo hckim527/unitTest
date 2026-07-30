@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[iframe] getGenerator" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ getGenerator 는 파라미터가 없는 메소드이며, iframe 컴포넌트는 onclick 이벤트를 지원하지 않으므로
+//    (oniframeload / oniframeunload 만 지원) 클릭 트리거가 아닌 "로드 시 자동 실행"으로 검증한다.
+//  · getGenerator 는 parentControl 을 거슬러 올라가며 첫 Generator 조상을 반환한다(engine xfControl.js:2736).
+//    - Generator 자식이면 부모 Generator 반환.
+//    - Generator 자식이 아니면 Generator 조상이 없으므로 최상위 컴포넌트(자기 자신 등, pluginName != "generator")를 반환한다.
+//  · iframe 은 dynamicCreate 시 inline src 를 주면 _dynamicCreateAfter 가 미로딩 contentDocument 접근으로 TypeError.
+//    → src 없이 생성 후 setSrc() 로 내부 페이지를 설정한다. (reference_iframe_dynamic_setsrc_not_inline)
+scwin.tData = {
+    "description" : "[iframe > M > getGenerator]<br/>컴포넌트가 Generator 컴포넌트의 자식으로 생성된 경우 부모 Generator 컴포넌트를 반환합니다.",
+    "validation" : [
+        "Generator 컴포넌트의 자식인 경우 부모 Generator 컴포넌트 객체를 반환하여야 합니다.",
+        "Generator 컴포넌트의 자식이 아닌 경우 최상위 WFrame 컴포넌트를 반환하여야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // comp 초기 생성 (비동기 dynamicCreate / insertChildAsync 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof generator1 !== 'undefined') {
+        generator1.remove();
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] iframe 컴포넌트는 onclick 이벤트를 지원하지 않으므로(oniframeload / oniframeunload 만 지원) getGenerator 는 클릭이 아닌 로드 시 자동 실행으로 검증합니다. 위쪽은 Generator(generator1)의 자식으로 생성된 iframe, 아래쪽은 Generator 자식이 아닌 별도 iframe 입니다.\n[절차] 페이지 로드(또는 [Target 재생성]) 시 두 iframe 에 대해 getGenerator() 가 자동으로 실행됩니다.\n[확인] 하단 결과창에 [1] generator 자식 iframe → 부모 Generator(generator1) 반환, [2] 비자식 iframe → Generator 미보유(pluginName 이 generator 아님) 가 대비되어 출력됩니다."', '', 'label1');
+
+    // (1) Generator 컴포넌트의 자식인 iframe 생성 (inline src 금지 → 생성 후 setSrc)
+    let strGenerator = '';
+    strGenerator += '<w2:generator ' + strNameSpace + ' id="generator1">';
+    strGenerator += '<w2:iframe id="generator1_child" style="width:500px; height:200px; border:1px solid #cccccc;"></w2:iframe>';
+    strGenerator += '</w2:generator>';
+    scwin.generator1 = await $p.dynamicCreate("generator1", "generator", strGenerator, grp_comp);
+
+    // iframe 은 비동기 plugin 이므로 generator 자식 렌더링에 insertChildAsync 사용
+    //  - 동기 insertChild() 는 자식 iframe clone 시점에 plugin 미준비 → _cloneRecursive TypeError 발생.
+    await scwin.generator1.insertChildAsync(0);
+
+    // generator 는 insert 시 자식 clone 의 id 를 재생성하므로 getChild(index, originalId) 로 조회 후 setSrc.
+    let childFrame = scwin.generator1.getChild(0, "generator1_child");
+    if (childFrame) {
+        childFrame.setSrc("/sample/common_link/iframe_link_1.xml");
+    }
+
+    // (2) Generator 컴포넌트의 자식이 아닌 별도 iframe 생성 (helper 내부에서 setSrc 처리 → 내용 표시)
+    //  ※ createBasicIframe 은 gcc 공통모듈 scwin 에 컴포넌트를 대입하므로 페이지 scwin.target1 은 undefined.
+    //    엔진 id 참조(bare target1)로 실제 생성된 별도 iframe 을 조회한다.
+    await $c.gcm.createBasicIframe();
+    let standAlone = $p.getComponentById("target1");
+
+    // getGenerator() 자동 실행 → 결과창 출력
+    scwin.runGetGenerator(childFrame, standAlone);
+}
+
+
+
+// getGenerator() 자동 실행 : generator 자식 iframe 과 비자식 iframe 의 반환값을 대비하여 결과창에 출력
+//  - 반환 객체의 getPluginName() 이 "generator" 이면 Generator component, 아니면 Not a Generator component.
+//    (비자식은 Generator 조상이 없어 null 또는 자기 자신을 반환하므로 널가드 후 판정)
+scwin.runGetGenerator = function (childFrame, standAloneFrame) {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // 재실행 시 이전 출력 초기화
+    try { b.tbx_return.setValue(""); } catch (e) {}
+
+    // [1] Generator 자식 iframe
+    let pObj = childFrame ? childFrame.getGenerator() : null;
+    if (pObj && pObj.getPluginName() == "generator")
+        b.setReturnValue("[1] generator 자식 iframe : Generator component");
+    else
+        b.setReturnValue("[1] generator 자식 iframe : Not a Generator component");
+
+    // [2] Generator 자식이 아닌 별도 iframe
+    let pObj2 = standAloneFrame ? standAloneFrame.getGenerator() : null;
+    if (pObj2 && pObj2.getPluginName() == "generator")
+        b.setReturnValue("[2] 비자식 iframe : Generator component");
+    else
+        b.setReturnValue("[2] 비자식 iframe : Not a Generator component");
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

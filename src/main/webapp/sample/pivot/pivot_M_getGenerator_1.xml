@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[scwin.onpageload = function () {
+    // Global DataList 생성 호출 (dlt_pData 포함)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// pivot 문자열 생성 헬퍼 (dataList/oncellclick 핸들러만 가변)
+scwin.getPivotStr = function (strNameSpace, cID, dataListId, eventHandler) {
+    let str = '';
+    str += '<w2:pivot ' + strNameSpace + ' id="' + cID + '" ev:oncellclick="' + eventHandler + '"';
+    str += ' dataList="' + dataListId + '" showZero="true" rows="col4,col5,col8" bodyTextAlign="right" totalTextAlign="right"';
+    str += ' cols="col6,col7" vals="col3" excludeHiddenList="" aggregatorName="Sum" useNumberFormat="true"';
+    str += ' digitsAfterDecimal="2" showGrandTotal="true" valuesAxis="row" class="mt35" style="width:600px;height:400px;margin:10px;">';
+    str += '<w2:fieldInfo>';
+    str += '<w2:field id="col1" name="row" sortOrder=""></w2:field>';
+    str += '<w2:field id="col2" name="total_bill" sortOrder=""></w2:field>';
+    str += '<w2:field id="col3" name="tip" sortOrder=""></w2:field>';
+    str += '<w2:field id="col4" name="sex" sortOrder=""></w2:field>';
+    str += '<w2:field id="col5" name="smoker" sortOrder=""></w2:field>';
+    str += '<w2:field id="col6" name="day" sortOrder=""></w2:field>';
+    str += '<w2:field id="col7" name="time" sortOrder=""></w2:field>';
+    str += '<w2:field id="col8" name="size" sortOrder=""></w2:field>';
+    str += '</w2:fieldInfo>';
+    str += '</w2:pivot>';
+    return str;
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof generator1 !== 'undefined') {
+        generator1.remove();
+    }
+
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="cell 클릭하여 출력값 확인"', '', 'label1');
+
+    // Generator 컴포넌트의 자식을 생성할 부모 Group
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // Generator 컴포넌트의 자식이 아닌 pivot(target1) 생성 → 공통 생성 함수(createBasicPivot) 사용, dlt_pData 바인딩
+    // pivot 은 비동기 plugin 이므로, generator 자식 구성 전에 먼저 생성하여 plugin 을 로드한다.
+    scwin.target1 = await $c.gcm.createBasicPivot('', 'ev:oncellclick="scwin.target1_onclick"');
+
+    // Generator 컴포넌트(빈 상태)를 먼저 생성한다.
+    // - pivot 은 generator 의 insertChild() clone 경로에서 초기화(pivotData 계산/본문 렌더)가
+    //   수행되지 않으므로, 빈 generator 를 만든 뒤 pivot 자식을 generator 안에 직접 dynamicCreate 한다.
+    //   (UT_AGENT_RULES §8.3 '빈 generator + 자식 별도 dynamicCreate' 패턴)
+    //   이렇게 하면 pivot 이 정상 init 경로로 생성되어 본문이 렌더되고,
+    //   parentControl 체인이 generator 를 포함하여 getGenerator() 가 generator 를 반환한다.
+    let strGenerator = '<w2:generator ' + strNameSpace + ' id="generator1"></w2:generator>';
+
+    scwin.generator1 = await $p.dynamicCreate(
+        "generator1",
+        "generator",
+        strGenerator,
+        grp_comp
+    );
+
+    // Generator 컴포넌트의 자식인 pivot(generator1_child) 생성 → dlt_pData 바인딩
+    // 부모를 generator1 컴포넌트로 지정하여 generator 의 자식으로 배치한다.
+    let strChild = scwin.getPivotStr(strNameSpace, 'generator1_child', 'dlt_pData', 'scwin.generator1_child_onclick');
+
+    scwin.generator1_child = await $p.dynamicCreate(
+        "generator1_child",
+        "pivot",
+        strChild,
+        scwin.generator1
+    );
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<w2:wframe id="wf_sample" src="/sample/common_M/common_M_getGenerator_1.xml" style="height: 100%"></w2:wframe>
+	</body>
+</html>

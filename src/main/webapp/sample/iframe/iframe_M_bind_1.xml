@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[iframe] bind" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ iframe 컴포넌트는 oniframeload / oniframeunload 두 이벤트만 지원한다(engine iframe.js:357 userEvents).
+//    onclick/onfocus 등은 iframe 컴포넌트 이벤트가 아니라 내부 문서로 흡수되어 미발생하므로 bind 대상에서 제외.
+//  · bind 대상 이벤트는 oniframeload(내부 페이지 로드 완료 시 발생)를 기본으로 하고, 필요 시 oniframeunload(setSrc 재로드 직전 발생).
+//  · oniframeload 재발생 트리거 : target1.setSrc(url) 재호출(재로드). 최초 comp_init 로드에서 bind 전에 이미 지나가므로
+//    "bind 후 [iframe 재로드(setSrc)] 버튼"으로 결정적으로 발생시킨다.
+//  · 사용자 정의 함수(scwin.comm_event : 고정 참조)는 bind 후 unbind 로 제거 가능 → 재로드 시 미발생.
+//  · 익명 함수(eval 로 매번 새 함수 생성)는 bind 시 새 참조가 등록되고 unbind 는 다른 참조라 매칭 실패 → 제거 불가 → 재로드 시 여전히 발생.
+scwin.tData = {
+    "description" : "[iframe > M > bind]<br/>컴포넌트의 특정 이벤트에 이벤트 핸들러를 동적으로 등록합니다.",
+    "validation" : [
+        "eventType(필수) 파라미터로 이벤트 핸들러를 등록할 이벤트의 이름을 문자열로 설정할 수 있어야 합니다.",
+        "func(필수) 파라미터로 지정한 이벤트에 등록할 이벤트 핸들러 함수를 설정할 수 있어야 합니다.",
+        "기존에 등록된 이벤트 핸들러 함수가 있으면 마지막 순서로 등록되어야 합니다.",
+        "이벤트에 동일한 핸들러 함수가 등록되어 있어도 등록이 가능하여야 합니다.",
+        "사용자 정의 함수로 이벤트 핸들러를 등록한 경우 unbind() 메소드로 등록된 사용자 정의 함수를 제거할 수 있어야 합니다.",
+        "익명 함수로 이벤트 핸들러를 등록한 경우 unbind() 메소드로 등록된 익명 함수를 제거할 수 없어야 합니다."
+    ]
+}
+
+
+// 사용자 정의 함수 / 익명 함수 정의 문자열
+//  - userFunc  : 'scwin.comm_event' → eval 시 항상 동일 함수 참조 반환 → unbind 로 제거 가능(validation 5)
+//  - anonymFunc: 익명 함수 리터럴 → eval 마다 새 함수 생성 → unbind 매칭 실패 → 제거 불가(validation 6)
+let userFunc = 'scwin.comm_event';
+let anonymFunc = 'function(e){wf_body_bottom.getObj("scwin").setReturnValue("익명 함수호출");}';
+
+
+
+scwin.onpageload = async function () {
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - iframe 을 dynamicCreate 할 때 inline src 를 주면 _dynamicCreateAfter 가 미로딩 contentDocument 에 접근하여 TypeError 발생.
+//    → src 없이 생성한 뒤 target1.setSrc() 로 내부 페이지를 설정한다. (reference_iframe_dynamic_setsrc_not_inline)
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] iframe 컴포넌트는 oniframeload / oniframeunload 두 이벤트만 지원합니다. onclick/onfocus 등은 iframe 컴포넌트 이벤트가 아니라 내부 문서로 흡수되어 미발생하므로 bind 대상에서 제외합니다.\n[절차] par_eventType(이벤트) / par_func(함수유형)을 선택하고 [bind] 버튼으로 핸들러를 등록한 뒤, [iframe 재로드(setSrc)] 버튼으로 내부 페이지를 재로드하여 oniframeload 를 재발생시킵니다.(oniframeunload 는 재로드 직전 발생)\n[확인] 재로드 시 등록된 핸들러가 실행되어 하단 결과창에 함수호출 메시지가 출력됩니다. 2회 bind 시 등록 순서대로 실행되고, [unbind] 는 사용자 정의 함수만 제거되며 익명 함수는 제거되지 않습니다.\n※ 최초 로드의 oniframeload 는 bind 전에 지나가므로 반드시 bind 후 재로드 버튼으로 확인하십시오."', '', 'label1');
+
+    // iframe 동적 생성 (inline src 금지)
+    let strTarget = '';
+    strTarget += '<w2:iframe ' + strNameSpace + ' scrolling="no" style="width:500px; height:200px; border:1px solid #cccccc;" id=""></w2:iframe>';
+    scwin.target1 = await $p.dynamicCreate("target1", "iframe", strTarget, grp_comp);
+
+    // 내부 페이지 설정 (생성 후 setSrc)
+    target1.setSrc("/sample/common_link/iframe_link_1.xml");
+}
+
+
+
+// 사용자 정의 함수 (고정 참조) : unbind 로 제거 가능
+scwin.comm_event = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("사용자 정의 함수호출");
+};
+
+
+
+// [bind 버튼] : par_eventType 이벤트에 par_func 유형의 핸들러를 등록
+scwin.btn_bind_onclick = function (e) {
+    let b = wf_body_bottom.getObj("scwin");
+    let eventType = par_eventType.getValue();
+    if (par_func.getText() == "사용자정의함수") {
+        target1.bind(eventType, eval('(' + userFunc + ')'));
+        b.setReturnValue("bind(" + eventType + ", 사용자정의함수) 등록");
+    } else {
+        target1.bind(eventType, eval('(' + anonymFunc + ')'));
+        b.setReturnValue("bind(" + eventType + ", 익명함수) 등록");
+    }
+};
+
+
+
+// [unbind 버튼] : par_eventType 이벤트에서 par_func 유형의 핸들러를 제거 시도
+//  - 사용자정의함수 : 동일 참조라 제거됨(validation 5)
+//  - 익명함수      : 매번 새 참조라 제거 실패(validation 6)
+scwin.btn_unbind_onclick = function (e) {
+    let b = wf_body_bottom.getObj("scwin");
+    let eventType = par_eventType.getValue();
+    if (par_func.getText() == "사용자정의함수") {
+        target1.unbind(eventType, eval('(' + userFunc + ')'));
+        b.setReturnValue("unbind(" + eventType + ", 사용자정의함수) 호출 → 제거됨");
+    } else {
+        target1.unbind(eventType, eval('(' + anonymFunc + ')'));
+        b.setReturnValue("unbind(" + eventType + ", 익명함수) 호출 → 제거되지 않음");
+    }
+};
+
+
+
+// [iframe 재로드(setSrc) 버튼] : 내부 페이지를 강제 재로드하여 oniframeload(재로드 직전 oniframeunload) 재발생
+scwin.btn_reload_onclick = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("--- iframe 재로드(setSrc) ---");
+    target1.setSrc("/sample/common_link/iframe_link_1.xml", true);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="eventType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_eventType" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[oniframeload]]></xf:label><xf:value><![CDATA[oniframeload]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[oniframeunload]]></xf:label><xf:value><![CDATA[oniframeunload]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="func" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_func" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[사용자정의함수]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[익명함수]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_bind_onclick" id="btn_bind" label="bind" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_unbind_onclick" id="btn_unbind" label="unbind" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_reload_onclick" id="btn_reload" label="iframe 재로드(setSrc)" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

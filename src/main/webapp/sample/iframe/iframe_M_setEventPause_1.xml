@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[iframe] setEventPause" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ iframe 컴포넌트는 oniframeload / oniframeunload 두 이벤트만 지원한다(engine iframe.js:357 userEvents).
+//    onclick 등은 iframe 컴포넌트 이벤트가 아니므로 대상 이벤트는 oniframeload(기본) / oniframeunload 이다.
+//  · setEventPause(eventList, pause) : eventList 이벤트를 pause=true 면 발생 중지, false 면 중지 해제한다.
+//  · 검증 흐름 : comp_init 에서 oniframeload/oniframeunload 핸들러를 bind → [setEventPause] 로 중지/해제 →
+//    [iframe 재로드(setSrc)] 로 내부 페이지를 재로드하여 oniframeunload(재로드 직전)/oniframeload(로드 완료)를 자연 발생시켜
+//    중지된 이벤트가 발생하지 않음을 확인한다. (bind/unbind 샘플과 동일한 재로드 트리거 방식)
+//  · eventList 지정 방식 : 단일("oniframeload") / 복수는 쉼표 목록("oniframeload,oniframeunload", 공백 없음) / null(모든 이벤트 대상).
+//  · null 로 중지한 뒤 특정 이벤트만 false 로 해제하거나, [Target 재생성]으로 초기화할 수 있다.
+scwin.tData = {
+    "description" : "[iframe > M > setEventPause]<br/>컴포넌트에 정의된 특정 이벤트의 발생을 중지하거나 중지 상태를 해제합니다.",
+    "validation" : [
+        "eventList(필수) 파라미터로 발생을 중지하거나 해제하려는 이벤트의 이름을 문자열로 설정할 수 있어야 합니다.",
+        "eventList(필수) 파라미터를 null 로 설정 시 모든 이벤트를 대상으로 동작하여야 합니다.",
+        "eventList(필수) 파라미터를 두 개 이상의 이벤트 설정 시 쉼표(',')를 사용하여 목록 형태로 설정할 수 있어야 합니다.",
+        "eventList(필수) 파라미터를 두 개 이상의 이벤트 설정 시 공백이 포함되지 않아야 합니다.",
+        "pause(필수) 파라미터로 지정한 이벤트의 발생 여부를 true/false 로 설정할 수 있어야 합니다.",
+        "pause(필수) 파라미터를 true 로 설정 시 이벤트 발생을 중지하여야 합니다.",
+        "pause(필수) 파라미터를 false 로 설정 시 이벤트 발생 중지를 해제하여야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - iframe 을 dynamicCreate 할 때 inline src 를 주면 _dynamicCreateAfter 가 미로딩 contentDocument 에 접근하여 TypeError 발생.
+//    → src 없이 생성한 뒤 target1.setSrc() 로 내부 페이지를 설정한다. (reference_iframe_dynamic_setsrc_not_inline)
+//  - oniframeload / oniframeunload 핸들러를 bind 로 등록해 두고, [iframe 재로드(setSrc)] 로 재로드하여 발생시킨다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] iframe 컴포넌트는 oniframeload / oniframeunload 두 이벤트만 지원합니다. comp_init 에서 두 이벤트 핸들러를 등록해 두었습니다.\n[절차] par_eventList(중지/해제할 이벤트) / par_pause(true=중지, false=해제)를 선택하고 [setEventPause] 버튼을 클릭한 뒤, [iframe 재로드(setSrc)] 버튼으로 iframe 을 재로드하여 oniframeunload / oniframeload 를 발생시킵니다.\n[확인] pause=true 로 중지한 이벤트는 재로드해도 결과창에 발생 메시지가 출력되지 않고(중지), pause=false 로 해제하면 다시 발생합니다. eventList=null 은 모든 이벤트, 쉼표 목록(공백 없음)은 복수 이벤트를 대상으로 합니다.\n※ 중지 상태는 [Target 재생성]으로 초기화할 수 있습니다."', '', 'label1');
+
+    // iframe 동적 생성 (inline src 금지)
+    let strTarget = '';
+    strTarget += '<w2:iframe ' + strNameSpace + ' scrolling="no" style="width:500px; height:200px; border:1px solid #cccccc;" id=""></w2:iframe>';
+    scwin.target1 = await $p.dynamicCreate("target1", "iframe", strTarget, grp_comp);
+
+    // oniframeload / oniframeunload 핸들러 등록 (trigger 로 발화되도록 준비)
+    target1.bind("oniframeload", scwin.target1_oniframeload);
+    target1.bind("oniframeunload", scwin.target1_oniframeunload);
+
+    // 내부 페이지 설정 (생성 후 setSrc)
+    target1.setSrc("/sample/common_link/iframe_link_1.xml");
+}
+
+
+
+// oniframeload 핸들러 : 발생 시 결과창에 출력 (중지된 경우 호출되지 않음)
+scwin.target1_oniframeload = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====oniframeload 이벤트 발생=====");
+};
+
+
+
+// oniframeunload 핸들러 : 발생 시 결과창에 출력 (중지된 경우 호출되지 않음)
+scwin.target1_oniframeunload = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("=====oniframeunload 이벤트 발생=====");
+};
+
+
+
+// [setEventPause 버튼] : par_eventList 이벤트를 par_pause(true 중지 / false 해제) 로 설정
+//  - eventList = "null" 선택 시 null 로 변환하여 모든 이벤트를 대상으로 한다.
+//  - 쉼표 목록("oniframeload,oniframeunload")은 공백 없이 복수 이벤트를 지정한다.
+scwin.btn_setEventPause_onclick = function (e) {
+    let eventList = par_eventList.getValue();
+    let pause = par_pause.getValue();
+
+    if (eventList == "null")
+        eventList = null;
+
+    if (pause == "true")
+        pause = true;
+    else
+        pause = false;
+
+    target1.setEventPause(eventList, pause);
+    wf_body_bottom.getObj("scwin").setReturnValue("setEventPause(" + eventList + ", " + pause + ") 호출 → " + (pause ? "발생 중지" : "중지 해제"));
+};
+
+
+
+// [iframe 재로드(setSrc) 버튼] : 내부 페이지를 강제 재로드하여 oniframeunload(재로드 직전) → oniframeload(로드 완료) 를 자연 발생
+//  - setEventPause 로 중지(pause=true)한 이벤트는 재로드해도 결과창에 발생 메시지가 출력되지 않는다.
+scwin.btn_reload_onclick = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("--- iframe 재로드(setSrc) ---");
+    target1.setSrc("/sample/common_link/iframe_link_1.xml", true);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="eventList" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_eventList" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[oniframeload]]></xf:label><xf:value><![CDATA[oniframeload]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[oniframeunload]]></xf:label><xf:value><![CDATA[oniframeunload]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[oniframeload,oniframeunload]]></xf:label><xf:value><![CDATA[oniframeload,oniframeunload]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[null]]></xf:label><xf:value><![CDATA[null]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="pause" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_pause" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setEventPause_onclick" id="btn_setEventPause" label="setEventPause(eventList,pause)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_reload_onclick" id="btn_reload" label="iframe 재로드(setSrc)" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

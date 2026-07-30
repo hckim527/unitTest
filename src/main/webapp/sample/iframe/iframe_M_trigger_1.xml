@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[iframe] trigger" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260707" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ iframe 컴포넌트는 oniframeload / oniframeunload 두 이벤트만 지원한다(engine iframe.js:357 userEvents).
+//    onclick 등은 iframe 컴포넌트에 정의되지 않은 이벤트이므로 trigger 로 발생시켜도 핸들러가 실행되지 않는다(validation 2).
+//  · trigger(type, array) 는 지정 이벤트(type)를 프로그램적으로 발생시키고, array(단일 원소 배열)의 원소를 핸들러 인자로 전달한다.
+//    iframe 의 oniframeload/oniframeunload 는 userEvent 이므로 재로드 없이 trigger 로 발화된다(engine xfControl.js:2551 fireEvent 분기).
+//  · array 전달값 : trigger(type, [{...}]) 또는 trigger(type, [[...]]) → 핸들러 e 로 배열의 첫 원소가 전달됨.
+//  · setEventPause(eventList, true) 로 중지한 이벤트는 trigger 해도 발생하지 않는다(validation 4). 해제는 [Target 재생성].
+scwin.tData = {
+    "description" : "[iframe > M > trigger]<br/>컴포넌트에 정의된 특정 이벤트를 발생시킵니다.",
+    "validation" : [
+        "type(필수) 파라미터로 발생시킬 이벤트의 이름을 문자열로 설정할 수 있어야 합니다.",
+        "type(필수) 파라미터로 컴포넌트에 정의되지 않은 이벤트의 이름 설정 시 이벤트가 발생하지 않아야 합니다.",
+        "array(선택) 파라미터로 이벤트 핸들러에 전달할 데이터를 단일 원소 배열로 설정할 수 있어야 합니다.",
+        "setEventPause() 메소드에 의해 중지된 이벤트는 발생하지 않아야 합니다."
+    ]
+}
+
+
+// array 파라미터 전달값 (단일 원소 배열) : 배열의 첫 원소가 핸들러 인자 e 로 전달됨
+let pArrayJson = [{ardata:[1, 2, 3], nmdata:'이름'}];
+let pArray = [['a', 'b', 'c']];
+
+
+
+scwin.onpageload = async function () {
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - iframe 을 dynamicCreate 할 때 inline src 를 주면 _dynamicCreateAfter 가 미로딩 contentDocument 에 접근하여 TypeError 발생.
+//    → src 없이 생성한 뒤 target1.setSrc() 로 내부 페이지를 설정한다. (reference_iframe_dynamic_setsrc_not_inline)
+//  - oniframeload / oniframeunload 핸들러를 bind 로 등록해 두고, trigger 로 재로드 없이 발화시킨다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] iframe 컴포넌트는 oniframeload / oniframeunload 두 이벤트만 지원합니다. onclick 등은 컴포넌트에 정의되지 않은 이벤트이므로 trigger 로 발생시켜도 핸들러가 실행되지 않습니다.\n[절차] par_eventType(발생시킬 이벤트) / par_array(핸들러 전달 데이터)를 선택하고 [trigger(type,array)] 버튼을 클릭하면 재로드 없이 해당 이벤트가 프로그램적으로 발생하여 등록된 핸들러가 실행됩니다.\n[확인] 하단 결과창에 이벤트 발생 메시지와 전달된 array 인자값이 출력됩니다. onclick(미정의) 선택 시에는 발생하지 않습니다. par_eventList 로 [setEventPause(eventList)] 중지한 이벤트는 trigger 해도 발생하지 않습니다.(중지 해제는 [Target 재생성])\n※ 최초 로드 시 실제 내부 페이지 로드로 oniframeload 가 1회 자연 발생합니다."', '', 'label1');
+
+    // iframe 동적 생성 (inline src 금지)
+    let strTarget = '';
+    strTarget += '<w2:iframe ' + strNameSpace + ' scrolling="no" style="width:500px; height:200px; border:1px solid #cccccc;" id=""></w2:iframe>';
+    scwin.target1 = await $p.dynamicCreate("target1", "iframe", strTarget, grp_comp);
+
+    // oniframeload / oniframeunload 핸들러 등록 (trigger 로 발화되도록 준비)
+    target1.bind("oniframeload", scwin.target1_oniframeload);
+    target1.bind("oniframeunload", scwin.target1_oniframeunload);
+
+    // 내부 페이지 설정 (생성 후 setSrc)
+    target1.setSrc("/sample/common_link/iframe_link_1.xml");
+}
+
+
+
+// oniframeload 핸들러 : trigger 로 전달된 array 인자(e)를 결과창에 출력
+scwin.target1_oniframeload = function (e) {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("=====oniframeload 이벤트 발생=====");
+    b.setReturnValue("e: " + e);
+    if (par_array.getText() == 'json' && e) {
+        b.setReturnValue("array 전달값(json): " + e["ardata"] + e["nmdata"]);
+    } else if (par_array.getText() == 'array' && e) {
+        b.setReturnValue("array 전달값(array): " + e[0] + e[1] + e[2]);
+    }
+};
+
+
+
+// oniframeunload 핸들러 : trigger 로 전달된 array 인자(e)를 결과창에 출력
+scwin.target1_oniframeunload = function (e) {
+    let b = wf_body_bottom.getObj("scwin");
+    b.setReturnValue("=====oniframeunload 이벤트 발생=====");
+    b.setReturnValue("e: " + e);
+    if (par_array.getText() == 'json' && e) {
+        b.setReturnValue("array 전달값(json): " + e["ardata"] + e["nmdata"]);
+    } else if (par_array.getText() == 'array' && e) {
+        b.setReturnValue("array 전달값(array): " + e[0] + e[1] + e[2]);
+    }
+};
+
+
+
+// [trigger 버튼] : par_eventType 이벤트를 par_array 유형의 데이터와 함께 프로그램적으로 발생
+scwin.btn_trigger_onclick = function (e) {
+    let type = par_eventType.getValue();
+    let arr = par_array.getText();
+    wf_body_bottom.getObj("scwin").setReturnValue("--- trigger(\"" + type + "\", " + arr + ") 호출 ---");
+    if (arr == '생략')
+        target1.trigger(type);
+    else if (arr == 'json')
+        target1.trigger(type, pArrayJson);
+    else
+        target1.trigger(type, pArray);
+};
+
+
+
+// [setEventPause 버튼] : par_eventList 이벤트의 발생을 중지 → 이후 trigger 해도 발생하지 않음
+scwin.btn_setEventPause_onclick = function (e) {
+    let eventList = par_eventList.getValue();
+    target1.setEventPause(eventList, true);
+    wf_body_bottom.getObj("scwin").setReturnValue("setEventPause(" + eventList + ", true) 호출 → 해당 이벤트 발생 중지 (해제는 Target 재생성)");
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="type" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_eventType" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[oniframeload]]></xf:label><xf:value><![CDATA[oniframeload]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[oniframeunload]]></xf:label><xf:value><![CDATA[oniframeunload]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[onclick(미정의)]]></xf:label><xf:value><![CDATA[onclick]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="array" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_array" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[생략]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[json]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[array]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="eventList" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_eventList" initValue="oniframeload" style=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_trigger_onclick" id="btn_trigger" label="trigger(type,array)" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setEventPause_onclick" id="btn_setEventPause" label="setEventPause(eventList)" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
