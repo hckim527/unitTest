@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] nextTabID" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260804" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 초기 렌더에 사용할 조건 기본값
+//  con_ 셀렉트박스의 초기 선택 항목(빈 값 = 미설정)과 동일하게 맞춰 초기 표시값과 적용값이 어긋나지 않도록 한다.
+//  Target 재생성 시 comp_init 이 con 선택값을 이 gVar 에 담아 동일한 경로로 사용한다.
+scwin.gVar = {
+    "cFocusMove" : "",
+    "cSenseReader" : "",
+}
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > P > nextTabID]<br/>Tab 키로 포커스 이동 시 마지막 Body Cell 에서 포커스가 이동될 다음 컴포넌트의 ID 를 설정합니다.",
+    "validation" : [
+        "focusMove='false','vertical' 인 경우 nextTabID 속성은 무시되어야 합니다.",
+        "senseReader=true 이고 useStartEndDiv=true 이면 웹접근성용 Tag 까지 포커스가 이동된 후 다음 컴포넌트로 이동되어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출 (gdl_boolean 등)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  nextTabID / focusMove / senseReader 는 렌더 시 결정되는 속성이므로 con 변경 후 Target 재생성으로만 반영한다.
+//
+//  [생성 순서] nextTabID 대상 컴포넌트가 대상을 지정하는 컴포넌트보다 먼저 생성되어야 매칭되므로
+//   startcomp -> selectbox2 -> button2 -> input2 -> target1 순으로 생성한다.
+//
+//  [tabIndex] nextTabID 미적용 시의 자연스러운 Tab 이동 순서가
+//   startcomp(1) -> target1(2) -> selectbox2(3) -> button2(4) -> input2(5) 가 되도록 부여한다.
+//
+//  본 샘플은 focusMove / senseReader 에 따른 nextTabID 동작만 확인하므로
+//   target1 의 nextTabID 는 input2 로 고정한다.
+scwin.comp_init = async function () {
+    // 엔진의 nextTabID 매핑 저장소(WebSquare.tabOrder) 는 컴포넌트 remove 시 정리되지 않으므로
+    //  Target 재생성 전에 이전 렌더의 매핑을 제거해야 변경한 con 값이 그대로 반영된다.
+    let arrOldID = [];
+    if (typeof target1 !== 'undefined') arrOldID.push(target1.id);
+    if (typeof input2 !== 'undefined') arrOldID.push(input2.id);
+    if (typeof button2 !== 'undefined') arrOldID.push(button2.id);
+    if (typeof selectbox2 !== 'undefined') arrOldID.push(selectbox2.id);
+    arrOldID.forEach(function (cid) {
+        delete WebSquare.tabOrder[cid];
+    });
+
+    // 기존 target / dataList / 보조 컴포넌트 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof input2 !== 'undefined') {
+        input2.remove();
+    }
+    if (typeof button2 !== 'undefined') {
+        button2.remove();
+    }
+    if (typeof selectbox2 !== 'undefined') {
+        selectbox2.remove();
+    }
+    if (typeof startcomp !== 'undefined') {
+        startcomp.remove();
+    }
+
+    // con 선택값을 gVar 에 담는다 (정적 select1 -> getValue(), gdl_boolean 바인딩 -> getText())
+    //  초기 로드 시 con 은 모두 빈 값이 선택되어 있어 gVar 선언부의 기본값과 동일하다.
+    scwin.gVar["cFocusMove"] = con_focusMove.getValue();
+    scwin.gVar["cSenseReader"] = con_senseReader.getText();
+
+    let cFocusMove = scwin.gVar["cFocusMove"];
+    let cSenseReader = scwin.gVar["cSenseReader"];
+
+    // 테스트 참고 라벨 (가장 먼저 생성)
+    let lbl = '';
+    lbl += '[전제] target1 의 nextTabID 는 input2 로 고정. tabIndex 순서는 startcomp(1) -> target1(2) -> selectbox2(3) -> button2(4) -> input2(5) 이므로 nextTabID 가 적용되면 input2, 무시되면 input2 가 아닌 곳으로 이동합니다.\n';
+    lbl += '현재 설정 -> focusMove=' + (cFocusMove === '' ? '(미설정)' : cFocusMove)
+        + ', senseReader=' + (cSenseReader === '' ? '(미설정)' : cSenseReader)
+        + ' (useStartEndDiv 는 기본값 true)\n';
+    lbl += '[절차] (1) GridView 의 마지막 Row 마지막 Cell(4번째 행 name4 컬럼)을 클릭해 셀에 포커스를 둔다 -> (2) Tab 키 입력. con 값을 바꾼 경우 먼저 Target 재생성을 눌러야 반영됩니다.\n';
+    lbl += '[주의] 셀이 아닌 그리드 본체에 포커스가 있는 상태에서 Tab 을 누르면 nextTabID 가 적용되지 않고 tabIndex 순서(selectbox2)로 이동합니다. 셀 포커스 시에는 target1_oncellclick 이 출력됩니다.\n';
+    lbl += '[확인] 포커스를 받은 컴포넌트의 onfocus 명이 하단 결과창에 출력됩니다. input2_onfocus 출력=nextTabID 적용, 미출력=무시.\n';
+    lbl += 'senseReader=true 인 경우 Tab 1회로 웹접근성용 Tag(끝 div) 로 이동하며 target1_endDiv_onfocus 가 출력되고, Tab 을 1회 더 입력하면 다음 컴포넌트로 이동합니다.';
+    $c.gcm.createLabel('label="' + lbl + '"', '', 'label1');
+
+    // 조건 설정 (target)
+    //  focusMode="cell" 고정 : 마지막 Body Cell 에 포커스를 두고 Tab 키 동작을 확인하기 위함
+    //  nextTabID="input2" 고정 : focusMove / senseReader 에 따른 동작 차이만 확인
+    let properties = {
+        tabIndex: 2,
+        nextTabID: "input2",
+        dataList: "data:dlt_bind",
+        focusMode: "cell",
+        focusMove: scwin.gVar["cFocusMove"],
+        senseReader: scwin.gVar["cSenseReader"],
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 조건 설정 (input)
+    let properties_input = {
+        tabIndex: 5,
+    };
+
+    let cList_input = $c.gcm.createCList(properties_input);
+
+    // 조건 설정 (button)
+    let properties_button = {
+        tabIndex: 4,
+    };
+
+    let cList_button = $c.gcm.createCList(properties_button);
+
+    // 조건 설정 (selectbox)
+    let properties_selectbox = {
+        tabIndex: 3,
+    };
+
+    let cList_selectbox = $c.gcm.createCList(properties_selectbox);
+
+    let grp_comp = $c.gcm.getTestGroup();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strStartComp = '';
+
+    strStartComp += '<xf:input ' + strNameSpace + ' tabIndex="1" initValue="start" style="width:144px; height:21px;"></xf:input>';
+
+    scwin.startcomp = await $p.dynamicCreate(
+        "startcomp",
+        "input",
+        strStartComp,
+        grp_comp
+    );
+
+    // GridView 바인딩용 dataList (4컬럼 4행)
+    $c.gcm.createBasicDataList('', '', 'dlt_bind');
+
+    //  nextTabID 는 대상 컴포넌트가 먼저 생성되어 있어야 매칭되므로 selectbox2 -> button2 -> input2 -> target1 순으로 생성한다.
+    await $c.gcm.createBasicSelectBox(cList_selectbox, 'ev:onfocus="scwin.selectbox2_onfocus"', "selectbox2");
+    await $c.gcm.createBasicButton(cList_button, 'ev:onfocus="scwin.button2_onfocus"', "button2");
+    await $c.gcm.createBasicInput(cList_input, 'ev:onfocus="scwin.input2_onfocus"', "input2");
+    await $c.gcm.createBasicGridView(cList, 'ev:onfocus="scwin.target1_onfocus" ev:oncellclick="scwin.target1_oncellclick"');
+
+    input2.setValue("input");
+
+    // senseReader=true, useStartEndDiv=true 이면 웹접근성용 Tag(끝 div) 를 경유하므로
+    //  사용자가 Tab 키를 입력해 끝 div 로 포커스가 이동하면 결과창에 출력한다.
+    let gridEl = document.getElementById('mf_target1');
+    if (gridEl) {
+        let endDiv = gridEl.querySelector('.w2grid_end_div');
+        if (endDiv) {
+            endDiv.addEventListener('focus', function () {
+                wf_body_bottom.getObj("scwin").setReturnValue("target1_endDiv_onfocus");
+            });
+        }
+    }
+}
+
+
+
+// 초기 포커스 이동
+scwin.btn_setStartFocus_onclick = function (e) {
+    startcomp.focus();
+};
+
+
+
+// 포커스 이동 결과 확인
+//  target1_onfocus 는 셀이 아닌 그리드 본체가 포커스를 받은 경우이며 이 상태에서 Tab 을 누르면 nextTabID 가 적용되지 않는다.
+scwin.target1_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("target1_onfocus");
+}
+
+
+
+// nextTabID 동작 전제(마지막 Row 마지막 Cell 포커스) 확인용 - 현재 포커스된 셀 위치 출력
+scwin.target1_oncellclick = function (rowIndex, colIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("target1_oncellclick : rowIndex=" + rowIndex + ", colIndex=" + colIndex);
+}
+
+
+
+scwin.input2_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("input2_onfocus");
+}
+
+
+
+scwin.button2_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("button2_onfocus");
+}
+
+
+
+scwin.selectbox2_onfocus = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue("selectbox2_onfocus");
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMove" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMove" ref="" selectedIndex="0" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[vertical]]></xf:label>
+												<xf:value><![CDATA[vertical]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="senseReader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean"
+										ref="" selectedIndex="0" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setStartFocus_onclick" id="btn_setInitFocus"
+							label="초기포커스이동" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
