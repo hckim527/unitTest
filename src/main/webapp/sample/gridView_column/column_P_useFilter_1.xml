@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView.column] useFilter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260810" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  본 샘플(_1) 소유 범위 : @propval true / @propval false (default)
+//  headerFilter / useFilterList 상호작용과 @spec1(showSortableUseFilter) 은 column_P_useFilter_2,
+//  @spec2(RowNum, RowStatus) / @spec3(MultiLine) 은 column_P_useFilter_3 소유 (중복 검증하지 않음)
+scwin.tData = {
+    "description" : "[column > P > useFilter]<br/>GridView 컴포넌트의 Header Column 에 CustomFilter 기능을 활성화할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, 해당 Column 에 CustomFilter 기능을 활성화하고 Header Column 에 필터 버튼을 표시합니다.",
+        "false 설정 시, 해당 Column 에 CustomFilter 기능을 비활성화하고 Header Column 에 필터 버튼을 표시하지 않습니다.",
+        "미설정 시, 해당 Column 에 CustomFilter 기능을 비활성화하고 Header Column 에 필터 버튼을 표시하지 않습니다."
+    ]
+}
+
+
+
+// 현재 target 에 적용된 useFilter 값 보관 ('' / 'true' / 'false')
+scwin.gVar = { "cUseFilter" : "" };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 미적용 -> 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    con_useFilter.setValue("2");
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - GridView 는 sortable / showSortableImage / useFilterList / headerFilter 를 모두 미설정(기본 false)
+//    -> column 의 useFilter 만으로 필터 버튼이 렌더되는 순수 조건 (정렬 이미지 조건 개입 없음)
+//  - 대상 Header Column = column1 : con_useFilter 값 적용 (true / false / 미설정)
+//  - 대조 Header Column = column2 : useFilter="true" 고정
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // useFilter : '' 미설정(기본 false) / 'true' / 'false' (공통 gdl_boolean -> getText())
+    let vUseFilter = con_useFilter.getText();
+    scwin.gVar.cUseFilter = vUseFilter;
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 대상 Header Column column1 의 useFilter = ' + (vUseFilter === '' ? '(미설정)' : vUseFilter) + ' / 대조 Header Column column2 는 useFilter=true 고정\nGridView 의 sortable / showSortableImage / useFilterList / headerFilter 는 모두 미설정(기본 false)\n[절차] con_useFilter 값 변경 -> Target 재생성 버튼 클릭 -> 헤더의 필터 버튼을 직접 클릭해 CustomFilter 팝업 확인 후 팝업 닫기\n[확인] 필터 버튼 표시 확인 버튼으로 Header Column 의 필터 버튼 유무와 CustomFilter 팝업 생성 여부 확인"', '', 'label1');
+
+    // dataList 생성 (col1~col4 4컬럼, 4행)
+    $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // 대상 Header Column(column1) 의 useFilter 속성 : 미설정('') 이면 속성 자체를 추가하지 않음
+    let column1UseFilterAttr = '';
+    if (vUseFilter === 'true' || vUseFilter === 'false') {
+        column1UseFilterAttr = ' useFilter="' + vUseFilter + '"';
+    }
+
+    // target 생성 (createBasicGridView 는 useFilter 미지원 -> 인라인 구성)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="Column useFilter 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="col1(대상)"' + column1UseFilterAttr + '></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column2" value="col2(대조:true)" useFilter="true"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="col1"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 필터 버튼 표시 확인
+//  - 필터 버튼 element id 규칙 : {gridId}_{columnID}_filter (엔진 headerController)
+//  - 대상 Header Column(column1) : useFilter 값에 따른 필터 버튼 표시/미표시
+//  - 대조 Header Column(column2) : useFilter=true 고정 -> 항상 표시
+//  - 사용자가 필터 버튼을 직접 클릭했을 때 생성되는 CustomFilter 팝업(.w2grid_customFilter) 유무
+//    (팝업이 열려 있는 동안은 모달 오버레이가 버튼 클릭을 가로채므로 팝업을 닫은 뒤 확인 -> 생성된 팝업 노드는 유지됨)
+scwin.btn_checkFilterButton_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let vUseFilter = (scwin.gVar.cUseFilter === '') ? '(미설정)' : scwin.gVar.cUseFilter;
+
+    let hdrTarget = !!document.querySelector("[id$='_column1_filter']");
+    let hdrRef = !!document.querySelector("[id$='_column2_filter']");
+
+    bottom.setReturnValue("[대상] Header Column column1 (useFilter=" + vUseFilter + ") 필터 버튼 : " + hdrTarget);
+    bottom.setReturnValue("[대조] Header Column column2 (useFilter=true) 필터 버튼 : " + hdrRef);
+
+    let customPopup = !!document.querySelector(".w2grid_customFilter");
+    bottom.setReturnValue("필터 버튼 클릭으로 생성된 CustomFilter 팝업(.w2grid_customFilter) : " + customPopup);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useFilter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_useFilter" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFilterButton_onclick" id="btn_checkFilterButton"
+							label="필터 버튼 표시 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

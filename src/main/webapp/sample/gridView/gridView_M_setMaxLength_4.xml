@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setMaxLength" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260812" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// [분리 사유]
+//  _1 : 단일 라인 그리드에서 columnInfo 를 인덱스로 지정 (숨겨진 Column 포함 인덱스 / inputType 허용 목록 / Column 단위 적용 등)
+//  _2 : columnInfo 를 Column ID 로 지정
+//  _3 : Body 를 MultiLine 으로 구성해야 검증 가능한 Column 고유 인덱스
+//  _4 (본 샘플) : @param maxLength 의 dataType="float" 전제 하위 규칙 전용.
+//                Body Column 이 dataType="float" 이어야만 float 문법(정수부.소수부) 이 적용되므로
+//                그리드 구성 자체가 text 계열인 _1/_2/_3 과 달라 별도 샘플로 분리한다.
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setMaxLength]<br/>Body Column 정보를 사용하여 특정 Column 의 maxLength 속성을 설정합니다.",
+    "validation" : [
+        "maxLength(필수) 파라미터는 Body Column 의 dataType='float' 이면 '.' 문자를 기준으로 정수부와 소수부의 최대 길이를 각각 설정할 수 있습니다. (ex-'5.2')",
+        "maxLength(필수) 파라미터는 '.' 문자를 기준으로 정수부에 '*' 를 설정하거나 생략 시 정수부 입력 제한이 없습니다. (ex-'*.2', '.2')",
+        "maxLength(필수) 파라미터는 '.' 문자를 기준으로 소수부에 '*' 또는 '-1' 설정 시 소수부 입력 제한이 없습니다. (ex-'5.*', '5.-1')",
+        "maxLength(필수) 파라미터는 '.' 문자 없이 숫자만 설정 시 정수부 최대 길이로 적용되고, 소수부는 입력할 수 없습니다.",
+        "maxLength(필수) 파라미터는 '*' 또는 '*.' 설정 시 정수부만 제한 없이 입력할 수 있습니다.",
+        "maxLength(필수) 파라미터는 '.' 문자만 설정 시 전체 입력이 제한됩니다.",
+        "dataType='float' 인 Body Column 에 setMaxLength() 메소드 실행 시 maxLength 속성엔 -1 이 설정되므로, getMaxLength() 메소드로 maxLength 조회 시 -1 값이 반환됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target/dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column num1 (인덱스 0) 은 inputType=text + dataType=float 이며 초기 maxLength=4.1 로 구성. 셀은 더블클릭으로 편집 가능.\n[절차] maxLength 값을 선택하고 (setMaxLength 실행) 클릭 -> 셀을 더블클릭해 긴 숫자(예 1234567890.123456) 를 입력 -> 다른 곳 클릭(포커스 아웃).\n[확인] 반환영역의 getMaxLength 값과, 편집 종료 시 출력되는 입력 결과값의 정수부/소수부 자릿수를 확인."', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="num1" name="num1" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "num1": "1234.5" },
+        { "num1": "987.6" },
+        { "num1": "12.34" },
+        { "num1": "5.7" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // Property 설정은 createCList 공통 함수 사용
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    // target 생성 (Body Column 1개, dataType="float")
+    //  ※ 엔진은 inputType="text" + dataType="float" 인 경우에만 maxLength 를 float 문법으로 해석한다.
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' checkAllType="false" ev:onafteredit="scwin.target1_onafteredit" id="" style="width:420px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setMaxLength 테스트 그리드(float Column)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol1" value="num1 (text + float, maxLength=4.1)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="*" style="" inputType="text" editType="text" dataType="float" maxLength="4.1" id="num1" dataList="num1"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// setMaxLength 실행 (float 문법 maxLength 문자열)
+//  - columnInfo 는 float Column(인덱스 0) 으로 고정. (인덱스/ID 지정 자체는 _1/_2 에서 검증)
+//  - dataType="float" Column 은 maxLength 속성에 -1 이 설정되므로 getMaxLength 는 -1 을 반환한다.
+scwin.btn_setMaxLength_onclick = function () {
+    let columnInfo = 0;
+    let maxLength = par_maxLength.getValue();
+
+    target1.setMaxLength(columnInfo, maxLength);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("setMaxLength(" + columnInfo + ", '" + maxLength + "') -> getMaxLength(" + columnInfo + ") : " + target1.getMaxLength(columnInfo));
+}
+
+
+
+// 셀 편집 종료(포커스 아웃) 시 발생 : 설정한 float maxLength 만큼만 입력되었는지 정수부/소수부 자릿수로 확인
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    let strValue = String(value);
+    let arrPart = strValue.split(".");
+    let intLen = arrPart[0].length;
+    let floatLen = (arrPart.length > 1) ? arrPart[1].length : 0;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("입력 결과값 : '" + strValue + "' (정수부 " + intLen + "자리 / 소수부 " + floatLen + "자리)");
+}
+
+
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true" meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxLength" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_maxLength" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[5.2 (정수부 5 . 소수부 2)]]></xf:label><xf:value><![CDATA[5.2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[*.2 (정수부 무제한 . 소수부 2)]]></xf:label><xf:value><![CDATA[*.2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[.2 (정수부 생략 -> 무제한 . 소수부 2)]]></xf:label><xf:value><![CDATA[.2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5.* (정수부 5 . 소수부 무제한)]]></xf:label><xf:value><![CDATA[5.*]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5.-1 (정수부 5 . 소수부 무제한)]]></xf:label><xf:value><![CDATA[5.-1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[5 (정수부 5 . 소수부 입력불가)]]></xf:label><xf:value><![CDATA[5]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[* (정수부만 무제한)]]></xf:label><xf:value><![CDATA[*]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[*. (정수부만 무제한)]]></xf:label><xf:value><![CDATA[*.]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[. (전체 입력 제한)]]></xf:label><xf:value><![CDATA[.]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setMaxLength_onclick" id="btn_setMaxLength"
+							label="setMaxLength 실행" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
