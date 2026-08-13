@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[컴포넌트 소개] 텍스트 입력" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20220428" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="미사용 객체 제거 및 화면 구성 변경" meta_date="20240621" meta_user="InswaveSystems" ></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// mapchart 문자열 생성 헬퍼 (id / onclick 핸들러만 가변)
+scwin.getMapChartStr = function (strNameSpace, cID, eventHandler) {
+    let str = '';
+    str += '<w2:mapchart ' + strNameSpace + ' id="' + cID + '" ev:onclick="' + eventHandler + '"';
+    str += ' style="width:300px; height:300px;"></w2:mapchart>';
+    return str;
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof generator1 !== 'undefined') {
+        generator1.remove();
+    }
+
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // Generator 컴포넌트의 자식을 생성할 부모 Group
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // Generator 컴포넌트의 자식이 아닌 mapchart(target1) 생성 → 공통 생성 함수(createBasicMapChart) 사용
+    // mapchart 은 비동기 plugin 이므로, generator 자식 구성 전에 먼저 생성하여 plugin 을 로드한다.
+    // (createBasicMapChart 는 반환값이 없고 scwin[cID] 에 직접 설정한다)
+    await $c.gcm.createBasicMapChart('', 'ev:onclick="scwin.target1_onclick"');
+
+    // Generator 컴포넌트(빈 상태)를 먼저 생성한다.
+    // - mapchart 은 generator 의 insertChild() clone 경로에서 초기화(mapchartData 계산/본문 렌더)가
+    //   수행되지 않으므로, 빈 generator 를 만든 뒤 mapchart 자식을 generator 안에 직접 dynamicCreate 한다.
+    //   (UT_AGENT_RULES §8.3 '빈 generator + 자식 별도 dynamicCreate' 패턴)
+    //   이렇게 하면 mapchart 이 정상 init 경로로 생성되어 본문이 렌더되고,
+    //   parentControl 체인이 generator 를 포함하여 getGenerator() 가 generator 를 반환한다.
+    let strGenerator = '<w2:generator ' + strNameSpace + ' id="generator1"></w2:generator>';
+
+    scwin.generator1 = await $p.dynamicCreate(
+        "generator1",
+        "generator",
+        strGenerator,
+        grp_comp
+    );
+
+    // Generator 컴포넌트의 자식인 mapchart(generator1_child) 생성
+    // 부모를 generator1 컴포넌트로 지정하여 generator 의 자식으로 배치한다.
+    let strChild = scwin.getMapChartStr(strNameSpace, 'generator1_child', 'scwin.generator1_child_onclick');
+
+    scwin.generator1_child = await $p.dynamicCreate(
+        "generator1_child",
+        "mapchart",
+        strChild,
+        scwin.generator1
+    );
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<w2:wframe id="wf_sample" src="/sample/common_M/common_M_getGenerator_1.xml" style="height: 100%"></w2:wframe>
+	</body>
+</html>
