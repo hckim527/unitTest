@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oneditkeyup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  _1 : 기본 구성 (Body 가 MultiLine 일때의 rowIndex / colIndex 하위절은 _2 샘플에서 다루므로 제외)
+scwin.tData = {
+    "description" : "[gridView > E > oneditkeyup]<br/>Body Cell 의 편집 영역에서 눌렀던 키보드의 키를 떼면 발생합니다.",
+    "validation" : [
+        "Body Cell 이 편집 상태일때만 발생합니다.",
+        "info 파라미터로 편집중인 Body Cell 과 입력된 키의 정보가 객체로 전달됩니다.",
+        "info.rowIndex 는 편집중인 Body Cell 의 Row 인덱스값을 갖습니다.",
+        "info.rowIndex 는 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "info.rowIndex 는 DrillDown 으로 숨겨진 Row 를 인덱스에 포함하지 않습니다.",
+        "info.colIndex 는 편집중인 Body Cell 의 Column 인덱스값을 갖습니다.",
+        "info.colIndex 는 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "info.colID 는 편집중인 Body Cell 의 ID 값을 갖습니다.",
+        "info.keyCode 는 눌려진 키의 코드값을 갖습니다.",
+        "info.keyCode 는 조합형 문자의 경우 229 값을 갖습니다.",
+        "info.oldValue 는 키가 눌려지기 전 Body Cell 값을 갖습니다.",
+        "info.newValue 는 키가 눌려진 후 변경된 Body Cell 값을 갖습니다.",
+        "info.inputType 은 편집중인 Body Cell 의 inputType 속성값을 갖습니다.",
+        "Body Cell 이 embeddedInput=true, inputType='text','secret','textImage' 이면 Tab, Enter, Escape 등의 특수키가 눌렸을때도 oneditkeyup 이벤트가 발생합니다.",
+        "GridView 가 편집 상태일때 키를 입력하면 onkeydown -> oneditkeydown -> onkeyup -> oneditkeyup 순서로 이벤트가 발생합니다."
+    ]
+}
+
+
+
+//  seq       : 한 번의 키 조작(누름 -> 뗌) 안에서 이벤트 발생 순번
+//  cycleDone : 직전 조작이 끝났는지 여부 (다음 누름 이벤트에서 순번을 1 부터 다시 시작)
+scwin.gVar = { "seq" : 0, "cycleDone" : true };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값을 명시 설정한다.
+    //  gdl_boolean 코드값 : 미설정="1" / true="2" / false="3"
+    con_embeddedInput.setValue("1");
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  editable="true" 로 편집 가능한 GridView 를 구성한다.
+//  embeddedInput 은 con_embeddedInput 옵션값을 Body Column 에 일괄 적용한다 (미설정이면 속성 자체를 넣지 않는다).
+//  Body Column 5개 (인덱스 0~4) - inputType 을 종류별로 배치하여 info.inputType 을 대비 검증한다.
+//   - 인덱스 0 : drilldown (이름) -> 토글로 자식 Row 를 접었다 펼치며 표시 Row 인덱스 변화를 확인
+//   - 인덱스 1 : text (메모) -> setColumnVisible(1, false) 로 숨김. 숨겨진 Column 도 인덱스에 포함되는지 검증용
+//   - 인덱스 2 : text (코드)
+//   - 인덱스 3 : secret (비밀)
+//   - 인덱스 4 : textImage (아이콘)
+//  onkeydown / oneditkeydown / onkeyup / oneditkeyup 4개 이벤트를 모두 등록하여 발생 순서를 확인한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    scwin.gVar.seq = 0;
+    scwin.gVar.cycleDone = true;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // embeddedInput 옵션 (gdl_boolean 이므로 getText 로 ''/true/false 라벨을 읽는다)
+    //  미설정('') 이면 embeddedInput 속성 자체를 Body Column 에 넣지 않는다.
+    let embeddedInput = con_embeddedInput.getText();
+    let strEmbedded = (embeddedInput === "") ? "" : ' embeddedInput="' + embeddedInput + '"';
+    let strEmbeddedLabel = (embeddedInput === "") ? "미설정" : embeddedInput;
+
+    // 조작 절차 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 편집 가능(editable=true) 그리드이며 Body Column 인덱스 0=이름(drilldown), 1=메모(text, 숨김 Column), 2=코드(text), 3=비밀(secret), 4=아이콘(textImage) 입니다. embeddedInput 의 기본값은 미설정이며 현재 embeddedInput 은 ' + strEmbeddedLabel + ' 입니다.\n[옵션] embeddedInput 은 con_embeddedInput 셀렉트박스에서 값을 고른 뒤 [Target 재생성] 버튼을 눌러야 반영됩니다. 아래 절차1~5 는 모두 기본값인 미설정 상태에서 확인하고, embeddedInput=true 로 바꿔야 하는 항목은 14번(Body Cell 이 embeddedInput=true, inputType 이 text/secret/textImage 이면 Tab, Enter, Escape 등의 특수키가 눌렸을때도 발생) 하나뿐이므로 그 항목을 확인할 때만 절차6 에서 true 로 바꿔 재생성합니다.\n표시 Row 순서는 영업본부(0) - 영업1팀(1) - 영업2팀(2) - 개발본부(3) - 개발1팀(4) - 관리팀(5) 입니다.\n[절차1] 미설정 상태에서 코드 Cell(인덱스 2) 을 한 번만 클릭해 편집 상태가 아닌 채로 방향키(아래 / 위) 를 눌렀다 떼어 결과창에 oneditkeyup 이 출력되지 않는 것을 확인한 뒤, 같은 Cell 을 더블클릭해 편집 상태로 만들고 같은 방향키를 다시 눌렀다 떼어 이번에는 oneditkeyup 이 출력되는 것을 확인합니다.\n[절차2] 편집 상태의 코드 Cell 에서 일반 문자키를 눌렀다 떼어 전달되는 정보값과 결과창 각 줄 앞의 순번을 확인합니다.\n[절차3] 개발본부 Row 의 코드 Cell 을 더블클릭해 편집 상태로 만들고 키를 입력해 rowIndex 를 확인한 뒤, 영업본부 왼쪽의 토글 아이콘을 클릭해 자식 2건(영업1팀 / 영업2팀)을 접고 같은 Cell 에서 다시 키를 입력합니다.\n[절차4] 편집 상태에서 입력기를 한글로 전환한 뒤 한글을 입력해 조합형 문자일 때의 코드값을 확인합니다.\n[절차5] 코드(인덱스 2) / 비밀(인덱스 3) / 아이콘(인덱스 4) Cell 을 각각 더블클릭해 편집 상태로 만들고 키를 입력해 출력된 inputType 값을 비교합니다.\n[절차6] 14번 항목을 확인할 때만 수행합니다. con_embeddedInput 을 true 로 바꾸고 [Target 재생성] 버튼을 눌러 반영한 뒤, 코드 / 비밀 / 아이콘 Cell(인덱스 2, 3, 4) 안에 항상 표시되는 입력창을 클릭해 커서를 둔 뒤 일반 문자키를 눌렀다 떼고, 이어서 Tab / Enter / Escape 키를 각각 눌렀다 떼어 특수키를 눌렀을때도 oneditkeyup 이 발생하는 것을 확인합니다.\n[확인] 결과창 각 줄 앞의 순번으로 네 이벤트의 발생 순서를 확인하고, Cell 종류별로 출력된 정보값을 비교합니다. 숨겨진 메모 Column(인덱스 1) 이 인덱스에 포함되는지는 코드 Cell 에서 출력된 colIndex 값으로 확인합니다."', '', 'label1');
+
+    // dataList 생성 (6 Column, 6 Row)
+    //  - name / memo / code / esec / eimg 는 Body Column 인덱스 0~4 와 순서가 일치
+    //  - depth 는 drilldown Column 의 계층 정보(부모=1, 자식=2) 로만 사용하며 화면에는 표시하지 않음
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strData += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strData += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strData += '<w2:column id="esec" name="esec" dataType="text"></w2:column>';
+    strData += '<w2:column id="eimg" name="eimg" dataType="text"></w2:column>';
+    strData += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [
+        { "name" : "영업본부", "memo" : "메모0", "code" : "코드0", "esec" : "비밀0", "eimg" : "아이콘0", "depth" : 1 },
+        { "name" : "영업1팀", "memo" : "메모1", "code" : "코드1", "esec" : "비밀1", "eimg" : "아이콘1", "depth" : 2 },
+        { "name" : "영업2팀", "memo" : "메모2", "code" : "코드2", "esec" : "비밀2", "eimg" : "아이콘2", "depth" : 2 },
+        { "name" : "개발본부", "memo" : "메모3", "code" : "코드3", "esec" : "비밀3", "eimg" : "아이콘3", "depth" : 1 },
+        { "name" : "개발1팀", "memo" : "메모4", "code" : "코드4", "esec" : "비밀4", "eimg" : "아이콘4", "depth" : 2 },
+        { "name" : "관리팀", "memo" : "메모5", "code" : "코드5", "esec" : "비밀5", "eimg" : "아이콘5", "depth" : 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList : "data:dlt_bind",
+        editable : "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 편집 상태의 키 입력과 관련된 4개 이벤트를 모두 등록하여 발생 순서를 확인한다.
+    let eList = $c.gcm.createEList(["onkeydown", "oneditkeydown", "onkeyup", "oneditkeyup"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:940px;height:280px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="0 : 이름 (DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol2" value="1 : 메모 (숨김)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol3" value="2 : 코드 (text)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol4" value="3 : 비밀 (secret)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="4 : 아이콘 (textImage)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="drilldown" depthColumn="depth" showDepth="2" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text"' + strEmbedded + ' id="memo" dataList="memo"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text"' + strEmbedded + ' id="code" dataList="code"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="secret"' + strEmbedded + ' id="esec" dataList="esec"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="textImage"' + strEmbedded + ' imageSrc="/cm/images/base/ico_grid_del.svg" id="eimg" dataList="eimg"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 두번째 Column(인덱스 1) 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증용
+    scwin.target1.setColumnVisible(1, false);
+}
+
+
+
+// 이벤트 발생 순서 출력 공통 함수
+//  - 각 핸들러가 발생 즉시 한 줄씩 출력하므로 출력 순서 = 실제 발생 순서
+//  - 순번은 키를 누르고 떼는 한 번의 조작(down -> up) 마다 1 부터 다시 시작한다.
+scwin.logEvent = function (message, isDown) {
+    if (isDown === true && scwin.gVar.cycleDone === true) {
+        scwin.gVar.seq = 0;
+        scwin.gVar.cycleDone = false;
+    }
+    scwin.gVar.seq++;
+    wf_body_bottom.getObj("scwin").setReturnValue("[" + scwin.gVar.seq + "] " + message);
+}
+
+
+
+// 표시 Row 인덱스로 해당 Row 의 이름을 구한다 (DrillDown 으로 표시 인덱스가 바뀌는지 확인용)
+scwin.getRowName = function (rowIndex) {
+    try {
+        let realIndex = target1.getRealRowIndex(rowIndex);
+        return dlt_bind.getCellData(realIndex, "name");
+    } catch (e) {
+        return "확인 불가";
+    }
+}
+
+
+
+// oneditkeyup : Body Cell 의 편집 영역에서 눌렀던 키를 떼면 발생 (검증 대상)
+//  - 표준 DOM 이벤트 객체가 아닌 info 객체이므로 가이드에 명시된 속성을 각각 출력한다.
+scwin.target1_oneditkeyup = function (info) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    scwin.logEvent("oneditkeyup 발생", false);
+    scwin.gVar.cycleDone = true;
+    bottom.setReturnValue("info 객체 전달 여부 : " + (info !== null && typeof info === "object"));
+    bottom.setReturnValue("info.rowIndex : " + info.rowIndex + " (편집 Row : " + scwin.getRowName(info.rowIndex) + ")");
+    bottom.setReturnValue("info.colIndex : " + info.colIndex);
+    bottom.setReturnValue("info.colID : " + info.colID);
+    bottom.setReturnValue("info.keyCode : " + info.keyCode);
+    bottom.setReturnValue("info.oldValue : " + info.oldValue);
+    bottom.setReturnValue("info.newValue : " + info.newValue);
+    bottom.setReturnValue("info.inputType : " + info.inputType);
+}
+
+
+
+// 발생 순서 확인용 (onkeydown -> oneditkeydown -> onkeyup -> oneditkeyup)
+scwin.target1_onkeydown = function (e) {
+    scwin.logEvent("onkeydown 발생", true);
+}
+
+scwin.target1_oneditkeydown = function (info) {
+    scwin.logEvent("oneditkeydown 발생", true);
+}
+
+scwin.target1_onkeyup = function (e) {
+    scwin.logEvent("onkeyup 발생", false);
+}
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

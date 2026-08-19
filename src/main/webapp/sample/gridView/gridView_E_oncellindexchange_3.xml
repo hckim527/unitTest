@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncellindexchange" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : DrillDown 구성 전용 샘플. rowIndex 하위절 "DrillDown 으로 숨겨진 Row 는 인덱스에 포함되지 않습니다." 만 검증.
+//     (_1 의 @spec/@param 본문, _2 의 MultiLine 관련 항목은 중복이므로 제외)
+scwin.tData = {
+    "description" : "[gridView > E > oncellindexchange]<br/>GridView 컴포넌트에서 Body Cell 의 선택이 변경될때 발생합니다.",
+    "validation" : [
+        "DrillDown 으로 숨겨진 Row 는 인덱스에 포함되지 않습니다."
+    ]
+}
+
+
+
+// 같은 Row(이름) 를 다시 선택했을 때 이전 rowIndex 와 나란히 비교하기 위한 이력
+scwin.gVar = { "history" : {} };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - DrillDown 트리(inputType="drilldown" + depthColumn="depth") 구성
+//  - showDepth="2" → 최초엔 부모/자식 6 Row 가 모두 표시된 상태
+//      표시0 영업본부(DataList0) / 표시1 영업1팀(1) / 표시2 영업2팀(2) / 표시3 개발본부(3) / 표시4 개발1팀(4) / 표시5 관리팀(5)
+//  - 영업본부의 토글 아이콘을 클릭해 자식 2건(영업1팀/영업2팀)을 접으면
+//      표시0 영업본부 / 표시1 개발본부 / 표시2 개발1팀 / 표시3 관리팀 → 개발본부의 rowIndex 가 3 에서 1 로 앞당겨진다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    // 선택 이력 초기화
+    scwin.gVar.history = {};
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] DrillDown 트리 그리드입니다. 최초에는 부모/자식 6 Row 가 모두 펼쳐진 상태이며 표시 순서는 영업본부(0) - 영업1팀(1) - 영업2팀(2) - 개발본부(3) - 개발1팀(4) - 관리팀(5) 입니다.\n[절차] 1) 펼친 상태에서 개발본부 이름 Cell 을 클릭해 rowIndex 를 확인합니다. 2) 영업본부 이름 Cell 왼쪽의 토글 아이콘을 클릭해 자식 2건(영업1팀 / 영업2팀)을 접습니다. 3) 다시 개발본부 이름 Cell 을 클릭합니다.\n[확인] 같은 Row 를 다시 선택하면 이전 선택 시 rowIndex 와 현재 rowIndex 가 나란히 출력됩니다. 접은 뒤 개발본부의 rowIndex 는 3 에서 1 로 앞당겨집니다. 토글 아이콘을 다시 클릭해 펼치면 3 으로 되돌아옵니다."', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown 컬럼의 depthColumn 으로 사용 (부모=1, 자식=2)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "영업본부", "dept": "Sales", "depth": 1 },
+        { "name": "영업1팀", "dept": "Sales", "depth": 2 },
+        { "name": "영업2팀", "dept": "Sales", "depth": 2 },
+        { "name": "개발본부", "dept": "Dev",   "depth": 1 },
+        { "name": "개발1팀", "dept": "Dev",   "depth": 2 },
+        { "name": "관리팀",   "dept": "Admin", "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 그리드 구성 (rowNum 표시 → 화면에 보이는 Row 순번을 눈으로 확인 가능)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" rowNumVisible="true" rowNumHeaderValue="No." defaultCellHeight="30" ev:oncellindexchange="scwin.target1_oncellindexchange" id="" style="width:520px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="oncellindexchange (DrillDown) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol_name" value="이름(DrillDown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol_dept" value="부서"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="300" style="" inputType="drilldown" depthColumn="depth" showDepth="2" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+};
+
+
+
+// oncellindexchange 핸들러
+//  - 파라미터(rowIndex, colIndex, oldRow, oldColIndex) 를 개별 출력
+//  - 선택된 Row 의 이름을 함께 출력하고, 같은 이름을 다시 선택하면 이전 rowIndex 와 나란히 비교 출력
+scwin.target1_oncellindexchange = function (rowIndex, colIndex, oldRow, oldColIndex) {
+    let b = wf_body_bottom.getObj("scwin");
+
+    // 표시 인덱스 → DataList 인덱스로 변환하여 선택된 Row 의 이름을 구함
+    let realIndex = target1.getRealRowIndex(rowIndex);
+    let rowName = dlt_bind.getCellData(realIndex, "name");
+
+    let msg = "oncellindexchange > rowIndex:" + rowIndex + ", colIndex:" + colIndex + ", oldRow:" + oldRow + ", oldColIndex:" + oldColIndex + " (선택 Row:" + rowName + ")";
+
+    let prevIndex = scwin.gVar.history[rowName];
+    if (prevIndex !== undefined && prevIndex !== rowIndex) {
+        msg += " ==> [" + rowName + "] 이전 선택 rowIndex:" + prevIndex + " / 현재 rowIndex:" + rowIndex;
+    }
+    scwin.gVar.history[rowName] = rowIndex;
+
+    b.setReturnValue(msg);
+};]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

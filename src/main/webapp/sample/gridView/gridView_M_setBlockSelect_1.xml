@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setBlockSelect" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  _1 : columnInfo 파라미터를 Column 인덱스(숫자)로 지정하는 분리 샘플 (_2 는 Column ID 지정, _3 은 MultiLine)
+scwin.tData = {
+    "description" : "[gridView > M > setBlockSelect]<br/>Body Column 정보를 사용하여 특정 Column 의 blockSelect 속성을 설정합니다.",
+    "validation" : [
+        "focusMode='none' 이면 Body Column 의 blockSelect 속성값에 관계없이 포커스 처리가 되지 않습니다.",
+        "columnInfo(필수) 파라미터로 blockSelect 속성을 설정하려는 Body Column 의 인덱스를 설정할 수 있어야 합니다.",
+        "columnInfo(필수) 파라미터의 Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "block(필수) 파라미터로 Column 의 포커스 처리 여부를 true/false 로 설정할 수 있어야 합니다.",
+        "block(필수) 파라미터를 true 로 설정하면 해당 Column 의 Cell 포커스 처리를 차단합니다.",
+        "block(필수) 파라미터를 false 로 설정하면 해당 Column 의 Cell 포커스 처리를 차단하지 않습니다.",
+        "block 파라미터를 true 로 설정하면 해당 Column 의 포커스가 제거됩니다.",
+        "setBlockSelect() 메소드로 포커스된 Column 을 차단한 직후 getAllFocusedIndex() 메소드 실행 시 해당 Column 도 반환하므로 주의해야 합니다.",
+        "포커스가 차단된 Column 은 setFocusedCell(), setFocusedMultiCell(), setMultiFocus() 메소드로도 포커스되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 정적 select1 기본값 설정 (초기 selectedIndex 미적용 대응)
+    con_focusMode.setSelectedIndex(0);      // 미설정
+    par_columnInfo.setSelectedIndex(2);     // 2 : col3
+    par_block.setValue("2");                // gdl_boolean : true
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  Body Column 5개 (인덱스 0~4) 중 인덱스 1(col2) 을 setColumnVisible(1,false) 로 숨김
+//   -> "Column 인덱스는 0 부터 시작하며 숨겨진 Column 도 포함하여 인덱스가 설정" 검증용
+//  focusMode 는 con_focusMode 선택값으로 생성 ('none' 선택 시 blockSelect 값과 무관하게 포커스 미처리)
+scwin.gVar = { "cFocusMode" : "" };
+
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column 인덱스 0=col1, 1=col2(숨김 Column), 2=col3, 3=col4, 4=col5 / focusMode=' + (scwin.gVar.cFocusMode === "" ? "미설정" : scwin.gVar.cFocusMode) + '\n[절차] Body Cell 을 클릭해 포커스를 준 뒤 columnInfo / block 을 선택하고 setBlockSelect 를 실행한다. 이어서 Cell 클릭 또는 setFocusedCell / setFocusedMultiCell / setMultiFocus 버튼으로 다시 포커스를 시도한다.\n[확인] 결과창의 getAllFocusedIndex / getFocusedRowIndex / getFocusedColumnIndex 값과 focusedTd(Cell) / focusedTr(Row) 클래스 개수로 실제 포커스 상태를 확인한다. focusMode 변경은 Target 재생성 버튼으로 반영한다."', '', 'label1');
+
+    // dataList 생성 (5 Column, 6 Row)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="name4" dataType="text"></w2:column>';
+    strData += '<w2:column id="col5" name="name5" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [];
+    for (let i = 1; i <= 6; i++) {
+        jsonData.push({
+            "col1" : "c1_" + i, "col2" : "c2_" + i, "col3" : "c3_" + i,
+            "col4" : "c4_" + i, "col5" : "c5_" + i
+        });
+    }
+    dlt_bind.setJSON(jsonData);
+
+    // 조건 설정 (focusMode 미설정 시 createCList 가 빈값을 제외하여 속성 미적용)
+    let properties = {
+        focusMode : scwin.gVar.cFocusMode
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" checkAllType="false" ev:oncellclick="scwin.target1_oncellclick" id="" style="width:620px;height:250px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="0 : col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="1 : col2 (숨김)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="2 : col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="3 : col4"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="4 : col5"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col5" dataList="col5"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 두번째 Column(인덱스 1) 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증용
+    scwin.target1.setColumnVisible(1, false);
+}
+
+
+
+// con_focusMode 변경값 보관 (Target 재생성 버튼으로 반영)
+scwin.con_focusMode_onchange = function () {
+    scwin.gVar.cFocusMode = con_focusMode.getValue();
+}
+
+
+
+// 현재 포커스 상태 실측 (DOM 존재 여부가 아닌 실제 포커스 상태)
+//  - getAllFocusedIndex / getFocusedRowIndex / getFocusedColumnIndex : 엔진이 보관중인 포커스 정보
+//  - focusedTd / focusedTr : 화면에 실제 적용된 Cell / Row 포커스 표시
+scwin.getFocusInfo = function () {
+    let body = document.getElementById(target1.id + "_body_tbody");
+    let tdCnt = body ? body.querySelectorAll("td.focusedTd").length : -1;
+    let trCnt = body ? body.querySelectorAll("td.focusedTr").length : -1;
+
+    return "getAllFocusedIndex=" + JSON.stringify(target1.getAllFocusedIndex())
+        + " / getFocusedRowIndex=" + target1.getFocusedRowIndex()
+        + " / getFocusedColumnIndex=" + target1.getFocusedColumnIndex()
+        + " / focusedTd " + tdCnt + "개, focusedTr " + trCnt + "개";
+}
+
+
+
+// 선택한 Column 에 실제 포커스 표시(focusedTd)된 Cell 개수 실측
+scwin.getColumnFocusedTdCount = function (columnInfo) {
+    let body = document.getElementById(target1.id + "_body_tbody");
+    if (!body) return -1;
+    return body.querySelectorAll("td.focusedTd[id*='_cell_'][id$='_" + columnInfo + "']").length;
+}
+
+
+
+// setBlockSelect 실행 : columnInfo 를 Column 인덱스(숫자)로 전달하여 blockSelect 속성을 설정
+//  쌍이 되는 get 메소드가 없으므로 해당 Column 의 cellInfo 에 반영된 blockSelect 값을 함께 출력한다.
+scwin.btn_setBlockSelect_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let columnInfo = Number(par_columnInfo.getValue());
+    let block = par_block.getText() === 'true';
+
+    bottom.setReturnValue("[실행 전] Column " + columnInfo + " 의 focusedTd " + scwin.getColumnFocusedTdCount(columnInfo) + "개 / " + scwin.getFocusInfo());
+
+    target1.setBlockSelect(columnInfo, block);
+
+    bottom.setReturnValue("setBlockSelect(" + columnInfo + ", " + block + ") -> Column " + columnInfo + " 에 설정된 blockSelect : " + target1.getCellInfo(columnInfo).options.blockSelect);
+    bottom.setReturnValue("[실행 후] Column " + columnInfo + " 의 focusedTd " + scwin.getColumnFocusedTdCount(columnInfo) + "개 / " + scwin.getFocusInfo());
+}
+
+
+
+// setFocusedCell 실행 : 차단된 Column 이 API 로도 포커스되지 않는지 확인
+scwin.btn_setFocusedCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let columnInfo = Number(par_columnInfo.getValue());
+
+    target1.removeFocusedCell();
+    target1.setFocusedCell(0, columnInfo);
+
+    bottom.setReturnValue("setFocusedCell(0, " + columnInfo + ") -> " + scwin.getFocusInfo());
+}
+
+
+
+// setFocusedMultiCell 실행 : 선택한 Column 의 Row 0 ~ Row 2 범위를 포커스 시도
+scwin.btn_setFocusedMultiCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let columnInfo = Number(par_columnInfo.getValue());
+
+    target1.removeFocusedCell();
+    target1.setFocusedMultiCell(0, columnInfo, 2, columnInfo);
+
+    bottom.setReturnValue("setFocusedMultiCell(0, " + columnInfo + ", 2, " + columnInfo + ") -> " + scwin.getFocusInfo());
+}
+
+
+
+// setMultiFocus 실행 : 선택한 Column 의 Row 0 / Row 2 Cell 을 포커스 시도
+scwin.btn_setMultiFocus_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let columnInfo = Number(par_columnInfo.getValue());
+    let cellsPosition = [ { row : 0, col : columnInfo }, { row : 2, col : columnInfo } ];
+
+    target1.removeFocusedCell();
+    target1.setMultiFocus(cellsPosition);
+
+    bottom.setReturnValue("setMultiFocus(" + JSON.stringify(cellsPosition) + ") -> " + scwin.getFocusInfo());
+}
+
+
+
+// Body Cell 클릭 시 실제 포커스 처리 결과 출력 (차단 여부를 사용자 조작으로 확인)
+scwin.target1_oncellclick = function (rowIndex, colIndex, colID) {
+    wf_body_bottom.getObj("scwin").setReturnValue("Cell 클릭 | Row " + rowIndex + " / Column 인덱스 " + colIndex + " -> " + scwin.getFocusInfo());
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_focusMode_onchange" id="con_focusMode"
+										ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cell]]></xf:label>
+												<xf:value><![CDATA[cell]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[row]]></xf:label>
+												<xf:value><![CDATA[row]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[both]]></xf:label>
+												<xf:value><![CDATA[both]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[none]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnInfo" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnInfo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 : col1]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 : col2 (숨김 Column)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : col3]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : col4]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 : col5]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="block" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_block" label="label" nodeSet="data:gdl_boolean" ref=""
+										style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setBlockSelect_onclick" id="btn_setBlockSelect"
+							label="setBlockSelect(columnInfo, block)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedCell_onclick" id="btn_setFocusedCell"
+							label="setFocusedCell" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedMultiCell_onclick" id="btn_setFocusedMultiCell"
+							label="setFocusedMultiCell" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setMultiFocus_onclick" id="btn_setMultiFocus"
+							label="setMultiFocus" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

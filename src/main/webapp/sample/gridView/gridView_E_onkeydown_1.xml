@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onkeydown" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 표준 DOM 이벤트 객체 e (KeyboardEvent) 의 개별 속성(altKey/code/key/repeat 등)은 별도 유효성으로 만들지 않고
+//    핸들러에 전달되는지 여부 1건으로만 다룬다.
+//  - @spec 의 "Event Object 의 설명은 표준 속성만을 다루고 있으며 웹브라우저에 따라 일부 차이가 있을 수 있습니다." 는
+//    브라우저 구현 차이에 대한 안내 문구로 확인 수단을 만들 수 없어 유효성에서 제외한다.
+scwin.tData = {
+    "description" : "[gridView > E > onkeydown]<br/>GridView 컴포넌트 영역에서 키보드의 키를 누를때 발생합니다.",
+    "validation" : [
+        "이벤트 핸들러에 KeyboardEvent 객체 e 가 전달됩니다.",
+        "이벤트 핸들러에서 false 값을 반환하면 일부 후속 처리가 중단됩니다.",
+        "키를 누르고 있으면 onkeydown 이벤트가 연속적으로 발생합니다.",
+        "onkeydown 와 oneditkeydown 는 별개의 이벤트이며 중복으로 발생할 수 있습니다.",
+        "oneditkeydown 이벤트는 GridView 가 편집 상태일때 발생하며 onkeydown 이벤트는 GridView 가 포커스된 상태일때 발생합니다.",
+        "GridView 가 편집 상태일때 키를 입력하면 onkeydown -> oneditkeydown -> onkeyup -> oneditkeyup 순서로 이벤트가 발생합니다."
+    ]
+}
+
+
+
+//  seq       : 한 번의 키 누름(down) 부터 뗌(up) 까지 발생한 이벤트의 순번
+//  downCount : 키를 뗄 때까지 onkeydown 이 연속으로 발생한 횟수
+scwin.gVar = { "seq" : 0, "downCount" : 0 };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값을 명시 설정
+    con_returnValue.setSelectedIndex(0);
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  editable="true" 로 편집 가능한 GridView 를 구성한다.
+//   - 포커스만 준 상태(Cell 1회 클릭) 와 편집 상태(Cell 더블클릭) 를 대비해 확인하기 위함
+//  Body Column 4개 (인덱스 0~3) 는 모두 inputType="text"
+//  onkeydown / oneditkeydown / onkeyup / oneditkeyup 4개 이벤트를 모두 등록하여 중복 발생 여부와 발생 순서를 확인한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    scwin.gVar.seq = 0;
+    scwin.gVar.downCount = 0;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 조작 절차 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 편집 가능(editable=true) 그리드이며 Body Column 인덱스 0=이름, 1=부서, 2=직급, 3=메모 이고 모두 text 입니다. Cell 을 더블클릭하면 편집 상태가 됩니다.\n[전제] 핸들러 반환값 셀렉트박스는 키를 누르는 시점에 읽으므로 Target 재생성 없이 바로 반영됩니다.\n[절차1] Cell 을 한번 클릭해 포커스만 준 상태에서 아래 방향키를 눌렀다 떼고, 이어서 같은 Cell 을 더블클릭해 편집 상태로 만든 뒤 문자키를 눌렀다 떼어 출력된 줄을 비교합니다.\n[절차2] 편집 상태에서 문자키를 한번 눌렀다 떼고 각 줄 앞의 순번으로 네 이벤트의 발생 순서를 확인합니다.\n[절차3] 편집 상태에서 문자키 하나를 누른 채 그대로 유지했다가 떼면서 결과창에 표시되는 연속 발생 횟수를 확인합니다.\n[절차4] 핸들러 반환값을 true 로 둔 채 Cell 에 포커스만 주고 아래 방향키를 눌러 포커스 Cell 이 이동하는지 확인한 뒤, false 로 바꾸고 같은 조작을 반복해 비교합니다.\n[안내] 포커스만 준 상태에서 문자키를 누르면 그 입력으로 편집 상태에 바로 진입하므로, 포커스만 준 상태를 확인할 때는 방향키를 사용합니다.\n[확인] 각 줄 앞의 순번과 키 처리 후 포커스 Cell 값을 결과창에서 확인합니다."', '', 'label1');
+
+    // dataList 생성 (4 Column, 5 Row)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strData += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strData += '<w2:column id="rank" name="rank" dataType="text"></w2:column>';
+    strData += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [
+        { "name" : "김영업", "dept" : "영업본부", "rank" : "부장", "memo" : "메모0" },
+        { "name" : "이개발", "dept" : "개발본부", "rank" : "차장", "memo" : "메모1" },
+        { "name" : "박관리", "dept" : "관리팀", "rank" : "과장", "memo" : "메모2" },
+        { "name" : "최기획", "dept" : "기획팀", "rank" : "대리", "memo" : "메모3" },
+        { "name" : "정지원", "dept" : "지원팀", "rank" : "사원", "memo" : "메모4" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let properties = {
+        dataList : "data:dlt_bind",
+        editable : "true"
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 키 입력과 관련된 4개 이벤트를 모두 등록하여 중복 발생 여부와 발생 순서를 확인한다.
+    let eList = $c.gcm.createEList(["onkeydown", "oneditkeydown", "onkeyup", "oneditkeyup"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:700px;height:240px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol1" value="0 : 이름"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="1 : 부서"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol3" value="2 : 직급"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="3 : 메모"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="rank" dataList="rank"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 이벤트 발생 순서 출력 공통 함수
+//  - 각 핸들러가 발생 즉시 한 줄씩 출력하므로 출력 순서 = 실제 발생 순서
+//  - 순번은 onkeydown 이 발생할 때마다 1 부터 다시 시작한다.
+scwin.logEvent = function (message) {
+    scwin.gVar.seq++;
+    wf_body_bottom.getObj("scwin").setReturnValue("[" + scwin.gVar.seq + "] " + message);
+}
+
+
+
+// onkeydown : GridView 영역에서 키를 누를때 발생 (검증 대상)
+//  - e 는 표준 DOM 이벤트(KeyboardEvent) 이므로 개별 속성을 나열하지 않고 전달 여부만 한 줄로 출력한다.
+//  - 핸들러 반환값 셀렉트박스에서 false 를 선택하면 false 를 반환하여 후속 처리 중단 여부를 확인한다.
+scwin.target1_onkeydown = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    // 새로 눌린 키(또는 누른 채 유지되어 반복 발생한 키) 이므로 순번을 초기화하고 연속 횟수를 증가시킨다.
+    scwin.gVar.seq = 0;
+    scwin.gVar.downCount++;
+
+    scwin.logEvent("onkeydown 발생 (키를 뗄 때까지 연속 " + scwin.gVar.downCount + " 회)");
+    bottom.setReturnValue("e : " + e);
+
+    if (con_returnValue.getValue() === "false") {
+        bottom.setReturnValue("반환 : false -> 후속 처리 중단");
+        return false;
+    }
+
+    bottom.setReturnValue("반환 : true -> 후속 처리 진행");
+    return true;
+}
+
+
+
+// onkeyup : 눌렀던 키를 뗄때 발생 (발생 순서 확인용)
+//  - 키다운의 후속 처리가 끝난 시점이므로 포커스 Cell 위치를 함께 출력하여
+//    onkeydown 에서 false 를 반환했을 때 방향키 이동 등 후속 처리가 중단되는지 확인한다.
+scwin.target1_onkeyup = function (e) {
+    scwin.gVar.downCount = 0;
+    scwin.logEvent("onkeyup 발생");
+    wf_body_bottom.getObj("scwin").setReturnValue("키 처리 후 포커스 Cell : " + target1.getFocusedRowIndex() + ", " + target1.getFocusedColumnIndex());
+}
+
+
+
+// oneditkeydown / oneditkeyup : 편집 상태에서만 발생 (onkeydown 과 별개 이벤트인지 확인용)
+scwin.target1_oneditkeydown = function (info) {
+    scwin.logEvent("oneditkeydown 발생");
+}
+
+scwin.target1_oneditkeyup = function (info) {
+    scwin.logEvent("oneditkeyup 발생");
+}
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="핸들러 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_returnValue" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

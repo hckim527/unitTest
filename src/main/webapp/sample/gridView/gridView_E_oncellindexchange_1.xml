@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oncellindexchange" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  _1 : 기본 구성 (_2 는 Body MultiLine, _3 은 DrillDown 분리 샘플)
+scwin.tData = {
+    "description" : "[gridView > E > oncellindexchange]<br/>GridView 컴포넌트에서 Body Cell 의 선택이 변경될때 발생합니다.",
+    "validation" : [
+        "rowIndex 파라미터는 새로 선택된 Cell 의 Row 인덱스값을 갖습니다.",
+        "rowIndex 파라미터는 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "colIndex 파라미터는 새로 선택된 Cell 의 Column 인덱스값을 갖습니다.",
+        "colIndex 파라미터는 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "oldRow 파라미터는 이전에 선택되었던 Cell 의 Row 인덱스값을 갖습니다.",
+        "oldRow 파라미터는 이전에 선택되었던 Cell 이 없는 경우 -1 값을 갖습니다.",
+        "oldColIndex 파라미터는 이전에 선택되었던 Column 의 인덱스값을 갖습니다.",
+        "oldColIndex 파라미터는 이전에 선택되었던 Cell 이 없는 경우 null 값을 갖습니다.",
+        "마우스 클릭, 키보드, 메소드 등 다양한 경로로 Cell 선택이 변경되면 oncellindexchange 이벤트가 발생합니다.",
+        "focusMode='none' 인 경우 마우스 클릭에 의해서만 oncellindexchange 이벤트가 발생합니다.",
+        "메소드에 의해 Cell 선택이 변경될때 메소드 종류와 동작에 따라 oncellindexchange 이벤트가 여러번 발생할 수 있습니다.",
+        "GroupBy 에 의해 생성된 Cell 이거나 Subtotal Cell 인 경우엔 oncellindexchange 이벤트가 발생하지 않습니다.",
+        "blockSelect=true 인 Body Column 은 포커스가 차단되므로 해당 영역은 oncellindexchange 이벤트가 발생하지 않습니다.",
+        "인덱스 변경과 관련된 이벤트는 oncellindexchange -> onrowindexchange -> oncolumnindexchange 순서로 발생합니다."
+    ]
+}
+
+
+
+scwin.gVar = { "cFocusMode" : "", "cGroupbySubtotal" : "", "seq" : 0, "seqTimer" : null };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 정적 select1 기본값 설정 (초기 selectedIndex 미적용 대응)
+    con_focusMode.setSelectedIndex(0);          // 미설정
+    con_groupbySubtotal.setSelectedIndex(0);    // 미설정
+    par_rowIndex.setSelectedIndex(2);           // 2
+    par_colIndex.setSelectedIndex(2);           // 2
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  Body Column 5개 (인덱스 0~4)
+//   - 인덱스 1 은 setColumnVisible(1, false) 로 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증
+//   - 인덱스 3 은 blockSelect="true" -> 포커스 차단 영역에서 이벤트 미발생 검증
+//  con_focusMode        : focusMode 속성값 (none 이면 마우스 클릭 경로만 이벤트 발생)
+//  con_groupbySubtotal  : groupby / subtotal 로 대상 그리드를 재구성하여 미발생 조건 검증
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strGS = scwin.gVar.cGroupbySubtotal;
+
+    // 현재 설정 상태 / 조작 절차 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column 인덱스 0=이름, 1=메모(숨김 Column), 2=부서, 3=차단(blockSelect=true), 4=금액 / focusMode=' + (scwin.gVar.cFocusMode === "" ? "미설정" : scwin.gVar.cFocusMode) + ' / groupbySubtotal=' + (strGS === "" ? "미설정" : strGS) + '\n[절차1] Target 재생성 버튼을 누른 직후 첫 Cell 을 선택하면 이전 선택이 없는 상태의 oldRow / oldColIndex 값을 확인할 수 있습니다.\n[절차2] Body Cell 을 마우스로 클릭하거나, Cell 선택 후 방향키 또는 Tab 키로 이동하거나, setFocusedCell / setMultiFocus 버튼을 실행합니다.\n[확인] 결과창 각 줄 앞의 순번으로 세 이벤트의 발생 순서를 확인합니다. 차단 Column(인덱스 3) 과 groupbySubtotal 로 만든 부서 그룹 영역 또는 소계 영역을 선택하면 출력이 없어야 합니다. con 값 변경은 Target 재생성 버튼으로 반영합니다."', '', 'label1');
+
+    // dataList 생성 (5 Column, 6 Row) - 부서(인덱스 2) 가 연속되도록 정렬하여 그룹/소계가 3개 생성되도록 구성
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strData += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strData += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strData += '<w2:column id="col4" name="name4" dataType="text"></w2:column>';
+    strData += '<w2:column id="col5" name="name5" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [
+        { "col1" : "이름1", "col2" : "메모1", "col3" : "개발", "col4" : "차단1", "col5" : "10" },
+        { "col1" : "이름2", "col2" : "메모2", "col3" : "개발", "col4" : "차단2", "col5" : "20" },
+        { "col1" : "이름3", "col2" : "메모3", "col3" : "개발", "col4" : "차단3", "col5" : "30" },
+        { "col1" : "이름4", "col2" : "메모4", "col3" : "영업", "col4" : "차단4", "col5" : "40" },
+        { "col1" : "이름5", "col2" : "메모5", "col3" : "영업", "col4" : "차단5", "col5" : "50" },
+        { "col1" : "이름6", "col2" : "메모6", "col3" : "기획", "col4" : "차단6", "col5" : "60" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // 조건 설정 (focusMode 미설정 시 createCList 가 빈값을 제외하여 속성 미적용)
+    let properties = {
+        dataList : "data:dlt_bind",
+        focusMode : scwin.gVar.cFocusMode
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 인덱스 변경 관련 3개 이벤트를 모두 등록하여 발생 순서를 확인한다.
+    let eList = $c.gcm.createEList(["oncellindexchange", "onrowindexchange", "oncolumnindexchange"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:640px;height:500px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol1" value="0 : 이름"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol2" value="1 : 메모 (숨김)"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol3" value="2 : 부서"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol4" value="3 : 차단"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="4 : 금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="col4" dataList="col4" blockSelect="true"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col5" dataList="col5"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+
+    // groupbySubtotal = subtotal : 부서(col3) 기준 소계 Row 구성 -> 소계 Cell 선택 시 미발생 확인
+    if (strGS === "subtotal") {
+        strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="col3">';
+        strTarget += '<w2:row style="" id="srow1">';
+        strTarget += '<w2:column width="110" style="" inputType="text" id="scol1" value="소계"></w2:column>';
+        strTarget += '<w2:column width="110" style="" inputType="text" id="scol2" value=""></w2:column>';
+        strTarget += '<w2:column width="110" style="" inputType="text" id="scol3" value=""></w2:column>';
+        strTarget += '<w2:column width="110" style="" inputType="text" id="scol4" value=""></w2:column>';
+        strTarget += '<w2:column width="*" style="" inputType="text" id="scol5" value=""></w2:column>';
+        strTarget += '</w2:row>';
+        strTarget += '</w2:subTotal>';
+    }
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 두번째 Column(인덱스 1) 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증용
+    scwin.target1.setColumnVisible(1, false);
+
+    // groupbySubtotal = groupby : 부서(인덱스 2) 기준 그룹핑 -> GroupBy 로 생성된 Cell 선택 시 미발생 확인
+    //  groupbyHeader / groupbyFooter 를 지정해 그룹 Row 에 내용을 표시(빈 Row 면 클릭 대상 식별이 어려움)
+    if (strGS === "groupby") {
+        scwin.target1.groupby({
+            sortIndex : [2],
+            sortOrder : [1],
+            groupbyHeader : [ { inputType : "expression", expression : "toggle() + depthStr()", colSpan : 5, align : "left" } ],
+            groupbyFooter : [ { value : "그룹 합계", colSpan : 5, align : "left" } ]
+        });
+    }
+}
+
+
+
+// con 변경값 보관 (Target 재생성 버튼으로 반영)
+scwin.con_focusMode_onchange = function () {
+    scwin.gVar.cFocusMode = con_focusMode.getValue();
+}
+
+scwin.con_groupbySubtotal_onchange = function () {
+    scwin.gVar.cGroupbySubtotal = con_groupbySubtotal.getValue();
+}
+
+
+
+// 이벤트 발생 순서 출력 공통 함수
+//  - 각 핸들러가 발생 즉시 한 줄씩 출력하므로 출력 순서 = 실제 발생 순서
+//  - 순번은 하나의 사용자 조작(작업 단위) 마다 1 부터 다시 시작한다.
+scwin.logEvent = function (message) {
+    if (scwin.gVar.seqTimer === null) {
+        scwin.gVar.seq = 0;
+        scwin.gVar.seqTimer = setTimeout(function () { scwin.gVar.seqTimer = null; }, 0);
+    }
+    scwin.gVar.seq++;
+    wf_body_bottom.getObj("scwin").setReturnValue("[" + scwin.gVar.seq + "] " + message);
+}
+
+
+
+// oncellindexchange : Body Cell 선택이 변경될 때 발생 (검증 대상)
+//  - 엔진 시그니처 : fireEvent(this, "oncellindexchange", newRowIndex, newColIndex, lastRowIndex, lastColumnIndex)
+//  - 표준 DOM 이벤트 객체가 아닌 개별 값이므로 각각 출력한다.
+scwin.target1_oncellindexchange = function (rowIndex, colIndex, oldRow, oldColIndex) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    scwin.logEvent("oncellindexchange 발생");
+    bottom.setReturnValue("rowIndex : " + rowIndex);
+    bottom.setReturnValue("colIndex : " + colIndex);
+    bottom.setReturnValue("oldRow : " + oldRow);
+    bottom.setReturnValue("oldColIndex : " + oldColIndex);
+}
+
+
+
+// onrowindexchange / oncolumnindexchange : 발생 순서 확인용 (순번만 출력)
+scwin.target1_onrowindexchange = function (rowIndex, oldRow) {
+    scwin.logEvent("onrowindexchange 발생");
+}
+
+scwin.target1_oncolumnindexchange = function (colIndex, oldColIndex) {
+    scwin.logEvent("oncolumnindexchange 발생");
+}
+
+
+
+// setFocusedCell 실행 : 메소드 경로로 Cell 선택을 변경
+scwin.btn_setFocusedCell_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let colIndex = Number(par_colIndex.getValue());
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[실행] setFocusedCell(" + rowIndex + ", " + colIndex + ")");
+    target1.setFocusedCell(rowIndex, colIndex);
+}
+
+
+
+// setMultiFocus 실행 : 배열의 각 요소를 처리하면서 이벤트가 여러번 발생하는지 확인
+scwin.btn_setMultiFocus_onclick = function () {
+    let cellsPosition = [ { row : 0, col : 0 }, { row : 2, col : 2 }, { row : 4, col : 4 } ];
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[실행] setMultiFocus(" + JSON.stringify(cellsPosition) + ")");
+    target1.setMultiFocus(cellsPosition);
+}
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_focusMode_onchange" id="con_focusMode"
+										ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cell]]></xf:label>
+												<xf:value><![CDATA[cell]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[row]]></xf:label>
+												<xf:value><![CDATA[row]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[both]]></xf:label>
+												<xf:value><![CDATA[both]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[none]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbySubtotal" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onchange="scwin.con_groupbySubtotal_onchange"
+										id="con_groupbySubtotal" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[groupby]]></xf:label>
+												<xf:value><![CDATA[groupby]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[subtotal]]></xf:label>
+												<xf:value><![CDATA[subtotal]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_colIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedCell_onclick" id="btn_setFocusedCell"
+							label="setFocusedCell(rowIndex, colIndex)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setMultiFocus_onclick" id="btn_setMultiFocus"
+							label="setMultiFocus(cellsPosition)" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

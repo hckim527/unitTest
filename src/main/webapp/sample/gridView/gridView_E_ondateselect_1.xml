@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] ondateselect" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  _1 : 기본 구성 (_2 는 Body MultiLine, _3 은 DrillDown 분리 샘플)
+scwin.tData = {
+    "description" : "[gridView > E > ondateselect]<br/>inputType='calendar' 인 Body Cell 의 팝업 달력에서 선택일을 변경했을때 발생합니다.",
+    "validation" : [
+        "팝업 달력에서 날짜를 선택하여 팝업 달력이 닫힌 후 Body Cell 의 입력값이 변경될때 발생합니다.",
+        "rowIndex 파라미터는 값을 입력중인 Body Cell 의 Row 인덱스값을 갖습니다.",
+        "rowIndex 파라미터는 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "colIndex 파라미터는 값을 입력중인 Body Cell 의 Column 인덱스값을 갖습니다.",
+        "colIndex 파라미터는 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "date 파라미터는 변경된 선택일을 'yyyyMMdd' 포맷의 문자열로 갖습니다.",
+        "date 파라미터는 Body Cell 에 ioFormat 속성이 적용된 경우 해당 포맷이 적용된 값을 갖습니다.",
+        "dateObject 파라미터는 변경된 선택일을 Date 객체로 갖습니다.",
+        "dateObject 파라미터의 Date 객체는 1970년 1월 1일(UTC) 자정으로부터 경과한 시간을 밀리초(ms) 단위의 정수로 저장합니다.",
+        "팝업 달력에서 '이전달', '이후달', '이전연월', '다음연월' 버튼으로 달력이 변경된 경우엔 ondateselect 이벤트가 발생하지 않습니다.",
+        "사용자 흐름상 연도 변경(onyearselect 이벤트) -> 월 변경(onmonthselect 이벤트) -> 날짜 선택(ondateselect 이벤트) 순으로 선택이 이어집니다.",
+        "팝업 달력에서 Body Cell 에 현재 입력된 날짜와 같은 날짜를 선택해도 ondateselect 이벤트가 발생합니다.",
+        "onviewchange 이벤트는 Body Cell 에 입력된 날짜가 변경된 경우에만 발생합니다."
+    ]
+}
+
+
+
+scwin.gVar = { "seq" : 0 };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  Body Column 4개 (인덱스 0~3)
+//   - 인덱스 1(col2) 은 setColumnVisible(1, false) 로 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증
+//   - 인덱스 2(col3) 은 calendar Column (ioFormat 미설정 -> 기본 yyyyMMdd)
+//   - 인덱스 3(col4) 은 calendar Column (ioFormat="ddMMyyyy") -> date 파라미터에 ioFormat 이 적용되는지 대비 검증
+//  두 calendar Column 은 embeddedInput="true" 로 셀 안에 달력 아이콘이 항상 표시되어
+//  사용자가 아이콘 클릭 한 번으로 팝업 달력을 열 수 있다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 이벤트 발생 순번 초기화
+    scwin.gVar.seq = 0;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 조작 절차 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column 인덱스 0=이름, 1=메모(숨김 Column), 2=일자, 3=일자(입출력 포맷 ddMMyyyy)\n[절차1] 일자 Cell 안의 달력 아이콘을 클릭해 팝업 달력을 열고 날짜를 클릭합니다. Row 와 Column 을 바꿔가며 반복합니다.\n[절차2] 팝업 달력 상단의 연도 목록에서 연도를 고르고, 이어서 월 목록에서 월을 고른 뒤 날짜를 클릭합니다.\n[절차3] 팝업 달력 상단의 달 이동 버튼과 연월 이동 버튼만 누른 뒤 팝업 바깥을 클릭해 닫습니다.\n[절차4] Cell 에 이미 입력되어 있는 날짜와 같은 날짜를 다시 클릭합니다.\n[확인] 결과창 각 줄 앞의 순번으로 이벤트 발생 순서를 확인합니다. 순번은 Target 재생성 시 1 부터 다시 시작합니다."', '', 'label1');
+
+    // dataList 생성 (4 Column, 4 Row)
+    //  - calendar Column 과 바인딩되는 col3 / col4 는 dataType="date"
+    //  - col4 는 ioFormat="ddMMyyyy" 이므로 저장값도 ddMMyyyy 형태로 구성
+    let dlXml = '';
+    dlXml += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map" saveRemovedData="true">';
+    dlXml += '<w2:columnInfo>';
+    dlXml += '<w2:column id="col1" name="이름" dataType="text"></w2:column>';
+    dlXml += '<w2:column id="col2" name="메모" dataType="text"></w2:column>';
+    dlXml += '<w2:column id="col3" name="일자" dataType="date"></w2:column>';
+    dlXml += '<w2:column id="col4" name="일자2" dataType="date"></w2:column>';
+    dlXml += '</w2:columnInfo>';
+    dlXml += '<w2:data use="true">';
+    dlXml += '<w2:row><col1>이름1</col1><col2>메모1</col2><col3>20260115</col3><col4>15012026</col4></w2:row>';
+    dlXml += '<w2:row><col1>이름2</col1><col2>메모2</col2><col3>20260220</col3><col4>20022026</col4></w2:row>';
+    dlXml += '<w2:row><col1>이름3</col1><col2>메모3</col2><col3>20260310</col3><col4>10032026</col4></w2:row>';
+    dlXml += '<w2:row><col1>이름4</col1><col2>메모4</col2><col3>20260405</col3><col4>05042026</col4></w2:row>';
+    dlXml += '</w2:data>';
+    dlXml += '</w2:dataList>';
+    $p.data.create(dlXml);
+
+    // 팝업 달력 관련 이벤트를 모두 등록하여 발생 순서와 발생 조건을 확인한다.
+    let eList = $c.gcm.createEList(["ondateselect", "onviewchange", "onyearselect", "onmonthselect"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' checkAllType="false" editable="true" dataList="data:dlt_bind" id="" style="width:700px;height:240px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="110" inputType="text" id="hcol1" value="0 : 이름"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="hcol2" value="1 : 메모 (숨김)"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="text" id="hcol3" value="2 : 일자"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="text" id="hcol4" value="3 : 일자 (입출력 포맷)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="110" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="110" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="200" inputType="calendar" dataType="date" embeddedInput="true" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="*" inputType="calendar" dataType="date" embeddedInput="true" calendarValueType="yearMonthDate" ioFormat="ddMMyyyy" displayFormat="dd-MM-yyyy" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 두번째 Column(인덱스 1) 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증용
+    scwin.target1.setColumnVisible(1, false);
+}
+
+
+
+// 이벤트 발생 순서 출력 공통 함수
+//  - 각 핸들러가 발생 즉시 한 줄씩 출력하므로 출력 순서 = 실제 발생 순서
+//  - 순번은 Target 재생성 시 1 부터 다시 시작한다.
+scwin.logEvent = function (message) {
+    scwin.gVar.seq++;
+    wf_body_bottom.getObj("scwin").setReturnValue("[" + scwin.gVar.seq + "] " + message);
+}
+
+
+
+// ondateselect : 팝업 달력에서 선택일을 변경했을 때 발생 (검증 대상)
+//  - 엔진 시그니처 : fireEvent(this, "ondateselect", rowIndex, colIndex, formattedValue, dateObj)
+//  - 표준 DOM 이벤트 객체가 아닌 개별 값이므로 각각 출력한다.
+scwin.target1_ondateselect = function (rowIndex, colIndex, date, dateObject) {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    scwin.logEvent("ondateselect 발생");
+    bottom.setReturnValue("rowIndex : " + rowIndex);
+    bottom.setReturnValue("colIndex : " + colIndex);
+    bottom.setReturnValue("date : " + date);
+    bottom.setReturnValue("dateObject 날짜 : " + dateObject.getFullYear() + "-" + ("0" + (dateObject.getMonth() + 1)).slice(-2) + "-" + ("0" + dateObject.getDate()).slice(-2));
+    bottom.setReturnValue("dateObject 경과 밀리초 : " + dateObject.getTime());
+}
+
+
+
+// onviewchange : Body Cell 에 입력된 날짜가 변경된 경우에만 발생하는지 확인용
+scwin.target1_onviewchange = function (info) {
+    scwin.logEvent("onviewchange 발생 (이전값 " + info.oldValue + " / 변경값 " + info.newValue + ")");
+}
+
+
+
+// onyearselect / onmonthselect : 발생 순서 확인용 (순번만 출력)
+scwin.target1_onyearselect = function (rowIndex, colIndex, info) {
+    scwin.logEvent("onyearselect 발생");
+}
+
+scwin.target1_onmonthselect = function (rowIndex, colIndex, info) {
+    scwin.logEvent("onmonthselect 발생");
+}
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

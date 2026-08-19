@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] setFocusedHeaderObj" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[gridView > M > setFocusedHeaderObj]<br/>Header Column 의 ID 를 사용하여 특정 Header 에 포커스를 설정합니다.",
+    "validation" : [
+        "headerId(필수) 파라미터로 포커스를 설정할 Header Column 의 ID 를 설정할 수 있어야 합니다.",
+        "Header Column 의 inputType='checkbox','select','checkcombobox' 인 경우에만 동작합니다.",
+        "Header 영역의 포커스는 Body 영역의 포커스와 별개로 설정됩니다.",
+        "Header 영역의 포커스는 focusMode 속성값과 관계없이 동작합니다.",
+    ]
+}
+
+
+// Header Column ID 별 inputType (결과 출력용)
+scwin.gVar = {
+    "inputTypeMap" : {
+        "hCheck"  : "checkbox",
+        "hSelect" : "select",
+        "hCombo"  : "checkcombobox",
+        "hText"   : "text"
+    }
+};
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 기본값 설정 (초기 selectedIndex 미적용 대응)
+    con_focusMode.setSelectedIndex(0);
+    par_headerId.setSelectedIndex(0);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+// comp 생성
+//  - Header : hCheck(checkbox) / hSelect(select) / hCombo(checkcombobox) / hText(text)
+//    -> 지원 inputType 3종 전수 + 미지원 inputType(text) 을 한 그리드에서 비교 검증
+//  - focusMode 는 con_focusMode 콤보값으로 반영 (Target 재생성 시 적용)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof dlt_item !== 'undefined') {
+        $p.data.remove("dlt_item");
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Header 는 hCheck(checkbox) / hSelect(select) / hCombo(checkcombobox) / hText(text) 4종으로 구성 (인덱스 0,1,2,3 순서)\n[절차] Body Cell 을 클릭해 Body 포커스를 준 뒤, headerId 를 선택하고 아래 버튼을 클릭\n[확인] 결과창의 (포커스된 요소) 와 (Header 영역 내부 포커스 여부) 로 Header 포커스를, (Body 포커스) 인덱스 유지 여부로 Body 포커스와의 분리를 판단\n[참고] focusMode 를 바꿔 확인하려면 focusMode 선택 후 (Target 재생성) 버튼 클릭"', '', 'label1');
+
+    // 헤더 select / checkcombobox 아이템 DataList
+    let strItem = '';
+    strItem += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_item" baseNode="list" repeatNode="map">';
+    strItem += '<w2:columnInfo>';
+    strItem += '<w2:column id="iValue" name="iValue" dataType="text"></w2:column>';
+    strItem += '<w2:column id="iLabel" name="iLabel" dataType="text"></w2:column>';
+    strItem += '</w2:columnInfo>';
+    strItem += '<w2:data use="true"></w2:data>';
+    strItem += '</w2:dataList>';
+    $p.data.create(strItem);
+    dlt_item.setJSON([
+        { "iValue": "A", "iLabel": "최우수" },
+        { "iValue": "B", "iLabel": "우수" },
+        { "iValue": "C", "iLabel": "보통" }
+    ], false);
+
+    // Body 데이터용 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "col1": "false", "col2": "A", "col3": "노트북", "col4": "재고확인" },
+        { "col1": "false", "col2": "B", "col3": "모니터", "col4": "신규입고" },
+        { "col1": "false", "col2": "C", "col3": "키보드", "col4": "할인적용" },
+        { "col1": "false", "col2": "A", "col3": "마우스", "col4": "주문대기" }
+    ], false);
+
+    // 조건 설정 (focusMode)
+    let properties = {
+        focusMode : con_focusMode.getValue()
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 헤더 아이템 바인딩 조각 (select / checkcombobox 헤더용)
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_item"><w2:label ref="iLabel"></w2:label><w2:value ref="iValue"></w2:value></w2:itemset></w2:choices>';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" checkAllType="include" id="" style="width:600px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="setFocusedHeaderObj 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="110" inputType="checkbox" id="hCheck" value=""></w2:column>';
+    strTarget += '<w2:column width="150" inputType="select" id="hSelect" value="">' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="170" inputType="checkcombobox" id="hCombo" value="">' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="hText" value="분류(text)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="110" inputType="checkbox" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="col2" dataList="col2" displayType="label"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="col3" dataList="col3" displayType="label"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="col4" dataList="col4" displayType="label"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+// 실제 포커스된 요소(document.activeElement)를 실측하여 출력
+//  - Header 영역 내부 포커스 여부는 대상 Header 의 th 요소가 activeElement 를 포함하는지로 판정
+//  - Body 포커스(Row/Column 인덱스)를 함께 출력하여 Header 포커스와 별개로 유지되는지 확인
+scwin.printHeaderFocus = function (headerId) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let th = target1.getHeaderLayer(headerId);
+    let act = document.activeElement;
+
+    let actDesc = "없음";
+    if (act && act !== document.body) {
+        let type = act.getAttribute("type");
+        actDesc = act.tagName + (type ? "[type=" + type + "]" : "") + (act.className ? " (class=" + act.className + ")" : "");
+        let ownerTh = act.closest("th");
+        if (ownerTh) actDesc += " (소속 Header : " + ownerTh.id + ")";
+    }
+
+    let inHeader = !!(th && act && th.contains(act));
+    bottom.setReturnValue("포커스된 요소 : " + actDesc + " / Header 영역 내부 포커스 여부 : " + inHeader);
+    bottom.setReturnValue("Body 포커스 - getFocusedRowIndex : " + target1.getFocusedRowIndex() + ", getFocusedColumnIndex : " + target1.getFocusedColumnIndex());
+}
+
+
+// setFocusedHeaderObj(headerId) : headerId 파라미터로 Header 포커스 설정
+//  - 지원 inputType(checkbox/select/checkcombobox) 과 미지원 inputType(text) 을 비교 확인
+//  - focusMode 와 무관하게 동작하는지도 동일 버튼으로 확인 (focusMode 변경 후 Target 재생성)
+scwin.btn_setFocusedHeaderObj_onclick = function () {
+    let headerId = par_headerId.getValue();
+    let inputType = scwin.gVar.inputTypeMap[headerId];
+    let focusMode = con_focusMode.getValue() === '' ? '미설정' : con_focusMode.getValue();
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    target1.setFocusedHeaderObj(headerId);
+
+    bottom.setReturnValue("setFocusedHeaderObj('" + headerId + "') 실행 - Header inputType : " + inputType + ", focusMode : " + focusMode);
+    scwin.printHeaderFocus(headerId);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cell]]></xf:label>
+												<xf:value><![CDATA[cell]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[row]]></xf:label>
+												<xf:value><![CDATA[row]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[both]]></xf:label>
+												<xf:value><![CDATA[both]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[none]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="headerId" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_headerId" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[hCheck (checkbox)]]></xf:label>
+												<xf:value><![CDATA[hCheck]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[hSelect (select)]]></xf:label>
+												<xf:value><![CDATA[hSelect]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[hCombo (checkcombobox)]]></xf:label>
+												<xf:value><![CDATA[hCombo]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[hText (text)]]></xf:label>
+												<xf:value><![CDATA[hText]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedHeaderObj_onclick" id="btn_setFocusedHeaderObj"
+							label="setFocusedHeaderObj" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
