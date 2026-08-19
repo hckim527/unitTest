@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] oneditend" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260819" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  _1 : 기본 구성
+//   - Body 가 MultiLine 일때의 rowIndex / colIndex 하위절은 _2 샘플에서 다루므로 제외
+//   - DrillDown 으로 숨겨진 Row 관련 하위절은 _3 샘플에서 다루므로 제외
+scwin.tData = {
+    "description" : "[gridView > E > oneditend]<br/>편집 상태인 Body Cell 의 편집이 완료되어 포커스가 나오기 직전에 발생합니다.",
+    "validation" : [
+        "rowIndex 파라미터는 편집중인 Body Cell 의 Row 인덱스값을 갖습니다.",
+        "rowIndex 파라미터는 GridView 에 표시된 Row 를 기준으로 인덱스가 설정됩니다.",
+        "colIndex 파라미터는 편집중인 Body Cell 의 Column 인덱스값을 갖습니다.",
+        "colIndex 파라미터는 숨겨진 Column 도 포함하여 인덱스가 설정됩니다.",
+        "value 파라미터는 편집중인 Body Cell 의 데이터를 문자열로 갖습니다.",
+        "true 를 반환하면 Body Cell 의 편집을 완료하고 관련 이벤트가 발생합니다.",
+        "false 를 반환하면 Body Cell 의 편집 상태를 유지하고 관련 이벤트가 발생하지 않습니다.",
+        "반환값을 생략할 경우 true 로 적용됩니다.",
+        "편집 상태 변경과 관련된 이벤트는 onbeforeedit -> oneditend -> onafteredit -> onviewchange 순서로 발생합니다.",
+        "viewChangeAfterEdit=true 인 경우엔 이벤트가 onbeforeedit -> oneditend -> onviewchange -> onafteredit 순서로 변경됩니다.",
+        "oneditend 이벤트는 데이터 저장 이전에 발생하여 false 반환으로 편집 종료를 취소할 수 있지만 onafteredit 이벤트는 데이터가 DataList 에 반영된 이후에 발생하여 편집 종료를 취소할 수 없습니다."
+    ]
+}
+
+
+
+//  seq : 한 번의 편집 조작(편집 시작 -> 편집 종료) 안에서 이벤트 발생 순번
+scwin.gVar = { "seq" : 0 };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값을 명시 설정한다.
+    //  con_viewChangeAfterEdit 는 gdl_boolean 바인딩 -> 코드값 : 미설정="1" / true="2" / false="3"
+    con_viewChangeAfterEdit.setValue("1");
+    con_returnValue.setSelectedIndex(0);
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  editable="true" 로 편집 가능한 GridView 를 구성한다.
+//  Body Column 4개 (인덱스 0~3)
+//   - 인덱스 0 : 이름
+//   - 인덱스 1 : 메모 -> setColumnVisible(1, false) 로 숨김. 숨겨진 Column 도 인덱스에 포함되는지 검증용
+//   - 인덱스 2 : 부서 (화면상으로는 두번째 Column 이지만 인덱스는 2)
+//   - 인덱스 3 : 금액
+//  DataList 는 6건이지만 use 값이 Y 인 4건만 필터로 표시하여
+//  표시 Row 인덱스(0~3) 와 DataList Row 인덱스(0, 2, 4, 5) 가 서로 다르도록 구성한다.
+//  con_viewChangeAfterEdit : viewChangeAfterEdit 속성값 (미설정/true/false) - 렌더 시 결정되므로 Target 재생성으로 반영
+scwin.comp_init = async function () {
+    // 편집 상태에서 재생성하면 편집 종료 처리가 이미 제거된 대상을 참조하므로,
+    //  재생성 전에 편집 상태를 먼저 빠져나오고 예약된 편집 종료 처리가 끝날 때까지 기다린다.
+    try {
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+    } catch (e) { }
+    await new Promise(function (resolve) { setTimeout(resolve, 50); });
+
+    // 기존 target / dataList 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    scwin.gVar.seq = 0;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // viewChangeAfterEdit 옵션 (gdl_boolean 이므로 getText 로 ''/true/false 라벨을 읽는다)
+    //  미설정('') 이면 createCList 가 빈값을 제외하여 속성 자체를 부여하지 않는다.
+    let viewChangeAfterEdit = con_viewChangeAfterEdit.getText();
+    let strVCAELabel = (viewChangeAfterEdit === "") ? "미설정" : viewChangeAfterEdit;
+
+    // 조작 절차 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 편집 가능(editable=true) 그리드이며 Body Column 인덱스는 0=이름, 1=메모(숨김 Column), 2=부서, 3=금액 입니다. 숨겨진 메모 Column 때문에 화면상 두번째 Column 인 부서의 인덱스는 2 입니다.\n[전제] DataList 6건 중 2건이 필터로 제외되어 표시 Row 인덱스(0, 1, 2, 3) 와 DataList Row 인덱스(0, 2, 4, 5) 가 서로 다릅니다.\n[전제] 핸들러 반환값 셀렉트박스에서 고른 값이 편집 종료 시점에 그대로 적용되며 기본값은 미설정(반환문 없음)입니다. 이 값은 Target 재생성 없이 즉시 반영됩니다.\n[전제] viewChangeAfterEdit 의 기본값은 미설정이며 현재 ' + strVCAELabel + ' 입니다. 값을 바꾼 뒤에는 Target 재생성 버튼을 눌러야 반영됩니다.\n[절차1] 핸들러 반환값을 미설정으로 두고 Body Cell 을 더블클릭해 편집 상태로 만든 뒤 값을 바꾸고 다른 Cell 을 클릭하거나 Tab 키를 눌러 포커스를 옮깁니다.\n[절차2] 핸들러 반환값을 true 로 바꾸고 절차1 을 다시 수행합니다.\n[절차3] 핸들러 반환값을 false 로 바꾸고 절차1 을 다시 수행하여 편집 상태가 유지되는지, 이어지는 이벤트 출력이 없는지 확인합니다. (다음 절차로 넘어가기 전에 반환값을 미설정 또는 true 로 되돌려 편집을 빠져나옵니다.)\n[절차4] 숨김 Column 의 영향은 화면상 두번째 Column 인 부서 Cell 을, 표시 Row 기준은 마지막 Row 를 편집하여 확인합니다.\n[절차5] viewChangeAfterEdit 을 true 와 false 로 각각 바꿔 Target 재생성 버튼을 누른 뒤 절차1 을 다시 수행합니다.\n[확인] 결과창 각 줄 앞의 순번으로 이벤트 발생 순서를 확인하고, 출력된 파라미터값을 실제로 편집한 Cell 의 위치 및 값과 대조합니다. 각 이벤트 시점의 DataList 저장값도 함께 출력됩니다."', '', 'label1');
+
+    // dataList 생성 (5 Column, 6 Row)
+    //  - name / memo / dept / amt 는 Body Column 인덱스 0~3 과 순서가 일치
+    //  - use 는 표시 대상 여부(Y/N) 로 필터에만 사용하며 화면에는 표시하지 않음
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strData += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strData += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strData += '<w2:column id="amt" name="amt" dataType="text"></w2:column>';
+    strData += '<w2:column id="use" name="use" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [
+        { "name" : "이름1", "memo" : "메모1", "dept" : "개발", "amt" : "10", "use" : "Y" },
+        { "name" : "이름2", "memo" : "메모2", "dept" : "개발", "amt" : "20", "use" : "N" },
+        { "name" : "이름3", "memo" : "메모3", "dept" : "영업", "amt" : "30", "use" : "Y" },
+        { "name" : "이름4", "memo" : "메모4", "dept" : "영업", "amt" : "40", "use" : "N" },
+        { "name" : "이름5", "memo" : "메모5", "dept" : "기획", "amt" : "50", "use" : "Y" },
+        { "name" : "이름6", "memo" : "메모6", "dept" : "기획", "amt" : "60", "use" : "Y" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // use 값이 Y 인 Row 만 표시 -> 표시 Row 인덱스와 DataList Row 인덱스가 달라진다.
+    dlt_bind.setFilter({ type : "row", colIndex : "use", key : "Y", condition : "and", exactMatch : true, clearFilter : "all" });
+
+    let properties = {
+        dataList : "data:dlt_bind",
+        editable : "true",
+        viewChangeAfterEdit : viewChangeAfterEdit
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 편집 상태 변경과 관련된 4개 이벤트를 모두 등록하여 발생 순서를 확인한다.
+    //  (onbeforeedit / onafteredit / onviewchange 는 순서 확인용이며 검증 대상은 oneditend 이다)
+    let eList = $c.gcm.createEList(["onbeforeedit", "oneditend", "onafteredit", "onviewchange"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' ' + eList + ' id="" style="width:640px;height:220px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol1" value="0 : 이름"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="1 : 메모 (숨김)"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol3" value="2 : 부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="3 : 금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="memo" dataList="memo"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="amt" dataList="amt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 두번째 Column(인덱스 1) 숨김 -> 숨겨진 Column 도 인덱스에 포함되는지 검증용
+    scwin.target1.setColumnVisible(1, false);
+}
+
+
+
+// con_viewChangeAfterEdit 변경은 Target 재생성 버튼으로만 반영한다.
+//  con_returnValue 는 이벤트 발생 시점에 직접 읽으므로 재생성 없이 즉시 반영된다.
+
+
+
+// 이벤트 발생 순서 출력 공통 함수
+//  - 각 핸들러가 발생 즉시 한 줄씩 출력하므로 출력 순서 = 실제 발생 순서
+//  - 순번은 하나의 편집 조작(편집 시작 -> 편집 종료) 마다 1 부터 다시 시작한다.
+scwin.logEvent = function (message) {
+    scwin.gVar.seq++;
+    wf_body_bottom.getObj("scwin").setReturnValue("[" + scwin.gVar.seq + "] " + message);
+}
+
+
+
+// 해당 시점에 DataList 에 저장되어 있는 Cell 값을 구한다.
+//  - 필터가 적용된 DataList 의 getCellData 는 필터로 남은 Row 기준 인덱스를 사용하므로
+//    표시 Row 인덱스를 그대로 넘기고, Column 은 colIndex 로 구한 Column ID 로 조회한다.
+scwin.getStoredValue = function (rowIndex, colIndex) {
+    try {
+        return dlt_bind.getCellData(rowIndex, target1.getColumnID(colIndex));
+    } catch (e) {
+        return "확인 불가";
+    }
+}
+
+
+
+// oneditend : 편집이 완료되어 포커스가 나오기 직전에 발생 (검증 대상)
+//  - 표준 DOM 이벤트 객체가 아닌 개별 파라미터이므로 가이드에 명시된 값을 각각 출력한다.
+//  - rowIndex 는 표시 Row 기준이므로 getRealRowIndex 로 구한 DataList Row 인덱스와 함께 출력해 대비한다.
+//  - con_returnValue : true -> return true / false -> return false / 미설정 -> 반환문 없음(undefined)
+scwin.target1_oneditend = function (rowIndex, colIndex, value) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let returnValueVal = con_returnValue.getValue();
+
+    scwin.logEvent("oneditend 발생");
+    bottom.setReturnValue("rowIndex : " + rowIndex + " (DataList Row 인덱스 : " + target1.getRealRowIndex(rowIndex) + ")");
+    bottom.setReturnValue("colIndex : " + colIndex);
+    bottom.setReturnValue("value : " + value + " (타입 : " + (typeof value) + ")");
+    bottom.setReturnValue("이 시점의 DataList 저장값 : " + scwin.getStoredValue(rowIndex, colIndex));
+    bottom.setReturnValue("적용 반환값 : " + (returnValueVal === '' ? '생략(반환문 없음)' : returnValueVal));
+
+    if (returnValueVal === 'true') {
+        return true;
+    } else if (returnValueVal === 'false') {
+        return false;
+    }
+}
+
+
+
+// 발생 순서 확인용 (검증 대상 아님)
+//  onbeforeedit 에서 순번을 초기화하여 편집 조작 단위로 순번을 매긴다.
+scwin.target1_onbeforeedit = function (rowIndex, colIndex, value) {
+    scwin.gVar.seq = 0;
+    scwin.logEvent("onbeforeedit 발생");
+}
+
+// onafteredit 는 데이터가 DataList 에 반영된 이후에 발생하므로 이 시점의 저장값을 함께 출력한다.
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    scwin.logEvent("onafteredit 발생");
+    wf_body_bottom.getObj("scwin").setReturnValue("이 시점의 DataList 저장값 : " + scwin.getStoredValue(rowIndex, colIndex));
+}
+
+scwin.target1_onviewchange = function (info) {
+    scwin.logEvent("onviewchange 발생");
+}
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="핸들러 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_returnValue" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="viewChangeAfterEdit" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_viewChangeAfterEdit" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

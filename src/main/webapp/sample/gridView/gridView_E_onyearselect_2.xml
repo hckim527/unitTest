@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onyearselect" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260819" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : Body 가 MultiLine 일때의 onyearselect 전용 분리 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : c1 | calDate1(달력) | c2   (colIndex 0,1,2)
+//       Line2 : c3 | calDate2(달력) | c4   (colIndex 3,4,5)
+//     · 같은 레코드의 1줄 달력 Cell / 2줄 달력 Cell 에서 각각 팝업 달력 상단 SelectBox 로 연도를 변경 -> rowIndex 동일(레코드 단위 0~2)
+//     · 1줄/2줄 을 통틀어 모든 Column 은 0~5 로 연속된 고유 colIndex 를 가짐 (달력 Cell 은 1 과 4)
+//     기본 구성(@description 하위절 / @param 본문 / info / oldValue / newValue / @spec 2건) 은 _1,
+//     DrillDown 관련 검증은 _3 샘플에서 다루므로 본 샘플에서는 제외.
+scwin.tData = {
+    "description" : "[gridView > E > onyearselect]<br/>inputType='calendar' 인 Body Cell 의 팝업 달력에서 연도의 선택을 변경했을때 발생합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+        "Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line), 셀별 고유값.
+//   레코드 | Line1(c1, calDate1, c2)     | Line2(c3, calDate2, c4)
+//   ------+-----------------------------+-----------------------------
+//    0    | A0 , 20240105 , B0          | C0 , 20240115 , D0
+//    1    | A1 , 20250205 , B1          | C1 , 20250215 , D1
+//    2    | A2 , 20260305 , B2          | C2 , 20260315 , D2
+//  ※ calDate1 / calDate2 는 dataType="date" 컬럼이며 값은 순수 yyyyMMdd 문자열.
+//  ※ 팝업 달력은 Cell 에 저장된 날짜의 연/월로 열리므로 레코드별 연도를 다르게 두어 실행일과 무관하게 연도 변경 검증이 가능.
+scwin.MLINE_DATA = [
+    { "c1": "A0", "calDate1": "20240105", "c2": "B0", "c3": "C0", "calDate2": "20240115", "c4": "D0" },
+    { "c1": "A1", "calDate1": "20250205", "c2": "B1", "c3": "C1", "calDate2": "20250215", "c4": "D1" },
+    { "c1": "A2", "calDate1": "20260305", "c2": "B2", "c3": "C2", "calDate2": "20260315", "c4": "D2" }
+];
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - MultiLine(레코드당 2 Line) 그리드 1개를 동적 생성.
+//      Line1=c1,calDate1,c2 (colIndex 0,1,2) / Line2=c3,calDate2,c4 (colIndex 3,4,5)
+//  - 달력 컬럼은 inputType=calendar + dataType=date + viewType=icon + calendarValueType=yearMonthDate
+//    (dataType 이 text 이면 표시값 뒤에 포맷 토큰이 리터럴로 붙음)
+//  - onyearselect 핸들러는 발생 즉시 ▶ 한 줄 + rowIndex/colIndex 개별 출력
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  · createLabel 문자 제약 : 작은따옴표 금지, 줄바꿈은 개행문자 사용
+    $c.gcm.createLabel('label="[전제] MultiLine 구성 - 레코드 1건이 2줄로 표시됩니다. 1줄=c1, 날짜1(달력), c2 / 2줄=c3, 날짜2(달력), c4 (레코드 3건, 레코드별 연도 2024/2025/2026)\n[절차] 같은 레코드의 1줄 날짜1 셀을 클릭해 입력창을 연 뒤 달력 아이콘을 눌러 팝업 달력을 열고, 상단 연도(Year) SelectBox 에서 다른 연도를 선택합니다. 이어서 같은 레코드의 2줄 날짜2 셀에서도 같은 방식으로 연도를 변경합니다.\n[확인] 같은 레코드면 1줄/2줄 어느 날짜 셀에서 연도를 변경해도 rowIndex 가 같은지, 1줄 날짜1 셀과 2줄 날짜2 셀의 colIndex 가 서로 다른 고유값(1 과 4)으로 나오는지 결과창에서 확인"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (6개 컬럼 → createDynamicDataList(4컬럼 한계) 대신 인라인 생성)
+    //  ★ DataList 컬럼 id 와 gBody 컬럼 id/dataList 를 모두 동일하게 (id 와 dataList 불일치 시 셀 빈값)
+    //  ★ 달력 컬럼(calDate1/calDate2) 은 dataType="date"
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="c1" name="c1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="calDate1" name="calDate1" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="c2" name="c2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c3" name="c3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="calDate2" name="calDate2" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="c4" name="c4" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.MLINE_DATA, false);
+
+    // target 그리드 직접 구성 (MultiLine : header/gBody 각 <w2:row> 2개)
+    //  · 3레코드 x 2Line x 30px + Header 2Line + caption 이 모두 보이도록 height 를 충분히 확보
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" defaultCellHeight="30" ev:onyearselect="scwin.target1_onyearselect" id="" style="width:330px;height:320px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="onyearselect MultiLine sample"></w2:caption>';
+    // Header : Line1(c1, 날짜1, c2) / Line2(c3, 날짜2, c4)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c1" value="c1(idx0)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol_calDate1" value="날짜1(idx1)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c2" value="c2(idx2)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c3" value="c3(idx3)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol_calDate2" value="날짜2(idx4)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c4" value="c4(idx5)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(c1, calDate1, c2) / Line2(c3, calDate2, c4) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c1" dataList="c1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="calendar" dataType="date" viewType="icon" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="calDate1" dataList="calDate1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c2" dataList="c2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c3" dataList="c3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="calendar" dataType="date" viewType="icon" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="calDate2" dataList="calDate2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c4" dataList="c4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// onyearselect : inputType=calendar 인 Body Cell 의 팝업 달력 상단 SelectBox 로 연도를 변경할 때 발생.
+//  ▶ 한 줄 + rowIndex/colIndex 개별 출력
+//   · MultiLine 이어도 같은 레코드의 1줄/2줄 달력 Cell 은 rowIndex 동일
+//   · colIndex(0~5) 는 Line 과 무관하게 모든 Column 이 고유 (달력 Cell 은 1 과 4)
+scwin.target1_onyearselect = function (rowIndex, colIndex, info) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("▶ onyearselect");
+    bottom.setReturnValue("rowIndex : " + rowIndex);
+    bottom.setReturnValue("colIndex : " + colIndex);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* MultiLine 렌더 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(3레코드)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 행 높이 보정 */
+tr.grid_body_row { height: 30px !important; }
+tr.grid_body_row > td { height: 30px; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter"></xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
