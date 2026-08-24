@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] saveCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[
+// 테스트 설명, 유효성 값 설정
+//  ★ _3 : dummy_data * Column 속성 관련 옵션 중 데이터 정제 계열 4개
+//         (aposPrefixOnNum / removeQuotation / removeNewLine / trim)
+//   - 같은 그룹의 type / checkButton 은 _2, spanAll 은 _4, ignoreSpan 은 _5 담당이므로 제외
+//   - 기본 옵션(fileName / delim / header), Column 선택 순서 옵션, 기타 옵션은 다른 샘플 담당이므로 제외
+//   - description 은 saveCSV 분리 샘플 공통
+scwin.tData = {
+    "description" : "[gridView > M > saveCSV]<br/>GridView 컴포넌트의 데이터를 CSV 형식의 파일로 다운로드합니다.",
+    "validation" : [
+        "aposPrefixOnNum(선택) 파라미터로 Column 의 dataType 속성값이 \"number\" 이고 데이터가 12 자리 이상인 경우 강제 텍스트 처리(apos) 여부를 설정합니다.",
+        "aposPrefixOnNum(선택) 파라미터를 \"0\" 으로 설정 시 해당 Column 의 데이터를 텍스트 처리하지 않고 다운로드합니다.",
+        "aposPrefixOnNum(선택) 파라미터를 \"1\" 로 설정 시 해당 Column 의 데이터 앞에 \"'\"(apos)를 추가하여 숫자를 텍스트 형식으로 다운로드합니다.",
+        "데이터 앞에 \"'\"(apos)가 있을 경우 Excel 에서 숫자를 지수형태로 변경하지 않고 텍스트 형식으로 처리합니다.",
+        "aposPrefixOnNum(선택) 파라미터를 생략하면 기본값 \"0\" 으로 동작합니다.",
+        "removeQuotation(선택) 파라미터로 데이터에 포함된 인용부호(\",')의 제거 여부를 설정합니다.",
+        "removeQuotation(선택) 파라미터를 \"0\" 으로 설정 시 데이터의 인용부호(\",')를 제거하지 않고 다운로드합니다.",
+        "removeQuotation(선택) 파라미터를 \"1\" 로 설정 시 데이터의 인용부호(\",')를 제거한 후 다운로드합니다.",
+        "removeQuotation(선택) 파라미터를 생략하면 기본값 \"1\" 로 동작합니다.",
+        "removeNewLine(선택) 파라미터로 데이터에 포함된 개행문자(\\r,\\n)의 제거 여부를 설정합니다.",
+        "removeNewLine(선택) 파라미터를 \"0\" 으로 설정 시 데이터의 개행문자(\\r,\\n)를 제거하지 않고 다운로드합니다.",
+        "removeNewLine(선택) 파라미터를 \"1\" 로 설정 시 데이터의 개행문자(\\r,\\n)를 제거한 후 다운로드합니다.",
+        "removeNewLine(선택) 파라미터를 생략하면 기본값 \"1\" 로 동작합니다.",
+        "trim(선택) 파라미터로 각 Column 데이터의 좌우 공백 제거 여부를 설정합니다.",
+        "trim(선택) 파라미터를 \"0\" 으로 설정 시 Column 데이터 단위로 좌우 공백을 제거하지 않고 다운로드합니다.",
+        "trim(선택) 파라미터를 \"1\" 로 설정 시 Column 데이터 단위로 좌우 공백을 제거한 후 다운로드합니다.",
+        "trim(선택) 파라미터를 생략하면 기본값 \"0\" 으로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 담당 옵션 4개를 한 화면에서 모두 관찰할 수 있도록 Column 을 나눠 배치한다.
+//  · 인덱스 0 : tradeNo - dataType="number" / 13 자리      -> aposPrefixOnNum 적용 대상
+//  · 인덱스 1 : qty     - dataType="number" / 5 자리 이하  -> aposPrefixOnNum 미적용 대조군(12 자리 미만)
+//  · 인덱스 2 : item    - 큰따옴표와 작은따옴표 포함       -> removeQuotation
+//  · 인덱스 3 : address - 개행문자 포함                    -> removeNewLine
+//  · 인덱스 4 : manager - 좌우 공백 포함                   -> trim
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column 5개 그리드이며 각 Column 이 담당 옵션의 관찰 대상입니다.\n- tradeNo : dataType 이 number 이고 13 자리 (aposPrefixOnNum 적용 대상)\n- qty : dataType 이 number 이지만 5 자리 이하 (12 자리 미만이라 aposPrefixOnNum 미적용 대조군)\n- item : 큰따옴표와 작은따옴표 포함 (removeQuotation 대상)\n- address : 개행문자 포함 (removeNewLine 대상)\n- manager : 좌우 공백 포함 (trim 대상)\n[절차]\n1. par 옵션 4개 값을 선택한다 (빈값을 고르면 해당 파라미터를 생략한다)\n2. saveCSV 버튼을 클릭하여 CSV 파일을 다운로드한다\n3. 다운로드한 파일을 메모장 등 텍스트 편집기로 열어 내용을 확인한다\n[확인] 파일 내용에서 아래를 확인한다\n- tradeNo 값 앞의 apos 유무 (qty Column 에는 붙지 않아야 함)\n- item 값에 큰따옴표와 작은따옴표가 남아있는지\n- address 값이 한 줄인지 두 줄로 나뉘는지\n- manager 값 앞뒤에 공백이 남아있는지"', '', 'label1');
+
+    // dataList 생성 (5 Column, 4 Row)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="tranNo" name="tranNo" dataType="number"></w2:column>';
+    strData += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strData += '<w2:column id="item" name="item" dataType="text"></w2:column>';
+    strData += '<w2:column id="addr" name="addr" dataType="text"></w2:column>';
+    strData += '<w2:column id="mgr" name="mgr" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [
+        { "tranNo" : "2026081200101", "qty" : "12500", "item" : "27\" monitor 'FHD'", "addr" : "Seoul Gangnam\r\nTeheran-ro 100", "mgr" : "  Kim Sales  " },
+        { "tranNo" : "2026081200102", "qty" : "340", "item" : "laptop stand \"slim\"", "addr" : "Busan Haeundae\r\nCentum-ro 20", "mgr" : "  Lee Purchase  " },
+        { "tranNo" : "2026081200103", "qty" : "7", "item" : "'wireless' mouse", "addr" : "Daejeon Yuseong\r\nDaedeok-daero 5", "mgr" : "  Park Logistics  " },
+        { "tranNo" : "2026081200104", "qty" : "89210", "item" : "USB-C cable 1.5\"", "addr" : "Gwangju Seo-gu\r\nSangmu-daero 33", "mgr" : "  Choi Delivery  " }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let cList = $c.gcm.createCList({ dataList : "data:dlt_bind" });
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:820px;height:300px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="tradeNo (number 13 digits)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="qty (number under 5 digits)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol3" value="item (quotation)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol4" value="address (newline)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="manager (spaces)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="number" id="tranNo" dataList="tranNo"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" dataType="number" id="qty" dataList="qty"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="item" dataList="item"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="textarea" displayType="all" id="addr" dataList="addr"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="mgr" dataList="mgr"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 saveCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 모든 파라미터가 미설정이면 빈 객체({}) 가 전달되어 각 옵션이 기본값으로 동작한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_aposPrefixOnNum.getValue();
+    if (v !== "") options.aposPrefixOnNum = v;
+
+    v = par_removeQuotation.getValue();
+    if (v !== "") options.removeQuotation = v;
+
+    v = par_removeNewLine.getValue();
+    if (v !== "") options.removeNewLine = v;
+
+    v = par_trim.getValue();
+    if (v !== "") options.trim = v;
+
+    return options;
+}
+
+
+
+// saveCSV 실행 : 검증은 다운로드된 CSV 파일의 실제 내용으로 한다.
+//  · 어떤 옵션 조합으로 받은 파일인지 구분할 수 있도록 실제 전달한 options 만 한 줄로 출력한다.
+scwin.btn_saveCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let options = scwin.buildOptions();
+    bottom.setReturnValue("saveCSV 호출 options : " + JSON.stringify(options));
+
+    target1.saveCSV(options);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.aposPrefixOnNum (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_aposPrefixOnNum" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.removeQuotation (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_removeQuotation" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.removeNewLine (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_removeNewLine" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.trim (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_trim" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_saveCSV_onclick" id="btn_saveCSV"
+							label="saveCSV" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

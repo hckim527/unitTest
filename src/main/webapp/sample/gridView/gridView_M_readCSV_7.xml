@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] readCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성 (_4 에서 expression 옵션 분리)" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1146
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _7 : 데이터 옵션 중 expression Column 관련 옵션(expression). type 은 _4 에서 검증한다. description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > readCSV]<br/>CSV 형식의 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "expression(선택) 파라미터로 CSV 데이터에 expression Column 데이터를 포함하고 있는지 여부를 설정합니다.",
+        "expression(선택) 파라미터를 '0' 으로 설정 시 CSV 데이터가 expression Column 데이터를 포함하고 있습니다.",
+        "expression(선택) 파라미터를 '1' 로 설정 시 CSV 데이터가 expression Column 데이터를 포함하고 있지 않습니다.",
+        "expression(선택) 파라미터를 생략하면 기본값 '1' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : expression Column 을 포함한 GridView 를 동적 생성한다.
+//  · index 3 calc : inputType=expression (dataList 바인딩 없음, amount x 2 를 계산)
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- calc Column 은 inputType=expression 이며 DataList 에 바인딩되지 않음 (calc = amount x 2)\n- 테스트용 CSV 2종 : TSQA/src/sample/gridView/data/upload/ts_gridView_M_readCSV_7/\n- expression 값 0 (CSV 가 expression Column 데이터를 포함) 확인용 : ts_gridView_M_readCSV_7_upload.csv - calc 열을 포함한 4 Column (0행 Header, 1~3행 데이터, amount 는 100/200/300)\n- expression 값 1 · 미설정 (CSV 가 expression Column 데이터를 미포함) 확인용 : ts_gridView_M_readCSV_7_upload_noexpr.csv - calc 열을 제외한 3 Column (그 외 구성은 동일)\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 2행 상태로 되돌린다\n2. par 옵션(expression) 값을 선택한다\n3. readCSV 버튼을 클릭한다\n4. 열린 팝업창에서 2번에서 선택한 expression 값에 해당하는 CSV 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 팝업창에 렌더된 expression Column 포함 여부와 Column 별 expression 여부가 출력됨 - 값 0 은 [true], 값 1 과 미설정은 [false] 로 대비되고, 미설정과 값 1 의 출력이 같은 것이 기본값 1 의 확인 수단이다\n- expression 값 0 은 4 Column CSV 를 올려 5번 출력에서 name / grade / amount 가 CSV 와 같은 자리에 반영되는지, calc 이 amount x 2 로 계산되는지 확인\n- expression 값 1 · 미설정은 3 Column CSV 를 올린다 - 현재 엔진에서는 CSV 데이터가 한 칸씩 밀려 반영되며, 이 샘플의 판정 대상이 아니다"', '', 'label1');
+
+    // DataList 생성 (name / grade / amount / 초기 2행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDl += '<w2:column id="amount" name="amount" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    strDl += '<w2:row><name>init1</name><grade>initA</grade><amount>10</amount></w2:row>';
+    strDl += '<w2:row><name>init2</name><grade>initB</grade><amount>20</amount></w2:row>';
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:600px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="readCSV expression 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol1" value="name"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="grade"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol3" value="amount"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="calc (expression)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="amount" dataList="amount"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" id="calc" expression="Number(display(\'amount\')) * 2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 readCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_expression.getValue();
+    if (v !== "") options.expression = v;
+
+    return options;
+}
+
+
+
+// readCSV 실행
+//  · 설정한 옵션값을 그대로 되출력하지 않고, 실제로 열린 CSV 파일 선택 팝업창에 렌더된 값을 읽어 출력한다.
+scwin.btn_readCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.readCSV(scwin.buildOptions());
+
+    setTimeout(scwin.printUploadState, 1200);
+}
+
+
+
+// 실제로 열린 CSV 파일 선택 팝업창의 document 를 반환한다.
+//  · wframe 적용 시 화면 내 레이어(부모 문서), 미적용 시 window 이름 csvupWindow 인 별도 팝업창이다.
+//  · 별도 팝업창은 로딩이 끝나기 전까지 about:blank 이므로 로딩 중임을 알린다.
+scwin.getUploadDoc = function () {
+    if (document.querySelector("input[name='filename']") !== null) {
+        return { "doc" : document, "kind" : "화면 내 레이어(wframe)", "url" : document.location.href };
+    }
+
+    let objWin = window.open("", "csvupWindow");
+    if (objWin === null || objWin.closed) return null;
+    if (objWin.location.href === "about:blank") return { "loading" : true, "win" : objWin };
+
+    return { "doc" : objWin.document, "kind" : "별도 팝업창", "url" : objWin.location.href };
+}
+
+
+
+// 실제로 열린 CSV 파일 선택 팝업창에서 렌더된 값을 읽어 출력한다.
+//  · expression 은 팝업창의 입력 필드에 반영되므로 그 값과 Column 별 expression 여부로 확인한다.
+scwin.printUploadState = function (nRetry) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    nRetry = nRetry || 0;
+
+    let objInfo = scwin.getUploadDoc();
+
+    if (objInfo !== null && objInfo.loading === true) {
+        if (nRetry < 6) {
+            setTimeout(function () { scwin.printUploadState(nRetry + 1); }, 500);
+            return;
+        }
+        objInfo.win.close();
+        objInfo = null;
+    }
+
+    if (objInfo === null) {
+        bottom.setReturnValue("CSV 파일 선택 팝업창이 열려있지 않습니다.");
+        return;
+    }
+
+    let objDoc = objInfo.doc;
+
+    bottom.setReturnValue("팝업창 렌더값 - CSV 에 expression Column 데이터 포함 : [" + objDoc.querySelector("input[name='expression']").value + "] / Column 별 expression 여부 : [" + objDoc.querySelector("input[name='expressionColumns']").value + "]");
+}
+
+
+
+// 업로드 결과 확인 : GridView 에 실제 반영된 데이터와 expression Column 계산값을 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt + " / 바인딩 DataList Row 수 : " + dlt_bind.getRowCount());
+    for (let i = 0; i < cnt; i++) {
+        bottom.setReturnValue("[" + i + "] name=" + target1.getCellData(i, "name") + " | grade=" + target1.getCellData(i, "grade") + " | amount=" + target1.getCellData(i, "amount") + " | calc=" + target1.getCellData(i, 3));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.expression (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_expression" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_readCSV_onclick" id="btn_readCSV"
+							label="readCSV" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

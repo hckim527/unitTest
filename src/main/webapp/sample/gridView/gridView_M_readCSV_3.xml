@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] readCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="options 그룹별 샘플 분리(_3: 데이터 옵션 startRowIndex/append/status/skipSpace/escapeChar)" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="03" meta_desc="startRowIndex 옵션을 _1 로 이관(validation 2건 및 par 컨트롤 제거)" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : 데이터 옵션(append, status, skipSpace, escapeChar). startRowIndex 는 _1 에서 검증한다. description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > readCSV]<br/>CSV 형식의 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "append(선택) 파라미터로 CSV 데이터를 GridView 에 추가 시킬지 여부를 설정합니다.",
+        "append(선택) 파라미터를 '0' 으로 설정 시 GridView 의 기존 데이터를 삭제하고 CSV 데이터를 설정합니다.",
+        "append(선택) 파라미터를 '1' 로 설정 시 GridView 의 기존 데이터를 유지하고 CSV 데이터를 추가합니다.",
+        "append(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "status(선택) 파라미터로 추가되는 CSV 데이터의 초기 상태값을 'R' 또는 'C' 로 설정합니다.",
+        "status(선택) 파라미터에 'R' 또는 'C' 이외의 값 설정 시 'R' 로 적용됩니다.",
+        "append 파라미터가 '1' 이면 status 파라미터는 추가된 데이터만 적용됩니다.",
+        "status(선택) 파라미터를 생략하면 기본값 'R' 로 동작합니다.",
+        "skipSpace(선택) 파라미터로 공백인 Row 데이터를 생략할지 여부를 설정합니다.",
+        "skipSpace(선택) 파라미터를 '0' 으로 설정 시 공백인 Row 데이터를 추가합니다.",
+        "skipSpace(선택) 파라미터를 '1' 로 설정 시 공백인 Row 데이터를 생략하고 추가하지 않습니다.",
+        "공백인 Row 데이터는 모든 Column 값이 빈 문자열인 Row 를 의미하며 CSV 포맷은 일반적으로 ', , ,,' 로 표기됩니다.",
+        "skipSpace(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "escapeChar(선택) 파라미터로 CSV 데이터에서 제거할 이스케이프 문자를 문자를 설정합니다. ( ex> ' )",
+        "escapeChar(선택) 파라미터를 생략하면 기본값인 빈 문자열로 동작하여 이스케이프 문자를 제거하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · append/status 검증을 위해 기존 데이터 4행을 유지한 상태에서 업로드한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 초기 데이터 4행(col1_1 ~ col4_4)이 바인딩되어 있음\n- 테스트용 CSV : TSQA/src/sample/gridView/data/upload/ts_gridView_M_readCSV_3/ts_gridView_M_readCSV_3_upload.csv\n- CSV 구성 - 0행 Header(name1~name4) / 1행 csvA1~csvA4 / 2행 공백 Row / 3행 csvB1~csvB4 / 4행 csvC1,csvC2 를 작은따옴표로 감싼 데이터\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 4행 상태로 되돌린다\n2. par 옵션(append / status / skipSpace / escapeChar) 값을 선택한다\n3. readCSV 버튼을 클릭한다\n4. 열린 팝업창에서 CSV 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 팝업창에 렌더된 공백 Row 생략 / escapeChar 값이 출력됨\n- 5번 출력에서 GridView 에 실제 반영된 Row 수, Row 별 데이터, Row 상태값(R/C)을 확인"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id
+    });
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// par 옵션값으로 readCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_append.getValue();
+    if (v !== "") options.append = v;
+
+    v = par_status.getValue();
+    if (v !== "") options.status = v;
+
+    v = par_skipSpace.getValue();
+    if (v !== "") options.skipSpace = v;
+
+    v = par_escapeChar.getValue();
+    if (v !== "") options.escapeChar = v;
+
+    return options;
+}
+
+
+
+// readCSV 실행
+//  · 설정한 옵션값을 그대로 되출력하지 않고, 실제로 열린 CSV 파일 선택 팝업창에 렌더된 값을 읽어 출력한다.
+scwin.btn_readCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.readCSV(scwin.buildOptions());
+
+    setTimeout(scwin.printUploadState, 1200);
+}
+
+
+
+// 실제로 열린 CSV 파일 선택 팝업창의 document 를 반환한다.
+//  · wframe 적용 시 화면 내 레이어(부모 문서), 미적용 시 window 이름 csvupWindow 인 별도 팝업창이다.
+//  · 별도 팝업창은 로딩이 끝나기 전까지 about:blank 이므로 로딩 중임을 알린다.
+scwin.getUploadDoc = function () {
+    if (document.querySelector("input[name='filename']") !== null) {
+        return { "doc" : document, "kind" : "화면 내 레이어(wframe)", "url" : document.location.href };
+    }
+
+    let objWin = window.open("", "csvupWindow");
+    if (objWin === null || objWin.closed) return null;
+    if (objWin.location.href === "about:blank") return { "loading" : true, "win" : objWin };
+
+    return { "doc" : objWin.document, "kind" : "별도 팝업창", "url" : objWin.location.href };
+}
+
+
+
+// 실제로 열린 CSV 파일 선택 팝업창에서 렌더된 값을 읽어 출력한다.
+//  · skipSpace / escapeChar 는 팝업창의 입력 필드에 반영되므로 그 값으로 확인한다.
+//  · append / status 는 팝업창 필드가 아니라 업로드 후 GridView 데이터와 Row 상태값으로 확인한다.
+scwin.printUploadState = function (nRetry) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    nRetry = nRetry || 0;
+
+    let objInfo = scwin.getUploadDoc();
+
+    if (objInfo !== null && objInfo.loading === true) {
+        if (nRetry < 6) {
+            setTimeout(function () { scwin.printUploadState(nRetry + 1); }, 500);
+            return;
+        }
+        objInfo.win.close();
+        objInfo = null;
+    }
+
+    if (objInfo === null) {
+        bottom.setReturnValue("CSV 파일 선택 팝업창이 열려있지 않습니다.");
+        return;
+    }
+
+    let objDoc = objInfo.doc;
+
+    bottom.setReturnValue("팝업창 렌더값 - 공백 Row 생략 : [" + objDoc.querySelector("select[name='skip_space']").value + "] / escapeChar : [" + objDoc.querySelector("input[name='escapeChar']").value + "]");
+}
+
+
+
+// 업로드 결과 확인 : GridView 에 실제 반영된 데이터와 Row 상태값을 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt + " / 바인딩 DataList Row 수 : " + dlt_bind.getRowCount());
+    for (let i = 0; i < cnt; i++) {
+        bottom.setReturnValue("[" + i + "] " + target1.getCellData(i, "col1") + " | " + target1.getCellData(i, "col2") + " | " + target1.getCellData(i, "col3") + " | " + target1.getCellData(i, "col4") + " | status=" + dlt_bind.getRowStatus(i));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.append (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_append" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.status (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_status" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[R]]></xf:label>
+												<xf:value><![CDATA[R]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[C]]></xf:label>
+												<xf:value><![CDATA[C]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[X (R 또는 C 이외의 값)]]></xf:label>
+												<xf:value><![CDATA[X]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.skipSpace (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_skipSpace" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.escapeChar (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_escapeChar" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[' (작은따옴표)]]></xf:label>
+												<xf:value><![CDATA[']]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_readCSV_onclick" id="btn_readCSV"
+							label="readCSV" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

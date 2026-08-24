@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] readCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성 (_5 에서 ignoreSpan 옵션 분리)" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="MultiLine 제거 - 단일 행 colSpan 구성으로 변경(스펙 정상 검증 가능)" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1152
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _8 : 병합 Column 옵션(ignoreSpan). hidden / fillHidden 은 _5 에서 검증한다. description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > readCSV]<br/>CSV 형식의 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "ignoreSpan(선택) 파라미터로 병합된 Column 의 데이터 처리 방식을 설정합니다.",
+        "ignoreSpan(선택) 파라미터를 '0' 으로 설정 시 병합된 Column 을 하나의 Column 으로 처리합니다.",
+        "ignoreSpan(선택) 파라미터를 '1' 로 설정 시 병합된 Column 을 별도의 Column 으로 각각 처리합니다.",
+        "ignoreSpan(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 병합(colSpan) Column 을 가진 GridView 를 동적 생성한다.
+//  · Header 는 4 Column, Body 는 단일 행 col1 / col2 / col3(colSpan=2) 로 col3 가 병합 Column 이다
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 4 Column, Body 는 단일 행 col1 / col2 / col3 이며 col3 가 colSpan=2 로 병합된 Column\n- 테스트용 CSV 2종 (TSQA/src/sample/gridView/data/upload/ts_gridView_M_readCSV_8/) — ignoreSpan 값에 따라 CSV 의 Column 구성이 달라야 한다\n- ignoreSpan 미설정 또는 0 : ts_gridView_M_readCSV_8_upload.csv (병합 Column 을 1개로 센 3 Column)\n- ignoreSpan 1 : ts_gridView_M_readCSV_8_upload_split.csv (병합 Column 을 2개로 센 4 Column)\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 2행 상태로 되돌린다\n2. par 옵션(ignoreSpan) 값을 선택한다\n3. readCSV 버튼을 클릭한다\n4. 열린 팝업창에서 위 전제에 따라 ignoreSpan 값에 맞는 CSV 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 5번 출력에서 병합 Column(col3) 에 CSV 의 어느 값이 반영되는지 확인한다"', '', 'label1');
+
+    // DataList 생성 (col1~col3 / 초기 2행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    strDl += '<w2:row><col1>init1_1</col1><col2>init1_2</col2><col3>init1_3</col3></w2:row>';
+    strDl += '<w2:row><col1>init2_1</col1><col2>init2_2</col2><col3>init2_3</col3></w2:row>';
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:600px;height:180px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="readCSV ignoreSpan 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol3" value="name3-a"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol4" value="name3-b"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="280" style="" colSpan="2" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+}
+
+
+
+// par 옵션값으로 readCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+scwin.buildOptions = function () {
+    let options = {};
+
+    let v = par_ignoreSpan.getValue();
+    if (v !== "") options.ignoreSpan = v;
+
+    return options;
+}
+
+
+
+// readCSV 실행
+//  · ignoreSpan 은 팝업창 필드에 반영되지 않으므로, 업로드 후 그리드에 반영된 데이터로 확인한다.
+scwin.btn_readCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.readCSV(scwin.buildOptions());
+}
+
+
+
+// 업로드 결과 확인 : 그리드에 실제 렌더된 숨김/병합 구조와 반영된 데이터를 함께 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    // 그리드에 실제 렌더된 병합 구조 확인
+    let objSpanTd = document.querySelector("td[id*='" + target1.id + "_cell_0_2']");
+    let nSpan = (objSpanTd === null) ? 0 : (objSpanTd.colSpan || 1);
+    bottom.setReturnValue("렌더 구조 - 병합 Column(col3) colSpan : [" + nSpan + "]");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt + " / 바인딩 DataList Row 수 : " + dlt_bind.getRowCount());
+    for (let i = 0; i < cnt; i++) {
+        bottom.setReturnValue("[" + i + "] " + target1.getCellData(i, "col1") + " | " + target1.getCellData(i, "col2") + " | " + target1.getCellData(i, "col3"));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.ignoreSpan (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_ignoreSpan" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_readCSV_onclick" id="btn_readCSV"
+							label="readCSV" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] readCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="options 그룹별 샘플 분리(_5: 숨김 및 병합 Column 옵션 hidden/fillHidden/ignoreSpan)" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="03" meta_desc="hidden 값에 맞는 CSV 픽스처 2종 분리(5 Column / 6 Column) 안내 반영" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="04" meta_desc="ignoreSpan 옵션을 _8 로 분리(validation 4건 및 par 컨트롤 제거)" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="05" meta_desc="ignoreSpan 분리에 따라 병합 Column 제거, 단일 행 4 Column 으로 단순화" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _5 : 숨김 Column 옵션(hidden, fillHidden). ignoreSpan 은 _8 에서 검증한다. description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > readCSV]<br/>CSV 형식의 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "hidden(선택) 파라미터로 숨겨진 Column 의 데이터 처리 방식을 설정합니다.",
+        "hidden(선택) 파라미터를 '0' 으로 설정 시 숨겨진 Column 은 제외하고 데이터를 설정하며 해당 Column 의 데이터는 소실됩니다.",
+        "hidden(선택) 파라미터를 '1' 로 설정 시 숨겨진 Column 도 포함하여 데이터를 설정합니다.",
+        "hidden(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "fillHidden(선택) 파라미터로 hidden 파라미터값이 '1' 일때 숨겨진 Column 에 빈 값을 적용할지 여부를 설정합니다.",
+        "fillHidden(선택) 파라미터를 '0' 으로 설정 시 숨겨진 Column 에 빈 값을 설정합니다.",
+        "fillHidden(선택) 파라미터를 '1' 로 설정 시 숨겨진 Column 에 실제 CSV 데이터를 설정합니다.",
+        "fillHidden(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 숨겨진 Column 을 가진 GridView 를 동적 생성한다.
+//  · Body Column col1 ~ col4 중 col2 를 setColumnVisible(1, false) 로 숨긴다
+//  · 병합 Column 은 두지 않는다 (ignoreSpan 은 _8 에서 검증)
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Body Column 은 col1~col4 이며 col2 는 setColumnVisible(1, false) 로 숨겨진 Column\n- 테스트용 CSV 2종 (TSQA/src/sample/gridView/data/upload/ts_gridView_M_readCSV_5/) — hidden 값에 따라 CSV 의 Column 구성이 달라야 한다\n- hidden 미설정 또는 0 : ts_gridView_M_readCSV_5_upload_nohidden.csv (숨김 col2 자리를 뺀 3 Column)\n- hidden 1 : ts_gridView_M_readCSV_5_upload.csv (숨김 col2 를 포함한 4 Column). fillHidden 확인도 이 파일을 사용한다\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 2행 상태로 되돌린다\n2. par 옵션(hidden / fillHidden) 값을 선택한다\n3. readCSV 버튼을 클릭한다\n4. 열린 팝업창에서 위 전제에 따라 hidden 값에 맞는 CSV 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 팝업창에 렌더된 숨겨진 Column 포함 / 숨겨진 Column 채움 / 숨겨진 Column 인덱스 값이 출력됨\n- 5번 출력에서 숨김 Column(col2) 의 Cell 너비와 col1~col4 값을 옵션별로 비교"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 초기 2행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col1" name="name1" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="name2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col3" name="name3" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col4" name="name4" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    strDl += '<w2:row><col1>init1_1</col1><col2>init1_2</col2><col3>init1_3</col3><col4>init1_4</col4></w2:row>';
+    strDl += '<w2:row><col1>init2_1</col1><col2>init2_2</col2><col3>init2_3</col3><col4>init2_4</col4></w2:row>';
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:600px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="readCSV hidden 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol2" value="name2 (숨김)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="name4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 숨겨진 Column 구성 (col2 = index 1)
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// par 옵션값으로 readCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_hidden.getValue();
+    if (v !== "") options.hidden = v;
+
+    v = par_fillHidden.getValue();
+    if (v !== "") options.fillHidden = v;
+
+    return options;
+}
+
+
+
+// readCSV 실행
+//  · 설정한 옵션값을 그대로 되출력하지 않고, 실제로 열린 CSV 파일 선택 팝업창에 렌더된 값을 읽어 출력한다.
+scwin.btn_readCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.readCSV(scwin.buildOptions());
+
+    setTimeout(scwin.printUploadState, 1200);
+}
+
+
+
+// 실제로 열린 CSV 파일 선택 팝업창의 document 를 반환한다.
+//  · wframe 적용 시 화면 내 레이어(부모 문서), 미적용 시 window 이름 csvupWindow 인 별도 팝업창이다.
+//  · 별도 팝업창은 로딩이 끝나기 전까지 about:blank 이므로 로딩 중임을 알린다.
+scwin.getUploadDoc = function () {
+    if (document.querySelector("input[name='filename']") !== null) {
+        return { "doc" : document, "kind" : "화면 내 레이어(wframe)", "url" : document.location.href };
+    }
+
+    let objWin = window.open("", "csvupWindow");
+    if (objWin === null || objWin.closed) return null;
+    if (objWin.location.href === "about:blank") return { "loading" : true, "win" : objWin };
+
+    return { "doc" : objWin.document, "kind" : "별도 팝업창", "url" : objWin.location.href };
+}
+
+
+
+// 실제로 열린 CSV 파일 선택 팝업창에서 렌더된 값과, 그리드에 실제 렌더된 숨김/병합 Column 구조를 출력한다.
+//  · hidden / fillHidden 은 팝업창의 선택 필드에 반영되므로 그 값으로 확인한다.
+scwin.printUploadState = function (nRetry) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    nRetry = nRetry || 0;
+
+    let objInfo = scwin.getUploadDoc();
+
+    if (objInfo !== null && objInfo.loading === true) {
+        if (nRetry < 6) {
+            setTimeout(function () { scwin.printUploadState(nRetry + 1); }, 500);
+            return;
+        }
+        objInfo.win.close();
+        objInfo = null;
+    }
+
+    if (objInfo === null) {
+        bottom.setReturnValue("CSV 파일 선택 팝업창이 열려있지 않습니다.");
+        return;
+    }
+
+    let objDoc = objInfo.doc;
+
+    bottom.setReturnValue("팝업창 렌더값 - 숨겨진 Column 포함 : [" + objDoc.querySelector("select[name='hidden']").value + "] / 숨겨진 Column 채움 : [" + objDoc.querySelector("select[name='fillHidden']").value + "] / 숨겨진 Column 인덱스 : [" + objDoc.querySelector("input[name='hiddenColumns']").value + "]");
+}
+
+
+
+// 업로드 결과 확인 : 그리드에 실제 렌더된 숨김 Column 상태와 반영된 데이터를 함께 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    // 그리드에 실제 렌더된 숨김 Column 상태 확인
+    //  · 엔진은 숨겨진 Column 을 display:none 이 아니라 Cell 너비 0px 로 렌더한다.
+    let objHiddenTd = document.querySelector("td[id*='" + target1.id + "_cell_0_1']");
+    let objShownTd = document.querySelector("td[id*='" + target1.id + "_cell_0_2']");
+    let strHiddenWidth = (objHiddenTd === null) ? "td 없음" : getComputedStyle(objHiddenTd).width;
+    let strShownWidth = (objShownTd === null) ? "td 없음" : getComputedStyle(objShownTd).width;
+    bottom.setReturnValue("렌더 구조 - 숨김 Column(col2) Cell 너비 : [" + strHiddenWidth + "] , 표시 Column(col3) Cell 너비 : [" + strShownWidth + "]");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt + " / 바인딩 DataList Row 수 : " + dlt_bind.getRowCount());
+    for (let i = 0; i < cnt; i++) {
+        bottom.setReturnValue("[" + i + "] " + target1.getCellData(i, "col1") + " | " + target1.getCellData(i, "col2") + " | " + target1.getCellData(i, "col3") + " | " + target1.getCellData(i, "col4"));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.hidden (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_hidden" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.fillHidden (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_fillHidden" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_readCSV_onclick" id="btn_readCSV"
+							label="readCSV" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

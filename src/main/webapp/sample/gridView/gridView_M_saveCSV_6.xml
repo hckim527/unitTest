@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] saveCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1159
+// https://inswave01.atlassian.net/browse/WAEA-1160
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _6 : dummy_data * Column 선택 및 순서 옵션 5개
+//         (saveList / removeColumns / hidden / columnMove / columnOrder)
+//   - 기본 옵션(fileName / delim / header) 은 _1, Column 속성 옵션은 _2~_5, 기타 옵션은 _7 담당이므로 제외
+//   - description 은 saveCSV 분리 샘플 공통
+scwin.tData = {
+    "description" : "[gridView > M > saveCSV]<br/>GridView 컴포넌트의 데이터를 CSV 형식의 파일로 다운로드합니다.",
+    "validation" : [
+        "saveList(선택) 파라미터로 Column 의 숨김 여부에 관계없이 다운로드 할 Column 의 ID 를 배열로 설정합니다.",
+        "saveList(선택) 파라미터에 설정된 Column 의 데이터만 다운로드되며 removeColumns, hidden 파라미터값이 무시됩니다.",
+        "saveList(선택) 파라미터에 설정한 배열의 순서와 관계없이 Column 의 인덱스 순서로 데이터가 다운로드됩니다.",
+        "saveList(선택) 파라미터를 생략하면 기본값 [] 로 동작합니다.",
+        "removeColumns(선택) 파라미터로 다운로드에서 제외할 Column 의 인덱스를 콤마(,)로 구분하여 설정합니다.",
+        "removeColumns(선택) 파라미터는 hidden 파라미터값이 '1' 이면 숨겨진 Column 을 포함하여 인덱스가 설정됩니다.",
+        "removeColumns(선택) 파라미터는 Column 의 위치가 변경되어도 인덱스는 변경되지 않습니다.",
+        "removeColumns(선택) 파라미터를 생략하면 기본값 '' 로 동작합니다.",
+        "hidden(선택) 파라미터로 숨겨진 Column 의 다운로드 여부를 설정합니다.",
+        "hidden(선택) 파라미터를 '0' 으로 설정 시 숨겨진 Column 을 제외하고 다운로드합니다.",
+        "hidden(선택) 파라미터를 '1' 로 설정 시 숨겨진 Column 을 포함하여 다운로드합니다.",
+        "hidden(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "columnMove(선택) 파라미터로 사용자에 의해 Column 의 순서가 변경된 경우 데이터가 생성되는 순서를 설정합니다.",
+        "columnMove(선택) 파라미터를 'true' 로 설정 시 사용자가 이동한 Column 순서대로 데이터를 생성하여 다운로드합니다.",
+        "columnMove(선택) 파라미터를 'false' 로 설정 시 Column 의 원래 정의된 순서대로 데이터를 생성하여 다운로드합니다.",
+        "columnMove(선택) 파라미터값이 'true' 일때 Column 순서가 변경된 상태에서 saveList 파라미터 설정 시 오동작할 수 있으므로 saveList 파라미터와 함께 사용하지 않아야 합니다.",
+        "columnMove(선택) 파라미터를 생략하면 기본값 'false' 로 동작합니다.",
+        "columnOrder(선택) 파라미터로 다운로드할 Column 의 순서를 콤마(,)로 구분하여 설정합니다.",
+        "columnOrder(선택) 파라미터는 Column 의 인덱스로 순서를 설정합니다. (ex> '0,3,2,1')",
+        "columnOrder(선택) 파라미터는 columnMove 파라미터가 'true' 일때만 적용되고 columnOrder 파라미터 순서에 맞게 데이터를 생성하여 다운로드합니다.",
+        "columnOrder(선택) 파라미터를 생략하면 기본값 '' 로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값(미설정)을 명시 설정
+    par_columnMove.setValue("1");
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Column 인덱스를 값으로 판별할 수 있는 5 Column GridView 를 동적 생성한다.
+//  · 각 셀 값은 c{Column인덱스}_{행번호} 형식이라 다운로드 결과에서 Column 인덱스/순서를 바로 알 수 있다.
+//  · 인덱스 1 (c1) 은 setColumnVisible 로 숨겨 hidden 0/1 차이를 관찰할 수 있게 한다.
+//  · columnMove 속성을 true 로 설정하여 Column 순서 변경이 가능한 상태로 만든다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList 있으면 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Column 5개 (c0 ~ c4) 그리드이며 각 셀 값은 c{Column인덱스}_{행번호} 형식이라 값만 보고 원래 Column 인덱스를 알 수 있습니다\n- 인덱스 1 (c1) 은 setColumnVisible 로 숨겨진 Column 입니다\n- Column 순서를 바꿀 수 있도록 그리드의 columnMove 속성이 true 로 설정되어 있습니다\n- saveList 는 Column ID 배열, removeColumns 와 columnOrder 는 인덱스 콤마 문자열입니다\n[절차]\n1. par 옵션 5개 값을 선택한다 (빈값을 고르면 해당 파라미터를 생략한다)\n2. columnMove 를 검증할 때는 먼저 Column순서변경 버튼을 클릭하여 c0 을 c4 위치로 이동시킨다\n3. saveCSV 버튼을 클릭하여 CSV 파일을 다운로드한다\n4. Column 순서를 원래대로 되돌리려면 Target 재생성 버튼을 클릭한다\n[확인] 다운로드한 파일을 메모장 등 텍스트 편집기로 열어 아래를 확인한다\n- 파일에 포함된 Column 과 좌우 순서 (Column 구분 문자는 세미콜론)\n- 각 값의 c 뒤 첫 숫자로 그 데이터의 원래 Column 인덱스를 판별"', '', 'label1');
+
+    // dataList 생성 (5 Column, 4 Row)
+    let strData = '';
+    strData += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strData += '<w2:columnInfo>';
+    strData += '<w2:column id="c0" name="c0" dataType="text"></w2:column>';
+    strData += '<w2:column id="c1" name="c1" dataType="text"></w2:column>';
+    strData += '<w2:column id="c2" name="c2" dataType="text"></w2:column>';
+    strData += '<w2:column id="c3" name="c3" dataType="text"></w2:column>';
+    strData += '<w2:column id="c4" name="c4" dataType="text"></w2:column>';
+    strData += '</w2:columnInfo>';
+    strData += '<w2:data use="true"></w2:data>';
+    strData += '</w2:dataList>';
+    $p.data.create(strData);
+
+    let jsonData = [];
+    for (let r = 1; r <= 4; r++) {
+        jsonData.push({ "c0" : "c0_" + r, "c1" : "c1_" + r, "c2" : "c2_" + r, "c3" : "c3_" + r, "c4" : "c4_" + r });
+    }
+    dlt_bind.setJSON(jsonData, false);
+
+    let cList = $c.gcm.createCList({ dataList : "data:dlt_bind", columnMove : "true" });
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" style="width:820px;height:220px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h0" value="c0 (index 0)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h1" value="c1 (index 1 / hidden)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h2" value="c2 (index 2)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h3" value="c3 (index 3)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="h4" value="c4 (index 4)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="c0" dataList="c0"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="c1" dataList="c1"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="c2" dataList="c2"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="c3" dataList="c3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="c4" dataList="c4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 인덱스 1 Column 숨김 (hidden 옵션 0/1 차이 관찰용)
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// par 옵션값으로 saveCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 모든 파라미터가 미설정이면 빈 객체({}) 가 전달되어 각 옵션이 기본값으로 동작한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    // saveList 는 Column ID 배열이므로 selectbox 의 JSON 문자열을 배열로 변환하여 전달한다.
+    v = par_saveList.getValue();
+    if (v !== "") options.saveList = JSON.parse(v);
+
+    v = par_removeColumns.getValue();
+    if (v !== "") options.removeColumns = v;
+
+    v = par_hidden.getValue();
+    if (v !== "") options.hidden = v;
+
+    // gdl_boolean 바인딩 selectbox 이므로 라벨값을 getText() 로 읽는다.
+    v = par_columnMove.getText();
+    if (v !== "") options.columnMove = v;
+
+    v = par_columnOrder.getValue();
+    if (v !== "") options.columnOrder = v;
+
+    return options;
+}
+
+
+
+// saveCSV 실행 : 검증은 다운로드된 CSV 파일의 실제 Column 구성/순서로 한다.
+//  · 어떤 옵션 조합으로 받은 파일인지 구분할 수 있도록 실제 전달한 options 만 한 줄로 출력한다.
+scwin.btn_saveCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let options = scwin.buildOptions();
+    bottom.setReturnValue("saveCSV 호출 options : " + JSON.stringify(options));
+
+    target1.saveCSV(options);
+}
+
+
+
+// columnMove / columnOrder 검증 전제 : Column 순서를 변경한 상태를 만든다.
+//  · 인덱스 0 (c0) Column 을 인덱스 4 (c4) 위치로 이동시킨다.
+scwin.btn_moveColumn_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.moveColumnByHeaderId("h0", "h4");
+    bottom.setReturnValue("Column 순서 변경 후 순서 : " + target1.getColumnOrder(true));
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.saveList (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_saveList" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>["c0","c2"]</xf:label>
+												<xf:value>["c0","c2"]</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>["c2","c0"] (역순 배열)</xf:label>
+												<xf:value>["c2","c0"]</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>["c1","c3"] (숨김 Column 포함)</xf:label>
+												<xf:value>["c1","c3"]</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.removeColumns (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_removeColumns" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0,2]]></xf:label>
+												<xf:value><![CDATA[0,2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1,3]]></xf:label>
+												<xf:value><![CDATA[1,3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.hidden (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_hidden" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.columnMove (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnMove" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.columnOrder (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnOrder" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0,3,2,1,4]]></xf:label>
+												<xf:value><![CDATA[0,3,2,1,4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4,3,2,1,0]]></xf:label>
+												<xf:value><![CDATA[4,3,2,1,0]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_saveCSV_onclick" id="btn_saveCSV"
+							label="saveCSV" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_moveColumn_onclick" id="btn_moveColumn"
+							label="Column순서변경" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] saveCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="options 그룹별 샘플 분리(_4: Column 속성 관련 옵션 중 drilldown 전용 spanAll)" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _4 : dummy_data * Column 속성 관련 옵션 중 drilldown 전용 옵션(spanAll) 만 담당한다.
+//         같은 Inform 그룹의 type / checkButton 은 _2, aposPrefixOnNum / removeQuotation / removeNewLine / trim 은 _3,
+//         ignoreSpan 은 _5 에서 검증한다. description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > saveCSV]<br/>GridView 컴포넌트의 데이터를 CSV 형식의 파일로 다운로드합니다.",
+    "validation" : [
+        "spanAll(선택) 파라미터로 Column 의 inputType 속성값이 'drilldown' 일때 접혀진(Collapse) 상태의 데이터 포함 여부를 설정합니다.",
+        "spanAll(선택) 파라미터를 'true' 로 설정 시 Drilldown 으로 접혀진(Collapse) 상태의 Row 데이터를 포함하여 전체 Row 를 다운로드합니다.",
+        "spanAll(선택) 파라미터를 'false' 로 설정 시 Drilldown 으로 접혀진(Collapse) 상태의 Row 데이터는 제외하고 다운로드합니다.",
+        "spanAll(선택) 파라미터를 생략하면 기본값 'false' 로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출 (gdl_boolean)
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 미설정('1') 을 명시 지정
+    par_spanAll.setValue("1");
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : spanAll 은 inputType="drilldown" Column 이 있어야 의미가 있으므로 3단계 DrillDown 그리드를 구성한다.
+//  · depth(계층) Column 을 depthColumn 으로 사용 (본부=1, 팀=2, 사원=3)
+//  · showDepth="1" 로 초기에는 depth1(Sales HQ / Dev HQ / Admin Team) 3건만 표시되고 나머지 5건은 접힌 상태가 된다
+//  · 접힌 Row 수(5)와 펼친 Row 수(8)가 다르므로 다운로드된 CSV 의 데이터 행 수로 spanAll 적용 결과가 드러난다
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- inputType=drilldown 트리 그리드이며 바인딩된 DataList 의 전체 Row 는 8건이다\n- 계층은 Sales HQ > (Sales Team1 > Kim Sales, Sales Team2), Dev HQ > (Dev Team1 > Lee Dev), Admin Team(자식 없음) 이다\n- 초기 showDepth=1 이라 Sales HQ / Dev HQ / Admin Team 3건만 표시되고 나머지 5건은 접힌(Collapse) 상태이다\n- 다운로드 파일명은 기본값 csvfile.csv 이고 구분자는 기본값 세미콜론 이다\n[절차]\n1. 그리드 org(drilldown) Column 의 펼침 아이콘을 클릭해 원하는 펼침/접힘 상태를 만든다 (초기 상태 그대로 두어도 된다)\n2. options.spanAll 값을 선택한다 (빈값은 해당 옵션 생략)\n3. saveCSV 버튼을 클릭하여 CSV 파일을 다운로드한다\n4. 다른 옵션 값을 확인하려면 2번부터 반복한다\n[확인]\n- 결과창에 출력된 다운로드 직전 화면 표시 Row 수와 다운로드된 CSV 파일의 데이터 행 수를 비교한다\n- 접힌 Row(예: Sales Team1 / Kim Sales)가 CSV 파일에 기록되는지 여부를 확인한다"', '', 'label1');
+
+    // === 바인딩 DataList(dlt_bind) ===
+    //  - depth : 계층 깊이(number). drilldown Column 의 depthColumn 으로 사용
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDl += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // 계층 데이터 : 부모 바로 아래에 그 자식이 위치 (엔진 drilldown 은 순서 기반)
+    //  - idx0 Sales HQ(1) > idx1 Sales Team1(2) > idx2 Kim Sales(3), idx3 Sales Team2(2)
+    //  - idx4 Dev HQ(1) > idx5 Dev Team1(2) > idx6 Lee Dev(3)
+    //  - idx7 Admin Team(1, 자식 없음)
+    let jsonData = [
+        { "name": "Sales HQ", "amount": 1000, "depth": 1 },
+        { "name": "Sales Team1", "amount": 1100, "depth": 2 },
+        { "name": "Kim Sales", "amount": 1110, "depth": 3 },
+        { "name": "Sales Team2", "amount": 1200, "depth": 2 },
+        { "name": "Dev HQ", "amount": 2000, "depth": 1 },
+        { "name": "Dev Team1", "amount": 2100, "depth": 2 },
+        { "name": "Lee Dev", "amount": 2110, "depth": 3 },
+        { "name": "Admin Team", "amount": 3000, "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DrillDown 트리 Column + 초기 접힘 상태)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:600px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="saveCSV spanAll 테스트 그리드 (DrillDown)"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="400" style="" inputType="text" id="hcol1" value="org(drilldown)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol2" value="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="400" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 saveCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · gdl_boolean 바인딩 셀렉트박스이므로 getText() 로 라벨(''/'true'/'false') 을 읽는다.
+scwin.buildOptions = function () {
+    let options = {};
+
+    let v = par_spanAll.getText();
+    if (v !== "") options.spanAll = v;
+
+    return options;
+}
+
+
+
+// saveCSV 실행 : 다운로드된 CSV 파일의 데이터 행 수 / 내용으로 spanAll 적용 결과를 확인한다.
+//  · 다운로드 직전의 화면 표시 Row 수를 함께 출력하여 CSV 행 수와 대조할 수 있게 한다.
+scwin.btn_saveCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let options = scwin.buildOptions();
+    bottom.setReturnValue("saveCSV 실행 : spanAll=" + (options.spanAll === undefined ? "(생략)" : options.spanAll) + " , 다운로드 직전 화면 표시 Row 수=" + target1.getRowCount() + " (DataList 전체 Row 수=" + dlt_bind.getTotalRow() + ")");
+
+    target1.saveCSV(options);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.spanAll (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_spanAll" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_saveCSV_onclick" id="btn_saveCSV"
+							label="saveCSV" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

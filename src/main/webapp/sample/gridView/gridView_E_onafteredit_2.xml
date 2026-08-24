@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] onafteredit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260820" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _2 : Body 가 MultiLine 일때의 onafteredit 전용 분리 샘플.
+//     한 데이터 레코드(rowIndex N)를 2개의 Line(TR)으로 표시(MultiLine).
+//       Line1 : c1 | c2 | c3   (colIndex 0,1,2)
+//       Line2 : c4 | c5 | c6   (colIndex 3,4,5)
+//     · 같은 레코드의 Line1 Cell / Line2 Cell 에서 각각 편집을 완료하면 rowIndex 는 레코드 단위(0,1,2)로 동일하게 전달된다.
+//     · Line1/Line2 를 통틀어 모든 Column 은 0~5 로 겹치지 않는 고유 colIndex 를 갖는다.
+//     기본 발생 시점 / value 파라미터 관련 검증은 _1 / _3 샘플에서 다루므로 본 샘플에서는 제외.
+scwin.tData = {
+    "description" : "[gridView > E > onafteredit]<br/>Body Cell 의 편집이 완료되고 데이터가 DataList 에 반영된 후 발생합니다.",
+    "validation" : [
+        "Body 가 MultiLine 일때 각 Line 의 Row 인덱스값은 같습니다.",
+        "Row 가 MultiLine 이어도 모든 Column 은 고유의 인덱스값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성 (비동기 dynamicCreate 완료까지 대기)
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 — MultiLine(레코드당 2 Line), 셀별 고유값.
+//   레코드 | Line1(c1,c2,c3) | Line2(c4,c5,c6)
+//   ------+-----------------+-----------------
+//    0    | A0 , B0 , C0    | D0 , E0 , F0
+//    1    | A1 , B1 , C1    | D1 , E1 , F1
+//    2    | A2 , B2 , C2    | D2 , E2 , F2
+scwin.MLINE_DATA = [
+    { "c1" : "A0", "c2" : "B0", "c3" : "C0", "c4" : "D0", "c5" : "E0", "c6" : "F0" },
+    { "c1" : "A1", "c2" : "B1", "c3" : "C1", "c4" : "D1", "c5" : "E1", "c6" : "F1" },
+    { "c1" : "A2", "c2" : "B2", "c3" : "C2", "c4" : "D2", "c5" : "E2", "c6" : "F2" }
+];
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행)
+//  - MultiLine(레코드당 2 Line) 그리드 1개를 동적 생성.
+//      Line1=c1,c2,c3 (colIndex 0,1,2) / Line2=c4,c5,c6 (colIndex 3,4,5)
+//  - Cell 의 편집이 완료되어야 onafteredit 가 발생하므로 editable="true" 로 생성한다.
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 정리 (동일 id 재생성 무시 방지)
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    //  · createLabel 문자 제약 : 작은따옴표 금지, 줄바꿈은 이스케이프 개행문자 사용
+    $c.gcm.createLabel('label="[전제] MultiLine 구성 - 레코드 1건이 2줄로 표시됩니다. 1줄=c1·c2·c3, 2줄=c4·c5·c6 (레코드 3건)\n[절차] Cell 을 더블클릭해 편집 상태로 만들고 값을 입력한 뒤 Enter 를 누르거나 다른 Cell 을 클릭해 편집을 완료합니다. 편집 완료까지 해야 이벤트가 발생합니다.\n[절차] 같은 레코드의 1줄 Cell 을 편집 완료하고, 이어서 같은 레코드 2줄 Cell 도 편집 완료합니다. 그 다음 1줄~2줄의 모든 Cell 을 왼쪽부터 차례로 편집 완료해 봅니다.\n[확인] 같은 레코드면 1줄/2줄 어느 Cell 을 편집해도 rowIndex 가 같은지, 1줄과 2줄 Column 을 합쳐 colIndex 가 0부터 5까지 겹치지 않고 나오는지 결과창에서 확인"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성 (6개 컬럼 → createDynamicDataList(4컬럼 한계) 대신 인라인 생성)
+    //  ★ DataList 컬럼 id 와 gBody 컬럼 id/dataList 를 모두 c1~c6 로 동일하게 (id 와 dataList 불일치 시 셀 빈값)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="c1" name="c1" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c2" name="c2" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c3" name="c3" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c4" name="c4" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c5" name="c5" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="c6" name="c6" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.MLINE_DATA, false);
+
+    // target 그리드 직접 구성 (MultiLine : header/gBody 각 <w2:row> 2개)
+    //  · 3레코드 x 2Line x 30px + Header 2Line + caption 이 모두 보이도록 height 를 충분히 확보
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" editable="true" checkAllType="false" defaultCellHeight="30" ev:onafteredit="scwin.target1_onafteredit" id="" style="width:300px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="onafteredit MultiLine sample"></w2:caption>';
+    // Header : Line1(c1,c2,c3) / Line2(c4,c5,c6)
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c1" value="c1(idx0)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c2" value="c2(idx1)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c3" value="c3(idx2)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c4" value="c4(idx3)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c5" value="c5(idx4)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol_c6" value="c6(idx5)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    // gBody : Line1(c1,c2,c3) / Line2(c4,c5,c6) → 레코드당 2 TR Line
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c1" dataList="c1"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c2" dataList="c2"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c3" dataList="c3"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="brow2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c4" dataList="c4"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c5" dataList="c5"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="c6" dataList="c6"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// onafteredit : Body Cell 의 편집이 완료되고 데이터가 DataList 에 반영된 후 발생.
+//  ▶ 한 줄 + MultiLine 검증에 필요한 rowIndex / colIndex 만 출력
+//   · MultiLine 이어도 같은 레코드의 1줄/2줄 Cell 은 rowIndex 동일(레코드 단위 0~2)
+//   · colIndex(0~5) 는 Line 과 무관하게 모든 Column 이 고유
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("▶ onafteredit");
+    bottom.setReturnValue("rowIndex : " + rowIndex);
+    bottom.setReturnValue("colIndex : " + colIndex);
+}]]></script>
+		<style type="text/css"><![CDATA[
+/* MultiLine 렌더 시 엔진이 body 내용을 viewport 보다 크게 렌더하여 세로 스크롤바가 생김. 데이터(3레코드)는 height 안에 모두 표시되므로 세로 스크롤바를 숨김. */
+.w2grid_scrollY { display: none !important; }
+
+/* 행 높이 보정 */
+tr.grid_body_row { height: 30px !important; }
+tr.grid_body_row > td { height: 30px; }
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter"></xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

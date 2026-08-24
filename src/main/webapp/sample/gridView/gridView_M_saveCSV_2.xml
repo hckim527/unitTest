@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] saveCSV" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="options 그룹별 샘플 분리(_2: Column 속성 관련 옵션 중 inputType 계열 type/checkButton)" meta_date="20260821" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1154
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _2 : dummy_data * Column 속성 관련 옵션 중 inputType 계열(type / checkButton) 만 담당한다.
+//         같은 Inform 그룹의 spanAll / aposPrefixOnNum / ignoreSpan / removeQuotation / removeNewLine / trim 은 grid 구조가 달라 별도 샘플에서 검증한다.
+//         description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > saveCSV]<br/>GridView 컴포넌트의 데이터를 CSV 형식의 파일로 다운로드합니다.",
+    "validation" : [
+        "type(선택) 파라미터로 Column 의 inputType 속성값이 'select','autoComplete','checkComboBox' 일때 데이터가 다운로드되는 방식을 설정합니다.",
+        "type(선택) 파라미터를 '0' 으로 설정 시 Value 값을 사용하여 데이터를 다운로드합니다.",
+        "type(선택) 파라미터를 '1' 로 설정 시 Label 값을 사용하여 데이터를 다운로드합니다.",
+        "type(선택) 파라미터를 '2' 로 설정 시 Column 의 displayMode 설정에 따라 'value 구분자 label' 또는 'label 구분자 value' 값을 사용하여 데이터를 다운로드합니다.",
+        "type(선택) 파라미터를 생략하면 기본값 '1' 로 동작합니다.",
+        "checkButton(선택) 파라미터로 Column 의 inputType 속성값이 'checkbox','radio','button' 일때 데이터 포함 여부를 설정합니다.",
+        "checkButton(선택) 파라미터를 '0' 으로 설정 시 해당 Column 의 데이터는 제외하고 다운로드합니다.",
+        "checkButton(선택) 파라미터를 '1' 로 설정 시 해당 Column 의 데이터를 포함하여 다운로드합니다.",
+        "checkButton(선택) 파라미터를 생략하면 기본값 '1' 로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : type 이 적용되는 3개 inputType(select / autoComplete / checkComboBox) Column 과
+//             checkButton 이 적용되는 3개 inputType(checkbox / radio / button) Column 을 한 GridView 에 함께 둔다.
+//  · index 1 gradeA : select, displayMode 미설정
+//  · index 2 gradeB : select, displayMode="value delim label" + delimiter="-"  (displayMode 유무 대조 쌍)
+//  · index 3 gradeC : autoComplete, displayMode 미설정
+//  · index 4 gradeD : checkComboBox, displayMode 미설정
+//    -> 네 Column 이 같은 choices(Label L1~L3 / Value V1~V3)를 쓰므로 한 번의 다운로드로 type 별 매핑 결과를 동시에 관찰한다
+//  · index 5 chk : checkbox / index 6 rdo : radio / index 7 btn : button -> checkButton 적용 대상 Column
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- gradeA ~ gradeD 는 같은 선택 항목(Label L1~L3 / Value V1~V3)을 쓰는 Column 이며 저장값은 Value(V1/V2/V3) 이다\n- gradeA = select(displayMode 미설정) / gradeB = select(displayMode=value 구분자 label, 구분자는 하이픈)\n- gradeC = autoComplete(displayMode 미설정) / gradeD = checkComboBox(displayMode 미설정)\n- chk = checkbox / rdo = radio / btn = button 으로 checkButton 옵션의 적용 대상 Column 이다\n- 다운로드 파일명은 기본값 csvfile.csv 이고 구분자는 기본값 세미콜론 이다\n[절차]\n1. par 옵션(options.type / options.checkButton) 값을 선택한다 (빈값은 해당 옵션 생략)\n2. saveCSV 버튼을 클릭하여 CSV 파일을 다운로드한다\n3. 다른 옵션 조합을 확인하려면 1번부터 반복한다\n[확인]\n- 다운로드된 CSV 파일에서 gradeA ~ gradeD 컬럼값이 type 값에 따라 어떻게 기록되는지 확인\n- 다운로드된 CSV 파일에 chk / rdo / btn 컬럼이 포함되는지 여부를 checkButton 값에 따라 확인"', '', 'label1');
+
+    // DataList 생성 (name / gradeA~gradeD / chk / rdo / btn / amount / 3행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeA" name="gradeA" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeB" name="gradeB" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeC" name="gradeC" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeD" name="gradeD" dataType="text"></w2:column>';
+    strDl += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDl += '<w2:column id="rdo" name="rdo" dataType="text"></w2:column>';
+    strDl += '<w2:column id="btn" name="btn" dataType="text"></w2:column>';
+    strDl += '<w2:column id="amount" name="amount" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    strDl += '<w2:row><name>name1</name><gradeA>V1</gradeA><gradeB>V1</gradeB><gradeC>V1</gradeC><gradeD>V1</gradeD><chk>1</chk><rdo>1</rdo><btn>BTN1</btn><amount>10</amount></w2:row>';
+    strDl += '<w2:row><name>name2</name><gradeA>V2</gradeA><gradeB>V2</gradeB><gradeC>V2</gradeC><gradeD>V2</gradeD><chk>0</chk><rdo>0</rdo><btn>BTN2</btn><amount>20</amount></w2:row>';
+    strDl += '<w2:row><name>name3</name><gradeA>V3</gradeA><gradeB>V3</gradeB><gradeC>V3</gradeC><gradeD>V3</gradeD><chk>1</chk><rdo>0</rdo><btn>BTN3</btn><amount>30</amount></w2:row>';
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strChoices = '';
+    strChoices += '<w2:choices>';
+    strChoices += '<w2:item><w2:label>L1</w2:label><w2:value>V1</w2:value></w2:item>';
+    strChoices += '<w2:item><w2:label>L2</w2:label><w2:value>V2</w2:value></w2:item>';
+    strChoices += '<w2:item><w2:label>L3</w2:label><w2:value>V3</w2:value></w2:item>';
+    strChoices += '</w2:choices>';
+
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:1180px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="saveCSV type / checkButton 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="hcol1" value="name"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="gradeA select(unset)"></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="text" id="hcol3" value="gradeB select(value delim label)"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol4" value="gradeC autoComplete"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol5" value="gradeD checkComboBox"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol6" value="chk checkbox"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol7" value="rdo radio"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol8" value="btn button"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol9" value="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="select" id="gradeA" dataList="gradeA">' + strChoices + '</w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="select" id="gradeB" dataList="gradeB" displayMode="value delim label" delimiter="-">' + strChoices + '</w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="autoComplete" id="gradeC" dataList="gradeC">' + strChoices + '</w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="checkcombobox" id="gradeD" dataList="gradeD">' + strChoices + '</w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="checkbox" valueType="binary" id="chk" dataList="chk" trueValue="1" falseValue="0"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="radio" valueType="binary" id="rdo" dataList="rdo" trueValue="1" falseValue="0"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="button" id="btn" dataList="btn"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 saveCSV options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_type.getValue();
+    if (v !== "") options.type = v;
+
+    v = par_checkButton.getValue();
+    if (v !== "") options.checkButton = v;
+
+    return options;
+}
+
+
+
+// saveCSV 실행 : 다운로드된 CSV 파일의 내용으로 옵션 적용 결과를 확인한다.
+scwin.btn_saveCSV_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let options = scwin.buildOptions();
+    bottom.setReturnValue("saveCSV 실행 : type=" + (options.type === undefined ? "(생략)" : options.type) + " , checkButton=" + (options.checkButton === undefined ? "(생략)" : options.checkButton));
+
+    target1.saveCSV(options);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.type (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.checkButton (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_checkButton" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_saveCSV_onclick" id="btn_saveCSV"
+							label="saveCSV" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
