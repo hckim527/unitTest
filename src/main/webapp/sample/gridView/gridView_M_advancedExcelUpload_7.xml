@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1176
+// https://inswave01.atlassian.net/browse/WAEA-1177
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _7 : 데이터 업로드 옵션 중 Column 매핑 옵션(type / hidden / fillHidden). description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "type(선택) 파라미터로 Column 의 inputType 속성값이 'select','autoComplete','checkComboBox' 일때 데이터가 설정되는 항목을 설정합니다.",
+        "type(선택) 파라미터를 '0' 으로 설정 시 Value 값을 사용하여 데이터를 설정합니다.",
+        "type(선택) 파라미터를 '1' 로 설정 시 Label 값을 사용하여 데이터를 설정합니다.",
+        "type(선택) 파라미터를 '2' 로 설정 시 Column 의 displayMode 설정에 따라 'value 구분자 label' 또는 'label 구분자 value' 값을 사용하여 데이터를 설정합니다.",
+        "type(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "hidden(선택) 파라미터로 GridView 의 숨겨진 Column 에 Excel 데이터를 맵핑할지 설정합니다.",
+        "hidden(선택) 파라미터를 '0' 으로 설정 시 숨겨진 Column 은 제외하고 표시된 Column 에만 Excel 데이터를 Column 순서대로 설정합니다.",
+        "hidden(선택) 파라미터를 '1' 로 설정 시 숨겨진 Column 도 포함하여 Excel 데이터를 Column 순서대로 설정합니다.",
+        "hidden(선택) 파라미터값에 따라 Column 갯수가 맞지 않을 경우 마지막 Column 데이터가 유실될 수 있습니다.",
+        "hidden(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "fillHidden(선택) 파라미터로 hidden 파라미터값이 '1' 일때 숨겨진 Column 에 빈 값을 적용할지 설정합니다.",
+        "fillHidden(선택) 파라미터를 '0' 으로 설정 시 숨겨진 Column 에 빈 값을 설정합니다.",
+        "fillHidden(선택) 파라미터를 '1' 로 설정 시 숨겨진 Column 에 실제 Excel 데이터를 설정합니다.",
+        "fillHidden(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.gVar = { "uploadType" : "", "popWin" : null };
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 숨겨진 Column 과 type 적용 대상 inputType 3종 Column 을 함께 가진 GridView 를 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · index 0 name : text (Excel Column 0)
+//  · index 1 hide : text + setColumnVisible(1, false) 로 숨겨진 Column (Excel Column 1)
+//  · index 2 gradeA : select, displayMode 미설정
+//  · index 3 gradeB : select, displayMode="value delim label" + delimiter="-" (displayMode 유무 대조)
+//  · index 4 gradeC : autoComplete, displayMode 미설정
+//  · index 5 gradeD : checkComboBox, displayMode 미설정
+//    -> gradeA ~ gradeD 는 Column 별로 다른 선택 항목(LA*/VA* ~ LD*/VD*)을 쓰므로 셀값만으로 원래 Excel Column 을 판별할 수 있다
+//  · footerExist 기본값의 간섭을 배제하기 위해 Footer 가 없는 그리드로 구성한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Body Column 은 col0 name / col1 hide / col2 gradeA / col3 gradeB / col4 gradeC / col5 gradeD 6개이며 col1 hide 는 setColumnVisible(1, false) 로 숨겨진 Column\n- gradeA = select(displayMode 미설정) / gradeB = select(displayMode=value 구분자 label, 구분자는 하이픈)\n- gradeC = autoComplete(displayMode 미설정) / gradeD = checkComboBox(displayMode 미설정)\n- grade Column 의 선택 항목은 Column 별 문자로 구분됨 (gradeA 는 Label LA1~LA3 / Value VA1~VA3, gradeB 는 LB/VB, gradeC 는 LC/VC, gradeD 는 LD/VD)\n- 테스트용 Excel 2종 (TSQA/src/sample/gridView/data/upload/ts_gridView_M_advancedExcelUpload_7/) - hidden 값에 따라 Excel 의 Column 구성이 달라야 한다\n- hidden 미설정 또는 0 : ts_gridView_M_advancedExcelUpload_7_upload_nohidden.xlsx (숨김 col1 자리를 뺀 5 Column)\n- hidden 1 : ts_gridView_M_advancedExcelUpload_7_upload.xlsx (숨김 col1 을 포함한 6 Column). fillHidden 확인도 이 파일을 사용한다\n- Excel 구성(3행) - 0행은 Label 표기(LA1/LB1/LC1/LD1) / 1행은 Value 표기(VA2/VB2/VC2/VD2) / 2행은 value 구분자 label 표기(VA3-LA3/VB3-LB3/VC3-LC3/VD3-LD3)\n- name 과 hide Column 의 Excel 값은 r(행)c(Excel Column 인덱스) 형태라 셀값만으로 원래 Excel Column 을 판별할 수 있음\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 팝업창이 별도 팝업 창으로 열림\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 2행 상태로 되돌린다\n2. par 옵션(type / hidden / fillHidden) 값을 선택한다\n3. advancedExcelUpload 버튼을 클릭한다\n4. 열린 팝업 창에서 위 전제에 따라 hidden 값에 맞는 Excel 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 전달된 type 값과 업로드 팝업 창에 반영된 숨겨진 Column 포함 / 숨겨진 Column 채움 / 숨겨진 Column 인덱스 값이 출력됨\n- 5번 출력에서 gradeA ~ gradeD 의 저장값과 표시값을 비교하여 type 별로 매핑에 사용되는 항목(Value / Label / value 구분자 label)을 확인\n- 5번 출력에서 숨김 Column(hide) 의 Cell 너비와 name ~ gradeD 값의 배치를 비교하여 hidden / fillHidden 결과를 확인"', '', 'label1');
+
+    // DataList 생성 (name / hide / gradeA~gradeD / 초기 2행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="hide" name="hide" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeA" name="gradeA" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeB" name="gradeB" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeC" name="gradeC" dataType="text"></w2:column>';
+    strDl += '<w2:column id="gradeD" name="gradeD" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    strDl += '<w2:row><name>init1_0</name><hide>init1_1</hide><gradeA>VA1</gradeA><gradeB>VB1</gradeB><gradeC>VC1</gradeC><gradeD>VD1</gradeD></w2:row>';
+    strDl += '<w2:row><name>init2_0</name><hide>init2_1</hide><gradeA>VA2</gradeA><gradeB>VB2</gradeB><gradeC>VC2</gradeC><gradeD>VD2</gradeD></w2:row>';
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성 (DataList 바인딩 / Footer 없음)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:1000px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelUpload type / hidden 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="row1">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol1" value="name"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol2" value="hide (숨김)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol3" value="gradeA select(미설정)"></w2:column>';
+    strTarget += '<w2:column width="210" style="" inputType="text" id="hcol4" value="gradeB select(value 구분자 label)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol5" value="gradeC autoComplete"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol6" value="gradeD checkComboBox"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="row2">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hide" dataList="hide"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="select" id="gradeA" dataList="gradeA">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>LA1</w2:label><w2:value>VA1</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LA2</w2:label><w2:value>VA2</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LA3</w2:label><w2:value>VA3</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '<w2:column width="210" style="" inputType="select" id="gradeB" dataList="gradeB" displayMode="value delim label" delimiter="-">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>LB1</w2:label><w2:value>VB1</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LB2</w2:label><w2:value>VB2</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LB3</w2:label><w2:value>VB3</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="autoComplete" id="gradeC" dataList="gradeC">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>LC1</w2:label><w2:value>VC1</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LC2</w2:label><w2:value>VC2</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LC3</w2:label><w2:value>VC3</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="checkcombobox" id="gradeD" dataList="gradeD">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>LD1</w2:label><w2:value>VD1</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LD2</w2:label><w2:value>VD2</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>LD3</w2:label><w2:value>VD3</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 숨겨진 Column 구성 (hide = index 1)
+    target1.setColumnVisible(1, false);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값) 으로 두어 업로드 창을 별도 팝업 창으로 연다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_type.getValue();
+    if (v !== "") options.type = v;
+
+    v = par_hidden.getValue();
+    if (v !== "") options.hidden = v;
+
+    v = par_fillHidden.getValue();
+    if (v !== "") options.fillHidden = v;
+
+    return options;
+}
+
+
+
+// advancedExcelUpload 실행
+//  · type 은 업로드 창의 표시 항목이 아니므로, 엔진이 실제로 전달한 값(_excelUploadInfo.uploadType)을 호출 직후 읽어 둔다.
+//  · wframe 미설정이라 업로드 창이 별도 팝업 창으로 열리므로, 호출 시점에만 window.open 을 감싸 팝업 핸들을 1회 확보하고 finally 로 원복한다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    scwin.gVar.popWin = null;
+    let fnOpen = window.open;
+    window.open = function () {
+        let objWin = fnOpen.apply(window, arguments);
+        if (scwin.gVar.popWin === null) scwin.gVar.popWin = objWin;
+        return objWin;
+    };
+
+    try {
+        target1.advancedExcelUpload(scwin.buildOptions());
+    } finally {
+        window.open = fnOpen;
+    }
+
+    scwin.gVar.uploadType = JSON.parse(target1._excelUploadInfo).uploadType;
+
+    setTimeout(scwin.printUploadState, 1000);
+}
+
+
+
+// 업로드 팝업 창에 반영된 값을 읽어 반환한다.
+//  · 업로드 창은 별도 팝업 창(같은 Origin)이므로 확보해 둔 팝업 핸들의 document 에서 직접 읽는다.
+//  · 팝업 문서의 필드 ID 는 접두어 없는 hiddenSelect / fillHidden / hiddenColumns 이다.
+//  · hidden 은 숨겨진 Column 포함 여부, fillHidden 은 숨겨진 Column 채움 여부 선택 항목에 대응된다.
+scwin.getUploadLayerInfo = function () {
+    let objWin = scwin.gVar.popWin;
+    if (!objWin || objWin.closed || !objWin.document) return null;
+
+    let objHidden = objWin.document.getElementById("hiddenSelect");
+    let objFillHidden = objWin.document.getElementById("fillHidden");
+    let objHiddenColumns = objWin.document.getElementById("hiddenColumns");
+
+    if (objHidden === null || objFillHidden === null || objHiddenColumns === null) return null;
+
+    return { "hidden" : objHidden.value, "fillHidden" : objFillHidden.value, "hiddenColumns" : objHiddenColumns.value };
+}
+
+
+
+// 전달된 type 값과 업로드 팝업 창에 반영된 hidden / fillHidden / 숨김 Column 인덱스를 출력한다.
+//  · 팝업 로딩 전에는 필드가 없을 수 있으므로 짧은 간격으로 재시도한다.
+scwin.printUploadState = function (nRetry) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    nRetry = nRetry || 0;
+
+    let objInfo = null;
+    try {
+        objInfo = scwin.getUploadLayerInfo();
+    } catch (e) {
+        objInfo = null;
+    }
+
+    if (objInfo === null) {
+        if (nRetry < 15) {
+            setTimeout(function () {
+                try { scwin.printUploadState(nRetry + 1); } catch (e) {}
+            }, 300);
+            return;
+        }
+        bottom.setReturnValue("Excel 파일 선택 팝업 창이 열려있지 않습니다.");
+        return;
+    }
+
+    bottom.setReturnValue("전달된 type : [" + scwin.gVar.uploadType + "] / 업로드 팝업 창 반영값 - 숨겨진 Column 포함 : [" + objInfo.hidden + "] / 숨겨진 Column 채움 : [" + objInfo.fillHidden + "] / 숨겨진 Column 인덱스 : [" + objInfo.hiddenColumns + "]");
+}
+
+
+
+// 업로드 결과 확인 : 그리드에 실제 렌더된 숨김 Column 상태와 반영된 데이터를 함께 출력한다.
+//  · 엔진은 숨겨진 Column 을 display:none 이 아니라 Cell 너비 0px 로 렌더한다.
+//  · 선택 계열 Column 은 저장값(Value)과 화면 표시값이 다르므로 두 값을 함께 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let objHiddenTd = document.querySelector("td[id*='" + target1.id + "_cell_0_1']");
+    let objShownTd = document.querySelector("td[id*='" + target1.id + "_cell_0_2']");
+    let strHiddenWidth = (objHiddenTd === null) ? "td 없음" : getComputedStyle(objHiddenTd).width;
+    let strShownWidth = (objShownTd === null) ? "td 없음" : getComputedStyle(objShownTd).width;
+    bottom.setReturnValue("렌더 구조 - 숨김 Column(hide) Cell 너비 : [" + strHiddenWidth + "] , 표시 Column(gradeA) Cell 너비 : [" + strShownWidth + "]");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt);
+    for (let i = 0; i < cnt; i++) {
+        let strOut = "[" + i + "] name=" + target1.getCellData(i, "name") + " | hide=" + target1.getCellData(i, "hide");
+        let arrCol = ["gradeA", "gradeB", "gradeC", "gradeD"];
+        for (let k = 0; k < arrCol.length; k++) {
+            let objTd = document.querySelector("td[id*='" + target1.id + "_cell_" + i + "_" + (k + 2) + "']");
+            let strText = (objTd === null ? "" : (objTd.textContent || "").trim());
+            strOut = strOut + " | " + arrCol[k] + " 저장=" + target1.getCellData(i, arrCol[k]) + " , 표시=" + strText;
+        }
+        bottom.setReturnValue(strOut);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.type (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.hidden (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_hidden" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.fillHidden (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_fillHidden" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

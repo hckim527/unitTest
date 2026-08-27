@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1178
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _11 : Column 삽입 옵션(insertColumns / columnIndex / columnValue) + 상태창 옵션(processMsg). description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "insertColumns(선택) 파라미터로 Excel 데이터에 없는 값을 특정 Column 으로 삽입합니다.",
+        "insertColumns(선택) 파라미터를 설정하면 Column 이 특정 위치에 삽입되며 데이터는 한 Column 씩 밀리게 됩니다.",
+        "insertColumns(선택) 파라미터는 inputType='radio','checkbox' 인 Column 의 값을 사용자가 직접 일괄 설정하는 경우 설정합니다.",
+        "insertColumns(선택) 파라미터를 생략하면 기본값 [] 로 동작합니다.",
+        "insertColumns.columnIndex(선택) 파라미터로 Column 이 삽입될 위치를 Column 인덱스로 설정합니다.",
+        "insertColumns.columnIndex(선택) 파라미터에서 Column 의 인덱스는 0 부터 시작하며 삽입 위치 이후 데이터는 한 Column 씩 밀리게 됩니다.",
+        "insertColumns.columnIndex(선택) 파라미터를 생략하면 기본값 빈 문자열로 동작합니다.",
+        "insertColumns.columnValue(선택) 파라미터로 삽입된 Column 에 적용될 값을 설정합니다.",
+        "insertColumns.columnValue(선택) 파라미터값은 Column 의 전체 Cell 값으로 적용됩니다.",
+        "insertColumns.columnValue(선택) 파라미터값에 내부에서 구분자로 사용되는 ',','|' 문자가 포함되면 안됩니다.",
+        "insertColumns.columnValue(선택) 파라미터를 생략하면 기본값 빈 문자열로 동작합니다.",
+        "processMsg(선택) 파라미터로 업로드 진행 중 표시할 메시지를 설정합니다.",
+        "processMsg(선택) 파라미터를 생략하면 기본값 'upload...' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.gVar = { "insertColumnsSent" : "", "processMsgSeen" : "", "pollId" : 0, "popWin" : null };
+
+// par_insertColumns 선택값에 대응되는 실제 전달 배열
+scwin.mapInsertColumns = {
+    "one"     : [{ "columnIndex" : 1, "columnValue" : "1" }],
+    "two"     : [{ "columnIndex" : 1, "columnValue" : "1" }, { "columnIndex" : 3, "columnValue" : "1" }],
+    "noIndex" : [{ "columnIndex" : "", "columnValue" : "1" }],
+    "noValue" : [{ "columnIndex" : 1, "columnValue" : "" }],
+    "comma"   : [{ "columnIndex" : 1, "columnValue" : "A,B" }],
+    "pipe"    : [{ "columnIndex" : 1, "columnValue" : "A|B" }]
+};
+
+
+
+scwin.onpageload = function () {
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Excel Column 수(4) 보다 많은 6 Column GridView 를 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · index 0 col0 : text
+//  · index 1 chk  : checkbox (insertColumns 삽입 대상)
+//  · index 2 col2 : text
+//  · index 3 rdo  : radio (insertColumns 삽입 대상)
+//  · index 4 col4 : text
+//  · index 5 col5 : text
+//  · Excel 값이 r(행)c(Excel Column 인덱스) 형태이므로 삽입에 의한 Column 밀림을 셀값만으로 판별할 수 있다.
+//  · footerExist 기본값("1")의 간섭을 배제하기 위해 Footer 가 없는 그리드로 구성한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList / 업로드 팝업 창 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    scwin.closeUploadPopup();
+    scwin.gVar.processMsgSeen = "";
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Body Column 은 index 0 col0 / 1 chk(checkbox) / 2 col2 / 3 rdo(radio) / 4 col4 / 5 col5 의 6개이며 DataList 가 바인딩되어 있음 (Footer 없음)\n- 테스트용 Excel : TSQA/src/sample/gridView/data/upload/ts_gridView_M_advancedExcelUpload_11/ts_gridView_M_advancedExcelUpload_11_upload.xlsx\n- Excel 구성 : 3행 4Column 이며 각 Cell 값이 r(행)c(Excel Column 인덱스) 형태라 셀값만으로 원래 Excel Column 을 판별할 수 있음\n- 그리드 Column 수(6)가 Excel Column 수(4)보다 많으므로 삽입이 없으면 뒤쪽 Column 은 빈값으로 남음\n- append 는 미설정(기본값)이라 업로드 시 기존 데이터가 삭제되고 Excel 데이터만 남음\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 팝업창이 별도 팝업 창으로 열림\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 2행 상태로 되돌린다\n2. par 옵션(insertColumns / processMsg) 값을 선택한다\n3. advancedExcelUpload 버튼을 클릭한다\n4. 열린 팝업 창에서 위 Excel 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 전달한 insertColumns 배열과 엔진이 서버로 전달한 문자열이 출력됨\n- 5번 출력 첫 줄에 업로드 진행 중 팝업 창에 표시된 메시지가 출력됨\n- 5번 출력의 Column 별 값을 r(행)c(Excel Column 인덱스) 표기로 비교하여 삽입 위치와 Column 밀림을 확인한다\n- chk 와 rdo 는 저장값과 함께 실제 체크 상태를 출력하므로 삽입값이 Column 전체 Cell 에 일괄 적용되는지 확인한다\n- rdo 는 radio Column 이라 Column 전체가 하나의 선택 그룹이므로 저장값이 모든 행에 적용되어도 체크 표시는 한 행만 유지된다\n- columnValue 에 콤마 또는 파이프가 포함된 항목은 서버 전달 문자열과 업로드 결과를 함께 확인한다\n- 업로드가 정상 처리되면 팝업 창은 자동으로 닫히며, 닫히지 않고 남아 있으면 창을 닫은 뒤 다음 케이스를 진행한다"', '', 'label1');
+
+    // DataList 생성 (col0 / chk / col2 / rdo / col4 / col5 / 초기 2행)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col0" name="col0" dataType="text"></w2:column>';
+    strDl += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col2" name="col2" dataType="text"></w2:column>';
+    strDl += '<w2:column id="rdo" name="rdo" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col4" name="col4" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col5" name="col5" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true">';
+    strDl += '<w2:row><col0>init0_0</col0><chk>0</chk><col2>init0_2</col2><rdo>0</rdo><col4>init0_4</col4><col5>init0_5</col5></w2:row>';
+    strDl += '<w2:row><col0>init1_0</col0><chk>0</chk><col2>init1_2</col2><rdo>0</rdo><col4>init1_4</col4><col5>init1_5</col5></w2:row>';
+    strDl += '</w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+
+    // target 생성 (DataList 바인딩 / Footer 없음)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:820px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="row1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol0" value="col0"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol1" value="chk (checkbox)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol2" value="col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="rdo (radio)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol4" value="col4"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="col5"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="row2">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col0" dataList="col0"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="checkbox" valueType="binary" trueValue="1" falseValue="0" id="chk" dataList="chk"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="radio" valueType="binary" trueValue="1" falseValue="0" id="rdo" dataList="rdo"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="col5" dataList="col5"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값)으로 두어 업로드 창이 별도 팝업 창으로 열리게 한다.
+scwin.buildOptions = function () {
+    let options = {};
+
+    let v = par_insertColumns.getValue();
+    if (v !== "") options.insertColumns = scwin.mapInsertColumns[v];
+
+    let m = par_processMsg.getValue();
+    if (m !== "") options.processMsg = m;
+
+    return options;
+}
+
+
+
+// 남아 있는 업로드 팝업 창 정리 : 이전 케이스의 창과 그 안에 표시된 진행 메시지를 읽는 것을 방지한다.
+scwin.closeUploadPopup = function () {
+    try {
+        if (scwin.gVar.popWin !== null && !scwin.gVar.popWin.closed) {
+            scwin.gVar.popWin.close();
+        }
+    } catch (e) {
+        // 이미 닫힌 창은 무시한다.
+    }
+    scwin.gVar.popWin = null;
+}
+
+
+
+// advancedExcelUpload 호출 시 열리는 별도 팝업 창의 핸들을 확보한다.
+//  · wframe 미설정(기본값) 이면 업로드 창이 별도 팝업 창으로 열려 부모 화면 DOM 에서는 창 내부를 읽을 수 없다.
+//  · 호출 시점에만 window.open 을 감싸 반환된 창 객체를 1회 확보하고 finally 로 즉시 원복한다.
+//  · window.open("", "창이름") 으로 기존 창을 다시 얻으려 하면 about:blank 새 탭이 열리므로 사용하지 않는다.
+scwin.callWithPopupCapture = function (fnCall) {
+    let fnOpen = window.open;
+    let objPop = null;
+    window.open = function () {
+        objPop = fnOpen.apply(window, arguments);
+        return objPop;
+    };
+    try {
+        fnCall();
+    } finally {
+        window.open = fnOpen;
+    }
+    return objPop;
+}
+
+
+
+// 업로드 진행 메시지 레이어를 감시하여 화면에 표시된 메시지를 기록한다.
+//  · 진행 메시지 레이어는 업로드 창(별도 팝업 창) 문서에 만들어지므로 팝업 창의 document 를 감시한다.
+//  · 진행 메시지는 업로드 중에만 잠깐 표시되고 업로드가 끝나면 팝업 창 자체가 닫히므로 짧은 주기로 감시한다.
+//  · 메시지 본문은 레이어 내부 IFrame 의 param 쿼리로 전달되며 팝업 창은 encodeURIComponent 로 인코딩하므로 decodeURIComponent 로 복원한다.
+scwin.startProcessMsgWatch = function () {
+    if (scwin.gVar.pollId) {
+        clearInterval(scwin.gVar.pollId);
+    }
+    let nStart = Date.now();
+    scwin.gVar.pollId = setInterval(function () {
+        try {
+            let objPop = scwin.gVar.popWin;
+            if (objPop === null || objPop.closed) {
+                if (Date.now() - nStart > 180000) {
+                    clearInterval(scwin.gVar.pollId);
+                    scwin.gVar.pollId = 0;
+                }
+                return;
+            }
+            let objBar = objPop.document.querySelector("#___processbar2_i");
+            if (objBar !== null && objBar.style.display !== "none") {
+                let objFrame = objBar.querySelector("iframe");
+                let strSrc = (objFrame === null) ? "" : (objFrame.getAttribute("src") || "");
+                let nPos = strSrc.indexOf("param=");
+                scwin.gVar.processMsgSeen = (nPos < 0) ? strSrc : decodeURIComponent(strSrc.substring(nPos + 6));
+                clearInterval(scwin.gVar.pollId);
+                scwin.gVar.pollId = 0;
+                return;
+            }
+            if (Date.now() - nStart > 180000) {
+                clearInterval(scwin.gVar.pollId);
+                scwin.gVar.pollId = 0;
+            }
+        } catch (e) {
+            // 팝업 창이 로딩 중이거나 닫히는 순간에는 document 접근이 실패할 수 있다.
+            // 여기서 감시를 중단하면 진행 레이어가 뜨기 전의 일시적 예외 한 번으로 감시가 영구 종료되므로
+            // (헤드리스 실행에서 실제로 발생) 제한 시간까지는 그대로 다시 시도한다.
+            if (Date.now() - nStart > 180000) {
+                clearInterval(scwin.gVar.pollId);
+                scwin.gVar.pollId = 0;
+            }
+        }
+    }, 20);
+}
+
+
+
+// advancedExcelUpload 실행
+//  · 전달된 insertColumns 는 업로드 완료 시 엔진이 초기화하므로 호출 직후에 읽어 출력한다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    scwin.gVar.processMsgSeen = "";
+    scwin.closeUploadPopup();
+
+    let options = scwin.buildOptions();
+    scwin.gVar.popWin = scwin.callWithPopupCapture(function () {
+        target1.advancedExcelUpload(options);
+    });
+
+    scwin.gVar.insertColumnsSent = JSON.parse(target1._excelUploadInfo).insertColumns;
+    let strPass = (typeof options.insertColumns === "undefined") ? "미설정" : JSON.stringify(options.insertColumns);
+    bottom.setReturnValue("전달한 insertColumns : " + strPass + " / 서버 전달 문자열 : [" + scwin.gVar.insertColumnsSent + "]");
+
+    scwin.startProcessMsgWatch();
+}
+
+
+
+// 업로드 결과 확인 : 업로드 진행 메시지와 GridView 에 반영된 Column 별 값을 출력한다.
+//  · Column 값의 r(행)c(Excel Column 인덱스) 표기로 삽입 위치와 Column 밀림을 판별한다.
+//  · chk / rdo 는 저장값과 실제 체크 상태를 함께 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+    bottom.setReturnValue("업로드 진행 중 표시된 메시지 : " + (scwin.gVar.processMsgSeen === "" ? "표시되지 않음" : "[" + scwin.gVar.processMsgSeen + "]"));
+
+    let arrCol = ["col0", "chk", "col2", "rdo", "col4", "col5"];
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt);
+    for (let i = 0; i < cnt; i++) {
+        let strOut = "[" + i + "]";
+        for (let k = 0; k < arrCol.length; k++) {
+            let strVal = target1.getCellData(i, arrCol[k]) + "";
+            strOut = strOut + " " + arrCol[k] + "=[" + strVal + "]";
+            if (arrCol[k] === "chk" || arrCol[k] === "rdo") {
+                let objInput = document.querySelector("td[id*='" + target1.id + "_cell_" + i + "_" + k + "'] input");
+                strOut = strOut + "(체크=" + (objInput === null ? "input 없음" : objInput.checked) + ")";
+            }
+            if (k < arrCol.length - 1) {
+                strOut = strOut + " |";
+            }
+        }
+        bottom.setReturnValue(strOut);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.insertColumns (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_insertColumns" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[[{columnIndex:1, columnValue:'1'}] - 1건 삽입]]></xf:label>
+												<xf:value><![CDATA[one]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[[{columnIndex:1, columnValue:'1'},{columnIndex:3, columnValue:'1'}] - 2건 삽입]]></xf:label>
+												<xf:value><![CDATA[two]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[[{columnIndex:'', columnValue:'1'}] - columnIndex 미설정]]></xf:label>
+												<xf:value><![CDATA[noIndex]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[[{columnIndex:1, columnValue:''}] - columnValue 미설정]]></xf:label>
+												<xf:value><![CDATA[noValue]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[[{columnIndex:1, columnValue:'A,B'}] - columnValue 에 콤마 포함]]></xf:label>
+												<xf:value><![CDATA[comma]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[[{columnIndex:1, columnValue:'A|B'}] - columnValue 에 파이프 포함]]></xf:label>
+												<xf:value><![CDATA[pipe]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.processMsg (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_processMsg" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Excel 업로드 진행 중]]></xf:label>
+												<xf:value><![CDATA[Excel 업로드 진행 중]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

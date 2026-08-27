@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _4 : Excel 데이터 구성 옵션 앞부분(headerExist / footerExist / startRowIndex). description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "headerExist(선택) 파라미터로 Excel 데이터의 첫번째 Row 를 Header 로 처리하여 무시할지 설정합니다.",
+        "headerExist(선택) 파라미터를 '0' 으로 설정 시 첫번째 Row 부터 Excel 데이터로 처리합니다.",
+        "headerExist(선택) 파라미터를 '1' 로 설정 시 첫번째 Row 를 Header 로 처리하여 무시합니다.",
+        "headerExist(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "footerExist(선택) 파라미터로 Excel 데이터의 마지막 Row 를 Footer 로 처리하여 무시할지 설정합니다.",
+        "footerExist(선택) 파라미터를 '0' 으로 설정 시 마지막 Row 까지 Excel 데이터로 처리합니다.",
+        "footerExist(선택) 파라미터를 '1' 로 설정 시 마지막 Row 를 Footer 로 처리하여 무시합니다.",
+        "footerExist(선택) 파라미터를 생략하면 기본값 '1' 로 동작합니다.",
+        "startRowIndex(선택) 파라미터로 Excel 파일에서 데이터가 시작되는 Row 의 인덱스를 설정합니다.",
+        "startRowIndex(선택) 파라미터의 Row 인덱스는 0 부터 시작합니다.",
+        "headerExist 파라미터를 '1' 로 설정 시 startRowIndex 파라미터에 설정한 값의 다음 Row 부터 데이터로 업로드합니다.",
+        "startRowIndex(선택) 파라미터를 생략하면 기본값 0 으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 Footer 1행과 함께 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · footerExist 는 GridView 에 Footer 가 있을 때만 Excel 의 마지막 Row 를 무시하므로 Footer 행을 둔다.
+//    (Footer 가 없는 그리드에서는 footerExist 값과 무관하게 마지막 Row 까지 모두 업로드된다)
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 과 Footer 1행을 가진 그리드에 초기 데이터 4행(col1_1 ~ col4_4)이 바인딩되어 있음\n- footerExist 는 GridView 에 Footer 가 있을 때만 마지막 Row 를 무시하므로 대상 그리드에 Footer 행을 두었음\n- 테스트용 Excel : TSQA/src/sample/gridView/data/upload/ts_gridView_M_advancedExcelUpload_4/ts_gridView_M_advancedExcelUpload_4_upload.xlsx\n- Excel 구성(6행) - 0행 header1~header4 / 1행 row1_1~row1_4 / 2행 row2_1~row2_4 / 3행 row3_1~row3_4 / 4행 row4_1~row4_4 / 5행 footer1~footer4\n- 각 Cell 값에 원래 Excel Row 인덱스가 들어 있으므로 업로드된 값만 보고 어느 Row 가 무시되었는지 판별할 수 있음\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 창이 별도 팝업창으로 열림\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 4행 상태로 되돌린다\n2. par 옵션(headerExist / footerExist / startRowIndex) 값을 선택한다\n3. advancedExcelUpload 버튼을 클릭한다\n4. 열린 팝업창에서 Excel 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 업로드 팝업창에 반영된 Header / Footer / Start row 값이 출력됨\n- 5번 출력에서 GridView 에 업로드된 Row 수와 Row 별 값을 확인하여 무시된 Excel Row 를 판별한다"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:' + dlt_bind.id + '" checkAllType="false" id="" style="width:500px;height:300px;">';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol4" value="name4"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1"><w2:row style="" id="row3">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="ft1" value="footer"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="ft2" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="ft3" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="ft4" value=""></w2:column>';
+    strTarget += '</w2:row></w2:footer>';
+    strTarget += '</w2:gridView>';
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값)으로 둔다. 이 때 Excel 파일 선택 창은 별도 팝업창으로 열린다.
+//  · startRowIndex 는 Number 타입이므로 숫자로 변환하여 전달한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_headerExist.getValue();
+    if (v !== "") options.headerExist = v;
+
+    v = par_footerExist.getValue();
+    if (v !== "") options.footerExist = v;
+
+    v = par_startRowIndex.getValue();
+    if (v !== "") options.startRowIndex = parseInt(v, 10);
+
+    return options;
+}
+
+
+
+// advancedExcelUpload 실행
+//  · wframe 미설정이므로 Excel 파일 선택 창은 별도 팝업창으로 열린다.
+//    팝업 핸들을 얻기 위해 호출 시점에만 window.open 을 감싸고 finally 에서 원복한다.
+//  · 설정한 옵션값을 그대로 되출력하지 않고, 실제로 열린 팝업창에 반영된 값을 읽어 출력한다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    scwin.objPopWin = null;
+    let fnOpen = window.open;
+    try {
+        window.open = function () {
+            let objWin = fnOpen.apply(window, arguments);
+            scwin.objPopWin = objWin;
+            return objWin;
+        };
+        target1.advancedExcelUpload(scwin.buildOptions());
+    } finally {
+        window.open = fnOpen;
+    }
+
+    scwin.printUploadState();
+}
+
+
+
+// 업로드 팝업창에 반영된 Header / Footer / Start row 값을 출력한다.
+//  · 팝업창은 same-origin 이므로 확보한 핸들의 document 에서 입력 필드를 직접 읽는다.
+//  · 팝업 문서의 필드 ID 는 advancedfileUpload.html 기준의 접두어 없는 순수 ID 이다.
+//    headerExist 는 header, footerExist 는 footer, startRowIndex 는 gridStartRow 에 대응된다.
+//  · 필드 자체는 정적으로 존재하고 값만 나중에 채워지므로 gridStyle 값이 채워졌는지로 렌더 완료를 판단한다.
+scwin.printUploadState = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let objWin = scwin.objPopWin;
+
+    if (!objWin) {
+        bottom.setReturnValue("업로드 팝업창 핸들을 확보하지 못해 반영값을 확인할 수 없습니다.");
+        return;
+    }
+
+    // 팝업 문서는 비동기로 렌더되므로 값이 채워질 때까지 짧게 재시도한다.
+    let nRetry = 0;
+    let nTimer = setInterval(function () {
+        // 예외 발생 시 clearInterval 에 도달하지 못해 폴러가 계속 돌므로 try/catch 로 감싸다.
+        try {
+            nRetry++;
+
+            let doc = objWin.closed ? null : objWin.document;
+            let objStyle = doc ? doc.getElementById("gridStyle") : null;
+
+            if (objStyle !== null && objStyle.value !== "") {
+                clearInterval(nTimer);
+                bottom.setReturnValue("업로드 창 반영값 - Header : [" + doc.getElementById("header").value + "] / Footer : [" + doc.getElementById("footer").value + "] / Start row : [" + doc.getElementById("gridStartRow").value + "]");
+                return;
+            }
+
+            if (nRetry >= 20) {
+                clearInterval(nTimer);
+                bottom.setReturnValue("Excel 파일 선택 팝업창이 열려있지 않습니다.");
+            }
+        } catch (e) {
+            clearInterval(nTimer);
+            bottom.setReturnValue("업로드 창 조회 중 오류 발생 : " + e.message);
+        }
+    }, 300);
+}
+
+
+
+// 업로드 결과 확인 : GridView 에 실제 반영된 Row 수와 Row 별 데이터를 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt);
+    for (let i = 0; i < cnt; i++) {
+        bottom.setReturnValue("[" + i + "] " + target1.getCellData(i, "col1") + " | " + target1.getCellData(i, "col2") + " | " + target1.getCellData(i, "col3") + " | " + target1.getCellData(i, "col4"));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.headerExist (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_headerExist" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.footerExist (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerExist" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.startRowIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_startRowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

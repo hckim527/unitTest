@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(_3 : Excel 구성 옵션 pwd/activeSheet/sheetNo/sheetName/delim)" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _3 : Excel 구성 옵션(pwd, activeSheet, sheetNo, sheetName, delim). description 은 분리 샘플 공통.
+//  ★ wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값)으로 둔다.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "pwd(선택) 파라미터로 Excel 파일에 암호가 있는 경우 파일의 암호를 설정합니다.",
+        "pwd(선택) 파라미터값은 BASE64Encoder 로 인코딩되어 서버에 전달됩니다.",
+        "pwd(선택) 파라미터를 생략하면 기본값인 빈 문자열로 동작합니다.",
+        "activeSheet(선택) 파라미터는 WGear 연계 파라미터로 활성 시트 업로드 여부를 설정합니다.",
+        "activeSheet(선택) 파라미터를 생략하면 기본값 false 로 동작합니다.",
+        "sheetNo(선택) 파라미터로 Excel 파일에서 업로드할 데이터가 있는 시트 번호를 설정합니다.",
+        "sheetNo(선택) 파라미터의 시트 번호는 0 부터 시작합니다.",
+        "sheetNo(선택) 파라미터를 생략하면 기본값 0 으로 동작합니다.",
+        "sheetName(선택) 파라미터로 Excel 파일에서 업로드할 데이터가 있는 시트 명을 설정합니다.",
+        "sheetName(선택) 파라미터를 설정하면 sheetNo 파라미터는 무시됩니다.",
+        "sheetName(선택) 파라미터를 생략하면 기본값인 빈 문자열로 동작합니다.",
+        "delim(선택) 파라미터로 Excel 데이터 처리 시 Column 을 구분하는 구분자를 설정합니다.",
+        "delim(선택) 파라미터를 생략하면 기본값 ',' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // gdl_boolean 바인딩 selectbox 는 초기 selectedIndex 가 적용되지 않으므로 미설정("1") 으로 명시한다.
+    par_activeSheet.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 초기 데이터 4행(col1_1 ~ col4_4)이 바인딩되어 있음\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 창이 별도 팝업창으로 열림\n- 테스트용 Excel 은 TSQA/src/sample/gridView/data/upload/ts_gridView_M_advancedExcelUpload_3/ 아래 2개\n- 일반 파일(..._upload.xlsx) : 3개 시트로 0번 sheetZero(3행) / 1번 sheetOne(2행) / 2번 sheetTwo(1행), 활성 시트는 sheetOne 으로 저장되어 있음\n- 암호 파일(..._upload_pwd.xlsx) : 1개 시트 sheetPwd(2행), 파일 암호는 wq1234\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 4행 상태로 되돌린다\n2. par 옵션(pwd / activeSheet / sheetNo / sheetName / delim) 값을 선택한다\n3. advancedExcelUpload 버튼을 클릭한다\n4. 열린 팝업창에서 Excel 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n[확인]\n- 3번 직후 결과창에 업로드 팝업창으로 전달된 pwd / activeSheet / gridSheetNo / gridSheetName / delim 값과 서버로 전달되는 BASE64 인코딩 pwd 가 출력됨\n- pwd 는 암호 파일로 확인 - 미설정이면 암호화 안내창이 뜨고 업로드되지 않으며, wq1234 설정이면 sheetPwd 의 2행이 반영됨\n- sheetNo / sheetName 은 일반 파일로 확인 - 반영된 행 수와 값의 접두(s0 / s1 / s2)로 어느 시트가 업로드되었는지 확인\n- activeSheet 는 3번 출력의 전달값으로 확인 - WGear 연계 파라미터이므로 활성 시트(sheetOne)가 아니라 sheetNo / sheetName 기준 시트가 업로드됨\n- delim 은 3번 출력의 전달값으로 확인 - 서버 응답 데이터의 Column 구분자로 사용되며 그리드에 반영되는 값은 구분자와 무관하게 동일함"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id
+    });
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값)으로 둔다. 이 때 Excel 파일 선택 창은 별도 팝업창으로 열린다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_pwd.getValue();
+    if (v !== "") options.pwd = v;
+
+    // gdl_boolean 바인딩이므로 라벨(''/'true'/'false')을 읽는다.
+    v = par_activeSheet.getText();
+    if (v !== "") options.activeSheet = (v === "true");
+
+    v = par_sheetNo.getValue();
+    if (v !== "") options.sheetNo = Number(v);
+
+    v = par_sheetName.getValue();
+    if (v !== "") options.sheetName = v;
+
+    v = par_delim.getValue();
+    if (v !== "") options.delim = v;
+
+    return options;
+}
+
+
+
+// advancedExcelUpload 실행
+//  · wframe 미설정이므로 Excel 파일 선택 창은 별도 팝업창으로 열린다.
+//    팝업 핸들을 얻기 위해 호출 시점에만 window.open 을 감싸고 finally 에서 원복한다.
+//  · 설정한 옵션값을 그대로 되출력하지 않고, 실제로 열린 팝업창에 렌더된 값을 읽어 출력한다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    scwin.objPopWin = null;
+    let fnOpen = window.open;
+    try {
+        window.open = function () {
+            let objWin = fnOpen.apply(window, arguments);
+            scwin.objPopWin = objWin;
+            return objWin;
+        };
+        target1.advancedExcelUpload(scwin.buildOptions());
+    } finally {
+        window.open = fnOpen;
+    }
+
+    // _excelUploadInfo 는 업로드가 진행되면 갱신되므로 호출 직후에 서버 전달용 pwd 를 읽어 둔다.
+    scwin.strSendPwd = JSON.parse(target1._excelUploadInfo).pwd;
+
+    // 팝업창이 렌더된 뒤 실제 반영값 확인
+    scwin.printUploadParam();
+}
+
+
+
+// Excel 파일 선택 팝업창으로 전달된 옵션값과 서버 전달용 pwd 값을 출력한다.
+//  · 팝업창은 same-origin 이므로 확보한 핸들의 document 에서 입력 필드를 직접 읽는다.
+//  · 팝업 문서의 필드 ID 는 advancedfileUpload.html 기준의 접두어 없는 순수 ID 이다.
+//  · 필드 자체는 정적으로 존재하고 값만 나중에 채워지므로 gridStyle 값이 채워졌는지로 렌더 완료를 판단한다.
+//  · pwd 는 엔진이 BASE64 인코딩하여 업로드 창으로 넘기고, 업로드 창은 이를 복호화하여 입력 필드에 표시한다.
+scwin.printUploadParam = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let objWin = scwin.objPopWin;
+
+    if (!objWin) {
+        bottom.setReturnValue("업로드 팝업창 핸들을 확보하지 못해 실제 렌더값을 확인할 수 없습니다.");
+        return;
+    }
+
+    // 팝업 문서는 비동기로 렌더되므로 값이 채워질 때까지 짧게 재시도한다.
+    let nRetry = 0;
+    let nTimer = setInterval(function () {
+        // 예외 발생 시 clearInterval 에 도달하지 못해 폴러가 계속 돌므로 try/catch 로 감싸다.
+        try {
+            nRetry++;
+
+            let doc = objWin.closed ? null : objWin.document;
+            let objStyle = doc ? doc.getElementById("gridStyle") : null;
+
+            if (objStyle !== null && objStyle.value !== "") {
+                clearInterval(nTimer);
+                bottom.setReturnValue("업로드 창 렌더값 - pwd : [" + doc.getElementById("pwd").value + "] / activeSheet : [" + doc.getElementById("activeSheet").value + "] / gridSheetNo : [" + doc.getElementById("gridSheetNo").value + "] / gridSheetName : [" + doc.getElementById("gridSheetName").value + "] / delim : [" + doc.getElementById("delim").value + "]");
+                bottom.setReturnValue("서버 전달 pwd (BASE64 인코딩) : [" + scwin.strSendPwd + "]");
+                return;
+            }
+
+            if (nRetry >= 20) {
+                clearInterval(nTimer);
+                bottom.setReturnValue("업로드 창이 열려있지 않아 실제 렌더값을 확인할 수 없습니다.");
+            }
+        } catch (e) {
+            clearInterval(nTimer);
+            bottom.setReturnValue("업로드 창 조회 중 오류 발생 : " + e.message);
+        }
+    }, 300);
+}
+
+
+
+// 업로드 결과 확인 : GridView 에 실제 반영된 데이터를 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt);
+    for (let i = 0; i < cnt; i++) {
+        bottom.setReturnValue("[" + i + "] " + target1.getCellData(i, "col1") + " | " + target1.getCellData(i, "col2") + " | " + target1.getCellData(i, "col3") + " | " + target1.getCellData(i, "col4"));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.pwd (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_pwd" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[wq1234 (암호 파일의 암호)]]></xf:label>
+												<xf:value><![CDATA[wq1234]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.activeSheet (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_activeSheet" label="label" nodeSet="data:gdl_boolean" ref=""
+										style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.sheetNo (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_sheetNo" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.sheetName (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_sheetName" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sheetZero (0번 시트)]]></xf:label>
+												<xf:value><![CDATA[sheetZero]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sheetOne (1번 시트)]]></xf:label>
+												<xf:value><![CDATA[sheetOne]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sheetTwo (2번 시트)]]></xf:label>
+												<xf:value><![CDATA[sheetTwo]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.delim (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_delim" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[, (쉼표)]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[; (세미콜론)]]></xf:label>
+												<xf:value><![CDATA[;]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

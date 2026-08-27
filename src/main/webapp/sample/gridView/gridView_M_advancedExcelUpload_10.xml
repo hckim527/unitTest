@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1179
+// https://inswave01.atlassian.net/browse/WAEA-1181
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _10 : 날짜 포맷 / 소수점 자릿수 옵션(dateFormat / applyDecimal / decimal). description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "dateFormat(선택) 파라미터로 Excel 의 Cell 형식이 '날짜'인 경우 데이터에 적용할 날짜 포맷을 마스크 문자로 설정합니다.",
+        "dateFormat(선택) 파라미터를 생략하면 기본값 'yyyy-MM-dd' 로 동작합니다.",
+        "applyDecimal(선택) 파라미터로 decimal 파라미터를 적용시킬지 여부를 설정합니다.",
+        "applyDecimal(선택) 파라미터를 '0' 으로 설정 시 decimal 파라미터를 적용합니다. decimal 파라미터 미설정 시 기본값이 적용됩니다.",
+        "applyDecimal(선택) 파라미터를 '0' 이외의 값으로 설정 시 decimal 파라미터를 적용하지 않습니다.",
+        "applyDecimal(선택) 파라미터는 Excel 서식과 무관(websquare/excel/upload/applyExcelFormat/@value 미설정 혹은 false 지정 상태)하게 decimal 파라미터에 설정한 자릿수대로 소수점 데이터를 처리하려면 반드시 true 로 설정해야 합니다.",
+        "applyDecimal(선택) 파라미터를 생략하면 기본값 '0' 으로 동작합니다.",
+        "decimal(선택) 파라미터로 applyDecimal 파라미터값이 '0' 이 아닐때 데이터에 적용할 소수점 자릿수를 설정합니다.",
+        "decimal(선택) 파라미터는 Excel 서식과 무관(websquare/excel/upload/applyExcelFormat/@value 미설정 혹은 false 지정 상태)하게 파라미터값을 적용할때 설정합니다.(ex> '3' 설정 시 4자리에서 반올림하여 소수점 3자리까지 표시)",
+        "decimal(선택) 파라미터를 생략하면 기본값 '4' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · footerExist 기본값("1")의 간섭을 배제하기 위해 Footer 가 없는 그리드로 구성한다.
+//  · 업로드된 값이 변환 없이 그대로 보이도록 모든 Column 을 inputType="text" / dataType 미설정으로 둔다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 DataList 가 바인딩되어 있음 (Footer 없음)\n- 모든 Column 은 inputType=text 이고 dataType 미설정이라 업로드된 문자열이 변환 없이 그대로 저장됨\n- websquare/excel/upload/applyExcelFormat/@value 는 config.xml 에 미설정 상태\n- 테스트용 Excel : TSQA/src/sample/gridView/data/upload/ts_gridView_M_advancedExcelUpload_10/ts_gridView_M_advancedExcelUpload_10_upload.xlsx\n- Excel 구성 (3행 4열 / Header 행 없음)\n  1열 : Cell 형식이 날짜 (표시 서식 yyyy-mm-dd) - 0행 2026-03-07 / 1행 2025-12-31 / 2행 2024-01-09\n  2열 : Cell 형식이 숫자 - 0행 1.23456789 / 1행 12.3456789 / 2행 0.98765432\n  3열 : Cell 형식이 숫자 - 0행 2.0005 / 1행 0.0005 / 2행 0.5005 (소수점 4자리 반올림 경계값)\n  4열 : Cell 형식이 숫자 - 0행 2.0004 / 1행 0.0004 / 2행 0.5004 (소수점 4자리 반올림 경계값)\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 팝업창이 별도 팝업 창으로 열림\n  (wframe 을 true 로 하면 업로드 레이어가 applyDecimal 값을 서버로 전달하지 않아 decimal 검증이 불가능함)\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 상태로 되돌린다\n2. par 옵션(dateFormat / applyDecimal / decimal) 값을 선택한다\n3. advancedExcelUpload 버튼을 클릭한다 (클릭 시 서버로 전달되는 옵션값이 결과창에 함께 출력된다)\n4. 열린 팝업 창에서 위 Excel 파일을 선택하고 File Upload 를 실행한다\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 출력으로 par 옵션이 서버에 어떤 값으로 전달되는지 확인한다\n- 5번 출력은 각 Cell 값을 대괄호로 감싸고 뒤에 문자 길이를 표시하므로 포맷 문자열과 소수점 자릿수의 차이를 길이로 구분한다\n- 1열 값으로 날짜 포맷 적용 결과를, 2열~4열 값으로 소수점 자릿수와 반올림 결과를 확인한다\n- 현재 동작상 decimal 은 applyDecimal 이 0 또는 미설정이면 적용되지 않고 0 이외의 값(1 / true)일 때 적용된다\n- 현재 동작상 4 자리 반올림 결과가 값에 따라 다르다 (decimal 3 에서 2.0005 는 2.001 로 올림되지만 0.0005 와 0.5005 는 버림된다)\n- 현재 동작상 후행 0 은 표시되지 않으며 decimal 을 0 으로 설정하면 값 끝에 소수점이 남는다"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩 / Footer 없음)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:' + dlt_bind.id + '" checkAllType="false" id="" style="width:500px;height:300px;">';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="row1">';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="hcol1" value="name1"></w2:column>';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="hcol2" value="name2"></w2:column>';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="hcol3" value="name3"></w2:column>';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="hcol4" value="name4"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="row2">';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="col1" dataList="col1"></w2:column>';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="col2" dataList="col2"></w2:column>';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="col3" dataList="col3"></w2:column>';
+    strTarget += '<w2:column width="125" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 미설정(기본값 false) 으로 두어 Excel 파일 선택 팝업창을 별도 팝업으로 연다.
+//    wframe 을 true 로 하면 업로드 레이어가 applyDecimal 값을 서버로 전달하지 않아 decimal 검증이 불가능하다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_dateFormat.getValue();
+    if (v !== "") options.dateFormat = v;
+
+    v = par_applyDecimal.getValue();
+    if (v !== "") options.applyDecimal = v;
+
+    v = par_decimal.getValue();
+    if (v !== "") options.decimal = v;
+
+    return options;
+}
+
+
+
+// advancedExcelUpload 실행
+//  · 세 옵션은 업로드 창 화면에 표시되지 않고 서버로 전달되는 값이므로 실제 전달값을 _excelUploadInfo 에서 읽어 출력한다.
+//  · _excelUploadInfo 는 업로드가 완료되면 엔진이 빈 문자열로 초기화하므로 호출 직후에만 읽을 수 있다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.advancedExcelUpload(scwin.buildOptions());
+
+    let objInfo = JSON.parse(target1._excelUploadInfo);
+    bottom.setReturnValue("업로드 전달값 - dateFormat : [" + objInfo.dateFormat + "] / applyDecimal : [" + objInfo.applyDecimal + "] / decimal : [" + objInfo.decimal + "]");
+}
+
+
+
+// 업로드 결과 확인 : GridView 에 반영된 Cell 값과 문자 길이를 출력한다.
+//  · 날짜 포맷 문자열과 소수점 자릿수는 값만으로 구분이 어려우므로 대괄호로 감싸고 문자 길이를 함께 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let cnt = target1.getRowCount();
+    for (let i = 0; i < cnt; i++) {
+        let v1 = target1.getCellData(i, "col1") + "";
+        let v2 = target1.getCellData(i, "col2") + "";
+        let v3 = target1.getCellData(i, "col3") + "";
+        let v4 = target1.getCellData(i, "col4") + "";
+        bottom.setReturnValue("[" + i + "] [" + v1 + "](" + v1.length + ") | [" + v2 + "](" + v2.length + ") | [" + v3 + "](" + v3.length + ") | [" + v4 + "](" + v4.length + ")");
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.dateFormat (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_dateFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yyyy-MM-dd]]></xf:label>
+												<xf:value><![CDATA[yyyy-MM-dd]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yyyyMMdd]]></xf:label>
+												<xf:value><![CDATA[yyyyMMdd]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yyyy/MM/dd]]></xf:label>
+												<xf:value><![CDATA[yyyy/MM/dd]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.applyDecimal (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_applyDecimal" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.decimal (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_decimal" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[6]]></xf:label>
+												<xf:value><![CDATA[6]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

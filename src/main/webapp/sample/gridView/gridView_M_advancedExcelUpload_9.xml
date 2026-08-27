@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(_9 : 데이터 업로드 옵션 useMaxByteLength/byteCheckEncoding)" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _9 : 데이터 업로드 옵션(useMaxByteLength, byteCheckEncoding). description 은 분리 샘플 공통.
+//  ★ 옵션 효과를 드러내기 위한 전제로 Column 에 maxByteLength / ignoreChar 를 설정하지만,
+//     두 Column 속성 자체는 @related 항목이라 본 샘플의 검증 대상이 아니다.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "useMaxByteLength(선택) 파라미터로 Column 의 ignoreChar 와 maxByteLength 속성을 데이터에 적용할지 설정합니다.",
+        "useMaxByteLength(선택) 파라미터를 'true' 로 설정 시 Column 의 ignoreChar 와 maxByteLength 속성을 적용하여 입력 불가 문자를 제외하고 데이터의 길이를 제한합니다.",
+        "useMaxByteLength(선택) 파라미터를 'false' 로 설정 시 Column 의 ignoreChar 와 maxByteLength 속성을 적용하지 않습니다.",
+        "useMaxByteLength(선택) 파라미터를 생략하면 기본값 'false' 로 동작합니다.",
+        "byteCheckEncoding(선택) 파라미터로 useMaxByteLength 파라미터값이 'true' 일때 다국어 문자의 길이 계산에 적용할 인코딩을 설정합니다.",
+        "byteCheckEncoding(선택) 파라미터를 'EUC-KR' 로 설정 시 한글 등 다국어 문자를 2Byte 로 계산합니다.",
+        "byteCheckEncoding(선택) 파라미터를 'UTF-8' 로 설정 시 한글 등 다국어 문자를 3Byte 로 계산합니다.",
+        "byteCheckEncoding(선택) 파라미터를 생략하면 기본값 'EUC-KR' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · useMaxByteLength / byteCheckEncoding 의 효과는 Column 의 maxByteLength / ignoreChar 가 설정되어야만
+//    드러나므로 col1 ~ col3 에 속성을 설정하고 col4 는 속성 없는 대조군으로 둔다.
+//  · footerExist 기본값의 간섭을 배제하기 위해 Footer 가 없는 그리드로 구성한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- 4 Column 그리드 - col1 maxByteLength=6 / col2 maxByteLength=8 / col3 ignoreChar=@# / col4 속성 없음(대조군)\n- Column 의 maxByteLength 와 ignoreChar 는 옵션 효과를 드러내기 위한 전제 설정이며 검증 대상 API 가 아님\n- 테스트용 Excel : TSQA/src/sample/gridView/data/upload/ts_gridView_M_advancedExcelUpload_9/ts_gridView_M_advancedExcelUpload_9_upload.xlsx\n- Excel 구성(3행 4열)\n  0행 : 가나다라마 / AB가나다라 / a@b#c$ / 가나다라마바사\n  1행 : 한글길이테스트 / 12가나다라 / @@x#y / 한글보존확인\n  2행 : ABCDEFGHIJ / ABCDEFGHIJ / ABC@DEF#GHI / ABCDEFGHIJ\n- 2행은 영문만 있어 인코딩에 따른 Byte 계산 차이가 없는 대조 행임\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 팝업창이 별도 팝업 창으로 열림\n- Footer 가 없는 그리드라 footerExist 기본값의 간섭이 없음\n[절차]\n1. Target 재생성 버튼으로 그리드를 초기 상태로 되돌린다\n2. par 옵션(useMaxByteLength / byteCheckEncoding) 값을 선택한다\n3. advancedExcelUpload 버튼을 클릭한다\n4. 열린 팝업 창에서 Excel 파일을 선택하고 File Upload 를 실행한다 (업로드가 끝나면 팝업 창은 자동으로 닫힘)\n5. 업로드결과확인 버튼을 클릭한다\n6. 다른 옵션값을 확인하려면 1번부터 반복한다\n[확인]\n- 3번 직후 결과창에 업로드 창으로 전달된 useMaxByteLength / byteCheckEncoding 값이 출력됨\n- 5번 출력의 Cell 값과 글자수 / Byte 길이로 잘림 여부와 잘린 지점을 확인\n- col1 은 EUC-KR 이면 한글 3자(6Byte), UTF-8 이면 한글 2자(6Byte) 에서 잘리므로 글자수로 인코딩 차이를 구분\n- col2 는 EUC-KR 이면 영문 2자+한글 3자(8Byte), UTF-8 이면 영문 2자+한글 2자(8Byte) 에서 잘림\n- col3 은 ignoreChar 로 지정한 @ 와 # 이 제외되는지 확인\n- col4 는 Column 속성이 없어 옵션과 무관하게 원본값이 그대로 유지되어야 함\n- useMaxByteLength 가 false 또는 미설정이면 byteCheckEncoding 을 바꿔도 결과가 동일해야 함\n- 업로드는 바인딩 DataList 를 교체하므로 케이스를 바꿀 때는 Target 재생성 버튼으로 초기화한다"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 1행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 1);
+
+    // target 생성 (DataList 바인딩 / Footer 없음)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:' + dlt_bind.id + '" checkAllType="false" id="" style="width:760px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1"><w2:row style="" id="row1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="name1 (maxByteLength 6)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol2" value="name2 (maxByteLength 8)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol3" value="name3 (ignoreChar @#)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol4" value="name4 (속성 없음)"></w2:column>';
+    strTarget += '</w2:row></w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1"><w2:row style="" id="row2">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col1" dataList="col1" maxByteLength="6"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col2" dataList="col2" maxByteLength="8"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col3" dataList="col3" ignoreChar="@#"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="col4" dataList="col4"></w2:column>';
+    strTarget += '</w2:row></w2:gBody>';
+    strTarget += '</w2:gridView>';
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값)으로 두어 업로드 창이 별도 팝업 창으로 열리게 한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_useMaxByteLength.getValue();
+    if (v !== "") options.useMaxByteLength = v;
+
+    v = par_byteCheckEncoding.getValue();
+    if (v !== "") options.byteCheckEncoding = v;
+
+    return options;
+}
+
+
+
+// advancedExcelUpload 실행
+//  · 두 옵션은 업로드 창 화면에 표시되지 않고 서버로 전달되는 값이므로 실제 전달값을 _excelUploadInfo 에서 읽어 출력한다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.advancedExcelUpload(scwin.buildOptions());
+
+    let objInfo = JSON.parse(target1._excelUploadInfo);
+    bottom.setReturnValue("업로드 전달값 - useMaxByteLength : [" + objInfo.useMaxByteLength + "] / byteCheckEncoding : [" + objInfo.byteCheckEncoding + "]");
+}
+
+
+
+// 문자열의 Byte 길이를 인코딩별로 계산한다. (다국어 문자 : EUC-KR 2Byte / UTF-8 3Byte)
+scwin.getByteLength = function (strValue, strEncoding) {
+    let nLen = 0;
+    for (let i = 0; i < strValue.length; i++) {
+        nLen = nLen + ((strValue.charCodeAt(i) > 127) ? ((strEncoding === "UTF-8") ? 3 : 2) : 1);
+    }
+    return nLen;
+}
+
+
+
+// 업로드 결과 확인 : GridView 에 반영된 Cell 값과 글자수 / Byte 길이를 출력한다.
+//  · 잘린 문자열은 값만으로는 구분이 어려우므로 글자수와 EUC-KR / UTF-8 Byte 길이를 함께 출력한다.
+scwin.btn_getResult_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("=====btn_getResult_onclick=====");
+
+    let cnt = target1.getRowCount();
+    bottom.setReturnValue("GridView Row 수 : " + cnt);
+    for (let i = 0; i < cnt; i++) {
+        let arrCell = [];
+        for (let c = 1; c <= 4; c++) {
+            let strValue = target1.getCellData(i, "col" + c) + "";
+            arrCell.push("col" + c + "=[" + strValue + "](" + strValue.length + "자/EUC-KR " + scwin.getByteLength(strValue, "EUC-KR") + "B/UTF-8 " + scwin.getByteLength(strValue, "UTF-8") + "B)");
+        }
+        bottom.setReturnValue("[" + i + "] " + arrCell.join(" | "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useMaxByteLength (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useMaxByteLength" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.byteCheckEncoding (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_byteCheckEncoding" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[EUC-KR]]></xf:label>
+												<xf:value><![CDATA[EUC-KR]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[UTF-8]]></xf:label>
+												<xf:value><![CDATA[UTF-8]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getResult_onclick" id="btn_getResult"
+							label="업로드결과확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

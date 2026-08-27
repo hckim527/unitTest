@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelUpload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(_12 : 기타 옵션 optionParam/cellDataConvertor/msaName)" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _12 : 기타 옵션(optionParam, cellDataConvertor, msaName). description 은 분리 샘플 공통.
+//  ★ 세 옵션 모두 서버 및 외부 연계 옵션이라 GridView 데이터 반영으로는 확인할 수 없다.
+//     업로드 창(별도 팝업 창)에 렌더된 전송 파라미터값과 업로드 요청 URL 로 검증한다.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelUpload]<br/>Excel 파일을 업로드하여 GridView 의 데이터로 설정합니다.",
+    "validation" : [
+        "optionParam(선택) 파라미터로 파일 암호화(DRM) 연계 시 사용자 정의 Class 에 HashMap 인자로 전달할 값을 설정합니다.",
+        "optionParam(선택) 파라미터는 서버에서 'optionParam' 키로 참조됩니다.",
+        "optionParam(선택) 파라미터를 생략하면 기본값인 빈 문자열로 동작합니다.",
+        "cellDataConvertor(선택) 파라미터로 Column 데이터를 사용자가 수정할 수 있게 Cell 데이터 변환기 클래스의 전체 패키지명을 설정합니다.",
+        "cellDataConvertor(선택) 파라미터에 설정한 클래스는 AbstractCellDataProvider 클래스를 상속한 후 convertValue 메소드를 구현해야 합니다.",
+        "cellDataConvertor(선택) 파라미터를 생략하면 기본값인 빈 문자열로 동작합니다.",
+        "msaName(선택) 파라미터로 MSA 기능을 사용하는 경우 적용할 MSA 서버의 이름을 설정합니다.",
+        "msaName(선택) 파라미터가 지정된 경우 해당 MSA 서버의 경로가 자동으로 URL 에 추가됩니다.",
+        "msaName(선택) 파라미터를 생략하면 기본값인 빈 문자열로 동작합니다.",
+    ]
+}
+
+
+
+scwin.gVar = { "popWin" : null };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelUpload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · footerExist 기본값("1")의 간섭을 배제하기 위해 Footer 가 없는 그리드로 구성한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 초기 데이터 4행(col1_1 ~ col4_4)이 바인딩되어 있으며 Footer 는 없음\n- wframe 파라미터는 미설정(기본값)이라 Excel 파일 선택 팝업창이 별도 팝업 창으로 열림\n- optionParam / cellDataConvertor / msaName 은 서버 및 외부 연계용 옵션이라 GridView 데이터 반영으로는 확인되지 않으므로 업로드 창으로 전달된 전송 파라미터값과 업로드 요청 URL 로 확인함\n- msaName 의 msa_server 는 websquare/config.xml 의 msaServer 에 등록된 이름이며 origin 은 http://192.168.100.250:8080 임\n[절차]\n1. par 옵션(optionParam / cellDataConvertor / msaName) 값을 선택한다\n2. advancedExcelUpload 버튼을 클릭한다\n3. 결과창의 전송 파라미터값과 업로드 요청 URL 을 확인한다\n4. 열린 팝업 창을 닫고 다른 옵션 조합으로 1번부터 반복한다\n   (팝업 창이 열려 있어도 부모 화면은 비활성화되지 않으므로 창을 닫지 않고 바로 다음 조합을 실행해도 되며, 이때 이전 팝업 창은 자동으로 닫힌 뒤 새로 열림)\n[확인]\n- 전송 파라미터는 [키] = [값] 형태로 출력되며 대괄호 안의 키 이름이 서버에서 참조되는 키임\n- optionParam 은 미설정 시 빈 문자열, 설정 시 optionParamTest 로 대비되는지 확인\n- cellDataConvertor 는 미설정 시 빈 문자열, 설정 시 전체 패키지명이 그대로 전달되는지 확인 (설정한 클래스의 상속 및 convertValue 구현 여부는 서버 측 구현 사항이라 화면에서 확인 불가)\n- msaName 은 업로드 요청 URL 로 확인 - 미설정 시 /websquare/excelToGrid2.wq, msa_server 설정 시 MSA 서버 경로가 앞에 자동으로 추가됨\n- msa_server 설정 시에는 업로드 창 자체가 MSA 서버 주소로 열려 부모 화면과 origin 이 달라지므로 창 내부를 직접 읽을 수 없고, 이때만 업로드 창으로 전달된 값으로 출력됨(안내 문구가 함께 출력됨)\n- 실제 파일 전송은 서버 측 사용자 정의 Class 가 있어야 효과가 드러나므로 본 샘플에서는 수행하지 않음"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id
+    });
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// par 옵션값으로 advancedExcelUpload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · wframe 은 본 샘플의 검증 대상이 아니므로 미설정(기본값)으로 두어 업로드 창이 별도 팝업 창으로 열리게 한다.
+scwin.buildOptions = function () {
+    let options = {};
+    let v;
+
+    v = par_optionParam.getValue();
+    if (v !== "") options.optionParam = v;
+
+    v = par_cellDataConvertor.getValue();
+    if (v !== "") options.cellDataConvertor = v;
+
+    v = par_msaName.getValue();
+    if (v !== "") options.msaName = v;
+
+    return options;
+}
+
+
+
+// 남아 있는 업로드 팝업 창 정리 : 이전 케이스의 창을 읽는 것을 방지한다.
+scwin.closeUploadPopup = function () {
+    try {
+        if (scwin.gVar.popWin !== null && !scwin.gVar.popWin.closed) {
+            scwin.gVar.popWin.close();
+        }
+    } catch (e) {
+        // 이미 닫힌 창은 무시한다.
+    }
+    scwin.gVar.popWin = null;
+}
+
+
+
+// advancedExcelUpload 호출 시 열리는 별도 팝업 창의 핸들을 확보한다.
+//  · wframe 미설정(기본값) 이면 업로드 창이 별도 팝업 창으로 열려 부모 화면 DOM 에서는 창 내부를 읽을 수 없다.
+//  · 호출 시점에만 window.open 을 감싸 반환된 창 객체를 1회 확보하고 finally 로 즉시 원복한다.
+//  · window.open("", "창이름") 으로 기존 창을 다시 얻으려 하면 about:blank 새 탭이 열리므로 사용하지 않는다.
+scwin.callWithPopupCapture = function (fnCall) {
+    let fnOpen = window.open;
+    let objPop = null;
+    window.open = function () {
+        objPop = fnOpen.apply(window, arguments);
+        return objPop;
+    };
+    try {
+        fnCall();
+    } finally {
+        window.open = fnOpen;
+    }
+    return objPop;
+}
+
+
+
+// advancedExcelUpload 실행
+//  · 설정한 옵션값을 그대로 되출력하지 않고, 실제로 열린 Excel 파일 선택 업로드 창에 렌더된 값을 읽어 출력한다.
+scwin.btn_advancedExcelUpload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    scwin.closeUploadPopup();
+
+    scwin.gVar.popWin = scwin.callWithPopupCapture(function () {
+        target1.advancedExcelUpload(scwin.buildOptions());
+    });
+
+    // 업로드 창이 렌더된 뒤 실제 반영값 확인
+    setTimeout(scwin.printUploadParam, 1200);
+}
+
+
+
+// Excel 파일 선택 팝업창으로 전달된 옵션값과 업로드 요청 URL 출력
+//  · 필드는 별도 팝업 창의 문서에 있으므로 확보해 둔 창 핸들의 document 에서 읽는다.
+//  · 팝업 창 문서의 필드 id 는 접두어 없는 순수 id(optionParam / cellDataConvertor / msaName) 이다.
+//  · 서버에서 참조되는 키를 확인할 수 있도록 전송 파라미터의 name 속성을 함께 출력한다.
+//  · msaName 을 설정하면 팝업 창 자체가 MSA 서버 주소로 열려 부모 화면과 다른 origin 이 되므로 창 내부를 읽을 수 없다.
+//    이 경우에만 엔진이 업로드 창으로 전달한 값(_excelUploadInfo)으로 대신 출력한다.
+scwin.printUploadParam = function (nRetry) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    nRetry = nRetry || 0;
+
+    let objOptionParam = null;
+    let objCellDataConvertor = null;
+    let objMsaName = null;
+    let objForm = null;
+    let bBlocked = false;
+
+    // 팝업 창은 비동기로 로드되고 다른 origin 으로 열리면 document 접근 자체가 실패하므로 반드시 try/catch 로 감싼다.
+    try {
+        let objPop = scwin.gVar.popWin;
+        if (objPop !== null && !objPop.closed) {
+            objOptionParam = objPop.document.getElementById("optionParam");
+            objCellDataConvertor = objPop.document.getElementById("cellDataConvertor");
+            objMsaName = objPop.document.getElementById("msaName");
+            objForm = objPop.document.getElementsByName("__uploadForm__")[0] || null;
+        }
+    } catch (e) {
+        bBlocked = true;
+    }
+
+    // 옵션값과 요청 URL 은 팝업 창이 열린 뒤 한 번에 채워지므로 form 의 action 이 설정될 때까지 재시도한다.
+    if (objOptionParam === null || objForm === null || objForm.getAttribute("action") === "") {
+        // 다른 origin 이라 계속 막히는 경우에는 오래 기다리지 않고 전달값 출력으로 넘어간다.
+        let nMax = bBlocked ? 3 : 20;
+        if (nRetry < nMax) {
+            setTimeout(function () { scwin.printUploadParam(nRetry + 1); }, 300);
+            return;
+        }
+        if (bBlocked) {
+            scwin.printUploadInfo();
+            return;
+        }
+        bottom.setReturnValue("업로드 창이 열려있지 않아 실제 렌더값을 확인할 수 없습니다.");
+        return;
+    }
+
+    bottom.setReturnValue("업로드 전송 파라미터 - [" + objOptionParam.getAttribute("name") + "] = [" + objOptionParam.value + "]");
+    bottom.setReturnValue("업로드 전송 파라미터 - [" + objCellDataConvertor.getAttribute("name") + "] = [" + objCellDataConvertor.value + "]");
+    bottom.setReturnValue("업로드 전송 파라미터 - [" + objMsaName.getAttribute("name") + "] = [" + objMsaName.value + "]");
+    bottom.setReturnValue("업로드 요청 URL : " + objForm.getAttribute("action"));
+}
+
+
+
+// 팝업 창을 읽을 수 없을 때(msaName 설정) 엔진이 업로드 창으로 전달한 값을 출력한다.
+//  · _excelUploadInfo 는 엔진이 업로드 창에 넘긴 값 자체이며, 팝업 창을 읽을 수 있는 경우
+//    창에 렌더된 값과 동일한 것을 확인하였다.
+scwin.printUploadInfo = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let objInfo = null;
+    try {
+        objInfo = JSON.parse(target1._excelUploadInfo);
+    } catch (e) {
+        bottom.setReturnValue("업로드 창이 열려있지 않아 실제 렌더값을 확인할 수 없습니다.");
+        return;
+    }
+
+    bottom.setReturnValue("업로드 창이 MSA 서버 주소로 열려 창 내부를 직접 읽을 수 없으므로 업로드 창으로 전달된 값으로 출력합니다.");
+    bottom.setReturnValue("업로드 전송 파라미터 - [optionParam] = [" + objInfo.optionParam + "]");
+    bottom.setReturnValue("업로드 전송 파라미터 - [cellDataConvertor] = [" + objInfo.cellDataConvertor + "]");
+    bottom.setReturnValue("업로드 전송 파라미터 - [msaName] = [" + objInfo.msaName + "]");
+    bottom.setReturnValue("업로드 요청 URL : " + objInfo.action);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.optionParam (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_optionParam" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[optionParamTest]]></xf:label>
+												<xf:value><![CDATA[optionParamTest]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.cellDataConvertor (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_cellDataConvertor" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[com.inswave.sample.CustomCellDataProvider]]></xf:label>
+												<xf:value><![CDATA[com.inswave.sample.CustomCellDataProvider]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.msaName (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_msaName" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[msa_server (config.xml 에 등록된 MSA 서버명)]]></xf:label>
+												<xf:value><![CDATA[msa_server]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelUpload_onclick" id="btn_advancedExcelUpload"
+							label="advancedExcelUpload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
