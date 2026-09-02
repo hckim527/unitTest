@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260901" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1212
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _14 : dummy_xlsstyle (Excel 파일 스타일 옵션) 본체 - startRowIndex / startColumnIndex / displayGridlines / autoSizeColumn / freezePane / useStyle / setFontSize / useClass
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "startRowIndex(선택) 파라미터로 Excel 파일에 GridView 데이터가 시작될 행의 인덱스를 설정합니다.",
+        "startRowIndex(선택) 파라미터의 Excel 의 행 인덱스는 0 부터 시작하며 Header 데이터를 포함합니다.",
+        "startRowIndex(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+        "startColumnIndex(선택) 파라미터로 Excel 파일에 GridView 데이터가 시작되는 열의 인덱스를 설정합니다.",
+        "startColumnIndex(선택) 파라미터의 Excel 의 열 인덱스는 0 부터 시작합니다.",
+        "startColumnIndex(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+        "displayGridlines(선택) 파라미터로 Excel 파일에 '눈금선'을 표시할지 'true'/'false' 로 설정합니다.",
+        "displayGridlines(선택) 파라미터를 생략하면 기본값 'true' 가 적용됩니다.",
+        "autoSizeColumn(선택) 파라미터로 Excel 파일에 '열 너비 자동 맞춤'을 적용할지 'true'/'false' 로 설정합니다.",
+        "autoSizeColumn(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "freezePane(선택) 파라미터로 Excel 파일에 '틀 고정' 적용을 위한 좌표와 오프셋을 설정합니다.",
+        "freezePane(선택) 파라미터는 '고정열인덱스, 고정행인덱스, 스크롤열인덱스, 스크롤행인덱스' 형식으로 설정하며 각 인덱스는 0 부터 시작합니다.",
+        "freezePane(선택) 파라미터에 '2,1' 는 2번째열, 첫번째행을 틀 고정하고, '2,1,5,30' 은 틀 고정되지 않은 첫번째셀에 5번째열, 30번째행을 스크롤하여 표시합니다.",
+        "freezePane(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "useStyle(선택) 파라미터로 GridView 의 CSS 를 제외한 화면 스타일(배경색, 폰트)을 Excel 에 적용할지 'true'/'false' 로 설정합니다.",
+        "useStyle(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "setFontSize(선택) 파라미터로 useStyle 파라미터값이 'true' 일때 Header, Body, SubTotal, Footer 에 설정된 fontSize CSS 속성을 Excel 에 적용할지 'true'/'false' 로 설정합니다.",
+        "setFontSize(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "useClass(선택) 파라미터로 useStyle 파라미터값이 'true' 일때 Column 에 설정된 CSS 클래스를 Excel 에 적용할지 'true'/'false' 로 설정합니다.",
+        "useClass(선택) 파라미터는 Column 에 설정된 클래스의 backgroundColor, color, textAlign, fontSize, fontWeight, fontFamily, text-decoration, borderLeft, borderRight 9 개 속성을 적용하며, text-decoration 은 'underline' 과 'line-through' 만 적용됩니다.",
+        "useClass(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 영역별 화면 스타일(배경색 / 폰트 크기)과 Column CSS 클래스를 갖춘 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · Body Column 인덱스 0:지역 1:지점명 2:비고 3:판매수량 4:판매금액 (Body Row 6행)
+//     - 0 : Column CSS 클래스(tc_xls_colclass) 만 지정 -> useClass 확인용 (setColumnStyle 미적용)
+//     - 1~4 : setColumnStyle 로 배경색 / 폰트 크기 지정 -> useStyle / setFontSize 확인용
+//     - 2 : Cell 내용이 매우 길고 0 은 매우 짧아 autoSizeColumn 적용 시 열 너비 차이가 크게 남
+//  · Header / SubTotal / Footer 에 각각 다른 폰트 크기의 CSS 클래스를 지정하여 영역별 fontSize 차이를 확인한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Body Column 인덱스 0 지역(값이 2~3글자로 매우 짧음) / 1 지점명 / 2 비고(값이 매우 길어 열 너비 차이가 큼) / 3 판매수량(number) / 4 판매금액(number), Body Row 는 6행\n- 화면 스타일 : Column 1~4 에 setColumnStyle 로 배경색과 폰트 크기 13px 을 지정. Header 는 클래스 tc_xls_header(배경 남색 / 흰 글자 / 16px), SubTotal 은 tc_xls_subtotal(배경 연파랑 / 15px), Footer 는 tc_xls_footer(배경 노랑 / 18px) 로 영역마다 폰트 크기가 다름\n- Column 0(지역) 에는 CSS 클래스 tc_xls_colclass(배경 연노랑 / 빨간 글자 / 20px / 굵게) 만 지정하고 setColumnStyle 은 주지 않아 useClass 적용 여부만으로 스타일이 달라짐\n- SubTotal 은 지역 기준 소계 2행, Footer 는 합계 1행\n- useSubTotal=true, useSubTotalColumnClass=true 는 SubTotal 행과 SubTotal 클래스 스타일을 파일에 포함시키기 위한 고정 전달값(본 계열 검증 대상 아님)\n- 파일명 download_xlsstyle, 확장자 xlsx 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(startRowIndex / startColumnIndex / displayGridlines / autoSizeColumn / freezePane / useStyle / setFontSize / useClass) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n[확인]\n- 이 계열은 Cell 값이 아니라 시트 설정과 스타일을 바꾸므로 값만 봐서는 차이가 보이지 않는다. 내려받은 파일을 Excel 로 열어 데이터 시작 위치 / 눈금선 / 열 너비 / 틀 고정 / 셀 채우기색 / 글꼴 크기로 확인한다\n- startRowIndex : 설정한 값만큼 위쪽이 비고 그 다음 행부터 Header 가 시작되는지. 행 인덱스는 0 부터 시작하고 Header 를 포함하므로 2 를 주면 Excel 3행이 Header 가 된다. 미설정이면 기본값 0 으로 Excel 1행부터 시작하는지. 0 을 명시했을 때와 미설정일 때의 결과가 같은지\n- startColumnIndex : 설정한 값만큼 왼쪽이 비고 그 다음 열부터 데이터가 시작되는지. 열 인덱스는 0 부터 시작하므로 1 을 주면 B열, 3 을 주면 D열부터 시작한다. 미설정이면 기본값 0 으로 A열부터 시작하는지. 0 을 명시했을 때와 미설정일 때의 결과가 같은지\n- displayGridlines : false 면 시트의 눈금선이 사라지는지, true 또는 미설정이면 눈금선이 보이는지. 미설정 시 서버로는 빈값이 전달되지만 파일에는 눈금선이 표시되어 기본값 true 와 같은 결과가 된다\n- autoSizeColumn : true 면 각 열의 너비가 내용 길이에 맞춰 달라져 비고 열은 넓고 지역 열은 좁아지는지, false 또는 미설정이면 GridView 의 Column 폭을 그대로 따르는지\n- freezePane : 2,1 을 주면 2번째열과 첫번째행이 틀 고정되어 스크롤해도 고정 영역이 남는지. 2,1,5,30 을 주면 여기에 더해 틀 고정되지 않은 첫번째 셀에 5번째열 30번째행(F31 셀) 이 보이도록 스크롤된 상태로 열리는지. 1,2 처럼 앞이 열, 뒤가 행 순서인지. 미설정이면 기본값 빈값으로 틀 고정이 없는지\n- useStyle : true 면 화면의 배경색과 글꼴이 Excel 셀에 채워지는지(Header 남색 / Body 지점명 연두 / 비고 연주황 / 판매수량 판매금액 연파랑 / SubTotal 연파랑 / Footer 노랑), false 또는 미설정이면 기본 스타일로만 생성되는지. Column 0(지역) 은 클래스로만 스타일을 주었으므로 useClass 를 켜지 않으면 홀짝행 기본색으로 남는다\n- setFontSize : useStyle=true 인 상태에서 Body Column(13px) 과 SubTotal(15px) 의 글꼴 크기가 Excel 에 반영되는지. 참고로 현재 엔진에서는 setFontSize 값(true / false / 미설정) 에 관계없이 useStyle=true 이면 Body 와 SubTotal 의 글꼴 크기가 항상 반영되고, Header(16px) 와 Footer(18px) 의 글꼴 크기는 어떤 값에서도 반영되지 않는다. useStyle 이 false 이면 setFontSize 를 true 로 주어도 아무 스타일도 반영되지 않는지\n- useClass : useStyle=true 인 상태에서 true 면 Column 0(지역) 에 CSS 클래스로 지정한 배경 연노랑 / 빨간 글자 / 20px / 굵게 가 Excel 에 적용되는지, false 또는 미설정이면 적용되지 않는지. useStyle 이 false 이면 useClass 를 true 로 주어도 적용되지 않는지\n- 결과창의 서버 전달값으로 실제 서버에 전송된 옵션 원문을 함께 확인. startRowIndex 는 stRowIndex, startColumnIndex 는 stColIndex 라는 이름으로 전달되며, useClass 는 별도 항목으로 전달되지 않고 styleData 내용에 반영된다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="branch" name="branch" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="note" name="note" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="saleQty" name="saleQty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="saleAmt" name="saleAmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "region" : "서울", "branch" : "강남지점",   "note" : "역세권 대형 매장으로 주말 방문객이 평일의 두 배 수준이며 주차 공간 확보가 시급한 지점입니다", "saleQty" : 1820, "saleAmt" : 254800000 },
+        { "region" : "서울", "branch" : "종로지점",   "note" : "관광객 비중이 높아 외국어 응대 인력을 상시 배치하고 있으며 기념품 품목의 회전율이 가장 빠릅니다", "saleQty" : 1245, "saleAmt" : 168900000 },
+        { "region" : "서울", "branch" : "여의도지점", "note" : "금융권 직장인 대상 점심 시간대 매출 집중도가 높아 오전 준비 물량을 별도로 편성하고 있습니다", "saleQty" : 1560, "saleAmt" : 210300000 },
+        { "region" : "부산", "branch" : "해운대지점", "note" : "여름 성수기 매출이 연간 매출의 절반을 차지하는 계절성 지점으로 비수기 운영 방안 검토가 필요합니다", "saleQty" : 2140, "saleAmt" : 301700000 },
+        { "region" : "부산", "branch" : "서면지점",   "note" : "인근 상권 재개발로 유동 인구가 꾸준히 늘고 있어 다음 분기 매장 면적 확장을 계획하고 있습니다", "saleQty" : 1730, "saleAmt" : 233500000 },
+        { "region" : "부산", "branch" : "동래지점",   "note" : "주거 밀집 지역 특성상 생활용품 비중이 높고 정기 배송 서비스 가입 고객 비율이 전국에서 가장 높습니다", "saleQty" : 985, "saleAmt" : 124600000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    //  · Header / Footer / Body Column 0 은 class 속성으로, SubTotal 은 subtotalClass 속성으로 CSS 클래스를 지정한다.
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:860px;height:400px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Excel 파일 스타일 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="80" style="" class="tc_xls_header" inputType="text" id="hcol1" value="지역"></w2:column>';
+    strTarget += '<w2:column width="130" style="" class="tc_xls_header" inputType="text" id="hcol2" value="지점명"></w2:column>';
+    strTarget += '<w2:column width="*" style="" class="tc_xls_header" inputType="text" id="hcol3" value="비고"></w2:column>';
+    strTarget += '<w2:column width="110" style="" class="tc_xls_header" inputType="text" id="hcol4" value="판매수량"></w2:column>';
+    strTarget += '<w2:column width="140" style="" class="tc_xls_header" inputType="text" id="hcol5" value="판매금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // Column 0 : CSS 클래스만 지정 (useClass 확인용)
+    strTarget += '<w2:column width="80" style="" class="tc_xls_colclass" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="branch" dataList="branch"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="note" dataList="note"></w2:column>';
+    strTarget += '<w2:column width="110" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleQty" dataList="saleQty"></w2:column>';
+    strTarget += '<w2:column width="140" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleAmt" dataList="saleAmt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : 지역 기준 소계 (영역별 fontSize 확인용 클래스 지정)
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="region" subtotalClass="tc_xls_subtotal">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="scol1" value="소계"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="scol3" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="text-align:right;" inputType="expression" dataType="number" id="scol4" expression="sum(\'saleQty\')"></w2:column>';
+    strTarget += '<w2:column width="140" style="text-align:right;" inputType="expression" dataType="number" id="scol5" expression="sum(\'saleAmt\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    // Footer : 전체 합계 (영역별 fontSize 확인용 클래스 지정)
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="80" style="" class="tc_xls_footer" inputType="text" id="fcol1" value="합계"></w2:column>';
+    strTarget += '<w2:column width="130" style="" class="tc_xls_footer" inputType="text" id="fcol2" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" class="tc_xls_footer" inputType="text" id="fcol3" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="text-align:right;" class="tc_xls_footer" inputType="expression" dataType="number" id="fcol4" expression="sum(\'saleQty\')"></w2:column>';
+    strTarget += '<w2:column width="140" style="text-align:right;" class="tc_xls_footer" inputType="expression" dataType="number" id="fcol5" expression="sum(\'saleAmt\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // Body Column 1~4 화면 스타일(배경색 / 폰트 크기) 지정 -> useStyle / setFontSize 확인용
+    //  Column 0 은 CSS 클래스로만 스타일이 결정되도록 setColumnStyle 을 적용하지 않는다.
+    target1.setColumnStyle(1, "background-color", "#E2EFDA");
+    target1.setColumnStyle(1, "font-size", "13px");
+    target1.setColumnStyle(2, "background-color", "#FCE4D6");
+    target1.setColumnStyle(2, "font-size", "13px");
+    target1.setColumnStyle(3, "background-color", "#DDEBF7");
+    target1.setColumnStyle(3, "font-size", "13px");
+    target1.setColumnStyle(4, "background-color", "#DDEBF7");
+    target1.setColumnStyle(4, "font-size", "13px");
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · startRowIndex / startColumnIndex 는 Number, useClass 는 Boolean 타입 파라미터이므로 해당 타입으로 변환하여 전달한다.
+//  · fileName / extension / useSubTotal / useSubTotalColumnClass 는 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_xlsstyle", "extension" : "xlsx", "useSubTotal" : "true", "useSubTotalColumnClass" : "true" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_startRowIndex.getValue();    if (v !== "") fnSet("startRowIndex", parseInt(v, 10));
+    v = par_startColumnIndex.getValue(); if (v !== "") fnSet("startColumnIndex", parseInt(v, 10));
+    v = par_displayGridlines.getValue(); if (v !== "") fnSet("displayGridlines", v);
+    v = par_autoSizeColumn.getValue();   if (v !== "") fnSet("autoSizeColumn", v);
+    v = par_freezePane.getValue();       if (v !== "") fnSet("freezePane", v);
+    v = par_useStyle.getValue();         if (v !== "") fnSet("useStyle", v);
+    v = par_setFontSize.getValue();      if (v !== "") fnSet("setFontSize", v);
+    v = par_useClass.getValue();         if (v !== "") fnSet("useClass", (v === "true"));
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (startRowIndex / startColumnIndex / displayGridlines / autoSizeColumn / freezePane / useStyle / setFontSize / useClass 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값 : stRowIndex=" + scwin.getSentValue("stRowIndex") + " / stColIndex=" + scwin.getSentValue("stColIndex") + " / displayGridlines=" + scwin.getSentValue("displayGridlines") + " / autoSizeColumn=" + scwin.getSentValue("autoSizeColumn"));
+    bottom.setReturnValue("서버 전달값 : freezePane=" + scwin.getSentValue("freezePane") + " / useStyle=" + scwin.getSentValue("useStyle") + " / setFontSize=" + scwin.getSentValue("setFontSize"));
+    bottom.setReturnValue("styleData(useClass 반영 대상) 전달 여부 : " + (((scwin.gVar.body || "").indexOf("hashkey='styleData'") > -1) ? "전달됨" : "미전달"));
+}]]></script>
+		<style type="text/css"><![CDATA[/* useStyle / setFontSize / useClass 확인용 화면 스타일
+   영역마다 배경색과 폰트 크기를 다르게 두어 Excel 파일에 어느 영역의 스타일이 반영되는지 구분한다.
+   GridView 기본 테마(gridHeaderTDDefault / gridBodyDefault) 의 우선순위가 더 높아 클래스가 화면에 적용되지 않으므로 important 로 지정한다. */
+.tc_xls_header { background-color: #305496 !important; color: #FFFFFF !important; font-size: 16px !important; font-weight: bold !important; }
+.tc_xls_subtotal { background-color: #D9E1F2 !important; color: #1F4E79 !important; font-size: 15px !important; }
+.tc_xls_footer { background-color: #FFD966 !important; color: #7F6000 !important; font-size: 18px !important; font-weight: bold !important; }
+.tc_xls_colclass { background-color: #FFF2CC !important; color: #C00000 !important; font-size: 20px !important; font-weight: bold !important; }]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:240px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:240px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.startRowIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_startRowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.startColumnIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_startColumnIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.displayGridlines (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_displayGridlines" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.autoSizeColumn (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_autoSizeColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.freezePane (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_freezePane" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2,1]]></xf:label>
+												<xf:value><![CDATA[2,1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2,1,5,30]]></xf:label>
+												<xf:value><![CDATA[2,1,5,30]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1,2]]></xf:label>
+												<xf:value><![CDATA[1,2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useStyle (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useStyle" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.setFontSize (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_setFontSize" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useClass (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useClass" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

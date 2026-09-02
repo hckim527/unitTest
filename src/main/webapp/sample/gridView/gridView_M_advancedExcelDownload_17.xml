@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260901" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _17 : dummy_xlsstyle_groupby / dummy_xlsstyle_rowbc (Excel 파일 스타일 옵션 - GroupBy 의 Header/Footer, 줄무늬 행 배경색)
+//     - groupbyColor / groupbyFontName / groupbyFontSize / groupbyFontColor / oddRowBackgroundColor / evenRowBackgroundColor
+//     _15 (Header/Body) / _16 (SubTotal/Footer) 과 대칭 구성이며 description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "groupbyColor(선택) 파라미터로 Excel 파일의 GroupBy Header 와 GroupBy Footer 영역 배경색을 설정합니다.",
+        "groupbyColor(선택) 파라미터는 계층을 표현하는 경우 콤마(,) 구분자로 배경색을 나열하여 설정합니다.",
+        "groupbyColor(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "groupbyFontName(선택) 파라미터로 Excel 파일의 GroupBy Header 와 GroupBy Footer 영역 폰트 이름을 설정합니다.",
+        "groupbyFontName(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "groupbyFontSize(선택) 파라미터로 Excel 파일의 GroupBy Header 와 GroupBy Footer 영역 폰트 크기를 설정합니다.",
+        "groupbyFontSize(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "groupbyFontColor(선택) 파라미터로 Excel 파일의 GroupBy Header 와 GroupBy Footer 영역 폰트 색상을 설정합니다.",
+        "groupbyFontColor(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "oddRowBackgroundColor(선택) 파라미터로 Excel 파일의 Body 데이터 영역 홀수 행의 배경색을 설정합니다.",
+        "oddRowBackgroundColor(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "evenRowBackgroundColor(선택) 파라미터로 Excel 파일의 Body 데이터 영역 짝수 행의 배경색을 설정합니다.",
+        "evenRowBackgroundColor(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header 1줄(병합 없음) / Body 8행 의 GridView 를 동적 생성한 뒤 2 Depth GroupBy 를 적용한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · 본 계열은 GroupBy Header/Footer 영역과 Body 데이터 영역 홀수/짝수 행의 서식만 확인한다.
+//  · Body Column 인덱스 0:부서 1:직급 2:사원명 3:실적금액
+//  · GroupBy : sortIndex [0, 1] (부서 - 직급) 2 Depth. Depth 0 은 3그룹, Depth 1 은 5그룹.
+//     - groupbyHeader / groupbyFooter 를 설정하지 않으면 빈 Row 가 표시되므로 반드시 설정한다.
+//     - Header 는 toggleButton(depthVisible true) + 계산식 sum(실적금액), Footer 는 텍스트 + 계산식 sum(실적금액).
+//  · Body Row 는 홀수 행 / 짝수 행 구분이 드러나도록 8행을 둔다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 1줄(병합 없음), Body Column 인덱스 0 부서 / 1 직급 / 2 사원명 / 3 실적금액(number), Body Row 는 8행\n- GroupBy 는 부서(인덱스 0) - 직급(인덱스 1) 기준 2 Depth 고정 구성(본 계열 검증 대상 아님)이며, Group Header 는 토글 버튼(현재 Depth 값 표시) + 계산식 sum(실적금액), Group Footer 는 텍스트 그룹 소계 + 계산식 sum(실적금액) 으로 값이 표시된다\n- Depth 0 은 3그룹(영업기획팀 / 고객지원팀 / 품질관리팀), Depth 1 은 5그룹이라 계층별 배경색 나열을 확인할 수 있다\n- Body Row 를 8행 둔 것은 Body 데이터 영역의 홀수 행 / 짝수 행 구분이 드러나게 하기 위한 고정 구성이다\n- useStyle 은 전달하지 않는다. 이 6 개 옵션은 useStyle 없이도 적용된다\n- 파일명 download_xlsstyle_gb, 확장자 xlsx 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(groupbyColor / groupbyFontName / groupbyFontSize / groupbyFontColor / oddRowBackgroundColor / evenRowBackgroundColor) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n[확인]\n- 이 계열은 Cell 값이 아니라 셀 서식만 바꾸므로 값만 봐서는 차이가 보이지 않는다. 내려받은 파일을 Excel 로 열어 채우기 색 / 글꼴 이름 / 글꼴 크기 / 글꼴 색으로 확인한다\n- groupbyColor : 단일 색(#FF00FF)을 설정하면 GroupBy Header 행과 GroupBy Footer 행 전체가 그 색으로 채워지는지\n- groupbyColor : 콤마 나열(#FF00FF,#FFFF00)을 설정하면 Depth 0 행과 Depth 1 행에 나열 순서대로 서로 다른 배경색이 적용되는지 (계층 표현)\n- groupbyColor : 미설정이면 서식이 빠지는 것이 아니라 화면 GroupBy 행의 배경색(#FFFFFF)이 그대로 적용되는지\n- groupbyFontName : 설정한 글꼴 이름(굴림)이 GroupBy Header/Footer 행에 적용되는지. 미설정이면 화면 GroupBy 행의 글꼴 이름(Noto Sans KR)이 그대로 적용되는지\n- groupbyFontSize : 설정한 크기(20)가 GroupBy Header/Footer 행에 적용되는지. 미설정이면 화면 GroupBy 행의 글꼴 크기(14)가 그대로 적용되는지\n- groupbyFontColor : 설정한 색(#0000FF)이 GroupBy Header/Footer 행 글자색이 되는지. 미설정이면 화면 GroupBy 행의 글자색(#454F5B)이 그대로 적용되는지\n- oddRowBackgroundColor : 설정한 색(#FFF2CC)이 Body 데이터 영역의 홀수 행(파일 순서 1 / 3 / 5 / 7 번째 Body 행)에만 채우기 색으로 적용되는지. 미설정이면 홀수 행 배경이 흰색으로 남는지\n- evenRowBackgroundColor : 설정한 색(#DDEBF7)이 Body 데이터 영역의 짝수 행(파일 순서 2 / 4 / 6 / 8 번째 Body 행)에만 채우기 색으로 적용되는지. 미설정이면 짝수 행 배경이 흰색으로 남는지\n- GroupBy 옵션(4개)과 줄무늬 행 옵션(2개)은 서로 독립이다. 한쪽만 설정하면 다른 쪽은 기본 서식으로 남는지 함께 확인한다\n- GroupBy 계열 4 개는 미설정일 때 요청에 옵션 키가 담기지 않지만, 엔진이 화면 GroupBy 행에서 읽은 배경색 / 글꼴 이름 / 글꼴 크기 / 글자색을 별도 스타일값으로 전송하므로 파일에는 화면과 같은 서식이 적용된다. 미설정이 곧 서식 없음을 뜻하지 않는다\n- 결과창의 서버 전달값으로 실제 서버에 전송된 옵션 원문을 함께 확인한다. 미설정일 때 groupby 계열 4 개는 요청에 키 자체가 담기지 않아 미전달이고, 줄무늬 행 2 개는 빈값으로 전달되어 서로 다르다\n- oddRowBackgroundColor 와 evenRowBackgroundColor 두 개는 엔진이 요청 XML 에 담을 때 oddRowBgColor / evenRowBgColor 라는 다른 키로 바꿔 전송한다. 결과창은 이 전송 키로 조회해 값을 표시한다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="empName" name="empName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="saleAmt" name="saleAmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 부서(3그룹) - 직급(5그룹) 의 2 Depth GroupBy 가 구성되도록 중복값을 갖는 8행 데이터
+    let jsonData = [
+        { "dept" : "영업기획팀", "grade" : "과장", "empName" : "김도현", "saleAmt" : 18450000 },
+        { "dept" : "영업기획팀", "grade" : "과장", "empName" : "박서연", "saleAmt" : 12300000 },
+        { "dept" : "영업기획팀", "grade" : "사원", "empName" : "이준호", "saleAmt" : 9800000 },
+        { "dept" : "고객지원팀", "grade" : "과장", "empName" : "최민아", "saleAmt" : 6450000 },
+        { "dept" : "고객지원팀", "grade" : "사원", "empName" : "정우진", "saleAmt" : 15200000 },
+        { "dept" : "고객지원팀", "grade" : "사원", "empName" : "한지민", "saleAmt" : 11750000 },
+        { "dept" : "품질관리팀", "grade" : "대리", "empName" : "오세훈", "saleAmt" : 8300000 },
+        { "dept" : "품질관리팀", "grade" : "대리", "empName" : "윤나래", "saleAmt" : 13600000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:380px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Excel 파일 스타일 옵션 - GroupBy Header/Footer, 줄무늬 행 배경색) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol1" value="부서"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hcol2" value="직급"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="사원명"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="실적금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="grade" dataList="grade"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="empName" dataList="empName"></w2:column>';
+    strTarget += '<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleAmt" dataList="saleAmt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 2 Depth GroupBy 고정 적용 (본 계열 검증 대상이 아닌 전제 구성)
+    //  · groupbyHeader / groupbyFooter 를 주지 않으면 빈 Row 가 표시되므로 반드시 설정한다.
+    target1.groupby({
+        sortIndex : [0, 1],
+        sortOrder : [1, 1],
+        groupbyHeader : [
+            { inputType : "toggleButton", depthVisible : true, colSpan : 3, align : "left" },
+            { inputType : "expression", expression : "sum('saleAmt')", align : "right" }
+        ],
+        groupbyFooter : [
+            { colSpan : 3, value : "그룹 소계", align : "right" },
+            { inputType : "expression", expression : "sum('saleAmt')", align : "right" }
+        ]
+    });
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 6 개 파라미터 모두 String 타입이므로 selectbox 값을 그대로 전달한다.
+//  · fileName / extension 은 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_xlsstyle_gb", "extension" : "xlsx" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_groupbyColor.getValue();           if (v !== "") fnSet("groupbyColor", v);
+    v = par_groupbyFontName.getValue();        if (v !== "") fnSet("groupbyFontName", v);
+    v = par_groupbyFontSize.getValue();        if (v !== "") fnSet("groupbyFontSize", v);
+    v = par_groupbyFontColor.getValue();       if (v !== "") fnSet("groupbyFontColor", v);
+    v = par_oddRowBackgroundColor.getValue();  if (v !== "") fnSet("oddRowBackgroundColor", v);
+    v = par_evenRowBackgroundColor.getValue(); if (v !== "") fnSet("evenRowBackgroundColor", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (groupbyColor / groupbyFontName / groupbyFontSize / groupbyFontColor / oddRowBackgroundColor / evenRowBackgroundColor 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+//  · oddRowBackgroundColor / evenRowBackgroundColor 두 개는 엔진이 요청 XML 에 담을 때
+//    파라미터명과 다른 키(oddRowBgColor / evenRowBgColor)로 바꿔 전송한다. 실측으로 확인한 사실이며
+//    파라미터명 그대로 찾으면 값을 설정해도 미전달로 보이므로 전송 키로 변환해서 조회한다.
+//    (나머지 4 개 groupby 계열은 파라미터명과 전송 키가 같다.)
+scwin.SENT_KEY = { "oddRowBackgroundColor" : "oddRowBgColor", "evenRowBackgroundColor" : "evenRowBgColor" };
+
+scwin.getSentValue = function (sParamName) {
+    let sKey = scwin.SENT_KEY[sParamName] || sParamName;
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값(GroupBy) : groupbyColor=" + scwin.getSentValue("groupbyColor") + " / groupbyFontName=" + scwin.getSentValue("groupbyFontName") + " / groupbyFontSize=" + scwin.getSentValue("groupbyFontSize") + " / groupbyFontColor=" + scwin.getSentValue("groupbyFontColor"));
+    bottom.setReturnValue("서버 전달값(줄무늬) : oddRowBackgroundColor=" + scwin.getSentValue("oddRowBackgroundColor") + " / evenRowBackgroundColor=" + scwin.getSentValue("evenRowBackgroundColor"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:240px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:240px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.groupbyColor (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_groupbyColor" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#FF00FF]]></xf:label>
+												<xf:value><![CDATA[#FF00FF]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#FF00FF,#FFFF00]]></xf:label>
+												<xf:value><![CDATA[#FF00FF,#FFFF00]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.groupbyFontName (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_groupbyFontName" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[굴림]]></xf:label>
+												<xf:value><![CDATA[굴림]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[맑은 고딕]]></xf:label>
+												<xf:value><![CDATA[맑은 고딕]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.groupbyFontSize (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_groupbyFontSize" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[20]]></xf:label>
+												<xf:value><![CDATA[20]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[11]]></xf:label>
+												<xf:value><![CDATA[11]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.groupbyFontColor (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_groupbyFontColor" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#0000FF]]></xf:label>
+												<xf:value><![CDATA[#0000FF]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.oddRowBackgroundColor (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_oddRowBackgroundColor" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#FFF2CC]]></xf:label>
+												<xf:value><![CDATA[#FFF2CC]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.evenRowBackgroundColor (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_evenRowBackgroundColor" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#DDEBF7]]></xf:label>
+												<xf:value><![CDATA[#DDEBF7]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

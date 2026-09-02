@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260828" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _5 : dummy_bigdata (대용량 데이터 다운로드 옵션) 계열 - massStorage / dataProvider / splitProvider / providerRequestXml / userDataXml
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "massStorage(선택) 파라미터로 대용량 데이터 처리 방식을 적용할지 true/false 로 설정합니다.",
+        "massStorage(선택) 파라미터를 true 로 설정 시 다운로드 데이터를 일정 Row 단위로 생성합니다. 웹브라우저가 오랜 시간 멈춰 있는 것을 방지합니다.",
+        "massStorage(선택) 파라미터를 false 로 설정 시 다운로드 데이터를 한번에 생성합니다.",
+        "massStorage(선택) 파라미터를 생략하면 기본값 true 로 동작합니다.",
+        "showConfirm 파라미터값이 true 이면 massStorage(선택) 파라미터값은 항상 true 로 동작합니다.",
+        "dataProvider(선택) 파라미터로 대용량 및 사용자 데이터를 처리할 프로바이더(Provider) 패키지명을 설정합니다.",
+        "dataProvider(선택) 파라미터를 생략하면 기본값 빈 문자열('')이 적용됩니다.",
+        "splitProvider(선택) 파라미터로 대용량 데이터를 분할 처리할 프로바이더(Provider) 패키지명을 설정합니다.",
+        "splitProvider(선택) 파라미터를 생략하면 기본값 빈 문자열('')이 적용됩니다.",
+        "providerRequestXml(선택) 파라미터로 프로바이더(Provider) 내부에서 사용할 XML 문자열을 설정합니다.",
+        "providerRequestXml(선택) 파라미터를 생략하면 기본값 빈 문자열('')이 적용됩니다.",
+        "userDataXml(선택) 파라미터로 서버 모듈 개발 시 필요한 데이터를 설정합니다.",
+        "userDataXml(선택) 파라미터를 생략하면 기본값 빈 문자열('')이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 다운로드 요청 전송 감시 훅 설치
+    scwin.installSubmitHook();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · massStorage 의 Row 단위 분할 생성은 대용량 데이터에서만 관측되므로 3000 행을 바인딩한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 대용량 데이터 3000행(col1_1 ~ col4_3000)이 바인딩되어 있음\n- dataProvider / splitProvider / providerRequestXml / userDataXml 은 서버측 Provider 클래스와 서버 모듈이 있어야 실제 처리가 이루어지며, 로컬 서버에는 해당 클래스가 없음\n[절차]\n1. par 옵션값을 선택한다\n2. advancedExcelDownload 버튼을 클릭한다\n3. showConfirm 을 true 로 설정한 경우에만, 화면 가운데 뜨는 확인 레이어의 download 버튼을 눌러 전송을 마친다\n[확인]\n- 메소드 반환 시점의 다운로드 데이터 생성 완료 여부와 생성 소요 시간으로 Row 단위 분할 생성과 한번에 생성을 구분\n- 서버 전송값 줄에서 각 Provider 옵션이 서버 요청 XML 에 담겼는지 확인\n- 서버 응답 줄에서 Excel 파일 응답 여부 또는 존재하지 않는 Provider 패키지명 설정 시의 오류를 확인"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 3000행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind', '', 3000);
+
+    // target 생성 (DataList 바인딩)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id
+    });
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// 다운로드 요청 전송(form submit) 을 가로채 전송 시각과 서버로 보낸 XML 문자열을 확보한다.
+//  · 엔진은 다운로드 데이터 생성이 끝나면 hidden iframe 을 target 으로 하는 form 을 만들어 xmlValue 파라미터로 POST 한다.
+//  · Row 단위 분할 생성이 적용되면 이 전송이 메소드 반환 이후에 발생한다.
+scwin.installSubmitHook = function () {
+    if (window.__gvDownloadHooked === true) return;
+    window.__gvDownloadHooked = true;
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        try {
+            let objInput = this.querySelector("input[name='xmlValue']");
+            if (objInput !== null && scwin.gVar) {
+                scwin.gVar.submitted = true;
+                scwin.gVar.submitTime = new Date().getTime();
+                scwin.gVar.payload = objInput.value;
+            }
+        } catch (e) {
+            // 감시용 훅이므로 실패해도 원래 전송은 그대로 진행한다.
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 모든 파라미터가 미설정이면 빈 객체({}) 가 전달된다.
+//  · massStorage / showConfirm 은 Boolean 타입이므로 gdl_boolean 라벨(getText)을 Boolean 으로 변환하여 전달한다.
+scwin.buildOptions = function () {
+    let options = {};
+
+    let vMassStorage = par_massStorage.getText();
+    if (vMassStorage === "true") {
+        options.massStorage = true;
+    } else if (vMassStorage === "false") {
+        options.massStorage = false;
+    }
+
+    let vShowConfirm = par_showConfirm.getText();
+    if (vShowConfirm === "true") {
+        options.showConfirm = true;
+    } else if (vShowConfirm === "false") {
+        options.showConfirm = false;
+    }
+
+    let vDataProvider = par_dataProvider.getValue();
+    if (vDataProvider !== "") options.dataProvider = vDataProvider;
+
+    let vSplitProvider = par_splitProvider.getValue();
+    if (vSplitProvider !== "") options.splitProvider = vSplitProvider;
+
+    let vProviderRequestXml = par_providerRequestXml.getValue();
+    if (vProviderRequestXml !== "") options.providerRequestXml = vProviderRequestXml;
+
+    let vUserDataXml = par_userDataXml.getValue();
+    if (vUserDataXml !== "") options.userDataXml = vUserDataXml;
+
+    return options;
+}
+
+
+
+// 전달할 options 객체를 문자열로 만든다.
+//  · 엔진이 호출 도중 options 객체에 내부 키를 덧붙이므로 반드시 호출 전에 만들어 두어야 한다.
+scwin.getOptionText = function (options) {
+    let arrKey = Object.keys(options);
+    if (arrKey.length === 0) return "{} (모든 파라미터 생략)";
+
+    let arrText = [];
+    for (let i = 0; i < arrKey.length; i++) {
+        arrText.push(arrKey[i] + " = " + options[arrKey[i]]);
+    }
+    return arrText.join(" / ");
+}
+
+
+
+// 서버로 전송된 XML 문자열에서 특정 옵션의 전달값을 읽는다.
+//  · 단일 태그 형태 : <data hashkey='dataProvider' value='...'/>
+//  · 본문 형태      : <data hashkey='userDataXml' value=''>...</data>
+scwin.getSentValue = function (strKey) {
+    if (!scwin.gVar || !scwin.gVar.payload) return "(전송값 없음)";
+
+    let strXml = scwin.gVar.payload;
+
+    let arrMatch = strXml.match(new RegExp("<data hashkey='" + strKey + "' value='([^']*)'\\s*/>"));
+    if (arrMatch !== null) return arrMatch[1];
+
+    arrMatch = strXml.match(new RegExp("<data hashkey='" + strKey + "' value=''>([\\s\\S]*?)</data>"));
+    if (arrMatch !== null) return arrMatch[1];
+
+    return "(전송 항목 없음)";
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    scwin.gVar = { "submitted" : false, "submitTime" : 0, "payload" : null };
+
+    // 다운로드 전송용 hidden iframe 은 파일 응답일 때 이동하지 않아 직전 실행의 서버 응답이 그대로 남는다.
+    //  · 매 실행마다 제거하여 엔진이 빈 iframe 을 새로 만들도록 한다.
+    let objDiv = document.querySelector("div[id='___iframe__div']");
+    if (objDiv !== null) objDiv.parentNode.removeChild(objDiv);
+
+    let options = scwin.buildOptions();
+    let strOption = scwin.getOptionText(options);
+
+    let nStart = new Date().getTime();
+    target1.advancedExcelDownload(options);
+    let bSyncDone = scwin.gVar.submitted;
+
+    bottom.setReturnValue("전달한 options : " + strOption);
+    bottom.setReturnValue("메소드 반환 시점의 다운로드 데이터 생성 완료 여부 : " + bSyncDone);
+    bottom.setReturnValue("호출 후 options.massStorage : " + options.massStorage);
+
+    scwin.printSentValue(nStart, 0);
+}
+
+
+
+// 다운로드 요청이 전송될 때까지 기다렸다가 생성 소요 시간과 서버 전송값을 출력한다.
+scwin.printSentValue = function (nStart, nRetry) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    nRetry = nRetry || 0;
+
+    if (scwin.gVar.submitted !== true) {
+        if (nRetry < 150) {
+            setTimeout(function () { scwin.printSentValue(nStart, nRetry + 1); }, 100);
+            return;
+        }
+        bottom.setReturnValue("다운로드 요청이 전송되지 않았습니다.");
+        return;
+    }
+
+    bottom.setReturnValue("다운로드 데이터 생성 소요 시간(ms) : " + (scwin.gVar.submitTime - nStart));
+    bottom.setReturnValue("[서버 전송값] dataProvider : " + scwin.getSentValue("dataProvider"));
+    bottom.setReturnValue("[서버 전송값] splitProvider : " + scwin.getSentValue("splitProvider"));
+    bottom.setReturnValue("[서버 전송값] providerRequestXml : " + scwin.getSentValue("providerRequestXml"));
+    bottom.setReturnValue("[서버 전송값] userDataXml : " + scwin.getSentValue("userDataXml"));
+
+    setTimeout(scwin.printServerResponse, 2500);
+}
+
+
+
+// 다운로드 요청에 대한 서버 응답을 출력한다.
+//  · Excel 파일로 정상 응답되면 전송용 hidden iframe 은 비어 있다.
+//  · 서버측 처리가 실패하면 오류 XML 문서가 hidden iframe 에 남으며, 이 문서는 body 가 없으므로 documentElement 로 읽는다.
+scwin.printServerResponse = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let strText = "";
+
+    try {
+        let objFrame = document.querySelector("iframe[id='__iframe__']");
+        let objDoc = (objFrame === null) ? null : objFrame.contentDocument;
+        if (objDoc !== null && objDoc.documentElement !== null) {
+            strText = (objDoc.documentElement.textContent || "").replace(/\s+/g, " ").trim();
+            if (strText !== "") {
+                strText = new XMLSerializer().serializeToString(objDoc.documentElement);
+            }
+        }
+    } catch (e) {
+        strText = "읽을 수 없음 : " + e.message;
+    }
+
+    bottom.setReturnValue("서버 응답 : " + (strText === "" ? "없음 (Excel 파일 다운로드 응답)" : strText.substring(0, 300)));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.massStorage (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_massStorage" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.showConfirm (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_showConfirm" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.dataProvider (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_dataProvider" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[com.inswave.sample.excel.SampleDataProvider]]></xf:label>
+												<xf:value><![CDATA[com.inswave.sample.excel.SampleDataProvider]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.splitProvider (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_splitProvider" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[com.inswave.sample.excel.SampleSplitProvider]]></xf:label>
+												<xf:value><![CDATA[com.inswave.sample.excel.SampleSplitProvider]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.providerRequestXml (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_providerRequestXml" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[<providerRequest><deptCode>1000</deptCode></providerRequest>]]></xf:label>
+												<xf:value><![CDATA[<providerRequest><deptCode>1000</deptCode></providerRequest>]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.userDataXml (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_userDataXml" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[<userData><userKey>testKey</userKey></userData>]]></xf:label>
+												<xf:value><![CDATA[<userData><userKey>testKey</userKey></userData>]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

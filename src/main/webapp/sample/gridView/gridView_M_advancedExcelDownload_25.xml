@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260902" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _25 : dummy_print (Excel 파일 인쇄 설정 옵션) 계열 중 여백 단위 / 여백 6 종 / 가운데 맞춤 옵션
+//     - printSet.marginUnit / printSet.marginTop / printSet.marginBottom / printSet.marginLeft
+//       / printSet.marginRight / printSet.headerMargin / printSet.footerMargin
+//       / printSet.centerHorizontally / printSet.centerVertically
+//     같은 계열의 용지 방향 / 쪽 맞춤 / 배율 / 용지 크기 7 개는 _24, 머리글 / 바닥글 8 개는 _26 에서 다룬다.
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "printSet.marginUnit(선택) 파라미터로 Excel 파일 인쇄 시 적용될 여백의 단위를 'cm'/'inch' 로 설정합니다.",
+        "printSet.marginUnit(선택) 파라미터를 생략하면 기본값 'cm' 이 적용됩니다.",
+        "printSet.marginTop(선택) 파라미터로 Excel 파일 인쇄 시 위쪽 여백을 printSet.marginUnit 파라미터 단위로 설정합니다.",
+        "printSet.marginTop(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.marginBottom(선택) 파라미터로 Excel 파일 인쇄 시 아래쪽 여백을 printSet.marginUnit 파라미터 단위로 설정합니다.",
+        "printSet.marginBottom(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.marginLeft(선택) 파라미터로 Excel 파일 인쇄 시 왼쪽 여백을 printSet.marginUnit 파라미터 단위로 설정합니다.",
+        "printSet.marginLeft(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.marginRight(선택) 파라미터로 Excel 파일 인쇄 시 오른쪽 여백을 printSet.marginUnit 파라미터 단위로 설정합니다.",
+        "printSet.marginRight(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.headerMargin(선택) 파라미터로 Excel 파일 인쇄 시 머리글 여백을 printSet.marginUnit 파라미터 단위로 설정합니다.",
+        "printSet.headerMargin(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.footerMargin(선택) 파라미터로 Excel 파일 인쇄 시 바닥글 여백을 printSet.marginUnit 파라미터 단위로 설정합니다.",
+        "printSet.footerMargin(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.centerHorizontally(선택) 파라미터로 Excel 파일 인쇄 시 데이터를 용지의 가로 방향 중앙에 맞출지 true/false 로 설정합니다.",
+        "printSet.centerHorizontally(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+        "printSet.centerVertically(선택) 파라미터로 Excel 파일 인쇄 시 데이터를 용지의 세로 방향 중앙에 맞출지 true/false 로 설정합니다.",
+        "printSet.centerVertically(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // gdl_boolean 바인딩 selectbox 는 초기 selectedIndex 가 적용되지 않으므로 미설정('1')을 명시한다.
+    par_centerHorizontally.setValue("1");
+    par_centerVertically.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header 1줄(병합 없음) / Body 6행 의 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · 본 계열은 Cell 값이 아니라 Excel 파일의 인쇄 여백과 가운데 맞춤만 바꾸므로 그리드 구성은 단순하게 둔다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 1줄(병합 없음), Body Column 인덱스 0 부서 / 1 사원명 / 2 실적건수(number) / 3 실적금액(number), Body Row 는 6행\n- 이 계열은 Cell 값을 바꾸지 않는다. Excel 파일의 인쇄 여백과 가운데 맞춤만 바뀐다\n- printSet 은 항상 설정으로 고정 전달한다. printSet 파라미터 자체는 _24 에서 다룬다\n- 여백 6 개는 Number 타입이라 selectbox 값을 숫자로 변환해 전달하고, 가운데 맞춤 2 개는 Boolean 타입이라 Boolean 으로 변환해 전달한다\n- 파일명 download_print_margin, 확장자 xlsx, sheetName mysheet 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(printSet.marginUnit / marginTop / marginBottom / marginLeft / marginRight / headerMargin / footerMargin / centerHorizontally / centerVertically) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n3. 내려받은 파일을 Excel 로 열고 페이지 레이아웃 - 여백 - 사용자 지정 여백에서 확인한다\n[확인]\n- printSet.marginUnit : 같은 여백값을 cm 으로 줄 때와 inch 로 줄 때 실제 여백 크기가 달라지는지. 미설정이면 cm 으로 동작하는지\n- printSet.marginTop / marginBottom / marginLeft / marginRight : 설정한 값이 각각 위 / 아래 / 왼쪽 / 오른쪽 여백이 되는지. 미설정이면 Excel 기본 여백이 유지되는지\n- printSet.headerMargin / footerMargin : 설정한 값이 머리글 / 바닥글 여백이 되는지. 미설정이면 기본 여백이 유지되는지\n- printSet.centerHorizontally : true 면 인쇄 시 데이터가 용지 가로 중앙에 놓이는지. 미설정이면 왼쪽 기준인지\n- printSet.centerVertically : true 면 인쇄 시 데이터가 용지 세로 중앙에 놓이는지. 미설정이면 위쪽 기준인지\n- 여백값은 파일에 인치로 환산되어 저장되므로 cm 으로 준 값과 파일에 적힌 수치는 다르다. Excel 의 여백 대화상자에서 확인하는 것이 확실하다\n- 파일을 압축 해제하여 xl/worksheets/sheet1.xml 의 pageMargins 요소와 printOptions 요소로도 확인할 수 있다\n- 여백값은 단위와 무관하게 항상 인치로 환산되어 저장된다. cm 으로 준 0.5 는 0.1969, 1 은 0.3937, 2 는 0.7874, 3 은 1.1811 로 기록된다\n- marginUnit 을 기본값인 cm 으로 명시하면 생략했을 때와 결과가 같다. inch 로 주면 준 값이 환산 없이 그대로 저장되므로 같은 2 라도 여백이 훨씬 넓어진다\n- 여백을 주지 않은 방향은 Excel 기본값이 유지된다. 왼쪽 오른쪽은 0.7, 위 아래는 0.75, 머리글 바닥글은 0.3 이다\n- 가운데 맞춤 2 개는 미설정이면 printOptions 요소 자체가 생기지 않고, false 로 설정하면 false 로 기록된다. 즉 미설정과 false 명시는 파일이 서로 다르다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="empName" name="empName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="caseCnt" name="caseCnt" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="saleAmt" name="saleAmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "dept" : "영업기획팀", "empName" : "김도현", "caseCnt" : 34, "saleAmt" : 18450000 },
+        { "dept" : "영업기획팀", "empName" : "박서연", "caseCnt" : 27, "saleAmt" : 12300000 },
+        { "dept" : "고객지원팀", "empName" : "이준호", "caseCnt" : 41, "saleAmt" : 9800000 },
+        { "dept" : "고객지원팀", "empName" : "최민아", "caseCnt" : 19, "saleAmt" : 6450000 },
+        { "dept" : "품질관리팀", "empName" : "정우진", "caseCnt" : 25, "saleAmt" : 15200000 },
+        { "dept" : "품질관리팀", "empName" : "한지민", "caseCnt" : 30, "saleAmt" : 11750000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (인쇄 설정 옵션 - 여백 단위 / 여백 / 가운데 맞춤) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="부서"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="사원명"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="실적건수"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="실적금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="empName" dataList="empName"></w2:column>';
+    strTarget += '<w2:column width="130" style="text-align:right;" inputType="text" dataType="number" id="caseCnt" dataList="caseCnt"></w2:column>';
+    strTarget += '<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleAmt" dataList="saleAmt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 여백 6 개는 Number 타입이므로 숫자로 변환해 전달한다.
+//  · centerHorizontally / centerVertically 는 Boolean 타입이므로 Boolean 으로 변환해 전달한다.
+//    (gdl_boolean 은 value 가 코드값 1 / 2 / 3 이라 getText 로 라벨을 읽는다.)
+//  · printSet 은 항상 설정하며 파라미터 자체는 _24 에서 다룬다.
+//  · fileName / extension / sheetName 은 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_print_margin", "extension" : "xlsx", "sheetName" : "mysheet" };
+    let printSet = {};
+    let arrDesc = [];
+
+    let v = par_marginUnit.getValue();
+    if (v !== "") {
+        printSet.marginUnit = v;
+        arrDesc.push("marginUnit=" + v);
+    }
+
+    let fnNumber = function (sKey, objComp) {
+        let sValue = objComp.getValue();
+        if (sValue !== "") {
+            printSet[sKey] = Number(sValue);
+            arrDesc.push(sKey + "=" + sValue);
+        }
+    };
+    fnNumber("marginTop", par_marginTop);
+    fnNumber("marginBottom", par_marginBottom);
+    fnNumber("marginLeft", par_marginLeft);
+    fnNumber("marginRight", par_marginRight);
+    fnNumber("headerMargin", par_headerMargin);
+    fnNumber("footerMargin", par_footerMargin);
+
+    let fnBoolean = function (sKey, objComp) {
+        let sText = objComp.getText();
+        if (sText !== "") {
+            printSet[sKey] = (sText === "true");
+            arrDesc.push(sKey + "=" + sText);
+        }
+    };
+    fnBoolean("centerHorizontally", par_centerHorizontally);
+    fnBoolean("centerVertically", par_centerVertically);
+
+    options.printSet = printSet;
+
+    return { "options" : options, "desc" : "printSet 설정" + ((arrDesc.length === 0) ? " (marginUnit / marginTop / marginBottom / marginLeft / marginRight / headerMargin / footerMargin / centerHorizontally / centerVertically 전체 생략)" : (" {" + arrDesc.join(", ") + "}")) };
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    target1.advancedExcelDownload(objBuild.options);
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:280px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:280px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.marginUnit (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_marginUnit" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[cm]]></xf:label>
+												<xf:value><![CDATA[cm]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[inch]]></xf:label>
+												<xf:value><![CDATA[inch]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.marginTop (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_marginTop" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.marginBottom (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_marginBottom" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.marginLeft (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_marginLeft" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.marginRight (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_marginRight" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.headerMargin (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_headerMargin" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0.5]]></xf:label>
+												<xf:value><![CDATA[0.5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.footerMargin (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerMargin" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0.5]]></xf:label>
+												<xf:value><![CDATA[0.5]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.centerHorizontally (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_centerHorizontally" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.centerVertically (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_centerVertically" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

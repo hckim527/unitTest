@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260902" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1215
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _20 : dummy_dnstatus (Excel 다운로드 상태창 옵션) 계열 - showProcess / processMsg / showConfirm
+//     이 계열은 Excel 파일 내용이 아니라 다운로드 중 화면에 뜨는 진행 팝업창 / 확인창을 바꾼다.
+//     description 은 분리 샘플 공통(_1 과 동일).
+//     ※ showProcess=false 와 showConfirm=true 를 함께 전달하면 확인창도 진행 팝업창도 표시되지 않고
+//        화면 모달만 남아 다운로드가 진행되지 않는다.
+//        결함 샘플 : jira/202609/fail_gridView_advancedExcelDownload_showConfirmBlockedByShowProcessFalse.xml
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "showProcess(선택) 파라미터로 Excel 다운로드 시 진행 팝업창을 표시할지 true/false 로 설정합니다.",
+        "showConfirm 파라미터값을 true 로 설정한 경우 showProcess 파라미터를 false 로 설정할 수 없습니다.",
+        "showProcess(선택) 파라미터를 생략하면 기본값 true 가 적용됩니다.",
+        "processMsg(선택) 파라미터로 showProcess 파라미터값이 true 일때 진행 팝업창에 표시할 메시지를 설정합니다.",
+        "showProcess 파라미터가 false 이거나 showConfirm 파라미터가 true 인 경우에는 진행 팝업창이 표시되지 않습니다.",
+        "진행 팝업창에 메시지를 표시하지 않으려면 '$blank' 를 설정합니다.",
+        "processMsg(선택) 파라미터를 생략하면 기본값 'download...' 가 적용됩니다.",
+        "showConfirm(선택) 파라미터로 Excel 다운로드에 대한 확인창 표시 여부를 true/flase 로 설정합니다.",
+        "showConfirm(선택) 파라미터를 true 로 설정 시 Excel 다운로드 확인창이 표시되며 버튼을 클릭하여야 다운로드가 진행됩니다. (massStorage 파라미터값은 항상 true 로 적용됩니다.)",
+        "showConfirm(선택) 파라미터를 false 로 설정 시 Excel 다운로드에 대한 확인창을 표시하지 않고 자동으로 다운로드를 진행합니다.",
+        "showProcess 파라미터값을 false 로 설정한 경우 showConfirm 파라미터를 true 로 설정할 수 없습니다.",
+        "showConfirm(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // gdl_boolean 바인딩 selectbox 는 초기 selectedIndex 가 적용되지 않으므로 미설정('1')을 명시한다.
+    par_showProcess.setValue("1");
+    par_showConfirm.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header 1줄(병합 없음) / Body 6행 의 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · 본 계열은 Excel 파일 내용이 아니라 다운로드 중 화면 상태창만 확인하므로 그리드 구성은 단순하게 둔다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 1줄(병합 없음), Body Column 인덱스 0 부서 / 1 사원명 / 2 실적건수(number) / 3 실적금액(number), Body Row 는 6행\n- 이 계열은 Excel 파일 내용을 바꾸지 않는다. 다운로드 중 화면에 뜨는 진행 팝업창과 확인창만 바뀐다\n- showProcess 와 showConfirm 은 Boolean 타입이라 selectbox 에서 고른 true / false 를 Boolean 값으로 변환해 전달한다\n- 파일명 download_dnstatus, 확장자 xlsx 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(showProcess / processMsg / showConfirm) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭한다\n[확인]\n- 진행 팝업창은 다운로드가 끝나면 사라지므로, 버튼 클릭 직후 화면을 보거나 결과창에 출력된 상태값으로 확인한다. 결과창의 세 상태값은 메소드 호출 직후 화면에 만들어진 레이어를 읽은 값이다\n- showProcess : 생략하거나 true 로 설정하면 다운로드 중 진행 팝업창이 표시되는지\n- showProcess : false 로 설정하면 진행 팝업창이 표시되지 않고 화면 모달도 뜨지 않은 채 다운로드만 진행되는지\n- processMsg : 설정한 메시지가 진행 팝업창에 표시되는지. 미설정이면 기본 메시지 download... 가 표시되는지\n- processMsg : $blank 로 설정하면 진행 팝업창 자체가 표시되지 않는지. 이때도 다운로드는 정상 진행되는지\n- processMsg : showProcess 를 false 로 두거나 showConfirm 을 true 로 두면 processMsg 를 설정해도 진행 팝업창이 표시되지 않는지\n- showConfirm : true 로 설정하면 확인창과 함께 화면 모달이 표시되고, 그 창의 버튼을 클릭해야 다운로드가 진행되는지. 클릭 전에는 파일이 내려받아지지 않는지\n- showConfirm : false 로 설정하거나 미설정이면 확인창 없이 곧바로 다운로드가 진행되는지\n- showProcess 를 false 로 두고 showConfirm 을 true 로 함께 설정하는 것은 가이드가 금지한 조합이다. 이때는 확인창도 진행 팝업창도 표시되지 않고 화면 모달만 남아 다운로드가 진행되지 않으며, 모달이 사라지지 않아 페이지를 새로 고쳐야 한다\n- 확인창이 뜬 상태에서 다음 케이스를 확인하려면 확인창의 버튼으로 다운로드나 취소를 마치거나 페이지를 새로 고친다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="empName" name="empName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="caseCnt" name="caseCnt" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="saleAmt" name="saleAmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "dept" : "영업기획팀", "empName" : "김도현", "caseCnt" : 34, "saleAmt" : 18450000 },
+        { "dept" : "영업기획팀", "empName" : "박서연", "caseCnt" : 27, "saleAmt" : 12300000 },
+        { "dept" : "고객지원팀", "empName" : "이준호", "caseCnt" : 41, "saleAmt" : 9800000 },
+        { "dept" : "고객지원팀", "empName" : "최민아", "caseCnt" : 19, "saleAmt" : 6450000 },
+        { "dept" : "품질관리팀", "empName" : "정우진", "caseCnt" : 25, "saleAmt" : 15200000 },
+        { "dept" : "품질관리팀", "empName" : "한지민", "caseCnt" : 30, "saleAmt" : 11750000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Excel 다운로드 상태창 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="부서"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="사원명"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="실적건수"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="실적금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="empName" dataList="empName"></w2:column>';
+    strTarget += '<w2:column width="130" style="text-align:right;" inputType="text" dataType="number" id="caseCnt" dataList="caseCnt"></w2:column>';
+    strTarget += '<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleAmt" dataList="saleAmt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · showProcess / showConfirm 은 Boolean 타입이므로 selectbox 라벨(true / false)을 Boolean 으로 변환해 전달한다.
+//    (gdl_boolean 은 value 가 코드값 1 / 2 / 3 이라 getText 로 라벨을 읽는다.)
+//  · fileName / extension 은 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_dnstatus", "extension" : "xlsx" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_showProcess.getText();  if (v !== "") fnSet("showProcess", (v === "true"));
+    v = par_processMsg.getValue();  if (v !== "") fnSet("processMsg", v);
+    v = par_showConfirm.getText();  if (v !== "") fnSet("showConfirm", (v === "true"));
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (showProcess / processMsg / showConfirm 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 메소드 호출 직후의 화면 상태(진행 팝업창 / 확인창 / 화면 모달)를 읽는다.
+//  · 진행 팝업창 : 엔진이 body 에 만드는 레이어(id ___processbar2_i) 다.
+//    표시 메시지는 레이어 안 iframe 의 src 가 아니라 WebSquare.layer.processMsg 로 읽는다.
+//    레이어가 이미 만들어져 있으면 엔진이 src 를 갱신하지 않고 postMessage 로만 메시지를 다시 보내므로
+//    src 를 읽으면 첫 호출 때의 값이 그대로 남아 두 번째 호출부터 잘못된 값을 보게 된다.
+//  · 확인창     : 엔진이 body 에 만드는 iframe(id gridDownLoadLayer) 이다.
+//  · 화면 모달  : showProcess 를 false 로 주면 진행 팝업창 대신 화면 전체를 덮는 모달(id _modal)이 뜬다.
+//  세 가지 모두 다운로드가 끝나면 감춰지므로 호출 직후에 읽어야 한다.
+scwin.getLayerState = function () {
+    let fnVisible = function (sSelector) {
+        let objNode = document.querySelector(sSelector);
+        return (objNode !== null && objNode.style.display !== "none");
+    };
+
+    let sProcess = "표시 안 됨";
+    if (fnVisible("#___processbar2_i")) {
+        sProcess = "표시됨 (메시지 : " + (WebSquare.layer.processMsg || "") + ")";
+    }
+
+    return {
+        "process" : sProcess,
+        "confirm" : (fnVisible("#gridDownLoadLayer") ? "표시됨" : "표시 안 됨"),
+        "modal" : (fnVisible("#_modal") ? "표시됨" : "표시 안 됨")
+    };
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    target1.advancedExcelDownload(objBuild.options);
+
+    let objState = scwin.getLayerState();
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("진행 팝업창 : " + objState.process);
+    bottom.setReturnValue("확인창 : " + objState.confirm);
+    bottom.setReturnValue("화면 모달 : " + objState.modal);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.showProcess (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_showProcess" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.showConfirm (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_showConfirm" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.processMsg (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_processMsg" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Excel 파일을 만드는 중입니다]]></xf:label>
+												<xf:value><![CDATA[Excel 파일을 만드는 중입니다]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[$blank]]></xf:label>
+												<xf:value><![CDATA[$blank]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

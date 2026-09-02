@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260828" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1202
+// https://inswave01.atlassian.net/browse/WAEA-1207
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _8 : dummy_headerfooter (Header/Footer/SubTotal 관련 옵션) 계열 중 Footer 데이터 종류 및 SubTotal 계산 옵션 - footerType / footerConvertIndex / subTotalScale / subTotalRoundingMode / useSubTotalData / useEuroLocale
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "footerType(선택) 파라미터로 inputType='text','expression' 이고 displayFormat 속성이 적용된 Footer Column 에서 다운로드할 데이터 종류를 설정합니다.",
+        "footerType(선택) 파라미터를 '0' 으로 설정 시 Footer Column 의 원본 데이터를 다운로드합니다.",
+        "footerType(선택) 파라미터를 '1' 로 설정 시 Footer Column 에 표시된 값을 다운로드합니다.",
+        "footerType(선택) 파라미터를 생략하면 기본값 '1' 이 적용됩니다.",
+        "footerConvertIndex(선택) 파라미터로 footerType 파라미터값을 반대로 적용할 Column 의 인덱스를 콤마(,)로 구분하여 설정합니다.",
+        "footerConvertIndex(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "subTotalScale(선택) 파라미터로 SubTotal 에서 평균을 계산할 때 사용할 소수점 자릿수를 설정합니다.",
+        "subTotalScale(선택) 파라미터를 생략하면 기본값 -1 이 적용됩니다.",
+        "subTotalRoundingMode(선택) 파라미터로 SubTotal 에서 평균을 계산할 때 사용할 반올림 방식('CEILING','FLOOR','HALF_UP')을 설정합니다.",
+        "subTotalRoundingMode(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "useSubTotalData(선택) 파라미터로 SubTotal 의 계산식 Column 을 처리하는 방식을 설정합니다.",
+        "useSubTotalData(선택) 파라미터를 'true' 로 설정 시 계산식 Column 에 표시된 값을 다운로드합니다.",
+        "useSubTotalData(선택) 파라미터를 'false' 로 설정 시 SubTotal 의 계산식 Column 을 서버에서 계산 후 다운로드합니다.",
+        "useSubTotalData(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "useEuroLocale(선택) 파라미터로 유로화 처리(',' 와 '.' 를 반대로 사용)를 적용할지 'true'/'false' 로 설정합니다.",
+        "useEuroLocale(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header / Body / SubTotal / Footer 를 모두 갖춘 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · Body Column 인덱스 0:이름(text) 1:부서(text) 2:금액(number displayFormat #,##0.00) 3:점수(number displayFormat #,##0.00)
+//  · SubTotal : targetColumnID="dept" 기준 소계 행
+//     - 인덱스 2 : 계산식 sum('amount')  -> useSubTotalData 확인용
+//     - 인덱스 3 : 계산식 avg('score')   -> subTotalScale / subTotalRoundingMode 확인용
+//       부서별 4건으로 구성하여 평균이 소수점 4자리(영업팀 82.2375 / 개발팀 92.2225)로 떨어지도록 한다.
+//       소수점 3번째 자리가 영업팀 7(>=5) / 개발팀 2(<5) 라 소수점 2자리로 자를 때 CEILING / FLOOR / HALF_UP 세 방식의 결과가 모두 구분된다.
+//  · Footer : 인덱스 2 = 계산식 sum('amount') + displayFormat, 인덱스 3 = 고정 text 값 + displayFormat
+//     -> inputType="expression" / "text" 두 종류를 모두 두어 footerType 확인, 대상 Column 이 2개이므로 footerConvertIndex 로 일부만 반전되는 것을 확인
+//  · 금액은 소수점과 자릿수 구분 기호가 함께 보이는 값이라 useEuroLocale 확인이 가능하다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Column 인덱스 0 이름(text) / 1 부서(text) / 2 금액(number, 소수점 3자리 데이터, displayFormat #,##0.00) / 3 점수(number, displayFormat #,##0.00)\n- SubTotal(부서 기준) : 인덱스 2 = 계산식 sum(금액), 인덱스 3 = 계산식 avg(점수). 부서별 4건이라 평균은 영업팀 82.2375 / 개발팀 92.2225 이고, 소수점 2자리로 줄일 때 세 반올림 방식의 결과가 모두 달라짐\n- Footer : 인덱스 2 = 계산식 sum(금액) + displayFormat (합계 원본값 8002.345, 표시값 8,002.35), 인덱스 3 = 고정값 1234567.891 (text) + displayFormat (표시값 1,234,567.89), 인덱스 0/1 은 displayFormat 없음\n- useSubTotal=true 는 SubTotal 행을 파일에 포함시키기 위한 고정 전달값(본 계열 검증 대상 아님)\n- 파일명 download_footersubtotal, 확장자 xlsx 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(footerType / footerConvertIndex / subTotalScale / subTotalRoundingMode / useSubTotalData / useEuroLocale) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n[확인]\n- footerType : Footer Column 의 displayFormat 이 엑셀 셀 표시서식으로 그대로 적용되므로 파일을 그냥 열면 footerType 0 과 1 이 똑같이 보인다. 차이는 셀에 저장된 값에 있으므로 엑셀에서 해당 셀의 표시 형식을 일반 으로 바꾸거나 수식 입력줄에서 확인한다\n- footerType : 합계 행 인덱스 2 의 저장값이 footerType=0 이면 8002.345, footerType=1 이면 8002.35 (표시값 8,002.35 를 서버가 다시 숫자로 파싱)인지\n- footerType : 합계 행 인덱스 3 의 저장값이 footerType=0 이면 1234567.891, footerType=1 이면 1234567.89 인지\n- footerConvertIndex : 지정한 인덱스의 합계 행 Cell 저장값만 footerType 과 반대로 기록되는지\n- subTotalScale : 소계 행 인덱스 3(평균) 값의 소수점 자릿수\n- subTotalRoundingMode : 같은 자릿수에서 소계 평균값이 올림(CEILING) / 버림(FLOOR) / 반올림(HALF_UP) 중 어느 방식으로 처리되는지\n- useSubTotalData : 소계 행의 계산식 Cell 이 화면 표시값 그대로 기록되는지 서버 계산 결과로 기록되는지\n- useEuroLocale : 숫자의 소수점과 자릿수 구분 기호가 서로 바뀌어 기록되는지 (1,234.56 <-> 1.234,56)\n- 결과창의 전달 옵션 / 서버 전달값 / Footer 전송 데이터를 함께 확인 (footerType / footerConvertIndex 의 차이는 결과창의 Footer 전송 데이터 로도 동일하게 확인 가능)"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="score" name="score" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "홍길동", "dept": "영업팀", "amount": 1200.505, "score": 82.10 },
+        { "name": "김영업", "dept": "영업팀", "amount": 800.255, "score": 82.20 },
+        { "name": "최영업", "dept": "영업팀", "amount": 950.755, "score": 82.30 },
+        { "name": "정영업", "dept": "영업팀", "amount": 1000.005, "score": 82.35 },
+        { "name": "이개발", "dept": "개발팀", "amount": 1500.105, "score": 92.10 },
+        { "name": "박개발", "dept": "개발팀", "amount": 300.405, "score": 92.20 },
+        { "name": "강개발", "dept": "개발팀", "amount": 1250.305, "score": 92.29 },
+        { "name": "윤개발", "dept": "개발팀", "amount": 1000.010, "score": 92.30 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:820px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Footer 데이터 종류 / SubTotal 계산 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="점수"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="text" dataType="number" displayFormat="#,##0.00" id="amount" dataList="amount"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,##0.00" id="score" dataList="score"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="scol1" value="소계"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="expression" dataType="number" displayFormat="#,##0.00" id="scol3" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,##0.00" id="scol4" expression="avg(\'score\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    // 인덱스 0 / 1 : displayFormat 없음 (footerType 대상 아님)
+    strTarget += '<w2:column width="180" style="" inputType="text" id="fcol1" value="합계"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="fcol2" value=""></w2:column>';
+    // 인덱스 2 : inputType="expression" + displayFormat (footerType 대상)
+    strTarget += '<w2:column width="230" style="" inputType="expression" dataType="number" displayFormat="#,##0.00" id="fcol3" expression="sum(\'amount\')"></w2:column>';
+    // 인덱스 3 : inputType="text" + displayFormat (footerType 대상)
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,##0.00" id="fcol4" value="1234567.891"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값, useSubTotal 은 SubTotal 행을 파일에 포함시키기 위한 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_footersubtotal", "extension" : "xlsx", "useSubTotal" : "true" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_footerType.getValue();           if (v !== "") fnSet("footerType", v);
+    v = par_footerConvertIndex.getValue();   if (v !== "") fnSet("footerConvertIndex", v);
+    v = par_subTotalScale.getValue();        if (v !== "") fnSet("subTotalScale", parseInt(v, 10));
+    v = par_subTotalRoundingMode.getValue(); if (v !== "") fnSet("subTotalRoundingMode", v);
+    v = par_useSubTotalData.getValue();      if (v !== "") fnSet("useSubTotalData", v);
+    v = par_useEuroLocale.getValue();        if (v !== "") fnSet("useEuroLocale", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (footerType / footerConvertIndex / subTotalScale / subTotalRoundingMode / useSubTotalData / useEuroLocale 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 캡처한 요청 본문에서 배열로 전달되는 데이터(footer_data 등)를 읽는다.
+//  · footerType / footerConvertIndex 는 서버 전달 옵션이 아니라 엔진이 Footer 값을 표시값/원본값 중 무엇으로 담아 보낼지 결정하는 방식이므로 이 값으로 확인한다.
+scwin.getSentArray = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nStart = sRest.indexOf("<![CDATA[");
+    let nEnd = sRest.indexOf("]" + "]>");
+    if (nStart < 0 || nEnd < 0) return "(미확인)";
+
+    return sRest.substring(nStart + 9, nEnd);
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값 : subTotalScale=" + scwin.getSentValue("subTotalScale") + " / subTotalRoundingMode=" + scwin.getSentValue("subTotalRoundingMode") + " / useSubTotalData=" + scwin.getSentValue("useSubTotalData") + " / useEuroLocale=" + scwin.getSentValue("useEuroLocale"));
+    bottom.setReturnValue("Footer 전송 데이터 : " + scwin.getSentArray("footer_data"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.footerType (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.footerConvertIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerConvertIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2,3]]></xf:label>
+												<xf:value><![CDATA[2,3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.subTotalScale (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_subTotalScale" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.subTotalRoundingMode (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_subTotalRoundingMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[CEILING]]></xf:label>
+												<xf:value><![CDATA[CEILING]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[FLOOR]]></xf:label>
+												<xf:value><![CDATA[FLOOR]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[HALF_UP]]></xf:label>
+												<xf:value><![CDATA[HALF_UP]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useSubTotalData (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useSubTotalData" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useEuroLocale (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useEuroLocale" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260831" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _9 : dummy_colord (Row/Column 관련 옵션) 계열 중 Column 순서/제외 옵션 - columnMove / columnOrder / columnMoveWithFooter / removeColumns / removeHeaderRows
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "columnMove(선택) 파라미터로 사용자에 의해 Column 의 순서가 변경된 경우 데이터가 생성되는 순서를 설정합니다.",
+        "columnMove(선택) 파라미터를 'true' 로 설정 시 사용자가 이동한 Column 순서대로 데이터를 생성하여 다운로드합니다.",
+        "columnMove(선택) 파라미터를 'false' 로 설정 시 Column 의 원래 정의된 순서대로 데이터를 생성하여 다운로드합니다.",
+        "columnMove(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "columnOrder(선택) 파라미터로 다운로드할 Column 의 순서를 콤마(,)로 구분하여 설정합니다.",
+        "columnOrder(선택) 파라미터는 Column 의 인덱스로 순서를 설정합니다. (ex> '0,3,2,1')",
+        "columnOrder(선택) 파라미터는 columnMove 파라미터가 'true' 일때만 적용되고 columnOrder 파라미터 순서에 맞게 데이터를 생성하여 다운로드합니다.",
+        "columnOrder(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "columnMoveWithFooter(선택) 파라미터로 columnMove 또는 columnOrder 파라미터값에 맞게 Footer 영역의 순서도 함께 적용할지 'true'/'false' 로 설정합니다.",
+        "columnMoveWithFooter(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "removeColumns(선택) 파라미터로 다운로드에서 제외할 Column 의 인덱스를 콤마(,)로 구분하여 설정합니다.",
+        "removeColumns(선택) 파라미터에 설정한 Column 의 위치가 변경되어도 Column 의 인덱스는 변경되지 않습니다.",
+        "removeColumns(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "removeHeaderRows(선택) 파라미터로 다운로드에서 제외할 Header Row 의 인덱스를 콤마(,)로 구분하여 설정합니다.",
+        "removeHeaderRows(선택) 파라미터의 Header Row 의 인덱스는 0 부터 시작하며, Header 가 MultiLine 인 경우 각 Header Row 마다 인덱스가 설정됩니다.",
+        "removeHeaderRows(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : MultiLine Header / Body / Footer 를 갖춘 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · Header 는 2줄(MultiLine) : Header Row 인덱스 0 = 한글 명칭, 1 = 영문 코드명 -> removeHeaderRows 확인용
+//  · Body Column 인덱스 0:사번 1:부서 2:상품명 3:담당자 - 값만 봐도 어느 Column 인지 구분되어 순서 변경/제외를 파일에서 바로 확인 가능
+//  · Footer 는 각 Column 을 알아볼 수 있는 값(합계-사번 등)으로 구성 -> columnMoveWithFooter 확인용
+//  · GridView 에 columnMove="true" 속성을 주어 사용자가 Header 를 Drag&Drop 해 Column 순서를 바꿀 수 있게 한다.
+//    (options.columnMove="true" 는 사용자가 이동한 순서를 기준으로 동작하므로 이동 허용 속성이 전제)
+//  · GridView 의 columnMoveWithFooter 속성은 미설정(false) 이므로 화면에서 Column 을 옮겨도 Footer 는 제자리에 남는다.
+//    -> 다운로드 옵션 columnMoveWithFooter 의 true/false 차이를 파일에서 구분할 수 있다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 MultiLine 2줄 : Header Row 인덱스 0 = 사번 / 부서 / 상품명 / 담당자, 인덱스 1 = EMP_NO / DEPT / PRODUCT / MANAGER\n- Body Column 인덱스 0 사번(EMP-00n) / 1 부서(...팀) / 2 상품명(노트북 등) / 3 담당자(사람 이름) - 값만 봐도 어느 Column 인지 구분됨\n- Footer 는 합계-사번 / 합계-부서 / 합계-상품명 / 합계-담당자 로 Column 을 구분할 수 있게 구성\n- 그리드에 columnMove=true 속성을 적용해 Header 를 Drag&Drop 으로 이동할 수 있음 (Header 가 MultiLine 이라 첫번째 Header Row 만 Drag 가능)\n- 그리드 자체의 columnMoveWithFooter 속성은 미설정이라 화면에서 Column 을 옮겨도 Footer 는 원래 자리에 남음\n- 파일명 download_colorder, 확장자 xlsx 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. columnMove 효과를 보려면 먼저 첫번째 Header Row 를 마우스로 Drag 해 Column 순서를 바꾼다 (예: 사번 을 담당자 뒤로 이동)\n2. par 옵션(columnMove / columnOrder / columnMoveWithFooter / removeColumns / removeHeaderRows) 값을 선택한다\n3. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n4. 원래 Column 순서로 되돌리려면 Target 재생성 버튼을 클릭한다\n[확인]\n- columnMove : true 면 파일의 Column 순서가 화면에서 옮긴 순서와 같은지, false 또는 생략이면 원래 정의 순서(사번 / 부서 / 상품명 / 담당자)인지\n- columnOrder : columnMove=true 와 함께 설정했을 때만 파일 Column 이 지정한 인덱스 순서로 나오는지, columnMove 가 false 또는 생략이면 columnOrder 를 설정해도 원래 순서 그대로인지\n- columnMoveWithFooter : true 면 Footer 행의 합계-XXX 값도 Body Column 과 같은 순서로 옮겨지는지, false 또는 생략이면 Footer 는 원래 순서 그대로인지\n- removeColumns : 지정한 인덱스의 Column 이 파일에서 빠지는지, 화면에서 Column 을 옮긴 뒤에도 원래 정의 기준 인덱스로 제외되는지 (Column 을 옮긴 상태에서는 Footer 에서 빠지는 Column 이 Body 와 달라질 수 있으므로 Footer 까지 맞추려면 columnMoveWithFooter=true 를 함께 설정)\n- 주의 : columnMove(또는 columnOrder)로 Column 순서를 바꾼 상태에서 removeColumns 를 함께 사용하면 Footer 에서는 지정한 Column 이 아닌 다른 Column 이 제외된다. Footer 까지 지정한 Column 을 제외하려면 columnMoveWithFooter 를 true 로 함께 설정한다\n- removeHeaderRows : 지정한 인덱스의 Header Row 가 파일에서 빠지는지 (0 이면 사번 / 부서 ... 줄, 1 이면 EMP_NO / DEPT ... 줄)\n- 결과창의 서버 전달값으로 실제 전달된 columnMove / columnOrder / columnMoveWithFooter / removeColumns / removeHeaderRows 를 함께 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="empNo" name="empNo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="product" name="product" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="manager" name="manager" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "empNo": "EMP-001", "dept": "영업1팀", "product": "노트북", "manager": "홍길동" },
+        { "empNo": "EMP-002", "dept": "영업2팀", "product": "모니터", "manager": "김영업" },
+        { "empNo": "EMP-003", "dept": "개발1팀", "product": "키보드", "manager": "이개발" },
+        { "empNo": "EMP-004", "dept": "개발2팀", "product": "마우스", "manager": "박구매" }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩 + columnMove 허용)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" columnMove="true" id="" style="width:820px;height:320px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Column 순서 / 제외 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    // Header Row 인덱스 0 (한글 명칭)
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol1" value="사번"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol3" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="담당자"></w2:column>';
+    strTarget += '</w2:row>';
+    // Header Row 인덱스 1 (영문 코드명)
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol5" value="EMP_NO"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol6" value="DEPT"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol7" value="PRODUCT"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol8" value="MANAGER"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="empNo" dataList="empNo"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="product" dataList="product"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="manager" dataList="manager"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="fcol1" value="합계-사번"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="fcol2" value="합계-부서"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="fcol3" value="합계-상품명"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="fcol4" value="합계-담당자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_colorder", "extension" : "xlsx" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_columnMove.getValue();           if (v !== "") fnSet("columnMove", v);
+    v = par_columnOrder.getValue();          if (v !== "") fnSet("columnOrder", v);
+    v = par_columnMoveWithFooter.getValue(); if (v !== "") fnSet("columnMoveWithFooter", v);
+    v = par_removeColumns.getValue();        if (v !== "") fnSet("removeColumns", v);
+    v = par_removeHeaderRows.getValue();     if (v !== "") fnSet("removeHeaderRows", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (columnMove / columnOrder / columnMoveWithFooter / removeColumns / removeHeaderRows 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값 : columnMove=" + scwin.getSentValue("columnMove") + " / columnOrder=" + scwin.getSentValue("columnOrder") + " / columnMoveWithFooter=" + scwin.getSentValue("columnMoveWithFooter") + " / removeColumns=" + scwin.getSentValue("removeColumns") + " / removeHeaderRows=" + scwin.getSentValue("removeHeaderRows"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.columnMove (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnMove" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.columnOrder (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnOrder" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0,3,2,1]]></xf:label>
+												<xf:value><![CDATA[0,3,2,1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3,2,1,0]]></xf:label>
+												<xf:value><![CDATA[3,2,1,0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2,0,1,3]]></xf:label>
+												<xf:value><![CDATA[2,0,1,3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.columnMoveWithFooter (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnMoveWithFooter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.removeColumns (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_removeColumns" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1,3]]></xf:label>
+												<xf:value><![CDATA[1,3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.removeHeaderRows (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_removeHeaderRows" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0,1]]></xf:label>
+												<xf:value><![CDATA[0,1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

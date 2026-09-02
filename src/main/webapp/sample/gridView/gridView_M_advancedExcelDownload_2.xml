@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260828" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1200
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _2 : dummy_reqdn 중 요청 전송 / 응답 처리 옵션(timeout, checkInterval, onSuccessCallback, onFailureCallback, useXHR, withCredentials) 계열. description 은 분리 샘플 공통.
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "timeout(선택) 파라미터로 다운로드 요청 최대 대기 시간을 밀리초(ms) 단위로 설정합니다.",
+        "timeout(선택) 파라미터의 요청 대기 시간을 초과하면 onFailureCallback 파라미터에 설정된 함수가 실행됩니다.",
+        "timeout(선택) 파라미터를 생략하면 기본값 null 로 동작합니다.",
+        "checkInterval(선택) 파라미터로 다운로드 완료 응답 확인 시간 간격을 밀리초(ms) 단위로 설정합니다.",
+        "checkInterval(선택) 파라미터는 useXHR 파라미터값이 'true' 인 경우에는 적용되지 않습니다.",
+        "checkInterval(선택) 파라미터를 생략하면 기본값 1000 으로 동작합니다.",
+        "onSuccessCallback(선택) 파라미터로 다운로드 완료 응답을 받았을때 실행할 콜백 함수를 설정합니다.",
+        "onSuccessCallback(선택) 파라미터는 일반적으로 onSuccessCallback(actionUrl, returnData) 형태이며, returnData 는 WebSquare 서블릿 응답이면 빈 객체이고 WebSquare 서블릿이 아닌 URL 이면 응답 본문을 JSON 으로 파싱한 결과입니다.",
+        "onSuccessCallback(선택) 파라미터를 생략하면 기본값 null 로 동작합니다.",
+        "onFailureCallback(선택) 파라미터로 다운로드 요청이 실패했을때 실행할 콜백 함수를 설정합니다.",
+        "onFailureCallback(선택) 파라미터는 일반적으로 onFailureCallback(actionUrl, returnData) 형태이며, 예외 XML 을 반환하면 returnData.errorCode 에 Exception/errorCode 텍스트가 전달됩니다.",
+        "onFailureCallback(선택) 파라미터를 생략하면 기본값 null 로 동작합니다.",
+        "useXHR(선택) 파라미터로 다운로드 요청을 XHR 방식(AJAX)으로 전송할지 설정합니다.",
+        "useXHR(선택) 파라미터는 msaName 파라미터값을 설정하면 항상 'true' 로 동작합니다.",
+        "useXHR(선택) 파라미터를 생략하면 기본값 'false' 로 동작합니다.",
+        "withCredentials(선택) 파라미터로 useXHR 파라미터값이 'true' 일때 도메인이 다른 서버로 요청 시 인증 정보를 함께 전송할지 여부를 true/false 로 설정합니다.",
+        "withCredentials(선택) 파라미터를 생략하면 기본값 undefined 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 데이터 4행(col1_1 ~ col4_4)이 바인딩되어 있음\n- 요청 발생 여부와 전송 방식은 메소드 호출 구간에서만 form submit 과 XHR send 를 가로채 확인함\n- msaName 은 본 계열의 검증 대상이 아니며, useXHR 하위 조건(msaName 파라미터값을 설정하면 useXHR 이 항상 true 로 동작) 확인용 보조 옵션임\n[절차]\n1. par 옵션값(timeout / checkInterval / onSuccessCallback / onFailureCallback / useXHR / withCredentials / msaName)을 선택한다\n2. advancedExcelDownload 버튼을 클릭한다\n[확인]\n- 결과창에 전달 옵션 / 요청 발생 방식 / 요청 URL / 서버로 전달된 useXHR 값이 출력됨\n- 콜백은 실행 시 전달 인자(actionUrl, returnData)와 호출 후 경과 시간(ms)이 이어서 출력되며, 5초 안에 실행되지 않으면 콜백 미실행으로 출력됨\n- checkInterval 값에 따라 onSuccessCallback 실행까지의 경과 시간이 달라지고, useXHR 이 true 이면 확인 간격 없이 즉시 실행됨\n- timeout 초과는 useXHR=true 로 설정하거나 , Form Submit(useXHR=false) 에서는 checkInterval 을 10 처럼 작게 설정해야 관측됨 (확인 간격이 다운로드 완료보다 늦으면 onSuccessCallback 이 먼저 실행됨)\n- withCredentials 는 useXHR 이 true 일때만 XHR 에 적용되며, 로컬 단일 도메인에서는 타 도메인 요청이 없어 인증 정보 전송 효과는 관측되지 않음\n- msaName 을 설정하면 useXHR 을 false 로 설정해도 요청 발생 방식이 Form Submit(iframe 전송) 이 아닌 XHR (AJAX 전송) 으로 출력됨"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id
+    });
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 모든 파라미터가 미설정이면 빈 객체({}) 가 전달된다.
+//  · 엔진이 호출 중 options 객체에 내부 키를 덧붙이므로 전달값 문자열은 호출 전에 미리 만들어 둔다.
+scwin.buildOptions = function () {
+    let options = {};
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + ((typeof vValue === "function") ? "function" : vValue));
+    };
+
+    let v;
+    v = par_timeout.getValue();           if (v !== "") fnSet("timeout", parseInt(v, 10));
+    v = par_checkInterval.getValue();     if (v !== "") fnSet("checkInterval", parseInt(v, 10));
+    v = par_onSuccessCallback.getValue(); if (v !== "") fnSet("onSuccessCallback", scwin.onSuccessCallback);
+    v = par_onFailureCallback.getValue(); if (v !== "") fnSet("onFailureCallback", scwin.onFailureCallback);
+    v = par_useXHR.getValue();            if (v !== "") fnSet("useXHR", v);
+    v = par_withCredentials.getText();    if (v !== "") fnSet("withCredentials", (v === "true"));
+    // msaName 은 본 계열의 검증 대상 옵션이 아니라 useXHR 하위 조건(msaName 설정 시 useXHR 이 항상 true 로 동작) 확인용 보조 옵션이다.
+    v = par_msaName.getValue();           if (v !== "") fnSet("msaName", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 요청 발생 여부와 전송 방식(XHR / Form Submit), 요청 URL, 서버로 전달된 값을 확인하기 위해
+//  메소드 호출 구간에서만 form submit 과 XHR send 를 감싸고 호출 직후 원복한다. (실제 요청은 그대로 통과시킨다.)
+scwin.hookRequest = function () {
+    let objReq = { "kind" : "", "url" : "", "body" : "", "cred" : "", "xhrTimeout" : "" };
+    scwin.gVar.req = objReq;
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    let fnOpen = XMLHttpRequest.prototype.open;
+    let fnSend = XMLHttpRequest.prototype.send;
+
+    HTMLFormElement.prototype.submit = function () {
+        if (objReq.kind === "") {
+            objReq.kind = "Form Submit (iframe 전송)";
+            objReq.url = this.action;
+            let objInput = this.querySelector("input[name=xmlValue]");
+            objReq.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.open = function (sMethod, sUrl) {
+        this.wqTestUrl = sUrl;
+        return fnOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function (vData) {
+        if (objReq.kind === "") {
+            objReq.kind = "XHR (AJAX 전송)";
+            objReq.url = this.wqTestUrl;
+            objReq.body = vData + "";
+            objReq.cred = this.withCredentials;
+            objReq.xhrTimeout = this.timeout;
+        }
+        return fnSend.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+        XMLHttpRequest.prototype.open = fnOpen;
+        XMLHttpRequest.prototype.send = fnSend;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = (scwin.gVar.req === undefined) ? "" : (scwin.gVar.req.body || "");
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 다운로드 완료 응답 콜백
+scwin.onSuccessCallback = function (actionUrl, returnData) {
+    scwin.printCallback("onSuccessCallback", actionUrl, returnData);
+}
+
+
+
+// 다운로드 요청 실패 콜백
+scwin.onFailureCallback = function (actionUrl, returnData) {
+    scwin.printCallback("onFailureCallback", actionUrl, returnData);
+}
+
+
+
+// 콜백 실행 결과 출력 : 실행된 콜백명 / 전달 인자 / 호출 후 경과 시간(ms)
+scwin.printCallback = function (sName, actionUrl, returnData) {
+    scwin.gVar.fired = true;
+    wf_body_bottom.getObj("scwin").setReturnValue(sName + " 실행 : actionUrl=" + actionUrl + " / returnData=" + JSON.stringify(returnData) + " / returnData.errorCode=" + ((returnData === undefined) ? undefined : returnData.errorCode) + " / 호출 후 경과(ms)=" + (Date.now() - scwin.gVar.start));
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+    scwin.gVar = { "start" : Date.now(), "fired" : false, "seq" : ((scwin.gVar === undefined) ? 1 : scwin.gVar.seq + 1) };
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+
+    let objReq = scwin.gVar.req;
+    if (objReq.kind === "") {
+        bottom.setReturnValue("요청 발생 : 없음 (다운로드 미실행)");
+        return;
+    }
+
+    bottom.setReturnValue("요청 발생 : " + objReq.kind + " / 요청 URL : " + objReq.url + " / 서버 전달값 useXHR : " + scwin.getSentValue("useXHR"));
+    if (objReq.kind.indexOf("XHR") === 0) {
+        bottom.setReturnValue("XHR 설정값 : withCredentials=" + objReq.cred + " / timeout=" + objReq.xhrTimeout);
+    } else {
+        bottom.setReturnValue("XHR 미사용 : withCredentials 미적용");
+    }
+
+    let nSeq = scwin.gVar.seq;
+    setTimeout(function () {
+        if (scwin.gVar.seq === nSeq && scwin.gVar.fired === false) {
+            wf_body_bottom.getObj("scwin").setReturnValue("콜백 미실행 (5000ms 대기)");
+        }
+    }, 5000);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.timeout (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_timeout" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (대기 시간 초과)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10000]]></xf:label>
+												<xf:value><![CDATA[10000]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.checkInterval (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_checkInterval" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10 (Form Submit 에서 timeout 확인용)]]></xf:label>
+												<xf:value><![CDATA[10]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1000]]></xf:label>
+												<xf:value><![CDATA[1000]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3000]]></xf:label>
+												<xf:value><![CDATA[3000]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.onSuccessCallback (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_onSuccessCallback" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[콜백 함수 설정]]></xf:label>
+												<xf:value><![CDATA[function]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.onFailureCallback (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_onFailureCallback" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[콜백 함수 설정]]></xf:label>
+												<xf:value><![CDATA[function]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useXHR (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useXHR" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.withCredentials (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_withCredentials" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.msaName (보조)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_msaName" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[msa_server (config.js 에 정의된 MSA 서버명)]]></xf:label>
+												<xf:value><![CDATA[msa_server]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

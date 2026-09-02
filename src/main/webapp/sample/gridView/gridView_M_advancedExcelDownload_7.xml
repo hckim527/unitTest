@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260828" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _7 : dummy_headerfooter (Header/Footer/SubTotal 관련 옵션) 계열 중 출력 여부 및 위치 옵션 - useHeader / useSubTotal / useFooter / footerTop / useHeaderCheckBoxLabel
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "useHeader(선택) 파라미터로 Header 데이터 다운로드 여부를 'true'/'fasle' 로 설정합니다.",
+        "useHeader(선택) 파라미터를 생략하면 기본값 'true' 가 적용됩니다.",
+        "useSubTotal(선택) 파라미터로 SubTotal 데이터 다운로드 여부를 'true'/'fasle' 로 설정합니다.",
+        "useSubTotal(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "useFooter(선택) 파라미터로 Footer 데이터 다운로드 여부를 'true'/'fasle' 로 설정합니다.",
+        "useFooter(선택) 파라미터를 생략하면 기본값 'true' 가 적용됩니다.",
+        "footerTop(선택) 파라미터로 Footer 데이터가 생성되는 위치를 설정합니다.",
+        "footerTop(선택) 파라미터를 'true' 로 설정 시 Header > Footer > Body 영역 순서로 Excel 파일이 생성됩니다.",
+        "footerTop(선택) 파라미터를 'false' 로 설정 시 Header > Body > Footer 영역 순서로 Excel 파일이 생성됩니다.",
+        "footerTop(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+        "useHeaderCheckBoxLabel(선택) 파라미터로 inputType='check' 인 Header Column 에서 다운로드할 데이터 종류를 설정합니다.",
+        "useHeaderCheckBoxLabel(선택) 파라미터를 'true' 로 설정 시 Header Column 의 checkboxLabel 속성값을 다운로드합니다. (checkboxLabel 속성값이 없으면 value 속성값)",
+        "useHeaderCheckBoxLabel(선택) 파라미터를 'false' 로 설정 시 Header Column 의 체크 상태값을 true/false 로 다운로드합니다.",
+        "useHeaderCheckBoxLabel(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header / Body / SubTotal / Footer 를 모두 갖춘 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · Header Column
+//     hcol1 이름 (text) / hcol2 부서 (text)
+//     hcol3 선택 (checkbox + checkboxLabel="선택라벨") - useHeaderCheckBoxLabel="true" 일때 checkboxLabel 속성값이 사용되는지 확인
+//     hcol4 확인 (checkbox / checkboxLabel 미설정)  - checkboxLabel 속성값이 없으면 value 속성값이 사용되는지 확인
+//     hcol5 금액 (text)
+//  · Body Column 인덱스 0:이름 1:부서 2:선택(checkbox) 3:확인(checkbox) 4:금액(number displayFormat #,###)
+//  · SubTotal : targetColumnID="dept" 로 부서 기준 소계 행 생성 (부서값이 연속되도록 데이터 구성)
+//  · Footer : 합계 행 (금액은 expression sum)
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header Column : 이름 / 부서 / 선택(checkbox + checkboxLabel=선택라벨) / 확인(checkbox + checkboxLabel 미설정) / 금액\n- Body 4 Row 는 부서값(영업팀 2건 -> 개발팀 2건)이 연속되도록 구성했고, 부서 기준 SubTotal(소계) 행과 Footer(합계) 행을 함께 구성함\n- 파일 확인 편의를 위해 파일명 download_headerfooter, 확장자 xlsx 를 항상 함께 전달함(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(useHeader / useSubTotal / useFooter / footerTop / useHeaderCheckBoxLabel) 값을 선택한다\n2. 필요하면 Header 의 선택 / 확인 체크박스를 클릭해 체크 상태를 바꾼다\n3. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n[확인]\n- useHeader : 내려받은 Excel 파일에 이름 / 부서 ... Header 행이 있는지 (false 면 Header 행 없이 데이터 행부터 시작)\n- useSubTotal : 부서가 바뀌는 지점에 소계 행이 있는지 (false 면 소계 행 없음)\n- useFooter : 합계 행이 있는지 (false 면 합계 행 없음)\n- footerTop : true 면 Header 행 바로 다음에 합계 행이 오고 그 아래로 데이터 행이 오는지, false 또는 생략이면 데이터 행 아래 맨 끝에 합계 행이 오는지 (true 여도 소계 행은 데이터 행 사이에 그대로 남음)\n- useHeaderCheckBoxLabel : Header 의 선택 칸이 선택라벨, 확인 칸이 확인 으로 기록되는지(true) 체크 상태값 true / false 로 기록되는지(false)\n- 결과창의 서버 전달값과 다운로드 Header Column 값으로 실제 전달된 값을 함께 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cfm" name="cfm" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "홍길동", "dept": "영업팀", "chk": "1", "cfm": "0", "amount": 1200000 },
+        { "name": "김영업", "dept": "영업팀", "chk": "0", "cfm": "1", "amount": 800000 },
+        { "name": "이개발", "dept": "개발팀", "chk": "1", "cfm": "1", "amount": 1500000 },
+        { "name": "박개발", "dept": "개발팀", "chk": "0", "cfm": "0", "amount": 300000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:820px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Header / Footer / SubTotal 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    // checkboxLabel 이 설정된 Header Column
+    strTarget += '<w2:column width="160" style="" inputType="checkbox" id="hcol3" value="선택" checkboxLabel="선택라벨"></w2:column>';
+    // checkboxLabel 이 없는 Header Column (value 속성값이 사용되는지 확인)
+    strTarget += '<w2:column width="160" style="" inputType="checkbox" id="hcol4" value="확인"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="checkbox" id="chk" dataList="chk" trueValue="1" falseValue="0"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="checkbox" id="cfm" dataList="cfm" trueValue="1" falseValue="0"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="scol1" value="소계"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol3" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol4" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="scol5" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="fcol1" value="합계"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="fcol2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="fcol3" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="fcol4" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="fcol5" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_headerfooter", "extension" : "xlsx" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_useHeader.getValue();              if (v !== "") fnSet("useHeader", v);
+    v = par_useSubTotal.getValue();            if (v !== "") fnSet("useSubTotal", v);
+    v = par_useFooter.getValue();              if (v !== "") fnSet("useFooter", v);
+    v = par_footerTop.getValue();              if (v !== "") fnSet("footerTop", v);
+    v = par_useHeaderCheckBoxLabel.getValue(); if (v !== "") fnSet("useHeaderCheckBoxLabel", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (useHeader / useSubTotal / useFooter / footerTop / useHeaderCheckBoxLabel 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 캡처한 요청 본문의 GridView 정의(hashkey='style')에서 Header Column 에 실제로 담겨 전송된 값을 읽는다.
+//  · useHeaderCheckBoxLabel 은 서버 전달 옵션이 아니라 엔진이 Header Column 의 value 속성을 바꿔 전송하는 방식이므로 이 값으로 확인한다.
+scwin.getSentHeaderValue = function (sColId) {
+    let sBody = scwin.gVar.body || "";
+    let nStyle = sBody.indexOf("hashkey='style'");
+    if (nStyle < 0) return "(미확인)";
+
+    let sStyle = sBody.substring(nStyle);
+    let nEnd = sStyle.indexOf("/w2:header");
+    if (nEnd < 0) return "(미확인)";
+    sStyle = sStyle.substring(0, nEnd);
+
+    let nId = sStyle.indexOf('id="' + sColId + '"');
+    if (nId < 0) return "(미확인)";
+
+    let nTagStart = sStyle.lastIndexOf("<", nId);
+    let nTagEnd = sStyle.indexOf(">", nId);
+    let sTag = sStyle.substring(nTagStart, nTagEnd);
+
+    let nVal = sTag.indexOf('value="');
+    if (nVal < 0) return "(미확인)";
+
+    let sVal = sTag.substring(nVal + 7);
+    return sVal.substring(0, sVal.indexOf('"'));
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값 : useHeader=" + scwin.getSentValue("useHeader") + " / useSubTotal=" + scwin.getSentValue("useSubTotal") + " / useFooter=" + scwin.getSentValue("useFooter") + " / footerTop=" + scwin.getSentValue("footerTop"));
+    bottom.setReturnValue("다운로드 Header Column 값 : 선택(checkboxLabel 있음)=" + scwin.getSentHeaderValue("hcol3") + " / 확인(checkboxLabel 없음)=" + scwin.getSentHeaderValue("hcol4"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useHeader (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useHeader" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useSubTotal (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useSubTotal" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useFooter (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useFooter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.footerTop (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerTop" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useHeaderCheckBoxLabel (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useHeaderCheckBoxLabel" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

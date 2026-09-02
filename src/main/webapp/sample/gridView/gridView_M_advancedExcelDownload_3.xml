@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260828" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1202
+// 테스트 설명, 유효성 값 설정
+//  ★ _3 : dummy_reqdn (WGear 연계 + 다운로드 제한 옵션) 계열 - dialogTitle / editMode / sheetIndex / maxCellCount / maxRowCount
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "dialogTitle(선택) 파라미터는 WGear 연계 파라미터로 Excel 파일 선택 팝업창에 표시될 제목을 설정합니다.",
+        "dialogTitle(선택) 파라미터를 생략하면 기본값인 빈 문자열('')이 적용됩니다.",
+        "editMode(선택) 파라미터는 WGear 연계 파라미터로 기존 Excel 파일로 데이터를 다운로드할지 설정합니다.",
+        "editMode(선택) 파라미터를 true 로 설정 시 기존 Excel 파일에 시트를 추가하여 데이터를 다운로드합니다.",
+        "editMode(선택) 파라미터를 false 로 설정 시 신규 Excel 파일로 데이터를 다운로드합니다.",
+        "editMode(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+        "sheetIndex(선택) 파라미터는 WGear 연계 파라미터로 기존 Excel 파일로 다운로드할때 시트가 삽입될 위치를 인덱스로 설정합니다.",
+        "sheetIndex(선택) 파라미터의 시트 인덱스는 0 부터 시작하여 editMode 파라미터값이 true 일때 의미가 있습니다.",
+        "sheetIndex(선택) 파라미터를 생략하면 기본값 undefined 가 적용되어 시트 삽입 위치가 전달되지 않습니다.",
+        "maxCellCount(선택) 파라미터로 Excel 파일로 다운로드를 실행할 최대 Body Cell 갯수를 설정합니다.",
+        "maxCellCount(선택) 파라미터값보다 다운로드할 Body Cell 의 갯수가 많을 경우 다운로드가 실행되지 않습니다.",
+        "maxCellCount(선택) 파라미터를 생략하면 기본값 -1 이 적용되어 Body Cell 갯수를 제한하지 않습니다.",
+        "maxRowCount(선택) 파라미터로 Excel 파일로 다운로드를 실행할 최대 데이터 Row 갯수를 설정합니다.",
+        "maxRowCount(선택) 파라미터값보다 다운로드할 데이터 Row 의 갯수가 많을 경우 다운로드가 실행되지 않습니다.",
+        "maxRowCount(선택) 파라미터를 생략하면 기본값 -1 이 적용되어 데이터 Row 갯수를 제한하지 않습니다.",
+    ]
+}
+
+
+
+// 다운로드 실행(서버 전송) 여부와 제한 초과 시 엔진이 표시하는 경고 메시지를 담는다.
+scwin.gVar = {
+    "submitted" : false,
+    "warning" : ""
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : DataList 가 바인딩된 4 Column GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · maxCellCount / maxRowCount 경계값 검증을 위해 데이터 Row 4 개 x Column 4 개 = Body Cell 16 개로 구성한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove(dlt_bind.id);
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- name1~name4 4개 Column 그리드에 데이터 4행(col1_1 ~ col4_4)이 바인딩되어 있음 (다운로드 대상 데이터 Row 4 개 / Body Cell 16 개)\n- dialogTitle / editMode / sheetIndex 는 WGear(외부 연계 모듈) 전용 옵션이라 일반 웹브라우저 환경에서는 파일 선택 팝업이나 기존 파일의 시트 추가가 일어나지 않으므로 서버로 전달되는 값으로만 확인함\n[절차]\n1. par 옵션(dialogTitle / editMode / sheetIndex / maxCellCount / maxRowCount) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭한다\n[확인]\n- 결과창에 전달한 options 객체와 서버로 실제 전달된 dialogTitle / editMode / sheetIndex 값이 출력됨\n- 다운로드가 실행되면 실행 여부가 true 로 출력되며 Excel 파일이 내려받아짐\n- 다운로드가 실행되지 않으면 서버 전달값 줄 없이 실행 여부가 false 로 출력되고 엔진이 표시하는 제한 경고 메시지가 함께 출력됨"', '', 'label1');
+
+    // DataList 생성 (col1~col4 / 4행)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+
+    // target 생성 (DataList 바인딩)
+    let cList = $c.gcm.createCList({
+        dataList: "data:" + dlt_bind.id
+    });
+    await $c.gcm.createBasicGridView(cList);
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 모든 파라미터가 미설정이면 빈 객체({}) 가 전달된다.
+//  · editMode 는 Boolean 타입이므로 gdl_boolean 라벨(getText)을 Boolean 으로 변환하여 전달한다.
+//  · sheetIndex / maxCellCount / maxRowCount 는 Number 타입이므로 숫자로 변환하여 전달한다.
+scwin.buildOptions = function () {
+    let options = {};
+
+    let vDialogTitle = par_dialogTitle.getValue();
+    if (vDialogTitle !== "") options.dialogTitle = vDialogTitle;
+
+    let vEditMode = par_editMode.getText();
+    if (vEditMode === "true") {
+        options.editMode = true;
+    } else if (vEditMode === "false") {
+        options.editMode = false;
+    }
+
+    let vSheetIndex = par_sheetIndex.getValue();
+    if (vSheetIndex !== "") options.sheetIndex = parseInt(vSheetIndex, 10);
+
+    let vMaxCellCount = par_maxCellCount.getValue();
+    if (vMaxCellCount !== "") options.maxCellCount = parseInt(vMaxCellCount, 10);
+
+    let vMaxRowCount = par_maxRowCount.getValue();
+    if (vMaxRowCount !== "") options.maxRowCount = parseInt(vMaxRowCount, 10);
+
+    return options;
+}
+
+
+
+// 서버로 전송된 XML 문자열에서 지정한 항목의 값을 읽는다.
+scwin.getSentValue = function (strSent, strKey) {
+    let objMatch = strSent.match(new RegExp("<data hashkey='" + strKey + "' value='([^']*)'/>"));
+    return (objMatch === null) ? "(전달되지 않음)" : objMatch[1];
+}
+
+
+
+// advancedExcelDownload 실행
+//  · 엔진이 호출 중 options 객체에 내부 키(cellInfo, scope, isBasicCol 등)를 덧붙이므로 전달값 문자열은 호출 전에 만들어 둔다.
+//  · 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//    호출 구간에만 form 전송을 가로채 서버로 실제 전달되는 값(dialogTitle / editMode / sheetIndex)을 읽는다.
+//  · 다운로드 제한(maxCellCount / maxRowCount) 초과 시에는 form 전송 자체가 일어나지 않고 엔진이 경고 메시지를 표시하므로,
+//    호출 구간에만 경고 표시도 가로채 실행 여부와 함께 결과창에 출력한다.
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let options = scwin.buildOptions();
+    let strOptions = JSON.stringify(options);
+
+    bottom.setReturnValue("전달한 options : " + strOptions);
+
+    scwin.gVar.submitted = false;
+    scwin.gVar.warning = "";
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    let fnAlert = window.alert;
+    let fnRestore = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+        window.alert = fnAlert;
+    };
+    HTMLFormElement.prototype.submit = function () {
+        scwin.gVar.submitted = true;
+
+        let objHidden = this.querySelector("input[name='xmlValue']");
+        let strSent = (objHidden === null) ? "" : objHidden.value;
+        bottom.setReturnValue("서버로 전달된 dialogTitle : " + scwin.getSentValue(strSent, "dialogTitle") + " / editMode : " + scwin.getSentValue(strSent, "editMode") + " / sheetIndex : " + scwin.getSentValue(strSent, "sheetIndex"));
+
+        return fnSubmit.apply(this, arguments);
+    };
+    window.alert = function (strMessage) {
+        scwin.gVar.warning = (strMessage + "").split("\n").join(" ");
+    };
+
+    target1.advancedExcelDownload(options);
+
+    setTimeout(function () {
+        fnRestore();
+        bottom.setReturnValue("다운로드 실행 여부 : " + scwin.gVar.submitted + (scwin.gVar.submitted ? "" : " / 제한 경고 : " + scwin.gVar.warning));
+    }, 1500);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.dialogTitle (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_dialogTitle" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Excel 파일 선택]]></xf:label>
+												<xf:value><![CDATA[Excel 파일 선택]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.editMode (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_editMode" label="label" nodeSet="data:gdl_boolean" ref=""
+										style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.sheetIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_sheetIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.maxCellCount (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_maxCellCount" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[16 (Body Cell 갯수 16 과 동일)]]></xf:label>
+												<xf:value><![CDATA[16]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[15 (Body Cell 갯수 16 보다 작음)]]></xf:label>
+												<xf:value><![CDATA[15]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.maxRowCount (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_maxRowCount" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4 (데이터 Row 갯수 4 와 동일)]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 (데이터 Row 갯수 4 보다 작음)]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

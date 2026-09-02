@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260902" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _21 : dummy_chart (차트 삽입 옵션) 계열 중 차트 본체 / 유형 / 제목 / 삽입 위치 옵션
+//     - chart / chart.chartName / chart.title / chart.xTitle / chart.yTitle
+//       / chart.startRowIndex / chart.startColIndex / chart.endRowIndex / chart.endColIndex
+//     같은 계열의 표시 옵션 + catAxisRange 는 _22, serAxisRange + dataAxisRange 는 _23 에서 다룬다.
+//     description 은 분리 샘플 공통(_1 과 동일).
+//     ※ chart.title / xTitle / yTitle 값에 앰퍼샌드 / 여는 부등호 / 작은따옴표가 들어가면
+//        아무 안내 없이 다운로드가 진행되지 않는다. sheetName / desc / rowNumHeaderValue 등
+//        다른 문자열 옵션도 동일하다. https://inswave01.atlassian.net/browse/WAEA-1218
+//        결함 샘플 : jira/202609/fail_gridView_advancedExcelDownload_stringOptionXmlEscapeMissing.xml
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "chart(선택) 파라미터로 Excel 에 삽입할 차트 관련 옵션을 객체로 설정합니다.",
+        "chart.chartName 파라미터를 설정하지 않거나 확장자가 'xls' 인 2007 미만 버전으로 다운로드 시 차트가 삽입되지 않습니다.",
+        "chart(선택) 파라미터를 생략하면 기본값 {} 이 적용됩니다.",
+        "chart.chartName(필수) 파라미터로 Excel 에 삽입할 차트 유형을 'bar'/'line'/'area'/'pie' 로 설정합니다.",
+        "chart.title(선택) 파라미터로 차트의 제목을 설정합니다.",
+        "chart.title(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "chart.xTitle(선택) 파라미터로 차트의 X 축 제목을 설정합니다.",
+        "chart.xTitle(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "chart.yTitle(선택) 파라미터로 차트의 Y 축 제목을 설정합니다.",
+        "chart.yTitle(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "chart.startRowIndex(선택) 파라미터로 Excel 에 차트가 삽입될 위치의 시작 행 인덱스를 설정합니다.",
+        "chart.startRowIndex(선택) 파라미터를 설정할 때 Excel 의 행 인덱스는 0 부터 시작합니다.",
+        "chart.startRowIndex(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+        "chart.startColIndex(선택) 파라미터로 Excel 에 차트가 삽입될 위치의 시작 열 인덱스를 설정합니다.",
+        "chart.startColIndex(선택) 파라미터를 설정할 때 Excel 의 열 인덱스는 0 부터 시작합니다.",
+        "chart.startColIndex(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+        "chart.endRowIndex(선택) 파라미터로 Excel 에 차트가 삽입될 위치의 마지막 행 인덱스를 설정합니다.",
+        "chart.endRowIndex(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+        "chart.endColIndex(선택) 파라미터로 Excel 에 차트가 삽입될 위치의 마지막 열 인덱스를 설정합니다.",
+        "chart.endColIndex(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본 확장자를 명시한다.
+    par_extension.setValue("xlsx");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header 1줄(병합 없음) / Body 6행 의 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · 차트가 참조할 수 있도록 Column 0 은 항목명(지역), Column 1~4 는 분기별 수치로 둔다.
+//    Excel 파일에서 행 0 은 Header, 행 1~6 은 Body 6 행이 된다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 1줄(병합 없음), Body Column 인덱스 0 지역(text) / 1~4 분기별 수치(number), Body Row 는 6행\n- Excel 파일에서 행 0 은 Header, 행 1~6 은 Body 이며 열 0 은 지역, 열 1~4 는 Q1~Q4 다\n- chart.catAxisRange / chart.serAxisRange / chart.dataAxisRange 는 차트가 참조할 데이터 범위라 차트가 그려지려면 반드시 필요하다. 본 계열의 검증 대상이 아니므로 고정 전달하며 각각 _22 와 _23 에서 다룬다\n- 고정 전달하는 범위는 chartName 에 따라 다르다. bar / line / area 는 항목이 Q1~Q4 헤더, 값이 지역별 행이고, pie 는 항목이 지역명 열, 값이 Q1 열이다\n- sheetName 은 mysheet, 파일명은 download_chart 로 고정 전달한다(본 계열 검증 대상 아님)\n- 확장자는 par 로 선택한다. chartName 하위절(확장자가 xls 인 2007 미만 버전이면 차트가 삽입되지 않는다)을 확인하기 위한 전제 토글이며 파라미터 자체는 _1 에서 다룬다. 기본값은 xlsx 다\n[절차]\n1. par 옵션(chart / chart.chartName / chart.title / chart.xTitle / chart.yTitle / chart.startRowIndex / chart.startColIndex / chart.endRowIndex / chart.endColIndex) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n3. 내려받은 파일을 Excel 로 열어 차트를 확인한다\n[확인]\n- chart : 미설정이면 chart 객체 자체를 전달하지 않아 차트가 삽입되지 않는지. 설정이면 아래 항목들이 적용된 차트가 삽입되는지\n- chart.chartName : 미설정이면 chart 객체는 전달되지만 차트가 삽입되지 않는지. bar / line / area / pie 를 설정하면 각각 막대 / 꺾은선 / 영역 / 원 차트가 삽입되는지\n- chart.chartName : 확장자를 xls 로 선택하면 chartName 을 설정해도 차트가 삽입되지 않는지\n- chart.title : 설정한 값(Region Value 또는 지역별 실적)이 차트 제목으로 표시되는지. 미설정이면 차트에 제목이 표시되지 않는지\n- chart.xTitle : 설정한 값(Quarter 또는 분기)이 X 축 제목으로 표시되는지. 미설정이면 X 축 제목이 표시되지 않는지\n- chart.yTitle : 설정한 값(Value 또는 금액)이 Y 축 제목으로 표시되는지. 미설정이면 Y 축 제목이 표시되지 않는지\n- 제목 세 개는 영문 값과 한글 값이 있어 한글도 그대로 표시되는지 함께 확인한다\n- chart.startRowIndex / chart.startColIndex : 설정한 인덱스에서 차트가 시작되는지. 인덱스는 0 부터 시작하므로 행 9 는 Excel 화면의 10 행이다\n- chart.endRowIndex / chart.endColIndex : 설정한 인덱스에서 차트가 끝나는지. 네 개를 모두 설정하면 그 범위에 맞춰 차트 크기가 정해지는지\n- 위치 네 개는 값이 두 가지씩이라 차트가 실제로 옮겨가고 크기가 달라지는 것을 볼 수 있다. 시작 행 2 / 시작 열 1 은 데이터 바로 옆 위쪽, 시작 행 9 / 시작 열 6 은 데이터 아래 오른쪽에 놓인다. 마지막 행 20 / 마지막 열 8 은 30 / 12 보다 작은 차트가 된다\n- 네 인덱스를 모두 생략하면 기본값 0 이 적용되어 시작과 끝이 모두 행 0 / 열 0 이 된다. 이때 차트는 크기가 0 이라 Excel 화면에서 보이지 않으므로, 차트 유형이나 제목을 눈으로 확인할 때는 네 인덱스를 함께 설정해 차트 크기를 확보한 뒤 확인한다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="q1" name="q1" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="q2" name="q2" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="q3" name="q3" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="q4" name="q4" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "region" : "Seoul",   "q1" : 120, "q2" : 135, "q3" : 150, "q4" : 160 },
+        { "region" : "Busan",   "q1" : 90,  "q2" : 100, "q3" : 95,  "q4" : 110 },
+        { "region" : "Daegu",   "q1" : 70,  "q2" : 85,  "q3" : 80,  "q4" : 95 },
+        { "region" : "Incheon", "q1" : 60,  "q2" : 65,  "q3" : 75,  "q4" : 70 },
+        { "region" : "Gwangju", "q1" : 50,  "q2" : 55,  "q3" : 60,  "q4" : 58 },
+        { "region" : "Daejeon", "q1" : 45,  "q2" : 48,  "q3" : 52,  "q4" : 50 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (차트 삽입 옵션 - 차트 본체 / 유형 / 제목 / 삽입 위치) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="Region"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="Q1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol3" value="Q2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="Q3"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol5" value="Q4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="120" style="text-align:right;" inputType="text" dataType="number" id="q1" dataList="q1"></w2:column>';
+    strTarget += '<w2:column width="120" style="text-align:right;" inputType="text" dataType="number" id="q2" dataList="q2"></w2:column>';
+    strTarget += '<w2:column width="120" style="text-align:right;" inputType="text" dataType="number" id="q3" dataList="q3"></w2:column>';
+    strTarget += '<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" id="q4" dataList="q4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 인덱스 4 개는 Number 타입이므로 selectbox 값을 정수로 변환해 전달한다.
+//  · catAxisRange / serAxisRange / dataAxisRange 는 차트가 그려지기 위한 고정 전제값이며
+//    본 계열의 검증 대상이 아니다. chartName 이 pie 인 경우에만 항목/값 범위를 달리 준다.
+//  · fileName / sheetName 은 고정값이며 본 계열의 검증 대상이 아니다.
+//  · extension 은 chartName 하위절(확장자가 xls 인 2007 미만 버전이면 차트가 삽입되지 않는다)을
+//    확인하기 위한 전제 토글이며 파라미터 자체는 _1 에서 다룬다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_chart", "extension" : par_extension.getValue(), "sheetName" : "mysheet" };
+    let arrDesc = [];
+
+    let sExt = "확장자 " + par_extension.getValue();
+
+    let v = par_chart.getValue();
+    if (v === "") {
+        return { "options" : options, "desc" : sExt + " / {} (chart 미설정)" };
+    }
+
+    let chart = {};
+    let fnSet = function (sKey, vValue) {
+        chart[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let sChartName = par_chartName.getValue();
+    if (sChartName !== "") fnSet("chartName", sChartName);
+
+    v = par_title.getValue();  if (v !== "") fnSet("title", v);
+    v = par_xTitle.getValue(); if (v !== "") fnSet("xTitle", v);
+    v = par_yTitle.getValue(); if (v !== "") fnSet("yTitle", v);
+
+    v = par_startRowIndex.getValue(); if (v !== "") fnSet("startRowIndex", parseInt(v, 10));
+    v = par_startColIndex.getValue(); if (v !== "") fnSet("startColIndex", parseInt(v, 10));
+    v = par_endRowIndex.getValue();   if (v !== "") fnSet("endRowIndex", parseInt(v, 10));
+    v = par_endColIndex.getValue();   if (v !== "") fnSet("endColIndex", parseInt(v, 10));
+
+    // 고정 전제값 (검증 대상 아님)
+    if (sChartName === "pie") {
+        chart.catAxisRange = { "startRowIndex" : 1, "startColIndex" : 0, "endRowIndex" : 6, "endColIndex" : 0 };
+        chart.dataAxisRange = { "startRowIndex" : 1, "startColIndex" : 1, "endRowIndex" : 6, "endColIndex" : 1 };
+    } else {
+        chart.catAxisRange = { "startRowIndex" : 0, "startColIndex" : 1, "endRowIndex" : 0, "endColIndex" : 4 };
+        chart.dataAxisRange = { "startRowIndex" : 1, "startColIndex" : 1, "endRowIndex" : 6, "endColIndex" : 4 };
+    }
+    chart.serAxisRange = { "startRowIndex" : 1, "startColIndex" : 0, "endRowIndex" : 6, "endColIndex" : 4 };
+
+    options.chart = chart;
+
+    return { "options" : options, "desc" : sExt + " / chart 설정" + ((arrDesc.length === 0) ? " (chartName / title / xTitle / yTitle / startRowIndex / startColIndex / endRowIndex / endColIndex 전체 생략)" : (" / " + arrDesc.join(" / "))) };
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    target1.advancedExcelDownload(objBuild.options);
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:240px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:240px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_chart" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[설정]]></xf:label>
+												<xf:value><![CDATA[설정]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.chartName (필수)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_chartName" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bar]]></xf:label>
+												<xf:value><![CDATA[bar]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[line]]></xf:label>
+												<xf:value><![CDATA[line]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[area]]></xf:label>
+												<xf:value><![CDATA[area]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[pie]]></xf:label>
+												<xf:value><![CDATA[pie]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.title (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_title" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[Region Value]]></xf:label>
+													<xf:value><![CDATA[Region Value]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[지역별 실적]]></xf:label>
+													<xf:value><![CDATA[지역별 실적]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.xTitle (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_xTitle" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[Quarter]]></xf:label>
+													<xf:value><![CDATA[Quarter]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[분기]]></xf:label>
+													<xf:value><![CDATA[분기]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.yTitle (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_yTitle" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[Value]]></xf:label>
+													<xf:value><![CDATA[Value]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[금액]]></xf:label>
+													<xf:value><![CDATA[금액]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.startRowIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_startRowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[2]]></xf:label>
+													<xf:value><![CDATA[2]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[9]]></xf:label>
+													<xf:value><![CDATA[9]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.startColIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_startColIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[1]]></xf:label>
+													<xf:value><![CDATA[1]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[6]]></xf:label>
+													<xf:value><![CDATA[6]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.endRowIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_endRowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[20]]></xf:label>
+													<xf:value><![CDATA[20]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[30]]></xf:label>
+													<xf:value><![CDATA[30]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.chart.endColIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_endColIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+												<xf:item>
+													<xf:label></xf:label>
+													<xf:value></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[8]]></xf:label>
+													<xf:value><![CDATA[8]]></xf:value>
+												</xf:item>
+												<xf:item>
+													<xf:label><![CDATA[12]]></xf:label>
+													<xf:value><![CDATA[12]]></xf:value>
+												</xf:item>
+											</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.extension (전제)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_extension" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[xlsx]]></xf:label>
+												<xf:value><![CDATA[xlsx]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[xls]]></xf:label>
+												<xf:value><![CDATA[xls]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

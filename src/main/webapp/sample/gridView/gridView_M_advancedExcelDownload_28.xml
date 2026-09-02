@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260902" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _28 : infoArray (별도 정보 출력) 계열 중 정렬 / 폰트 옵션
+//     - infoArray.textAlign / infoArray.fontSize / infoArray.fontName
+//       / infoArray.color / infoArray.fontWeight / infoArray.underline
+//     같은 계열의 배열 자체 / 셀 위치 / 병합 / 내용 7 개는 _27, 테두리 / 배경 / 줄바꿈 5 개는 _29 에서 다룬다.
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "infoArray.textAlign(선택) 파라미터로 별도 정보를 표시할 셀의 정렬 방법을 'left'/'center'/'right' 로 설정합니다.",
+        "infoArray.textAlign(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "infoArray.fontSize(선택) 파라미터로 별도 정보를 표시할 셀의 폰트 크기를 설정합니다.",
+        "infoArray.fontSize(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "infoArray.fontName(선택) 파라미터로 별도 정보를 표시할 셀의 폰트 이름을 설정합니다.",
+        "infoArray.fontName(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "infoArray.color(선택) 파라미터로 별도 정보를 표시할 셀의 폰트 색상을 '#FF0000'/'red' 등으로 설정합니다.",
+        "infoArray.color(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "infoArray.fontWeight(선택) 파라미터로 별도 정보를 표시할 셀의 폰트 굵기를 'bold' 등으로 설정합니다.",
+        "infoArray.fontWeight(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "infoArray.underline(선택) 파라미터로 별도 정보를 표시할 셀에 밑줄을 설정합니다.",
+        "infoArray.underline(선택) 파라미터를 'true' 또는 'single' 로 설정하면 단일 밑줄, 'double' 로 설정하면 이중 밑줄을 적용합니다.",
+        "infoArray.underline(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header 1줄(병합 없음) / Body 6행 의 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · 본 계열은 별도 정보 셀의 글자 모양만 바꾸므로 그리드 구성은 단순하게 둔다.
+//    Header 1줄 + Body 6행 = Excel 행 인덱스 0~6, Column 4개 = Excel 열 인덱스 0~3 을 차지한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 1줄(병합 없음), Body Column 인덱스 0 부서 / 1 사원명 / 2 실적건수(number) / 3 실적금액(number), Body Row 는 6행\n- 따라서 Excel 파일에서 데이터가 차지하는 범위는 행 인덱스 0~6, 열 인덱스 0~3 이다\n- infoArray 는 options 가 아니라 advancedExcelDownload 의 두 번째 인자로 전달한다\n- infoArray 배열에는 항상 객체 1 개만 담고, 그 객체의 rowIndex 8 / colIndex 5 / rowSpan 1 / colSpan 1 / text 별도 정보 는 고정 전달한다\n- 즉 별도 정보 셀은 항상 Excel 의 F9 한 칸이며, 데이터 영역과 겹치지 않는다. 이 5 개는 _27 에서 다루므로 본 계열 검증 대상이 아니다\n- rowIndex / colIndex / rowSpan / colSpan 4 개는 가이드상 선택이지만 하나라도 빠뜨리면 다운로드 자체가 일어나지 않는 엔진 결함이 있어 고정으로 채워 둔다\n- 본 계열 par 6 개는 모두 String 타입이라 selectbox 값을 그대로 전달한다\n- 파일명 download_infoarray_font, 확장자 xlsx, sheetName mysheet 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(infoArray.textAlign / fontSize / fontName / color / fontWeight / underline) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n3. 내려받은 파일을 Excel 로 열고 F9 셀을 선택한 뒤 홈 리본의 글꼴 / 맞춤 그룹에서 확인한다\n[확인]\n- infoArray.textAlign : left 면 셀 안에서 왼쪽, center 면 가운데, right 면 오른쪽으로 글자가 붙는지. 미설정이면 가운데인지\n- infoArray.fontSize : 설정한 숫자가 리본의 글꼴 크기 칸에 그대로 나오는지. 미설정이면 다른 셀과 같은 크기인지\n- infoArray.fontName : 설정한 글꼴 이름이 리본의 글꼴 칸에 나오는지. 미설정이면 다른 셀과 같은 글꼴인지\n- infoArray.color : 16 진수로 준 값과 red 같은 색 이름으로 준 값이 모두 글자색에 반영되는지. 미설정이면 검정인지\n- infoArray.fontWeight : bold 면 글자가 굵어지는지. 미설정이면 굵지 않은지\n- infoArray.underline : true 와 single 은 밑줄 한 줄, double 은 밑줄 두 줄이 그어지는지. 미설정이면 밑줄이 없는지\n- 6 개는 서로 독립이다. 하나만 설정하면 나머지는 기본 모양이 유지되는지 함께 확인한다\n- 파일을 압축 해제하여 xl/styles.xml 의 cellXfs 항목이 가리키는 fonts 항목(sz / name / color / b / u)과 alignment 요소로도 확인할 수 있다\n- 별도 정보 셀의 기본 모양은 폰트 Calibri, 크기 11, 검정, 굵기 없음, 밑줄 없음이고 정렬은 가로 세로 모두 가운데다. 6 개를 모두 생략하면 이 모양이 된다\n- textAlign 은 미설정일 때도 가운데다. 왼쪽으로 붙이려면 left 를 명시해야 한다. 세로 정렬은 이 계열로 바꿀 수 없다\n- 색 이름과 16 진수는 파일에 다르게 저장된다. #FF0000 은 rgb 값으로, red 는 Excel 기본 색 팔레트 번호로 기록되지만 화면에 보이는 색은 같다\n- underline 은 true 와 single 이 파일에 똑같이 single 로 저장되어 결과가 완전히 같고, double 만 다르다\n- 6 개 중 하나라도 설정하면 그 셀에만 쓰이는 전용 폰트가 새로 만들어진다. 전부 생략하면 다른 셀과 같은 공용 폰트를 그대로 쓴다\n- 6 개는 서로 독립이라 하나만 설정해도 나머지는 기본 모양이 유지되고, 여섯 개를 함께 설정하면 모두 겹쳐 적용된다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="empName" name="empName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="caseCnt" name="caseCnt" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="saleAmt" name="saleAmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "dept" : "영업기획팀", "empName" : "김도현", "caseCnt" : 34, "saleAmt" : 18450000 },
+        { "dept" : "영업기획팀", "empName" : "박서연", "caseCnt" : 27, "saleAmt" : 12300000 },
+        { "dept" : "고객지원팀", "empName" : "이준호", "caseCnt" : 41, "saleAmt" : 9800000 },
+        { "dept" : "고객지원팀", "empName" : "최민아", "caseCnt" : 19, "saleAmt" : 6450000 },
+        { "dept" : "품질관리팀", "empName" : "정우진", "caseCnt" : 25, "saleAmt" : 15200000 },
+        { "dept" : "품질관리팀", "empName" : "한지민", "caseCnt" : 30, "saleAmt" : 11750000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (infoArray - 정렬 / 폰트) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="부서"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="사원명"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="실적건수"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="실적금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="empName" dataList="empName"></w2:column>';
+    strTarget += '<w2:column width="130" style="text-align:right;" inputType="text" dataType="number" id="caseCnt" dataList="caseCnt"></w2:column>';
+    strTarget += '<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleAmt" dataList="saleAmt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload 의 options 객체와 infoArray 배열을 구성한다.
+//  · infoArray 는 options 의 하위가 아니라 두 번째 인자이므로 별도 배열로 만들어 전달한다.
+//  · 셀 위치 / 병합 / 내용 5 개는 고정값이며 _27 에서 다루므로 본 계열의 검증 대상이 아니다.
+//    특히 rowIndex / colIndex / rowSpan / colSpan 은 하나라도 빠지면 다운로드가 일어나지 않으므로 반드시 채운다.
+//  · 본 계열 6 개는 모두 String 타입이므로 selectbox 값을 그대로 담는다.
+//  · fileName / extension / sheetName 은 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_infoarray_font", "extension" : "xlsx", "sheetName" : "mysheet" };
+    let objInfo = { "rowIndex" : 8, "colIndex" : 5, "rowSpan" : 1, "colSpan" : 1, "text" : "별도 정보" };
+    let arrDesc = [];
+
+    let fnString = function (sKey, objComp) {
+        let sValue = objComp.getValue();
+        if (sValue !== "") {
+            objInfo[sKey] = sValue;
+            arrDesc.push(sKey + "=" + sValue);
+        }
+    };
+
+    fnString("textAlign", par_textAlign);
+    fnString("fontSize", par_fontSize);
+    fnString("fontName", par_fontName);
+    fnString("color", par_color);
+    fnString("fontWeight", par_fontWeight);
+    fnString("underline", par_underline);
+
+    return { "options" : options, "infoArray" : [ objInfo ], "desc" : "infoArray 설정 [{고정 rowIndex=8, colIndex=5, rowSpan=1, colSpan=1, text=별도 정보" + ((arrDesc.length === 0) ? " / 본 계열 옵션 전체 생략" : (" / " + arrDesc.join(", "))) + "}]" };
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    target1.advancedExcelDownload(objBuild.options, objBuild.infoArray);
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:280px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:280px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray.textAlign (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_textAlign" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[left]]></xf:label>
+												<xf:value><![CDATA[left]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[center]]></xf:label>
+												<xf:value><![CDATA[center]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[right]]></xf:label>
+												<xf:value><![CDATA[right]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray.color (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_color" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#FF0000]]></xf:label>
+												<xf:value><![CDATA[#FF0000]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[red]]></xf:label>
+												<xf:value><![CDATA[red]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[#0070C0]]></xf:label>
+												<xf:value><![CDATA[#0070C0]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray.fontSize (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_fontSize" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[9]]></xf:label>
+												<xf:value><![CDATA[9]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[20]]></xf:label>
+												<xf:value><![CDATA[20]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray.fontWeight (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_fontWeight" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bold]]></xf:label>
+												<xf:value><![CDATA[bold]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray.fontName (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_fontName" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Arial]]></xf:label>
+												<xf:value><![CDATA[Arial]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[궁서]]></xf:label>
+												<xf:value><![CDATA[궁서]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray.underline (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_underline" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[single]]></xf:label>
+												<xf:value><![CDATA[single]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[double]]></xf:label>
+												<xf:value><![CDATA[double]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

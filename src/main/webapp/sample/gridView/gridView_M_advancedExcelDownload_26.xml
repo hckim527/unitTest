@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260902" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _26 : dummy_print (Excel 파일 인쇄 설정 옵션) 계열 중 머리글 / 바닥글 옵션
+//     - printSet.header / header.left / header.center / header.right
+//       / printSet.footer / footer.left / footer.center / footer.right
+//     같은 계열의 용지 방향 / 쪽 맞춤 / 배율 / 용지 크기 7 개는 _24, 여백 + 가운데 맞춤 9 개는 _25 에서 다룬다.
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "printSet.header(선택) 파라미터로 Excel 파일의 머리글을 문자열 또는 객체로 설정합니다.",
+        "printSet.header(선택) 파라미터를 문자열로 설정 시 center 속성으로 적용됩니다.",
+        "printSet.header(선택) 파라미터에 '&P' 등의 Excel 머리글/바닥글 필드 코드는 지원하지 않습니다.",
+        "printSet.header(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.header.left(선택) 파라미터로 머리글 왼쪽 영역에 인쇄할 문자열을 설정합니다.",
+        "printSet.header.left(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "printSet.header.center(선택) 파라미터로 머리글 가운데 영역에 인쇄할 문자열을 설정합니다.",
+        "printSet.header.center(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "printSet.header.right(선택) 파라미터로 머리글 오른쪽 영역에 인쇄할 문자열을 설정합니다.",
+        "printSet.header.right(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "printSet.footer(선택) 파라미터로 Excel 파일의 바닥글을 문자열 또는 객체로 설정합니다.",
+        "printSet.footer(선택) 파라미터를 문자열로 설정 시 center 속성으로 적용됩니다.",
+        "printSet.footer(선택) 파라미터에 '&P' 등의 Excel 머리글/바닥글 필드 코드는 지원하지 않습니다.",
+        "printSet.footer(선택) 파라미터를 생략하면 기본값 undefined 가 적용됩니다.",
+        "printSet.footer.left(선택) 파라미터로 바닥글 왼쪽 영역에 인쇄할 문자열을 설정합니다.",
+        "printSet.footer.left(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "printSet.footer.center(선택) 파라미터로 바닥글 가운데 영역에 인쇄할 문자열을 설정합니다.",
+        "printSet.footer.center(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+        "printSet.footer.right(선택) 파라미터로 바닥글 오른쪽 영역에 인쇄할 문자열을 설정합니다.",
+        "printSet.footer.right(선택) 파라미터를 생략하면 기본값 '' 이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : Header 1줄(병합 없음) / Body 6행 의 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · 본 계열은 Cell 값이 아니라 Excel 파일의 머리글 / 바닥글만 바꾸므로 그리드 구성은 단순하게 둔다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Header 는 1줄(병합 없음), Body Column 인덱스 0 부서 / 1 사원명 / 2 실적건수(number) / 3 실적금액(number), Body Row 는 6행\n- 이 계열은 Cell 값을 바꾸지 않는다. Excel 파일의 머리글과 바닥글만 바뀐다\n- printSet 은 항상 설정으로 고정 전달한다. printSet 파라미터 자체는 _24 에서 다룬다\n- header 와 footer 는 문자열로도 객체로도 줄 수 있어 전달 방식을 par 로 고른다. 문자열은 고정 문구, 필드코드는 페이지 번호 코드가 든 문구, 객체는 left / center / right par 값으로 조립한다\n- left / center / right par 값은 header 와 footer 를 객체로 고른 경우에만 전달된다\n- 파일명 download_print_hf, 확장자 xlsx, sheetName mysheet 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. par 옵션(printSet.header 전달 방식과 header.left / center / right, printSet.footer 전달 방식과 footer.left / center / right) 값을 선택한다\n2. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n3. 내려받은 파일을 Excel 로 열고 페이지 레이아웃 - 페이지 설정 - 머리글/바닥글 탭에서 확인한다\n[확인]\n- printSet.header : 미설정이면 머리글이 비어 있는지. 객체로 설정하면 아래 세 영역이 반영되는지\n- printSet.header : 문자열로 설정하면 그 문구가 머리글 가운데 영역에 들어가는지. 왼쪽과 오른쪽은 비어 있는지\n- printSet.header : 필드코드가 든 문구를 주면 페이지 번호로 해석되지 않고 문구 그대로 표시되는지\n- printSet.header.left / center / right : 설정한 값이 각각 머리글 왼쪽 / 가운데 / 오른쪽 영역에 들어가는지. 미설정인 영역은 비어 있는지\n- printSet.footer : 머리글과 같은 방식으로 동작하는지. 문자열은 가운데, 필드코드는 문구 그대로, 객체는 세 영역에 나뉘어 들어가는지\n- printSet.footer.left / center / right : 설정한 값이 각각 바닥글 왼쪽 / 가운데 / 오른쪽 영역에 들어가는지\n- 머리글과 바닥글은 서로 독립이다. 한쪽만 설정하면 다른 쪽은 비어 있는지 함께 확인한다\n- 파일을 압축 해제하여 xl/worksheets/sheet1.xml 의 headerFooter 요소로도 확인할 수 있다. 영역 구분자는 왼쪽이 앰퍼샌드L, 가운데가 앰퍼샌드C, 오른쪽이 앰퍼샌드R 이다\n- 머리글과 바닥글을 모두 미설정으로 두면 headerFooter 요소 자체가 생기지 않는다\n- 객체로 주더라도 left / center / right 를 모두 생략하면 headerFooter 요소가 생기지 않아 미설정과 결과가 같다\n- 문자열로 주면 파일에 가운데 구분자 뒤에 붙어 저장되므로 하위절대로 center 영역에 적용된다\n- 필드코드가 든 문구를 주면 앰퍼샌드가 2 개로 저장된다. Excel 은 앰퍼샌드 2 개를 문자 앰퍼샌드로 해석하므로 페이지 번호가 아니라 문구 그대로 표시된다\n- 세 영역을 모두 설정하면 파일에는 가운데 왼쪽 오른쪽 순서로 기록되지만 Excel 이 구분자로 위치를 정하므로 표시 위치는 정상이다\n- 머리글은 oddHeader, 바닥글은 oddFooter 로 따로 기록된다. 한쪽만 설정하면 다른 쪽 요소는 생기지 않는다"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="empName" name="empName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="caseCnt" name="caseCnt" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="saleAmt" name="saleAmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "dept" : "영업기획팀", "empName" : "김도현", "caseCnt" : 34, "saleAmt" : 18450000 },
+        { "dept" : "영업기획팀", "empName" : "박서연", "caseCnt" : 27, "saleAmt" : 12300000 },
+        { "dept" : "고객지원팀", "empName" : "이준호", "caseCnt" : 41, "saleAmt" : 9800000 },
+        { "dept" : "고객지원팀", "empName" : "최민아", "caseCnt" : 19, "saleAmt" : 6450000 },
+        { "dept" : "품질관리팀", "empName" : "정우진", "caseCnt" : 25, "saleAmt" : 15200000 },
+        { "dept" : "품질관리팀", "empName" : "한지민", "caseCnt" : 30, "saleAmt" : 11750000 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (인쇄 설정 옵션 - 머리글 / 바닥글) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol1" value="부서"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol2" value="사원명"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="hcol3" value="실적건수"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="실적금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="empName" dataList="empName"></w2:column>';
+    strTarget += '<w2:column width="130" style="text-align:right;" inputType="text" dataType="number" id="caseCnt" dataList="caseCnt"></w2:column>';
+    strTarget += '<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="saleAmt" dataList="saleAmt"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · header 와 footer 는 Object 또는 String 을 받으므로 전달 방식을 par 로 고른다.
+//     - 문자열   : 고정 문구를 그대로 전달한다. 하위절대로 가운데 영역에 적용되어야 한다.
+//     - 필드코드 : 페이지 번호 코드가 든 문구를 전달한다. 하위절대로 코드로 해석되지 않아야 한다.
+//     - 객체     : left / center / right par 값 중 설정된 것만 담아 전달한다.
+//  · printSet 은 항상 설정하며 파라미터 자체는 _24 에서 다룬다.
+//  · fileName / extension / sheetName 은 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_print_hf", "extension" : "xlsx", "sheetName" : "mysheet" };
+    let printSet = {};
+    let arrDesc = [];
+
+    let fnBuild = function (sKey, objTypeComp, objLeft, objCenter, objRight, sText, sFieldCode) {
+        let sType = objTypeComp.getValue();
+        if (sType === "") {
+            return;
+        }
+
+        if (sType === "문자열") {
+            printSet[sKey] = sText;
+            arrDesc.push(sKey + "=문자열(" + sText + ")");
+            return;
+        }
+        if (sType === "필드코드") {
+            printSet[sKey] = sFieldCode;
+            arrDesc.push(sKey + "=필드코드(" + sFieldCode + ")");
+            return;
+        }
+
+        let objValue = {};
+        let arrPart = [];
+        let fnPart = function (sPart, objComp) {
+            let v = objComp.getValue();
+            if (v !== "") {
+                objValue[sPart] = v;
+                arrPart.push(sPart + "=" + v);
+            }
+        };
+        fnPart("left", objLeft);
+        fnPart("center", objCenter);
+        fnPart("right", objRight);
+
+        printSet[sKey] = objValue;
+        arrDesc.push(sKey + "=객체" + ((arrPart.length === 0) ? "(left / center / right 전체 생략)" : ("{" + arrPart.join(", ") + "}")));
+    };
+
+    fnBuild("header", par_header, par_headerLeft, par_headerCenter, par_headerRight, "머리글 문자열", "&P 페이지");
+    fnBuild("footer", par_footer, par_footerLeft, par_footerCenter, par_footerRight, "바닥글 문자열", "&P 페이지");
+
+    options.printSet = printSet;
+
+    return { "options" : options, "desc" : "printSet 설정" + ((arrDesc.length === 0) ? " (header / footer 전체 생략)" : (" {" + arrDesc.join(", ") + "}")) };
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    target1.advancedExcelDownload(objBuild.options);
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:280px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:280px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.header (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_header" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[문자열]]></xf:label>
+												<xf:value><![CDATA[문자열]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[필드코드]]></xf:label>
+												<xf:value><![CDATA[필드코드]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[객체]]></xf:label>
+												<xf:value><![CDATA[객체]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.footer (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footer" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[문자열]]></xf:label>
+												<xf:value><![CDATA[문자열]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[필드코드]]></xf:label>
+												<xf:value><![CDATA[필드코드]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[객체]]></xf:label>
+												<xf:value><![CDATA[객체]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.header.left (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_headerLeft" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[머리글 왼쪽]]></xf:label>
+												<xf:value><![CDATA[머리글 왼쪽]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.footer.left (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerLeft" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[바닥글 왼쪽]]></xf:label>
+												<xf:value><![CDATA[바닥글 왼쪽]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.header.center (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_headerCenter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[머리글 가운데]]></xf:label>
+												<xf:value><![CDATA[머리글 가운데]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.footer.center (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerCenter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[바닥글 가운데]]></xf:label>
+												<xf:value><![CDATA[바닥글 가운데]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.header.right (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_headerRight" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[머리글 오른쪽]]></xf:label>
+												<xf:value><![CDATA[머리글 오른쪽]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.printSet.footer.right (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_footerRight" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[바닥글 오른쪽]]></xf:label>
+												<xf:value><![CDATA[바닥글 오른쪽]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

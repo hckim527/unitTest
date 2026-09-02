@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260831" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _10 : dummy_colord (Row/Column 관련 옵션) 계열 중 Row 제외 및 데이터 전송/가공 옵션 - excludeHiddenRows / separator / escapeCellData / trim
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "excludeHiddenRows(선택) 파라미터로 setRowVisible() 메소드로 숨긴 Row 를 다운로드에서 제외할지 설정합니다.",
+        "excludeHiddenRows(선택) 파라미터를 true 로 설정 시 숨긴 Row 는 다운로드에서 제외합니다.",
+        "excludeHiddenRows(선택) 파라미터를 false 로 설정 시 숨긴 Row 를 포함하여 전체 Row 를 다운로드합니다.",
+        "단, mergeCell 파라미터값이 'true' 이면 excludeHiddenRows 파라미터는 항상 false 로 동작합니다.",
+        "excludeHiddenRows(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+        "separator(선택) 파라미터로 서버로 GridView 데이터 전송 시 Column 을 구분하는 구분자를 설정합니다.",
+        "escapeCellData 파라미터를 설정하면 separator 파라미터는 적용되지 않습니다.",
+        "separator(선택) 파라미터를 생략하면 기본값 ',' 이 적용됩니다.",
+        "escapeCellData(선택) 파라미터로 서버로 GridView 데이터 전송 시 구분자, 따옴표, 역슬래시 등이 분리되지 않도록 JSON 형식으로 직렬화할지 설정합니다.",
+        "escapeCellData(선택) 파라미터를 true 로 설정 시 서버로 GridView 데이터 전송 시 JSON 문자열로 직렬화합니다.",
+        "escapeCellData(선택) 파라미터를 false 로 설정 시 서버로 GridView 데이터 전송 시 separator 파라미터를 사용하여 데이터를 구분합니다.",
+        "escapeCellData(선택) 파라미터를 생략하면 기본값 false 가 적용됩니다.",
+        "trim(선택) 파라미터로 각 Cell 데이터의 좌우 공백 제거 여부를 설정합니다.",
+        "trim(선택) 파라미터를 'true' 로 설정 시 Cell 데이터 단위로 좌우 공백을 제거한 후 다운로드합니다.",
+        "trim(선택) 파라미터를 'false' 로 설정 시 Cell 데이터 단위로 좌우 공백을 제거하지 않고 다운로드합니다.",
+        "trim(선택) 파라미터를 생략하면 기본값 'false' 가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 특수문자 / 좌우 공백이 포함된 Cell 데이터를 갖는 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · Body Column 인덱스 0:구분 1:품목 2:보관경로 3:담당자 / Body Row 는 6행
+//    - 품목     : 콤마(기본 separator 와 충돌) 와 큰따옴표가 들어간 값
+//    - 보관경로 : 역슬래시가 들어간 값
+//    - 담당자   : 좌우에 공백이 있는 값 (trim 확인용)
+//  · 구분 Column 은 mergeCell 로 Row 0~2 / Row 3~5 를 병합한다.
+//    (excludeHiddenRows 의 하위 조건 - mergeCell 파라미터가 true 이면 항상 false 로 동작 - 확인용)
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Body Column 인덱스 0 구분 / 1 품목 / 2 보관경로 / 3 담당자, Body Row 는 6행\n- 구분 Column 은 사무기기(Row 0~2) / 전산소모품(Row 3~5) 으로 Cell 병합되어 있음\n- 품목 Column 에는 콤마가 들어간 값(모니터 27인치, 커브드 / 마우스, 무선)과 큰따옴표가 들어간 값(모니터암 "듀얼" / 헤드셋 "노이즈캔슬")이 있음\n- 보관경로 Column 값에는 역슬래시가 들어 있음\n- 담당자 Column 의 Row 0(홍길동) / Row 2(이관리) / Row 5(정운영) 값은 좌우에 공백이 있음\n- mergeCell 은 본 계열의 검증 대상이 아니며, excludeHiddenRows 의 하위 조건(mergeCell 이 true 이면 항상 false 로 동작) 확인용 보조 옵션임\n- 파일명 download_celldata, 확장자 xlsx 고정 전달(본 계열 검증 대상 아님)\n[절차]\n1. excludeHiddenRows 를 확인하려면 먼저 Row 숨기기 (setRowVisible) 버튼으로 Row 1, 4 를 숨긴다 (되돌리려면 Row 숨김 해제 버튼)\n2. par 옵션(excludeHiddenRows / separator / escapeCellData / trim / mergeCell) 값을 선택한다\n3. advancedExcelDownload 버튼을 클릭해 Excel 파일을 내려받는다\n[확인]\n- 결과창의 서버 전달 데이터(data) 는 실제로 서버에 전송된 GridView 데이터 원문임\n- separator : 서버 전달 데이터에서 Cell 과 Cell 사이의 구분자가 선택한 문자로 바뀌는지, 미설정이면 콤마인지\n- escapeCellData : true 면 서버 전달 데이터가 JSON 배열 문자열로 직렬화되어 값 안의 큰따옴표와 역슬래시가 이스케이프되는지, 이때 separator 를 함께 설정해도 구분자가 콤마 그대로인지(separator 미적용)\n- excludeHiddenRows : Row 1, 4 를 숨긴 뒤 true 면 서버 전달 데이터 Row 수가 4 로 줄고, false 또는 미설정이면 6 인지\n- excludeHiddenRows=true 와 mergeCell=true 를 함께 설정하면 Row 수가 6 으로 유지되는지\n- trim : 좌우 공백 제거는 서버에서 처리되므로 서버 전달 데이터에는 공백이 그대로 남음. 내려받은 Excel 파일의 담당자 Cell 을 선택해 값의 앞뒤 공백이 제거됐는지 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="category" name="category" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="item" name="item" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="path" name="path" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="manager" name="manager" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 큰따옴표 / 역슬래시는 이스케이프 시퀀스 없이 문자 코드로 생성한다.
+    let sQuote = String.fromCharCode(34);
+    let sBackslash = String.fromCharCode(92);
+
+    let jsonData = [
+        { "category" : "사무기기",   "item" : "모니터 27인치, 커브드",                    "path" : "D:" + sBackslash + "asset" + sBackslash + "monitor",   "manager" : "  홍길동  " },
+        { "category" : "사무기기",   "item" : "노트북 15인치",                            "path" : "D:" + sBackslash + "asset" + sBackslash + "note",      "manager" : "김담당" },
+        { "category" : "사무기기",   "item" : "모니터암 " + sQuote + "듀얼" + sQuote,     "path" : "D:" + sBackslash + "asset" + sBackslash + "arm",       "manager" : "  이관리  " },
+        { "category" : "전산소모품", "item" : "마우스, 무선",                             "path" : "E:" + sBackslash + "supply" + sBackslash + "mouse",    "manager" : "박비품" },
+        { "category" : "전산소모품", "item" : "키보드 기계식",                            "path" : "E:" + sBackslash + "supply" + sBackslash + "keyboard", "manager" : "최자산" },
+        { "category" : "전산소모품", "item" : "헤드셋 " + sQuote + "노이즈캔슬" + sQuote, "path" : "E:" + sBackslash + "supply" + sBackslash + "headset",  "manager" : " 정운영 " }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:820px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (Row 제외 / 데이터 전송 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="구분"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="hcol2" value="품목"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="hcol3" value="보관경로"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="담당자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="category" dataList="category"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="item" dataList="item"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="path" dataList="path"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="manager" dataList="manager"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 구분 Column Cell 병합 (mergeCell 옵션 확인용)
+    target1.mergeCell({ "rowIndex" : 0, "colIndex" : 0, "colSpan" : 1, "rowSpan" : 3 });
+    target1.mergeCell({ "rowIndex" : 3, "colIndex" : 0, "colSpan" : 1, "rowSpan" : 3 });
+}
+
+
+
+// setRowVisible() 로 Row 1, 4 를 숨긴다. (excludeHiddenRows 확인 전제 - JS 로만 설정 가능한 상태)
+scwin.btn_hideRow_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.setRowVisible(1, false);
+    target1.setRowVisible(4, false);
+
+    bottom.setReturnValue("숨긴 Row : 1, 4 (표시 Row 수 4 / 전체 Row 수 6)");
+}
+
+
+
+// 숨긴 Row 를 다시 표시한다.
+scwin.btn_showRow_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    target1.setRowVisible(1, true);
+    target1.setRowVisible(4, true);
+
+    bottom.setReturnValue("숨김 해제 Row : 1, 4 (표시 Row 수 6 / 전체 Row 수 6)");
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · excludeHiddenRows / escapeCellData 는 Boolean 타입 파라미터이므로 Boolean 으로 변환하여 전달한다.
+//  · mergeCell 은 본 계열의 검증 대상이 아니며 excludeHiddenRows 의 하위 조건 확인용 보조 옵션이다.
+//  · fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_celldata", "extension" : "xlsx" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_excludeHiddenRows.getValue(); if (v !== "") fnSet("excludeHiddenRows", (v === "true"));
+    v = par_separator.getValue();         if (v !== "") fnSet("separator", v);
+    v = par_escapeCellData.getValue();    if (v !== "") fnSet("escapeCellData", (v === "true"));
+    v = par_trim.getValue();              if (v !== "") fnSet("trim", v);
+    v = par_mergeCell.getValue();         if (v !== "") fnSet("mergeCell", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (excludeHiddenRows / separator / escapeCellData / trim / mergeCell 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 캡처한 요청 본문에서 배열 형태로 전달된 값(CDATA 원문)을 읽는다.
+scwin.getSentArray = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nStart = sRest.indexOf("<![CDATA[");
+    let nEnd = sRest.indexOf("]" + "]>");
+    if (nStart < 0 || nEnd < 0) return "(미확인)";
+
+    return sRest.substring(nStart + 9, nEnd);
+}
+
+
+
+// 서버로 전달된 데이터의 Row 수를 센다.
+//  · 보관경로 Column 값은 Row 당 정확히 1번만 콜론+역슬래시 조합을 포함하므로 그 개수가 곧 Row 수가 된다.
+scwin.getSentRowCount = function () {
+    let sData = scwin.getSentArray("data");
+    let sMark = ":" + String.fromCharCode(92);
+    let nCount = 0;
+    let nIdx = sData.indexOf(sMark);
+    while (nIdx >= 0) {
+        nCount++;
+        nIdx = sData.indexOf(sMark, nIdx + 1);
+    }
+    return nCount;
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값 : separator=" + scwin.getSentValue("separator") + " / escapeCellData=" + scwin.getSentValue("escapeCellData") + " / trim=" + scwin.getSentValue("trim") + " / mergeCell=" + scwin.getSentValue("mergeCell"));
+    bottom.setReturnValue("서버 전달 데이터 Row 수 : " + scwin.getSentRowCount() + " (전체 Row 수 6)");
+    bottom.setReturnValue("서버 전달 데이터(data) : " + scwin.getSentArray("data"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.excludeHiddenRows (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_excludeHiddenRows" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.separator (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_separator" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[,]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[|]]></xf:label>
+												<xf:value><![CDATA[|]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[;]]></xf:label>
+												<xf:value><![CDATA[;]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[^]]></xf:label>
+												<xf:value><![CDATA[^]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.escapeCellData (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_escapeCellData" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.trim (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_trim" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.mergeCell (보조)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_mergeCell" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_hideRow_onclick" id="btn_hideRow"
+							label="Row 숨기기 (setRowVisible)" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_showRow_onclick" id="btn_showRow"
+							label="Row 숨김 해제" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

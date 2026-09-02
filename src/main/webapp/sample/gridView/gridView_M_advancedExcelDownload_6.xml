@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView] advancedExcelDownload" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260828" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  ★ _6 : dummy_dndata (다운로드 데이터 관련 옵션) 계열 - type / convertIndex / decimal / indent
+//     description 은 분리 샘플 공통(_1 과 동일).
+scwin.tData = {
+    "description" : "[gridView > M > advancedExcelDownload]<br/>GridView 컴포넌트의 데이터를 Excel 파일로 다운로드합니다.",
+    "validation" : [
+        "type(선택) 파라미터로 Excel 로 다운로드 할 Column 의 데이터 종류를 설정합니다.",
+        "type(선택) 파라미터를 '0' 으로 설정 시 Column 의 원본 데이터를 다운로드합니다. (inputType='select','autoComplete','checkComboBox' 이면 Value 값을 다운로드)",
+        "type(선택) 파라미터를 '1' 로 설정 시 Column 에 표시된 값을 다운로드합니다.",
+        "type(선택) 파라미터를 '2' 로 설정 시 Column 의 표시된 값을 다운로드합니다. (inputType='select','autoComplete','checkComboBox' 이면 Value 값을 다운로드)",
+        "type(선택) 파라미터를 생략하면 기본값 '1' 이 적용됩니다.",
+        "convertIndex(선택) 파라미터로 type 파라미터값을 반대로 적용할 Column 의 인덱스를 콤마(,)로 구분하여 설정합니다.",
+        "convertIndex(선택) 파라미터는 type 파라미터값이 '0' 또는 '1' 인 경우에 동작하며, 설정한 Column 엔 type 파라미터값이 반대로 적용됩니다.",
+        "convertIndex(선택) 파라미터를 생략하면 기본값 undefined 로 동작합니다.",
+        "decimal(선택) 파라미터로 데이터의 소수점 자릿수 처리 방식을 설정합니다.",
+        "decimal(선택) 파라미터를 'auto' 로 설정 시 dataType='number','bigDecimal' 이면 displayFormat 속성을 적용하지 않고 엔진이 소수점 자릿수를 처리합니다.",
+        "decimal(선택) 파라미터를 생략하면 기본값 빈 문자열('')이 적용됩니다.",
+        "indent(선택) 파라미터로 inputType='drilldown' 인 Column 에 적용할 들여쓰기 공백 갯수를 설정합니다.",
+        "indent(선택) 파라미터를 생략하면 기본값 0 이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 : 원본값과 표시값이 서로 다른 Column 으로 구성한 GridView 를 동적 생성한다.
+//  · advancedExcelDownload 는 DataList 바인딩이 전제 조건이므로 dataList 속성을 반드시 설정한다.
+//  · Body Column 인덱스
+//     0 : 지역 (inputType="select") - 원본 Value(A/B/C) 와 표시 Label(서울/부산/대구) 가 다름
+//     1 : 금액 (dataType="number" + displayFormat="#,###") - 원본(1234567) 과 표시값(1,234,567) 이 다름
+//     2 : 조직 (inputType="drilldown") - indent 검증용 계층 Column
+//     3 : 비율 (dataType="number" + displayFormat="#,##0.0") - 소수점 자릿수 처리(decimal) 검증용
+//     4 : 등급 (inputType="autoComplete") - 원본 Value(G1,G2,G3) 와 표시 Label(우수/보통/미흡) 이 다름
+//     5 : 기술 (inputType="checkcombobox") - 다중 선택 Column, 원본 Value(S1~S3) 와 표시 Label(개발/디자인/기획) 이 다름
+//     6 : 비율2 (dataType="number" / displayFormat 미설정) - decimal='auto' 대조용 Column
+//        · 엔진은 Column 에 excelFormat 이 없고 decimal='auto' 인 number/bigDecimal Column 에 한해 값의 소수점 자릿수로 서식을 만든다.
+//        · 이 서식은 options.useDataFormat='true' 인 경우에만 Cell 에 적용되므로 useDataFormat 을 보조 옵션으로 함께 제공한다.
+scwin.comp_init = async function () {
+    // 기존 target / DataList 정리
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+
+    // 안내 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제]\n- Body Column 인덱스 0:지역(select / 원본 A,B,C -> 표시 서울,부산,대구) 1:금액(number displayFormat #,### / 원본 1234567 -> 표시 1,234,567) 2:조직(drilldown / depth 1~3 계층) 3:비율(number displayFormat #,##0.0 / 원본 12.3456 -> 표시 12.3) 4:등급(autoComplete / 원본 G1,G2,G3 -> 표시 우수,보통,미흡) 5:기술(checkComboBox 다중선택 / 원본 S1,S2,S3 -> 표시 개발,디자인,기획) 6:비율2(number / displayFormat 미설정 / 비율 Column 과 값이 동일)\n- 파일 확인 편의를 위해 파일명 download_dndata, 확장자 xlsx 를 항상 함께 전달함(본 계열 검증 대상 아님)\n- useDataFormat 은 decimal=auto 로 만들어진 서식이 Cell 에 적용되도록 하는 보조 옵션이며 본 계열 검증 대상 아님\n[절차]\n1. par 옵션(type / convertIndex / decimal / indent) 값을 선택한다\n1-1. decimal 을 확인할 때는 type 을 0 으로, 보조 옵션 useDataFormat 을 true 로 함께 선택한다\n2. advancedExcelDownload 버튼을 클릭한다\n[확인]\n- 결과창의 다운로드 Body 데이터 Row0~Row3 가 실제로 Excel 파일에 기록될 Cell 값임\n- type 과 convertIndex 는 이 Body 데이터에서 Column 별로 원본값과 표시값 중 무엇이 선택되었는지로 확인\n- 다운로드된 Excel 파일에서는 지역 / 등급 / 기술 Column(원본 Value 와 표시 Label 이 다름) 과 비율 Column 의 소수점 자릿수로 확인. 금액 Column 은 서버가 숫자 셀로 기록하므로 파일에서는 type 차이가 드러나지 않음\n- indent 는 서버에서 처리되는 옵션이므로 결과창의 서버 전달값을 확인한 뒤 다운로드된 Excel 파일의 조직 Column 값 앞 공백으로 확인\n- decimal 은 서버에서 처리되는 옵션이므로 결과창의 서버 전달값을 확인한 뒤 다운로드된 Excel 파일의 비율 / 비율2 Column 표시 형식으로 확인\n- decimal=auto 는 type 을 0 으로, useDataFormat 을 true 로 함께 설정한 경우에 값의 소수점 자릿수만큼 표시 형식이 지정됨(비율 / 비율2 Column 이 동일해짐)\n- type 을 생략하면 기본값 1 이 적용되어 Column 에 표시된 값이 전달되므로, displayFormat 이 설정된 비율 Column 은 이미 자릿수가 반영된 값이 다운로드됨"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList (계층 데이터 : 부모 바로 아래에 자식이 위치)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="area" name="area" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="org" name="org" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="rate" name="rate" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="rate2" name="rate2" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="skill" name="skill" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "area": "A", "amount": 1234567, "org": "영업본부", "rate": 12.3456, "rate2": 12.3456, "grade": "G1", "skill": "S1,S2", "depth": 1 },
+        { "area": "B", "amount": 234567,  "org": "영업1팀",  "rate": 7.891,   "rate2": 7.891,   "grade": "G2", "skill": "S2",    "depth": 2 },
+        { "area": "C", "amount": 34567,   "org": "김영업",   "rate": 3.5,     "rate2": 3.5,     "grade": "G3", "skill": "S1,S3", "depth": 3 },
+        { "area": "A", "amount": 4567890, "org": "개발본부", "rate": 45.6789, "rate2": 45.6789, "grade": "G1", "skill": "S3",    "depth": 1 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (DataList 바인딩)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:1000px;height:260px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="advancedExcelDownload (다운로드 데이터 옵션) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="지역"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol2" value="금액"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hcol3" value="조직"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol4" value="비율"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol5" value="등급"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol6" value="기술"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol7" value="비율2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    // index 0 : 지역 (select) - 원본 Value 와 표시 Label 이 다름
+    strTarget += '<w2:column width="120" style="" inputType="select" id="area" dataList="area">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>서울</w2:label><w2:value>A</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>부산</w2:label><w2:value>B</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>대구</w2:label><w2:value>C</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    // index 1 : 금액 (number + displayFormat) - 원본 1234567 -> 표시 1,234,567
+    strTarget += '<w2:column width="140" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    // index 2 : 조직 (drilldown) - indent 검증 대상 Column (showDepth 를 크게 주어 전체 펼침)
+    strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="9" depthStartIndex="1" id="org" dataList="org"></w2:column>';
+    // index 3 : 비율 (number + displayFormat) - decimal 검증 대상 Column
+    strTarget += '<w2:column width="120" style="" inputType="text" dataType="number" displayFormat="#,##0.0" id="rate" dataList="rate"></w2:column>';
+    // index 4 : 등급 (autoComplete) - 원본 Value(G1~G3) 와 표시 Label(우수/보통/미흡) 이 다름
+    strTarget += '<w2:column width="120" style="" inputType="autoComplete" id="grade" dataList="grade">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>우수</w2:label><w2:value>G1</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>보통</w2:label><w2:value>G2</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>미흡</w2:label><w2:value>G3</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    // index 5 : 기술 (checkComboBox) - 다중 선택 Column, 원본 Value(S1~S3) 와 표시 Label(개발/디자인/기획) 이 다름
+    strTarget += '<w2:column width="160" style="" inputType="checkcombobox" id="skill" dataList="skill">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>개발</w2:label><w2:value>S1</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>디자인</w2:label><w2:value>S2</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>기획</w2:label><w2:value>S3</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    // index 6 : 비율2 (number + displayFormat 미설정) - decimal='auto' 가 자릿수를 처리하는지 확인하는 대조 Column
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" id="rate2" dataList="rate2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// par 옵션값으로 advancedExcelDownload options 객체를 구성한다.
+//  · 선택(필수여부 N) 파라미터는 미설정(빈값) 이면 객체에 담지 않아 생략되도록 한다.
+//  · 엔진이 호출 중 options 객체에 내부 키(cellInfo, scope, isBasicCol 등)를 덧붙이므로 전달값 문자열은 호출 전에 미리 만들어 둔다.
+//  · fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값이며 본 계열의 검증 대상이 아니다.
+scwin.buildOptions = function () {
+    let options = { "fileName" : "download_dndata", "extension" : "xlsx" };
+    let arrDesc = [];
+
+    let fnSet = function (sKey, vValue) {
+        options[sKey] = vValue;
+        arrDesc.push(sKey + "=" + vValue);
+    };
+
+    let v;
+    v = par_type.getValue();         if (v !== "") fnSet("type", v);
+    v = par_convertIndex.getValue(); if (v !== "") fnSet("convertIndex", v);
+    v = par_decimal.getValue();      if (v !== "") fnSet("decimal", v);
+    v = par_indent.getValue();       if (v !== "") fnSet("indent", parseInt(v, 10));
+    v = par_useDataFormat.getValue();if (v !== "") fnSet("useDataFormat", v);
+
+    return { "options" : options, "desc" : ((arrDesc.length === 0) ? "{} (type / convertIndex / decimal / indent / useDataFormat 전체 생략)" : arrDesc.join(" / ")) };
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 서버로 전달된 옵션값을 읽는다. (전달되지 않은 옵션은 미전달로 표시)
+scwin.getSentValue = function (sKey) {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 캡처한 요청 본문에서 Excel 에 기록될 Body Cell 데이터 배열을 읽는다.
+//  · 전송 형식 : hashkey='data' 항목의 array CDATA 안에 ["v1","v2", ... ] 형태로 담긴다.
+scwin.getSentCellData = function () {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='data'");
+    if (nKey < 0) return [];
+
+    let sRest = sBody.substring(nKey);
+    let nStart = sRest.indexOf("[[");
+    let nEnd = sRest.indexOf("]]" + "]" + ">");
+    if (nStart < 0 || nEnd < 0) return [];
+
+    let sData = sRest.substring(nStart + 2, nEnd);
+    if (sData.length < 2) return [];
+
+    return sData.substring(1, sData.length - 1).split('","');
+}
+
+
+
+// advancedExcelDownload 실행
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let objBuild = scwin.buildOptions();
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(objBuild.options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    bottom.setReturnValue("전달 옵션 : " + objBuild.desc);
+    bottom.setReturnValue("서버 전달값 : decimal=" + scwin.getSentValue("decimal") + " / indent=" + scwin.getSentValue("indent") + " / depthColumnInfo=" + scwin.getSentValue("depthColumnInfo"));
+
+    // 전송 Cell 배열은 Body Column 순서대로 Row 단위로 이어져 있으므로 실제 Column 수(7) 만큼 끊어 Row 별로 출력한다.
+    let arrColNm = ["지역", "금액", "조직", "비율", "등급", "기술", "비율2"];
+    let nCol = arrColNm.length;
+    let arrCell = scwin.getSentCellData();
+    for (let i = 0; (i + 1) * nCol <= arrCell.length; i++) {
+        let arrRow = [];
+        for (let j = 0; j < nCol; j++) {
+            arrRow.push(arrColNm[j] + "=" + arrCell[i * nCol + j]);
+        }
+        bottom.setReturnValue("다운로드 Body 데이터 Row" + i + " : " + arrRow.join(" / "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.type (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0 (원본 데이터)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (표시된 값)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 (표시된 값 / select 는 Value)]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.convertIndex (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_convertIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0 (지역 Column)]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 (금액 Column)]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0,1 (지역 + 금액 Column)]]></xf:label>
+												<xf:value><![CDATA[0,1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.decimal (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_decimal" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[auto]]></xf:label>
+												<xf:value><![CDATA[auto]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.indent (선택)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_indent" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10]]></xf:label>
+												<xf:value><![CDATA[10]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useDataFormat (보조)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useDataFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
