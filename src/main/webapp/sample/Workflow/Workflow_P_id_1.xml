@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[Workflow] id" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260903" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection>
+				<w2:workflow id="wf_id_a" description="유일값 ID 확인용 Workflow A">
+					<w2:step type="function" action="scwin.wf_step_run"></w2:step>
+				</w2:workflow>
+				<w2:workflow id="wf_id_b" description="유일값 ID 확인용 Workflow B">
+					<w2:step type="function" action="scwin.wf_step_run"></w2:step>
+				</w2:workflow>
+				<w2:workflow id="style" description="예약어 ID 확인용 Workflow">
+					<w2:step type="function" action="scwin.wf_step_run"></w2:step>
+				</w2:workflow>
+			</w2:workflowCollection>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[Workflow > P > id]<br/>Workflow 모듈의 ID 를 설정합니다.",
+    "validation" : [
+        "동일 Scope 에서 Workflow 모듈을 구별할 수 있는 유일값을 설정할 수 있어야 합니다.",
+        "속성명이나 메소드명과 같은 예약어를 설정할 경우 오류가 발생할 수 있습니다."
+    ]
+}
+
+// 예약어 ID 로 인한 오류 발생 여부 실측용 카운터 (페이지 로드 전 구간부터 수집)
+scwin.gVar = { "errCount" : 0, "lastRunId" : "" };
+window.addEventListener("error", function () {
+    scwin.gVar.errCount = scwin.gVar.errCount + 1;
+});
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// workflow 의 function step - 실제로 실행된 Workflow 객체의 id 를 기록
+scwin.wf_step_run = function (rtnVal, workflowObj) {
+    scwin.gVar.lastRunId = workflowObj ? workflowObj.id : "";
+};
+
+
+
+// (1) 서로 다른 id 로 선언한 Workflow 가 id 로 구별되어 각각 실행되는지 확인
+scwin.btn_checkUniqueId_onclick = async function () {
+    scwin.gVar.lastRunId = "";
+    await $p.executeWorkflow("wf_id_a");
+    var ranA = scwin.gVar.lastRunId;
+
+    scwin.gVar.lastRunId = "";
+    await $p.executeWorkflow("wf_id_b");
+    var ranB = scwin.gVar.lastRunId;
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[유일값 ID] wf_id_a 실행 시 동작한 Workflow 의 id : " + ranA + " / wf_id_b 실행 시 동작한 Workflow 의 id : " + ranB);
+};
+
+// (2) 예약어(style) 를 id 로 설정한 Workflow 의 오류 발생 여부 확인
+scwin.btn_checkReservedId_onclick = function () {
+    var wfReserved = $p.getWorkflow("style");
+    var reservedId = wfReserved ? wfReserved.id : "null";
+
+    wf_body_bottom.getObj("scwin").setReturnValue("[예약어 ID] getWorkflow(style) 반환 객체의 id : " + reservedId + " / 페이지 로드 이후 수집된 오류 건수 : " + scwin.gVar.errCount);
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="동작 흐름" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_1" escape="false"
+							label="1. xf:model 의 workflowCollection 에 id 가 서로 다른 Workflow 3개를 정의 : wf_id_a, wf_id_b, style (예약어). Workflow 는 화면에 렌더링되지 않는 모델 레벨 모듈이라 id 는 정적으로만 설정 가능"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_2" escape="false"
+							label="2. 유일값 ID 확인 버튼 : $p.executeWorkflow 에 wf_id_a / wf_id_b 를 각각 전달하여 실행 → 각 Workflow 의 function step 이 전달받은 Workflow 객체의 id 를 출력. 두 값이 서로 다르면 id 로 구별되어 접근된 것"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_3" escape="false"
+							label="3. 예약어 ID 확인 버튼 : id 를 예약어 style 로 설정한 Workflow 를 $p.getWorkflow 로 조회한 결과와, 페이지 로드 이후 window error 로 수집된 오류 건수를 출력"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_4" escape="false"
+							label="4. 페이지 Scope 가 적용되면 조회/실행 시 얻는 Workflow 객체의 id 에 Scope 접두사가 붙어 선언값과 다르게 표시될 수 있음"></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkUniqueId_onclick" id="btn_checkUniqueId"
+							label="유일값 ID 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkReservedId_onclick" id="btn_checkReservedId"
+							label="예약어 ID 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

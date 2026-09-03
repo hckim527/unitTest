@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[Workflow] resolveCallback" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260903" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection>
+				<w2:workflow id="wf_ok" resolveCallback="scwin.wf_resolveCallback" description="정상 완료되는 Workflow">
+					<w2:step type="submit" action="sbm_exam1"></w2:step>
+					<w2:step type="submitDone" action="sbm_exam1"></w2:step>
+					<w2:step type="function" action="scwin.wf_step_function"></w2:step>
+				</w2:workflow>
+				<w2:workflow id="wf_nocb" description="resolveCallback 미설정 Workflow">
+					<w2:step type="submit" action="sbm_exam1"></w2:step>
+					<w2:step type="submitDone" action="sbm_exam1"></w2:step>
+					<w2:step type="function" action="scwin.wf_step_function"></w2:step>
+				</w2:workflow>
+				<w2:workflow id="wf_reject" resolveCallback="scwin.wf_resolveCallback" description="중도 거부되는 Workflow">
+					<w2:step type="submit" action="sbm_exam1"></w2:step>
+					<w2:step type="submitDone" action="sbm_exam1"></w2:step>
+					<w2:step type="function" action="scwin.wf_step_reject"></w2:step>
+					<w2:step type="function" action="scwin.wf_step_after"></w2:step>
+				</w2:workflow>
+			</w2:workflowCollection>
+			<xf:submission id="sbm_exam1" action="/sample/common_link/p_executeWorkflow_echo.json" method="post" mediatype="application/json" ref=""
+				target="" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+				processMsg="" ev:submit="" ev:submitdone="" ev:submiterror="" abortTrigger="">
+			</xf:submission>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[Workflow > P > resolveCallback]<br/>Workflow 모듈의 모든 작업이 정상적으로 완료된 다음 실행할 콜백 함수를 설정합니다.",
+    "validation" : [
+        "Workflow 모듈이 정상적으로 완료되었을 때 실행할 콜백 함수를 설정할 수 있어야 합니다.",
+        "콜백 함수에는 Workflow 객체가 파라미터로 전달되어야 합니다.",
+        "Workflow 의 모든 작업이 중도 거부나 예외 없이 이행된 경우에만 콜백 함수가 1 회 실행되어야 합니다."
+    ]
+}
+
+scwin.gVar = {
+    "count" : {},
+    "param" : {},
+    "stepAfter" : 0
+};
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 페이지 scope 적용으로 Workflow 객체의 id 에는 prefix 가 붙으므로 짧은 ID 로 변환
+scwin.getShortId = function (fullId) {
+    var s = String(fullId);
+    if (s.indexOf("wf_nocb") > -1) return "wf_nocb";
+    if (s.indexOf("wf_reject") > -1) return "wf_reject";
+    return "wf_ok";
+};
+
+// 집계 초기화
+scwin.resetCount = function () {
+    scwin.gVar.count = {};
+    scwin.gVar.param = {};
+    scwin.gVar.stepAfter = 0;
+};
+
+
+
+// wf_ok / wf_nocb 의 마지막 function step
+scwin.wf_step_function = function (prevResult, wObj) {
+};
+
+// wf_reject 의 function step - 진행 중인 Workflow 를 중도 거부
+scwin.wf_step_reject = function (prevResult, wObj) {
+    wObj.reject("중도 거부");
+};
+
+// wf_reject 의 마지막 function step - 중도 거부되었으므로 실행되지 않아야 함
+scwin.wf_step_after = function (prevResult, wObj) {
+    scwin.gVar.stepAfter++;
+};
+
+// 검증 대상 - resolveCallback 으로 설정한 콜백 함수
+scwin.wf_resolveCallback = function (wObj) {
+    var key = scwin.getShortId(wObj && wObj.id);
+    scwin.gVar.count[key] = (scwin.gVar.count[key] || 0) + 1;
+    scwin.gVar.param[key] = {
+        "type" : (typeof wObj),
+        "id" : (wObj && wObj.id) ? wObj.id : "-"
+    };
+};
+
+
+
+// (1) resolveCallback 설정 Workflow 와 미설정 Workflow 를 각각 실행하여 콜백 설정 여부 확인
+scwin.btn_executeResolve_onclick = async function () {
+    scwin.resetCount();
+    await $p.executeWorkflow("wf_ok");
+    await $p.executeWorkflow("wf_nocb");
+    await new Promise(function (r) { setTimeout(r, 500); });
+    wf_body_bottom.getObj("scwin").setReturnValue("[콜백 설정] wf_ok(resolveCallback 설정) 콜백 실행 횟수 : " + (scwin.gVar.count["wf_ok"] || 0) + " / wf_nocb(resolveCallback 미설정) : " + (scwin.gVar.count["wf_nocb"] || 0));
+};
+
+// (2) 콜백 함수가 전달받은 파라미터 확인
+scwin.btn_checkParam_onclick = async function () {
+    scwin.resetCount();
+    await $p.executeWorkflow("wf_ok");
+    await new Promise(function (r) { setTimeout(r, 500); });
+    var p = scwin.gVar.param["wf_ok"] || { "type" : "-", "id" : "-" };
+    wf_body_bottom.getObj("scwin").setReturnValue("[전달 파라미터] 콜백 파라미터 타입 : " + p.type + " / 파라미터의 id : " + p.id + " / 실행한 Workflow 의 id : " + $p.getWorkflow("wf_ok").id);
+};
+
+// (3) 정상 완료 Workflow 와 중도 거부 Workflow 의 콜백 실행 횟수 확인
+scwin.btn_checkCallCount_onclick = async function () {
+    scwin.resetCount();
+    await $p.executeWorkflow("wf_ok");
+    await $p.executeWorkflow("wf_reject");
+    await new Promise(function (r) { setTimeout(r, 1000); });
+    wf_body_bottom.getObj("scwin").setReturnValue("[호출 횟수] 정상 완료 wf_ok : " + (scwin.gVar.count["wf_ok"] || 0) + " 회 / 중도 거부 wf_reject : " + (scwin.gVar.count["wf_reject"] || 0) + " 회");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:textbox style="width:100%;" id="" label="테스트 구성" class="tc_tbx_label_2" escape="false"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_1" escape="false"
+							label="[전제] xf:model 의 workflowCollection 에 Workflow 3 개를 선언 - wf_ok 는 resolveCallback 설정 후 정상 완료, wf_nocb 는 resolveCallback 미설정, wf_reject 는 resolveCallback 을 설정했으나 마지막 직전 function step 에서 진행 중인 Workflow 를 중도 거부"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_2" escape="false"
+							label="[절차 1] 콜백 설정 확인 - wf_ok 와 wf_nocb 를 차례로 실행하여 설정한 콜백 함수의 실행 횟수를 대비"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_3" escape="false"
+							label="[절차 2] 전달 파라미터 확인 - wf_ok 를 실행하여 콜백 함수가 받은 파라미터의 타입과 id 를 실행한 Workflow 의 id 와 대비"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_4" escape="false"
+							label="[절차 3] 호출 횟수 확인 - wf_ok(정상 완료) 와 wf_reject(중도 거부) 를 차례로 실행하여 각각의 콜백 실행 횟수를 대비"></w2:textbox>
+						<w2:textbox style="width:100%; padding:5px; line-height:1.6;" id="lbl_flow_5" escape="false"
+							label="[확인] 각 step 의 submit 은 /sample/common_link/p_executeWorkflow_echo.json 더미 파일을 호출하므로 실행 완료까지 잠시 대기 후 결과가 출력됩니다."></w2:textbox>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_executeResolve_onclick" id="btn_executeResolve"
+							label="콜백 설정 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkParam_onclick" id="btn_checkParam"
+							label="전달 파라미터 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCallCount_onclick" id="btn_checkCallCount"
+							label="호출 횟수 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
