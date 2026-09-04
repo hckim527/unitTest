@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[subTotal] width" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260904" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[subTotal > P > width]<br/>GridView SubTotal 영역의 너비를 설정합니다.",
+    "validation" : [
+        "GridView SubTotal 영역의 너비를 설정합니다.",
+        "속성값은 참고용으로 사용되며 GridView 렌더링 시 SubTotal 영역의 너비는 SubTotal Column 으로 결정됩니다.",
+        "SubTotal 영역과 SubTotal Column 영역은 별도로 정의됩니다.",
+        "GridView SubTotal 영역은 별도의 컴포넌트 객체가 생성되지 않는 구조 엘리먼트이므로 스크립트에서 컴포넌트로 조회할 수 없으며, width 값을 조회하거나 변경할 대상 객체 자체가 존재하지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_width.setValue("300px");
+    con_columnWidth.setValue("140");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - width 는 subTotal(SubTotal 영역) 단위 속성이며 dynamic N 이므로 렌더 시점에만 설정한다.
+//  - SubTotal Column 영역은 sub_col1 ~ sub_col4 로 별도 정의하고 그 width 도 옵션으로 변경한다.
+//  - Header Column 은 140 고정으로 두어 SubTotal Column width 변경의 영향만 확인한다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cWidth = con_width.getValue();
+    let cColWidth = con_columnWidth.getValue();
+    let lblWidth = (cWidth === '') ? '미설정' : cWidth;
+    let attrWidth = (cWidth === '') ? '' : ' width="' + cWidth + '"';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 하위에 w2:subTotal 을 선언하고 SubTotal 영역에 width 속성을 설정 (SubTotal Column 영역은 sub_col1 ~ sub_col4 로 별도 선언, 기준 Column 은 부서(dept))\n[고정] Header Column width = 140 (4 개 컬럼 동일) / rowNumVisible=true, rowStatusVisible=true 이므로 소계 Row 의 첫번째 Cell=RowNum, 두번째 Cell=RowStatus, 세번째 Cell 부터 SubTotal Column\n[현재] subTotal width = ' + lblWidth + ' / SubTotal Column width = ' + cColWidth + ' (4 개 컬럼 동일)\n[절차] 옵션 변경 후 Target 재생성 -> (너비 확인) / (SubTotal 컴포넌트 조회) 버튼 실행\n[확인] 선언한 subTotal width, 렌더된 SubTotal 영역의 실제 너비, SubTotal Column 폭 합 3 가지를 대비하고 SubTotal Column width 만 바꿔 재생성했을 때 실제 너비가 따라 변하는지 결과창에서 확인"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - SubTotal Row 는 기준 Column 값이 바뀌는 지점에 삽입되며 자동 정렬되지 않으므로 같은 값을 연속 배치한다.
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John", "region": "East", "dept": "Sales", "amount": 100 },
+        { "name": "Jane", "region": "East", "dept": "Sales", "amount": 200 },
+        { "name": "Mike", "region": "East", "dept": "Dev",   "amount": 300 },
+        { "name": "Amy",  "region": "East", "dept": "Dev",   "amount": 400 },
+        { "name": "Tom",  "region": "West", "dept": "QA",    "amount": 500 },
+        { "name": "Kim",  "region": "West", "dept": "QA",    "amount": 600 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (subTotal 에 width 설정)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" rowNumVisible="true" rowStatusVisible="true" id="" style="width:760px;height:700px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="subTotal width 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol2" value="지역"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol3" value="부서"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="hcol4" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept"' + attrWidth + '>';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="' + cColWidth + '" style="" inputType="text" id="sub_col1" value="부서 소계"></w2:column>';
+    strTarget += '<w2:column width="' + cColWidth + '" style="" inputType="text" id="sub_col2" value=""></w2:column>';
+    strTarget += '<w2:column width="' + cColWidth + '" style="" inputType="text" id="sub_col3" value=""></w2:column>';
+    strTarget += '<w2:column width="' + cColWidth + '" style="" inputType="expression" dataType="number" displayFormat="#,###" id="sub_col4" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 렌더된 SubTotal 영역(소계 Row) 요소 조회
+//  - SubTotal Row 의 본문 첫 Cell 은 "{gridId}_subtotal__column0" 클래스를 갖는다.
+//  - 데이터 Row 사이에 display:none 예비 Row 가 미리 깔려 있으므로 실제 표시되는 Row 만 수집한다.
+scwin.getSubtotalArea = function () {
+    if (typeof target1 === 'undefined' || !target1.render) {
+        return null;
+    }
+
+    let cells = target1.render.querySelectorAll("td[class*='_subtotal__column0']");
+    for (let i = 0; i < cells.length; i++) {
+        let tr = cells[i].parentNode;
+        if (!tr) continue;
+        if (tr.getAttribute("data-subtotalrowindex") === null) continue;
+        if (window.getComputedStyle(tr).display === 'none') continue;
+        return tr;
+    }
+    return null;
+}
+
+
+
+// 렌더된 Header 영역 요소 조회 (SubTotal 영역 너비의 실제 결정 주체 대비용)
+scwin.getHeaderArea = function () {
+    if (typeof target1 === 'undefined' || !target1.render) {
+        return null;
+    }
+    return target1.render.querySelector("[id$='_head_table']");
+}
+
+
+
+// 실제 렌더 너비 실측 (style.width 는 내부 계산값이라 사용하지 않음)
+scwin.getRealWidth = function (el) {
+    return el ? Math.round(el.getBoundingClientRect().width) : -1;
+}
+
+
+
+// subTotal 에 설정한 width 의 실제 반영 여부 확인
+scwin.btn_checkWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let cWidth = con_width.getValue();
+    let cColWidth = con_columnWidth.getValue();
+    let subArea = scwin.getSubtotalArea();
+    let allCells = subArea ? subArea.querySelectorAll("td") : [];
+
+    // tds[0]=RowNum, tds[1]=RowStatus, tds[2..]=SubTotal Column 영역
+    let cellWidths = [];
+    let cellSum = 0;
+    for (let i = 0; i < allCells.length; i++) {
+        let w = scwin.getRealWidth(allCells[i]);
+        cellWidths.push(w);
+        cellSum += w;
+    }
+
+    let subColWidths = cellWidths.slice(2);
+    let declaredColWidth = parseInt(cColWidth, 10);
+    let colMatch = subColWidths.length > 0 && subColWidths.every(function (v) { return Math.abs(v - declaredColWidth) <= 2; });
+
+    let realWidth = scwin.getRealWidth(subArea);
+    let attrOnRender = subArea ? subArea.getAttribute("width") : null;
+    let dataAttrOnRender = subArea ? subArea.getAttribute("data-width") : null;
+    let declaredWidth = (cWidth === '') ? -1 : parseInt(cWidth, 10);
+    let diff = Math.abs(cellSum - realWidth);
+
+    let headArea = scwin.getHeaderArea();
+    let headCells = headArea ? headArea.querySelectorAll("tr > th") : [];
+    let headWidths = [];
+    let headSum = 0;
+    for (let i = 0; i < headCells.length; i++) {
+        let w = scwin.getRealWidth(headCells[i]);
+        headWidths.push(w);
+        headSum += w;
+    }
+
+    bottom.setReturnValue("[선언] subTotal 에 설정한 width : " + (cWidth === '' ? '(미설정)' : cWidth) + " / 렌더된 SubTotal 영역 요소에 남은 width 속성 : " + (attrOnRender === null ? '(없음)' : attrOnRender) + " / data-width 속성 : " + (dataAttrOnRender === null ? '(없음)' : dataAttrOnRender));
+    bottom.setReturnValue("[렌더] SubTotal 영역의 실제 너비 : " + realWidth + "px / 선언한 width 로 결정되었는지 : " + (cWidth === '' ? '(미설정이라 대비 없음)' : (declaredWidth === realWidth)));
+    bottom.setReturnValue("[합계] SubTotal 영역 Cell 폭 합 : " + cellSum + "px (" + cellWidths.join(" + ") + ") / SubTotal 영역 너비와의 차이 : " + diff + "px (테이블 테두리)");
+    bottom.setReturnValue("[컬럼] SubTotal Column 에 설정한 width : " + cColWidth + " / 렌더된 SubTotal Column 폭 : " + subColWidths.join(" + ") + " / SubTotal Column 설정값으로 결정되었는지 : " + colMatch);
+    bottom.setReturnValue("[대비] Header Column 폭 (RowNum/RowStatus 포함) : " + headWidths.join(" + ") + " = " + headSum + "px / SubTotal 영역 Cell 폭 합과 일치 여부 : " + (Math.abs(headSum - cellSum) <= 2));
+    bottom.setReturnValue("[영역] SubTotal 영역 요소 : " + (subArea ? (subArea.nodeName + " data-subtotal=" + subArea.getAttribute("data-subtotal")) : '-') + " / SubTotal Column 영역 요소 : " + (allCells.length > 2 ? allCells[2].className : '-'));
+}
+
+
+
+// id 로 조회된 결과가 WebSquare 컴포넌트인지 판별
+scwin.isComponent = function (obj) {
+    return !!(obj && typeof obj.getPluginName === 'function');
+}
+
+
+
+// 선언한 id / 렌더된 id 로 SubTotal 영역 컴포넌트 조회 시도
+scwin.lookupComponent = function (id) {
+    if (!id) {
+        return '(id 없음)';
+    }
+
+    let obj = WebSquare.util.getComponentById(id);
+
+    if (!obj) {
+        obj = WebSquare.util.getComponentById("mf_" + id);
+    }
+
+    if (!obj) {
+        return 'undefined (조회 결과 없음)';
+    }
+
+    if (scwin.isComponent(obj)) {
+        return 'WebSquare 컴포넌트 (' + obj.getPluginName() + ')';
+    }
+
+    if (obj.nodeType === 1) {
+        return obj.nodeName + ' DOM 엘리먼트 (컴포넌트 객체 아님)';
+    }
+
+    if (typeof obj.length === 'number' && obj[0] && obj[0].nodeType === 1) {
+        return '같은 id 의 ' + obj[0].nodeName + ' DOM 엘리먼트 ' + obj.length + ' 개 목록 (컴포넌트 객체 아님)';
+    }
+
+    return String(obj) + ' (컴포넌트 객체 아님)';
+}
+
+
+
+// SubTotal 영역이 컴포넌트 객체로 조회되는지, width 조회/변경 대상 객체가 존재하는지 확인
+scwin.btn_checkSubtotalObject_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let subArea = scwin.getSubtotalArea();
+    let renderedId = subArea ? subArea.id : '';
+
+    let candidates = [
+        WebSquare.util.getComponentById("subTotal1"),
+        WebSquare.util.getComponentById("mf_subTotal1"),
+        renderedId ? WebSquare.util.getComponentById(renderedId) : null
+    ];
+
+    let subComp = null;
+    for (let i = 0; i < candidates.length; i++) {
+        if (scwin.isComponent(candidates[i])) {
+            subComp = candidates[i];
+            break;
+        }
+    }
+
+    bottom.setReturnValue("[조회] 선언한 subTotal id (subTotal1) 로 컴포넌트 조회 : " + scwin.lookupComponent("subTotal1"));
+    bottom.setReturnValue("[조회] 렌더된 SubTotal 영역 id (" + (renderedId === '' ? '(id 없음)' : renderedId) + ") 로 컴포넌트 조회 : " + scwin.lookupComponent(renderedId));
+    bottom.setReturnValue("[대상] width 를 조회/변경할 SubTotal 컴포넌트 객체 존재 여부 : " + (subComp !== null));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="width" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_width" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>300px</xf:label>
+												<xf:value>300px</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1200px</xf:label>
+												<xf:value>1200px</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="SubTotal Column width" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_columnWidth" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>80</xf:label>
+												<xf:value>80</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>140</xf:label>
+												<xf:value>140</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>200</xf:label>
+												<xf:value>200</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkWidth_onclick" id="btn_checkWidth"
+							label="너비 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSubtotalObject_onclick" id="btn_checkSubtotalObject"
+							label="SubTotal 컴포넌트 조회" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

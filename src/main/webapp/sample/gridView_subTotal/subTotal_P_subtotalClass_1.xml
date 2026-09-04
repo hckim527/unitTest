@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[subTotal] subtotalClass" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260904" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[subTotal > P > subtotalClass]<br/>GridView SubTotal 의 각 Cell(td) 영역에 적용할 클래스의 이름을 설정합니다.",
+    "validation" : [
+        "subtotalClass 속성 설정 시 columnClass 속성은 무시됩니다.",
+        "CSS 파일이나 style 블럭에 정의된 클래스 이름을 설정합니다.",
+        "하나의 클래스 이름을 설정할 수 있으며 공백으로 두 개 이상의 클래스를 설정할 수 없습니다.",
+        "속성값은 SubTotal Cell(td) 영역의 class 속성에 추가되는 것이 아니라 기존값을 치환합니다.",
+        "속성값을 설정하지 않으면 기본 클래스인 'gridSubtotalDefault' 가 설정됩니다.",
+        "SubTotal 이 여러개 정의되어 있을때 subtotalClass 속성을 한군데라도 설정하면 전체 SubTotal 의 columnClass 속성은 미설정으로 처리됩니다.",
+        "columnClass 속성과는 다르게 정의된 SubTotal 별로 다른 클래스를 설정할 수 있습니다.",
+        "subtotalClass 속성이 적용되면 파생 클래스 이름이 자동으로 생성됩니다.",
+        "일반 SubTotal Cell 에는 '{subtotalClass} {subtotalClass}_data' 등의 클래스가 설정됩니다.",
+        "RowNum Column 의 SubTotal Cell 에는 '{subtotalClass} {subtotalClass}_rowNumber' 등의 클래스가 설정됩니다.",
+        "RowStatus Column 의 SubTotal Cell 에는 '{subtotalClass} {subtotalClass}_rowStatus' 등의 클래스가 설정됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_subtotalClass1.setValue("tcSubAClass");
+    con_subtotalClass2.setValue("tcSubBClass");
+    con_columnClass.setValue("tcColClass");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - SubTotal 을 2개 정의한다. (subTotal1 : dept 기준 / subTotal2 : region 기준)
+//  - subtotalClass 는 dynamic N 이므로 렌더 시점에만 설정 -> 옵션 변경 후 "Target 재생성" 으로 반영
+//  - columnClass 는 무시되는지 확인하기 위한 전제 옵션으로 마지막 subTotal2 에 설정한다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cSubtotalClass1 = con_subtotalClass1.getValue();
+    let cSubtotalClass2 = con_subtotalClass2.getValue();
+    let cColumnClass = con_columnClass.getValue();
+    let lblSubtotalClass1 = (cSubtotalClass1 === '') ? '미설정' : cSubtotalClass1;
+    let lblSubtotalClass2 = (cSubtotalClass2 === '') ? '미설정' : cSubtotalClass2;
+    let lblColumnClass = (cColumnClass === '') ? '미설정' : cColumnClass;
+    let attrSubtotalClass1 = (cSubtotalClass1 === '') ? '' : ' subtotalClass="' + cSubtotalClass1 + '"';
+    let attrSubtotalClass2 = (cSubtotalClass2 === '') ? '' : ' subtotalClass="' + cSubtotalClass2 + '"';
+    let attrColumnClass = (cColumnClass === '') ? '' : ' columnClass="' + cColumnClass + '"';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 하위에 w2:subTotal 을 2개 선언 (subTotal1 = dept 기준 / subTotal2 = region 기준). rowNumVisible=true, rowStatusVisible=true 로 RowNum/RowStatus Column 표시 (소계 Row 의 첫번째 Cell=RowNum, 두번째 Cell=RowStatus, 세번째 Cell부터 일반)\n[현재] subTotal1 의 subtotalClass = ' + lblSubtotalClass1 + ' / subTotal2 의 subtotalClass = ' + lblSubtotalClass2 + ' / 마지막 subTotal2 의 columnClass = ' + lblColumnClass + '\n[CSS] tcSubAClass = 연노랑 배경, tcSubAClass_data = 굵은 글씨 + 빨강 테두리, tcSubAClass_rowNumber = 파랑 배경, tcSubAClass_rowStatus = 초록 배경 / tcSubBClass = 연하늘 배경, tcSubBClass_data = 굵은 글씨 + 남색 테두리, tcSubBClass_rowNumber = 분홍 배경, tcSubBClass_rowStatus = 연두 배경 / tcEtcClass = 기울임꼴 / tcColClass = 주황 배경 (columnClass 전제)\n[절차] 옵션 변경 후 Target 재생성 -> (클래스 확인) 버튼 실행\n[확인] 두 SubTotal 의 소계 Row Cell className 과 화면 표시를 결과창에서 확인"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - SubTotal Row 는 기준 Column 값이 바뀌는 지점에 삽입되며 자동 정렬되지 않으므로 같은 값을 연속 배치한다.
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John", "region": "East", "dept": "Sales", "amount": 100 },
+        { "name": "Jane", "region": "East", "dept": "Sales", "amount": 200 },
+        { "name": "Mike", "region": "East", "dept": "Dev",   "amount": 300 },
+        { "name": "Amy",  "region": "East", "dept": "Dev",   "amount": 400 },
+        { "name": "Tom",  "region": "West", "dept": "QA",    "amount": 500 },
+        { "name": "Kim",  "region": "West", "dept": "QA",    "amount": 600 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" rowNumVisible="true" rowStatusVisible="true" id="" style="width:760px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="subTotal subtotalClass 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="지역"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol3" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // 앞쪽에 정의된 SubTotal (dept 기준) - subtotalClass 는 옵션값
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept"' + attrSubtotalClass1 + '>';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s1col1" value="부서 소계"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s1col2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s1col3" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="s1col4" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    // 마지막에 정의된 SubTotal (region 기준) - subtotalClass 는 옵션값 / columnClass 는 무시 확인용 전제
+    strTarget += '<w2:subTotal style="" id="subTotal2" targetColumnID="region"' + attrSubtotalClass2 + attrColumnClass + '>';
+    strTarget += '<w2:row style="" id="srow2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s2col1" value="지역 소계"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s2col2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s2col3" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="s2col4" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 렌더된 SubTotal Row 목록 조회
+//  - SubTotal Row 의 본문 첫 Cell 은 "{gridId}_subtotal__column0" 클래스를 갖는다.
+//  - 해당 Cell 의 부모 tr 의 data-targetcolumnid 로 어느 SubTotal 정의의 Row 인지 구분한다.
+//  - 실제 표시되는 소계 Row 만 data-subtotalrowindex 를 가지므로 그 Row 만 수집한다. (나머지는 display:none 예비 Row)
+//  - tr 의 td 순서 : 0=RowNum, 1=RowStatus, 2~=일반 Cell
+scwin.getSubtotalRows = function () {
+    let list = [];
+    if (typeof target1 === 'undefined' || !target1.render) {
+        return list;
+    }
+    let firstCells = target1.render.querySelectorAll("td[class*='_subtotal__column0']");
+    for (let i = 0; i < firstCells.length; i++) {
+        let tr = firstCells[i].parentNode;
+        if (!tr || tr.getAttribute("data-subtotalrowindex") === null) continue;
+        let targetID = tr.getAttribute("data-targetcolumnid") || '';
+        list.push({ "targetID": targetID, "tds": Array.prototype.slice.call(tr.querySelectorAll("td")) });
+    }
+    return list;
+}
+
+
+
+// SubTotal 에 설정한 subtotalClass 의 실제 적용 여부 확인
+scwin.btn_checkSubtotalClass_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let cSubtotalClass1 = con_subtotalClass1.getValue();
+    let cSubtotalClass2 = con_subtotalClass2.getValue();
+    let cColumnClass = con_columnClass.getValue();
+    let rows = scwin.getSubtotalRows();
+
+    // dept 기준(subTotal1) / region 기준(subTotal2) 소계 Row 를 각각 1개씩 추출
+    let row1 = null;
+    let row2 = null;
+    for (let i = 0; i < rows.length; i++) {
+        if (row1 === null && rows[i].targetID === 'dept') row1 = rows[i];
+        if (row2 === null && rows[i].targetID === 'region') row2 = rows[i];
+    }
+
+    let tds1 = row1 ? row1.tds : [];
+    let tds2 = row2 ? row2.tds : [];
+
+    let cls1 = tds1[2] ? tds1[2].className : '(없음)';
+    let cls2 = tds2[2] ? tds2[2].className : '(없음)';
+    let rowNum1 = tds1[0] ? tds1[0].className : '(없음)';
+    let rowNum2 = tds2[0] ? tds2[0].className : '(없음)';
+    let rowStatus1 = tds1[1] ? tds1[1].className : '(없음)';
+    let rowStatus2 = tds2[1] ? tds2[1].className : '(없음)';
+
+    let toTokens = function (v) { return v.split(/\s+/).filter(function (t) { return t !== ''; }); };
+    let tokens1 = toTokens(cls1);
+    let tokens2 = toTokens(cls2);
+
+    // 파생 클래스 : _data / _rowNumber / _rowStatus 로 끝나는 토큰
+    let pickDerived = function (arr) {
+        return arr.join(' ').split(/\s+/).filter(function (v) { return /_(data|rowNumber|rowStatus)$/.test(v); });
+    };
+    let derived1 = pickDerived([cls1, rowNum1, rowStatus1]);
+    let derived2 = pickDerived([cls2, rowNum2, rowStatus2]);
+
+    // 판정 기준 클래스 : 설정값 전체를 접두사로 비교한다. (파생 클래스에서 역산하면 공백 2개 케이스를 오판함)
+    let baseOf = function (v) { return (v === '') ? 'gridSubtotalDefault' : v; };
+    let base1 = baseOf(cSubtotalClass1);
+    let base2 = baseOf(cSubtotalClass2);
+    let prefixMatch = function (list, base) {
+        return list.length > 0 && list.every(function (v) { return v.indexOf(base + '_') === 0; });
+    };
+
+    let style1 = tds1[2] ? window.getComputedStyle(tds1[2]) : null;
+    let style2 = tds2[2] ? window.getComputedStyle(tds2[2]) : null;
+    let styleRowNum2 = tds2[0] ? window.getComputedStyle(tds2[0]) : null;
+    let styleRowStatus2 = tds2[1] ? window.getComputedStyle(tds2[1]) : null;
+
+    bottom.setReturnValue("[1] subTotal1 subtotalClass : " + (cSubtotalClass1 === '' ? '(미설정)' : cSubtotalClass1) + " / subTotal2 subtotalClass : " + (cSubtotalClass2 === '' ? '(미설정)' : cSubtotalClass2) + " / 마지막 subTotal2 columnClass : " + (cColumnClass === '' ? '(미설정)' : cColumnClass));
+    bottom.setReturnValue("[2] subTotal1(dept 기준) 소계 Row 일반 Cell className : " + cls1);
+    bottom.setReturnValue("[3] subTotal2(region 기준) 소계 Row 일반 Cell className : " + cls2);
+    bottom.setReturnValue("[4] columnClass 설정값(" + (cColumnClass === '' ? '(미설정)' : cColumnClass) + ") 적용 여부 : " + (cColumnClass !== '' && (cls1 + ' ' + cls2).indexOf(cColumnClass) > -1));
+    bottom.setReturnValue("[5] 두 SubTotal 의 일반 Cell 클래스 동일 여부 : " + (cls1 === cls2) + " / subTotal1 설정값(" + base1 + ") 적용 여부 : " + (tokens1.indexOf(base1) > -1) + " / subTotal2 설정값(" + base2 + ") 적용 여부 : " + (tokens2.indexOf(base2) > -1));
+    bottom.setReturnValue("[6] 기본 클래스(gridSubtotalDefault) 포함 여부 (subTotal1 / subTotal2) : " + (tokens1.indexOf('gridSubtotalDefault') > -1) + " / " + (tokens2.indexOf('gridSubtotalDefault') > -1));
+    bottom.setReturnValue("[7] 치환 확인 - subTotal1 소계 Cell class 토큰 : " + tokens1.join(' | '));
+    bottom.setReturnValue("[8] subTotal1 설정값에 공백 포함 여부 : " + (cSubtotalClass1.indexOf(' ') > -1) + " / subTotal2 소계 Cell class 토큰 : " + tokens2.join(' | '));
+    bottom.setReturnValue("[9] RowNum Column 의 SubTotal Cell className (subTotal1) : " + rowNum1 + " / (subTotal2) : " + rowNum2);
+    bottom.setReturnValue("[10] RowStatus Column 의 SubTotal Cell className (subTotal1) : " + rowStatus1 + " / (subTotal2) : " + rowStatus2);
+    bottom.setReturnValue("[11] 자동 생성된 파생 클래스 (subTotal1) : " + derived1.join(', ') + " / 설정값 전체(" + base1 + ") 접두사 일치 : " + prefixMatch(derived1, base1));
+    bottom.setReturnValue("[12] 자동 생성된 파생 클래스 (subTotal2) : " + derived2.join(', ') + " / 설정값 전체(" + base2 + ") 접두사 일치 : " + prefixMatch(derived2, base2));
+    bottom.setReturnValue("[13] 화면 CSS 적용 background-color (subTotal1 일반 / subTotal2 일반 / subTotal2 RowNum / subTotal2 RowStatus) : " + (style1 ? style1.backgroundColor : '-') + " / " + (style2 ? style2.backgroundColor : '-') + " / " + (styleRowNum2 ? styleRowNum2.backgroundColor : '-') + " / " + (styleRowStatus2 ? styleRowStatus2.backgroundColor : '-'));
+}]]></script>
+		<style type="text/css"><![CDATA[/* subtotalClass 접두사 체계 확인용 CSS
+   subtotalClass 를 설정하면 기준 클래스와 _data / _rowNumber / _rowStatus 파생 클래스가 자동 생성되지만
+   엔진은 CSS 를 제공하지 않으므로 접두사 체계의 CSS 를 아래처럼 직접 모두 정의해야 화면에 반영된다.
+   SubTotal 별로 다른 클래스를 설정할 수 있으므로 A/B 두 벌을 정의한다.
+   GridView 기본 테마의 우선순위가 더 높으므로 important 로 지정한다. */
+.tcSubAClass { background-color: #FFF2CC !important; color: #C00000 !important; }
+.tcSubAClass_data { font-weight: bold !important; border: 2px solid #C00000 !important; }
+.tcSubAClass_rowNumber { background-color: #BDD7EE !important; color: #1F4E79 !important; border: 2px solid #1F4E79 !important; }
+.tcSubAClass_rowStatus { background-color: #C6E0B4 !important; color: #375623 !important; border: 2px solid #375623 !important; }
+.tcSubBClass { background-color: #DEEBF7 !important; color: #1F4E79 !important; }
+.tcSubBClass_data { font-weight: bold !important; border: 2px solid #203864 !important; }
+.tcSubBClass_rowNumber { background-color: #F8CBAD !important; color: #843C0C !important; border: 2px solid #843C0C !important; }
+.tcSubBClass_rowStatus { background-color: #E2EFDA !important; color: #375623 !important; border: 2px solid #375623 !important; }
+.tcEtcClass { font-style: italic !important; }
+/* columnClass 전제 설정용 (무시되는지 확인용) */
+.tcColClass { background-color: #D9D2E9 !important; color: #5B2C6F !important; }
+.tcColClass_data { border: 2px dashed #5B2C6F !important; }]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="subtotalClass (subTotal1)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_subtotalClass1" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>tcSubAClass</xf:label>
+												<xf:value>tcSubAClass</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>tcSubAClass tcEtcClass</xf:label>
+												<xf:value>tcSubAClass tcEtcClass</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="subtotalClass (subTotal2)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_subtotalClass2" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>tcSubBClass</xf:label>
+												<xf:value>tcSubBClass</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="columnClass (subTotal2)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_columnClass" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>tcColClass</xf:label>
+												<xf:value>tcColClass</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSubtotalClass_onclick" id="btn_checkSubtotalClass"
+							label="클래스 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

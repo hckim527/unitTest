@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[subTotal] id" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260904" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[subTotal > P > id]<br/>GridView SubTotal 의 ID 를 설정합니다.",
+    "validation" : [
+        "GridView SubTotal 의 ID 를 설정합니다.",
+        "속성값은 참고용으로 사용되며 GridView 렌더링 시 엔진에서 부여한 ID 값으로 대체됩니다.",
+        "SubTotal 영역과 SubTotal Column 영역은 별도로 정의됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_id.setValue("subTotal1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - SubTotal 을 2개 정의한다. (앞쪽 = dept 기준 / 뒤쪽 subTotal2 = region 기준)
+//  - id 는 subTotal(SubTotal 영역) 단위 속성이며 dynamic N 이므로 렌더 시점에만 설정한다.
+//  - SubTotal Column 영역은 s1col1 ~ s1col4 로 별도 정의한다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cId = con_id.getValue();
+    let lblId = (cId === '') ? '미설정' : cId;
+    let attrId = (cId === '') ? '' : ' id="' + cId + '"';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 하위에 w2:subTotal 을 2개 선언 (앞쪽 = dept 기준 / 뒤쪽 subTotal2 = region 기준). 앞쪽 SubTotal 영역에만 id 속성을 설정하고 SubTotal Column 영역은 s1col1 ~ s1col4 로 별도 선언\n[현재] 앞쪽 SubTotal 의 id = ' + lblId + '\n[절차] 옵션 변경 후 Target 재생성 -> ID 확인\n[확인] 선언한 id 값과 보존 위치, 렌더된 SubTotal 영역의 실제 id, 선언한 id 의 DOM 조회 개수, SubTotal 영역 요소와 SubTotal Column 영역 요소의 id 를 결과창에서 확인"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    //  - SubTotal Row 는 기준 Column 값이 바뀌는 지점에 삽입되며 자동 정렬되지 않으므로 같은 값을 연속 배치한다.
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John", "region": "East", "dept": "Sales", "amount": 100 },
+        { "name": "Jane", "region": "East", "dept": "Sales", "amount": 200 },
+        { "name": "Mike", "region": "East", "dept": "Dev",   "amount": 300 },
+        { "name": "Amy",  "region": "East", "dept": "Dev",   "amount": 400 },
+        { "name": "Tom",  "region": "West", "dept": "QA",    "amount": 500 },
+        { "name": "Kim",  "region": "West", "dept": "QA",    "amount": 600 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성 (앞쪽 subTotal 에 id 설정)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" rowNumVisible="true" rowStatusVisible="true" id="" style="width:760px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="subTotal id 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="지역"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol3" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="region" dataList="region"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // 앞쪽에 정의된 SubTotal (dept 기준) - SubTotal 영역의 id 가 옵션값
+    strTarget += '<w2:subTotal style=""' + attrId + ' targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s1col1" value="부서 소계"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s1col2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s1col3" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="s1col4" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    // 뒤쪽에 정의된 SubTotal (region 기준) - id 고정
+    strTarget += '<w2:subTotal style="" id="subTotal2" targetColumnID="region">';
+    strTarget += '<w2:row style="" id="srow2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s2col1" value="지역 소계"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s2col2" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="s2col3" value=""></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="s2col4" expression="sum(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 렌더된 SubTotal Row(tr) 목록 조회
+//  - SubTotal Row 의 본문 첫 Cell 은 "{gridId}_subtotal__column0" 클래스를 갖는다.
+//  - 실제 표시되는 소계 Row 만 data-subtotalrowindex 를 가지므로 그 Row 만 수집한다. (나머지는 display:none 예비 Row)
+//  - 비표준 속성은 data- 접두사 + 전부 소문자로 렌더되므로 data-targetcolumnid 로 어느 SubTotal 정의의 Row 인지 구분한다.
+//  - tr 의 td 순서 : 0=RowNum, 1=RowStatus, 2~=일반 Cell
+scwin.getSubtotalRows = function () {
+    let list = [];
+    if (typeof target1 === 'undefined' || !target1.render) {
+        return list;
+    }
+    let firstCells = target1.render.querySelectorAll("td[class*='_subtotal__column0']");
+    for (let i = 0; i < firstCells.length; i++) {
+        let tr = firstCells[i].parentNode;
+        if (!tr || tr.getAttribute("data-subtotalrowindex") === null) continue;
+        let targetID = tr.getAttribute("data-targetcolumnid") || '';
+        list.push({ "tr": tr, "targetID": targetID, "tds": Array.prototype.slice.call(tr.querySelectorAll("td")) });
+    }
+    return list;
+}
+
+
+
+// 렌더된 SubTotal 영역 요소 조회 (엔진은 SubTotal 영역을 targetColumnID 를 키로 한 tbody 로 구성한다)
+scwin.getSubtotalArea = function () {
+    if (typeof target1 === 'undefined' || !target1.subtotalTableList) {
+        return null;
+    }
+    let table = target1.subtotalTableList["dept"];
+    return table ? table.querySelector("tbody") : null;
+}
+
+
+
+// subTotal 에 설정한 id 의 실제 적용 여부 확인
+scwin.btn_checkId_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let cId = con_id.getValue();
+    let subArea = scwin.getSubtotalArea();
+
+    // 선언값 보존 위치 (struct)
+    let structArr = (typeof target1 !== 'undefined' && target1.struct) ? target1.struct.subtotalArr : null;
+    let structId = (structArr && structArr[0] && structArr[0].attr) ? structArr[0].attr.id : undefined;
+    let structKeyFound = (structArr && cId !== '') ? (typeof structArr[cId] !== 'undefined') : false;
+
+    // 선언한 id 로 DOM 조회 (페이지 scope 로 mf_ 접두사가 붙는 경우까지 포함)
+    let declaredCount = (cId === '') ? 0 : document.querySelectorAll("[id='" + cId + "'],[id='mf_" + cId + "']").length;
+
+    // 선언한 id 가 DOM 에 data- 형태 등 다른 속성으로 남아있는지 조회
+    let traceList = [];
+    if (cId !== '' && typeof target1 !== 'undefined' && target1.render) {
+        let allElems = target1.render.querySelectorAll("*");
+        for (let i = 0; i < allElems.length && traceList.length < 3; i++) {
+            let attrs = allElems[i].attributes;
+            for (let k = 0; k < attrs.length; k++) {
+                if (attrs[k].value === cId) {
+                    traceList.push(allElems[i].tagName.toLowerCase() + "[" + attrs[k].name + "]");
+                    break;
+                }
+            }
+        }
+    }
+
+    // 구조 엘리먼트는 컴포넌트 객체가 생성되지 않으므로 getPluginName 존재 여부로 판별한다.
+    let comp = null;
+    if (cId !== '') {
+        comp = WebSquare.util.getComponentById(cId) || WebSquare.util.getComponentById("mf_" + cId);
+    }
+    let compDesc = !comp ? '(조회 결과 없음)' : (typeof comp.getPluginName === "function" ? '컴포넌트(' + comp.getPluginName() + ')' : 'DOM 엘리먼트 fallback(' + comp.tagName + ')');
+
+    // SubTotal Column 영역 요소 (선언한 s1col1 에 대응하는 소계 Row 의 첫번째 일반 Cell)
+    let rows = scwin.getSubtotalRows();
+    let deptRow = null;
+    for (let i = 0; i < rows.length; i++) {
+        if (deptRow === null && rows[i].targetID === 'dept') deptRow = rows[i];
+    }
+    let subCol = deptRow ? deptRow.tds[2] : null;
+    let subColId = (subCol && subCol.id !== '') ? subCol.id : '';
+    let subColCount = (subColId === '') ? 0 : document.querySelectorAll("[id='" + subColId + "'],[id='mf_" + subColId + "']").length;
+
+    bottom.setReturnValue("[1] subTotal 에 설정한 id : " + (cId === '' ? '(미설정)' : cId) + " / 선언값 보존 위치(target1.struct.subtotalArr[0].attr.id) : " + (typeof structId === 'undefined' ? '(없음)' : structId) + " / 선언 id 를 키로 한 조회 성공 여부 : " + structKeyFound);
+    bottom.setReturnValue("[2] 렌더된 SubTotal 영역의 실제 id : " + (subArea ? subArea.id : '(SubTotal 영역 없음)') + " / 설정한 id 로 조회된 DOM 개수 : " + (cId === '' ? '-' : declaredCount));
+    bottom.setReturnValue("[3] 설정한 id 가 남아있는 DOM 속성 : " + (cId === '' ? '-' : (traceList.length === 0 ? '(없음)' : traceList.join(', '))) + " / getComponentById 조회 결과 : " + (cId === '' ? '-' : compDesc));
+    bottom.setReturnValue("[4] SubTotal 영역 요소 id : " + (subArea ? subArea.tagName.toLowerCase() + '#' + subArea.id : '-') + " / SubTotal Column(s1col1) 영역 요소 id : " + (subCol ? (subColId === '' ? subCol.tagName.toLowerCase() + '#(id 없음)' : subCol.tagName.toLowerCase() + '#' + subColId) : '-') + " / SubTotal Column 선언 id 로 조회된 DOM 개수 : " + (subCol ? subColCount : '-'));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="id" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_id" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>subTotal1</xf:label>
+												<xf:value>subTotal1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>mySubTotalArea</xf:label>
+												<xf:value>mySubTotalArea</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkId_onclick" id="btn_checkId"
+							label="ID 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

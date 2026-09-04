@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[subTotal] excelCellType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260904" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[subTotal > P > excelCellType]<br/>advancedExcelDownload() 메소드로 GridView 의 데이터를 Excel 로 다운로드 시 SubTotal 의 Excel 표시 형식을 설정합니다.",
+    "validation" : [
+        "SubTotal 의 excelCellType 속성값은 참고용으로 사용되며 Excel 다운로드 시 SubTotal Column 의 excelCellType 속성이 적용됩니다.",
+        "text 설정 시, SubTotal 의 Excel 표시 형식을 '텍스트' 로 설정합니다.",
+        "number 설정 시, SubTotal 의 Excel 표시 형식을 '숫자' 로 설정합니다.",
+        "bigDecimal 설정 시, SubTotal 의 Excel 표시 형식을 '숫자' 로 설정합니다.",
+        "date 설정 시, SubTotal 의 Excel 표시 형식을 '날짜' 로 설정합니다.",
+        "SubTotal Column 의 excelCellType 속성값은 advancedExcelDownload() 메소드의 options.useDataFormat 파라미터값이 'true' 일때 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_excelCellType.setValue("number");
+    con_columnExcelCellType.setValue("text");
+    par_useDataFormat.setValue("true");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - excelCellType 은 dynamic N 이므로 렌더 시점에만 설정 -> 옵션 변경 후 "Target 재생성" 으로 반영
+//  - 대비를 위해 w2:subTotal 과 SubTotal Column 에 서로 다른 excelCellType 을 설정한다.
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cExcelCellType = con_excelCellType.getValue();
+    let cColumnExcelCellType = con_columnExcelCellType.getValue();
+    let lblSubTotal = (cExcelCellType === '') ? '미설정' : cExcelCellType;
+    let lblColumn = (cColumnExcelCellType === '') ? '미설정' : cColumnExcelCellType;
+    let attrSubTotal = (cExcelCellType === '') ? '' : ' excelCellType="' + cExcelCellType + '"';
+    let attrColumn = (cColumnExcelCellType === '') ? '' : ' excelCellType="' + cColumnExcelCellType + '"';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 하위에 w2:subTotal 을 선언하고 targetColumnID 는 부서(dept), 소계 금액 Cell 은 inputType=expression (sum). 대비를 위해 w2:subTotal 과 SubTotal Column 에 서로 다른 excelCellType 을 설정\n[데이터] SubTotal Row 는 기준 Column 값이 바뀌는 지점에 삽입되고 자동 정렬되지 않으므로 dept 가 같은 Row 를 연속 배치함\n[현재] subTotal excelCellType = ' + lblSubTotal + ' / subTotal column excelCellType = ' + lblColumn + '\n[절차] 옵션 변경 후 Target 재생성 -> options.useDataFormat 선택 -> advancedExcelDownload 버튼 클릭\n[확인] 다운로드한 xlsx 는 서버가 표시 문자열을 재파싱하고 displayFormat 을 서식으로 적용하여 파일만으로는 차이를 볼 수 없으므로, 메소드 호출 구간에만 form submit 을 가로채 서버로 전송되는 XML 에 실린 값으로 확인함 (실제 다운로드는 그대로 진행됨)"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let jsonData = [
+        { "name": "John", "dept": "Sales", "amount": 4001.1 },
+        { "name": "Jane", "dept": "Sales", "amount": 4001.2 },
+        { "name": "Mike", "dept": "Dev",   "amount": 3500.5 },
+        { "name": "Amy",  "dept": "Dev",   "amount": 4501.8 },
+        { "name": "Tom",  "dept": "QA",    "amount": 1200.7 },
+        { "name": "Kim",  "dept": "QA",    "amount": 6801.6 }
+    ];
+    dlt_bind.setJSON(jsonData, false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:640px;height:420px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="subTotal excelCellType 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="hcol2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol3" value="금액"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,##0.0" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    // SubTotal : dept 기준 소계 Row. w2:subTotal 과 SubTotal Column 에 서로 다른 excelCellType 설정
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept"' + attrSubTotal + '>';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol1" value="부서 소계"' + attrColumn + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="scol2" value=""' + attrColumn + '></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,##0.0" id="scol3" expression="sum(\'amount\')"' + attrColumn + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 다운로드 요청 캡처 : 서버로 전송되는 값을 확인하기 위해 메소드 호출 구간에서만
+//  form submit 과 XHR send 를 감싸고 호출 직후 원복한다. (실제 요청은 그대로 통과시킨다.)
+scwin.hookRequest = function () {
+    let objReq = { "kind" : "", "body" : "" };
+    scwin.gVar.req = objReq;
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    let fnSend = XMLHttpRequest.prototype.send;
+
+    HTMLFormElement.prototype.submit = function () {
+        if (objReq.kind === "") {
+            objReq.kind = "Form Submit";
+            let objInput = this.querySelector("input[name=xmlValue]");
+            objReq.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function (vData) {
+        if (objReq.kind === "") {
+            objReq.kind = "XHR";
+            objReq.body = vData + "";
+        }
+        return fnSend.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+        XMLHttpRequest.prototype.send = fnSend;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 hashkey 로 전송된 옵션값을 읽는다.
+scwin.getSentValue = function (sKey) {
+    let sBody = (scwin.gVar.req === undefined) ? "" : (scwin.gVar.req.body || "");
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 여는 태그 문자열에서 속성값을 읽는다. (속성이 없으면 미설정)
+scwin.getAttrValue = function (sTag, sName) {
+    let nKey = sTag.indexOf(" " + sName + "=");
+    if (nKey < 0) {
+        return "(미설정)";
+    }
+    let sRest = sTag.substring(nKey + sName.length + 2);
+    let sQuote = sRest.charAt(0);
+    sRest = sRest.substring(1);
+    let nEnd = sRest.indexOf(sQuote);
+    return (nEnd < 0) ? "(미설정)" : sRest.substring(0, nEnd);
+}
+
+
+
+// 전송 XML 안의 SubTotal 영역에서 excelCellType 을 읽는다.
+//  · 반환 : { "subTotal" : w2:subTotal 의 값, "column" : SubTotal 첫번째 w2:column 의 값 }
+scwin.getSentSubTotalCellType = function () {
+    let sBody = (scwin.gVar.req === undefined) ? "" : (scwin.gVar.req.body || "");
+    let nStart = sBody.indexOf("<w2:subTotal");
+    if (nStart < 0) {
+        return { "subTotal" : "(미전달)", "column" : "(미전달)" };
+    }
+    let nEnd = sBody.indexOf("</w2:subTotal>", nStart);
+    let sSubTotalXml = (nEnd < 0) ? sBody.substring(nStart) : sBody.substring(nStart, nEnd);
+    let sSubTotalTag = sSubTotalXml.substring(0, sSubTotalXml.indexOf(">"));
+
+    let nCol = sSubTotalXml.indexOf("<w2:column");
+    let sColumnTag = (nCol < 0) ? "" : sSubTotalXml.substring(nCol, sSubTotalXml.indexOf(">", nCol));
+
+    return {
+        "subTotal" : scwin.getAttrValue(sSubTotalTag, "excelCellType"),
+        "column" : (sColumnTag === "") ? "(미전달)" : scwin.getAttrValue(sColumnTag, "excelCellType")
+    };
+}
+
+
+
+// enum 값별 결과 출력
+scwin.printEnumLine = function (nIndex, sEnum, sFormat, sSelected, sSentSubTotal) {
+    let bIs = (sSelected === sEnum);
+    wf_body_bottom.getObj("scwin").setReturnValue("[" + nIndex + "] " + sEnum + " 설정 여부 : " + bIs + (bIs ? (" / 전송 XML 의 subTotal excelCellType : " + sSentSubTotal + " (Excel 표시 형식 : " + sFormat + ")") : ""));
+}
+
+
+
+// advancedExcelDownload 실행 후 서버 전송값으로 확인
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let cExcelCellType = con_excelCellType.getValue();
+    let cColumnExcelCellType = con_columnExcelCellType.getValue();
+
+    let options = { "fileName" : "subTotal_excelCellType" };
+    let vUseDataFormat = par_useDataFormat.getValue();
+    if (vUseDataFormat !== "") {
+        options.useDataFormat = vUseDataFormat;
+    }
+
+    scwin.gVar = {};
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    if (scwin.gVar.req.kind === "") {
+        bottom.setReturnValue("요청 발생 : 없음 (다운로드 미실행)");
+        return;
+    }
+
+    let objSent = scwin.getSentSubTotalCellType();
+
+    bottom.setReturnValue("[1] 설정값 subTotal=" + ((cExcelCellType === '') ? '(미설정)' : cExcelCellType) + " / subTotal column=" + ((cColumnExcelCellType === '') ? '(미설정)' : cColumnExcelCellType) + " -> 전송 XML : subTotal=" + objSent.subTotal + " / subTotal column=" + objSent.column);
+    scwin.printEnumLine(2, "text", "텍스트", cExcelCellType, objSent.subTotal);
+    scwin.printEnumLine(3, "number", "숫자", cExcelCellType, objSent.subTotal);
+    scwin.printEnumLine(4, "bigDecimal", "숫자", cExcelCellType, objSent.subTotal);
+    scwin.printEnumLine(5, "date", "날짜", cExcelCellType, objSent.subTotal);
+    bottom.setReturnValue("[6] 전송 useDataFormat : " + scwin.getSentValue("useDataFormat") + " / 전송 XML 의 subTotal column excelCellType : " + objSent.column);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="excelCellType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_excelCellType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bigDecimal]]></xf:label>
+												<xf:value><![CDATA[bigDecimal]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="subTotal column excelCellType (대비용)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_columnExcelCellType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bigDecimal]]></xf:label>
+												<xf:value><![CDATA[bigDecimal]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useDataFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useDataFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

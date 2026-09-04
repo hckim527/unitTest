@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[subTotal] targetColumnID" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260904" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[subTotal > P > targetColumnID]<br/>SubTotal(부분합) Row 가 삽입되는 기준이 되는 Body Column 의 ID 를 설정합니다.",
+    "validation" : [
+        "기준 Body Column 의 값이 달라지는 위치에 SubTotal(부분합) Row 가 삽입됩니다.",
+        "SubTotal(부분합) Row 가 삽입되는 기준 Body Column 의 ID 를 설정합니다.",
+        "하나의 Body Column ID 만 설정할 수 있습니다.",
+        "존재하지 않는 ID 를 설정하거나 속성값을 설정하지 않으면 전체 데이터를 한 그룹으로 처리합니다.",
+        "SubTotal(부분합) Row 는 기준 Body Column 의 값이 달라지는 지점에 삽입되므로, 같은 값을 가진 Row 가 연속으로 배치되어 있어야 의도한 그룹이 만들어집니다.",
+        "targetColumnID 속성값을 기준으로 데이터가 자동 정렬되지 않습니다.",
+        "SubTotal(부분합)을 여러개 정의한 경우 상위 그룹과 하위 그룹이라는 개념 없이 각 기준 Body Column 에 맞게 독립적으로 동작합니다.",
+        "SubTotal(부분합)을 여러개 정의한 경우 대분류와 소분류로 구분하려면 SubTotal(부분합)의 정의 순서를 조정하고, 데이터가 대분류에서 소분류 순서로 정렬되어 있어야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_targetColumnID.setValue("dept");
+    con_dataSet.setValue("sorted");
+    con_subTotalDefine.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 데이터셋 정의
+//  - sorted    : dept(대분류) 정렬 + team(소분류) 이 dept 안에서만 연속 -> 대분류/소분류처럼 보이는 구성
+//  - crossed   : dept 는 정렬되어 있으나 team 값이 dept 경계를 넘어 연속 -> 두 SubTotal 이 독립 동작함을 확인
+//  - scattered : dept 값이 흩어져 있음(같은 값 비연속) -> 자동 정렬되지 않음을 확인
+scwin.getDataSet = function (key) {
+    if (key === "crossed") {
+        return [
+            { "name": "A", "dept": "Sales", "team": "T1", "amount": 100 },
+            { "name": "B", "dept": "Sales", "team": "T1", "amount": 200 },
+            { "name": "C", "dept": "Sales", "team": "T2", "amount": 300 },
+            { "name": "D", "dept": "Dev",   "team": "T2", "amount": 400 },
+            { "name": "E", "dept": "Dev",   "team": "T2", "amount": 500 },
+            { "name": "F", "dept": "Dev",   "team": "T1", "amount": 600 }
+        ];
+    }
+    if (key === "scattered") {
+        return [
+            { "name": "A", "dept": "Sales", "team": "T1", "amount": 100 },
+            { "name": "B", "dept": "Dev",   "team": "T1", "amount": 200 },
+            { "name": "C", "dept": "Sales", "team": "T2", "amount": 300 },
+            { "name": "D", "dept": "Dev",   "team": "T3", "amount": 400 },
+            { "name": "E", "dept": "Sales", "team": "T3", "amount": 500 },
+            { "name": "F", "dept": "Dev",   "team": "T4", "amount": 600 }
+        ];
+    }
+    return [
+        { "name": "A", "dept": "Sales", "team": "T1", "amount": 100 },
+        { "name": "B", "dept": "Sales", "team": "T1", "amount": 200 },
+        { "name": "C", "dept": "Sales", "team": "T2", "amount": 300 },
+        { "name": "D", "dept": "Dev",   "team": "T3", "amount": 400 },
+        { "name": "E", "dept": "Dev",   "team": "T3", "amount": 500 },
+        { "name": "F", "dept": "Dev",   "team": "T4", "amount": 600 }
+    ];
+};
+
+
+
+// SubTotal 영역 XML 생성 (targetColumnID 속성 유무/값에 따라 분기)
+scwin.makeSubTotalXml = function (subId, targetColumnID, labelText) {
+    let strAttr = (targetColumnID === '') ? '' : ' targetColumnID="' + targetColumnID + '"';
+    let str = '';
+    str += '<w2:subTotal style="" id="' + subId + '"' + strAttr + '>';
+    str += '<w2:row style="" id="' + subId + '_row1">';
+    str += '<w2:column width="120" style="" inputType="text" id="' + subId + '_c1" value="' + labelText + '"></w2:column>';
+    str += '<w2:column width="120" style="" inputType="text" id="' + subId + '_c2" value=""></w2:column>';
+    str += '<w2:column width="100" style="" inputType="text" id="' + subId + '_c3" value=""></w2:column>';
+    str += '<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="amount" expression="sum(\'amount\')"></w2:column>';
+    str += '</w2:row>';
+    str += '</w2:subTotal>';
+    return str;
+};
+
+
+
+// comp 생성
+//  - targetColumnID 는 dynamic N 이므로 렌더 시점에만 설정한다. (옵션 변경 후 Target 재생성 필요)
+scwin.comp_init = async function () {
+    // 기존 target/dataList/label 있으면 삭제
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cTargetColumnID = con_targetColumnID.getValue();
+    let cDataSet = con_dataSet.getValue();
+    let cDefine = con_subTotalDefine.getValue();
+
+    let lblTarget = (cTargetColumnID === '') ? '미설정' : cTargetColumnID;
+    let lblDataSet = (cDataSet === 'crossed') ? 'dept 정렬 + team 이 dept 경계를 넘어 연속'
+        : (cDataSet === 'scattered') ? 'dept 값이 흩어짐 (같은 값 비연속)'
+        : 'dept 정렬 + team 이 dept 안에서만 연속 (대분류 -> 소분류 순)';
+    let lblDefine = (cDefine === '2') ? 'SubTotal 2개 (정의순서 : 1번째=위 targetColumnID, 2번째=team)'
+        : (cDefine === '2r') ? 'SubTotal 2개 (정의순서 : 1번째=team, 2번째=위 targetColumnID)'
+        : 'SubTotal 1개 (기준=위 targetColumnID)';
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 하위에 w2:gBody 와 w2:subTotal 을 선언하고, SubTotal Row 의 마지막 Cell 은 inputType=expression 의 sum(amount) 소계. Body Column 은 name / dept / team / amount 4개.\n[현재] subTotal targetColumnID = ' + lblTarget + ' / 데이터 = ' + lblDataSet + ' / ' + lblDefine + '\n[절차] 옵션 변경 후 Target 재생성 -> (SubTotal Row 확인)\n[확인] 실제 렌더된 행 순서에서 SubTotal Row 가 몇 번째 데이터 Row 뒤에 몇 개 삽입되었는지와 각 소계값을 결과창에서 확인"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="team" name="team" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.getDataSet(cDataSet), false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:640px;height:700px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="targetColumnID (SubTotal Row 삽입 기준 Body Column) 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="이름(name)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol2" value="부서(dept)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hcol3" value="팀(team)"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" id="hcol4" value="금액(amount)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="team" dataList="team"></w2:column>';
+    strTarget += '<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+
+    // SubTotal 정의 (정의 순서에 따라 렌더 순서가 달라지는지 확인)
+    if (cDefine === '2') {
+        strTarget += scwin.makeSubTotalXml('subTotal1', cTargetColumnID, '소계1');
+        strTarget += scwin.makeSubTotalXml('subTotal2', 'team', '소계2(team)');
+    } else if (cDefine === '2r') {
+        strTarget += scwin.makeSubTotalXml('subTotal1', 'team', '소계1(team)');
+        strTarget += scwin.makeSubTotalXml('subTotal2', cTargetColumnID, '소계2');
+    } else {
+        strTarget += scwin.makeSubTotalXml('subTotal1', cTargetColumnID, '소계1');
+    }
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 렌더된 Body Table 의 화면상 보이는 행(tbody)을 순서대로 수집
+//  - Body Table(table[id$=_body_table]) 은 thead(헤더 tr)+tbody 구조이므로 tbody 하위 tr 만 대상으로 한다.
+//  - SubTotal Row 는 tr[data-subtotal="(기준 Body Column ID)_(SubTotal 내 row 순번)"] + tr[data-targetcolumnid] 로 렌더된다.
+//  - 삽입 위치(직전 데이터 Row 의 index)는 data-subtotalrowindex 로 확인한다. (표시되는 SubTotal Row 에만 설정)
+scwin.getRenderedRows = function () {
+    let rows = [];
+    let bodyTable = target1.render.querySelector("[id$='_body_table']");
+    if (!bodyTable) {
+        return rows;
+    }
+    let trList = bodyTable.querySelectorAll("tbody > tr");
+    for (let i = 0; i < trList.length; i++) {
+        let tr = trList[i];
+        if (window.getComputedStyle(tr).display === "none") {
+            continue;
+        }
+        let tds = Array.prototype.slice.call(tr.querySelectorAll("td")).filter(function (td) {
+            return window.getComputedStyle(td).display !== "none";
+        });
+        let texts = tds.map(function (td) { return td.textContent.replace(/\s+/g, " ").trim(); });
+        let dataSubtotal = tr.getAttribute("data-subtotal");
+        if (dataSubtotal != null) {
+            let targetColumnID = tr.getAttribute("data-targetcolumnid");
+            if (targetColumnID == null || targetColumnID === "") {
+                targetColumnID = dataSubtotal.replace(/_\d+$/, "");
+            }
+            rows.push({
+                "type": "SubTotal",
+                "targetColumnID": targetColumnID,
+                "rowIndex": tr.getAttribute("data-subtotalrowindex"),
+                "texts": texts
+            });
+        } else {
+            rows.push({ "type": "데이터", "targetColumnID": "", "rowIndex": "", "texts": texts });
+        }
+    }
+    return rows;
+};
+
+
+
+// [SubTotal Row 확인] 실제 렌더된 행 순서 / SubTotal Row 삽입 위치 / 그룹 수를 실측 출력
+scwin.btn_checkSubtotal_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let cTargetColumnID = con_targetColumnID.getValue();
+    let cDataSet = con_dataSet.getValue();
+    let cDefine = con_subTotalDefine.getValue();
+    let rows = scwin.getRenderedRows();
+
+    // 렌더 순서 문자열
+    let orderStr = "";
+    let dataIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+        let r = rows[i];
+        if (r.type === "데이터") {
+            dataIdx++;
+            orderStr += "\n(" + i + ") 데이터 Row[" + dataIdx + "] : " + r.texts.join(" | ");
+        } else {
+            orderStr += "\n(" + i + ") SubTotal Row (기준=" + r.targetColumnID + ", 직전 데이터 rowIndex=" + r.rowIndex + ") : " + r.texts.join(" | ");
+        }
+    }
+
+    // 기준별 삽입 위치 집계
+    let posMap = {};
+    let order = [];
+    for (let i = 0; i < rows.length; i++) {
+        if (rows[i].type !== "SubTotal") continue;
+        let key = rows[i].targetColumnID;
+        if (!posMap[key]) { posMap[key] = []; order.push(key); }
+        posMap[key].push(rows[i].rowIndex);
+    }
+    let posStr = "";
+    let groupStr = "";
+    for (let i = 0; i < order.length; i++) {
+        let key = order[i];
+        posStr += (posStr === "" ? "" : " / ") + "기준=" + key + " -> 삽입 데이터 rowIndex [" + posMap[key].join(", ") + "] (" + posMap[key].length + "개)";
+        groupStr += (groupStr === "" ? "" : " / ") + "기준=" + key + " -> 그룹 수 " + posMap[key].length + "개, 전체 데이터 한 그룹 여부=" + (posMap[key].length === 1);
+    }
+    if (posStr === "") { posStr = "SubTotal Row 없음"; groupStr = "SubTotal Row 없음"; }
+
+    bottom.setReturnValue("[1] 설정 : targetColumnID=" + (cTargetColumnID === '' ? '(미설정)' : cTargetColumnID) + " / 데이터=" + cDataSet + " / SubTotal 정의=" + cDefine);
+    bottom.setReturnValue("[2] 렌더된 행 순서 (총 " + rows.length + " 행)" + orderStr);
+    bottom.setReturnValue("[3] SubTotal Row 삽입 위치 : " + posStr);
+    bottom.setReturnValue("[4] 그룹 처리 결과 : " + groupStr);
+    bottom.setReturnValue("[5] SubTotal Row 에 반영된 기준 Body Column ID (렌더 등장 순) : [" + order.join(", ") + "] (설정한 값 = " + (cTargetColumnID === '' ? '(미설정)' : cTargetColumnID) + ")");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="targetColumnID" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_targetColumnID" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>dept</xf:label>
+												<xf:value>dept</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>team</xf:label>
+												<xf:value>team</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>noSuchCol</xf:label>
+												<xf:value>noSuchCol</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>dept team</xf:label>
+												<xf:value>dept team</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="데이터 구성" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataSet" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>sorted (dept 정렬 + team 이 dept 안에서만 연속)</xf:label>
+												<xf:value>sorted</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>crossed (dept 정렬 + team 이 dept 경계를 넘어 연속)</xf:label>
+												<xf:value>crossed</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scattered (dept 값이 흩어짐)</xf:label>
+												<xf:value>scattered</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="SubTotal 정의" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_subTotalDefine" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>1개 (기준=targetColumnID)</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2개 (1번째=targetColumnID, 2번째=team)</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2개 (1번째=team, 2번째=targetColumnID)</xf:label>
+												<xf:value>2r</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:attributes></w2:attributes>
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSubtotal_onclick" id="btn_checkSubtotal"
+							label="SubTotal Row 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
