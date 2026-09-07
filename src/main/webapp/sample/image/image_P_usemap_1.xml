@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[image] usemap" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260907" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[image > P > usemap]<br/>Image 컴포넌트의 이미지와 연결할 map 요소의 이름을 설정합니다.",
+    "validation" : [
+        "Image 컴포넌트 내부엔 map 요소를 정의할 수 없으며 별도로 정의해야 합니다.",
+        "문자열 값 설정 시, 이미지와 연결할 map 요소의 이름을 '#' 문자와 함께 설정합니다.",
+        "문자열 값 설정 시, map 요소 내부의 area 정의에 따라 해당 영역 클릭 시 동작이 결정됩니다.",
+        "문자열 값 설정 시, HTML 의 map 태그와 동일한 기능을 제공합니다.",
+        "usemap 속성은 페이지가 렌더링될 때 한 번만 적용되므로 이미지가 변경되어도 usemap 속성은 변경되지 않습니다.",
+    ]
+}
+
+
+
+// area 범위 (별도 정의한 map 의 area 좌표) / 이미지 크기 164 x 32
+scwin.gVar = { "areaCoords" : "0,0,80,32", "srcChanged" : false };
+
+
+
+scwin.onpageload = function () {
+    // 정적 select1 초기값 설정 (usemap : # 을 포함한 유효값 / mapLocation : Image 외부 별도 정의)
+    con_usemap.setValue("#image-map");
+    con_mapLocation.setValue("outer");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (scwin.target1) {
+        scwin.target1.remove();
+        scwin.target1 = null;
+    }
+
+    scwin.gVar.srcChanged = false;
+
+    let cUsemap = con_usemap.getValue();
+    let cLoc = con_mapLocation.getValue();
+
+    let lblUsemap = (cUsemap === '') ? '미설정' : cUsemap;
+    let lblLoc = (cLoc === 'outer') ? '외부 (Image 외부에 map 별도 정의)' : '내부 (Image 자식으로만 map 정의 시도)';
+
+    $c.gcm.createLabel('label="[현재] usemap = ' + lblUsemap + ' / mapLocation = ' + lblLoc + '\n[절차] con 값 변경 -> Target 재생성 -> 이미지 좌측(area 안쪽) 과 우측(area 바깥) 을 각각 클릭\n[참고] 이미지 크기는 164 x 32 이고 map(image-map) 의 area 범위는 좌상단 ' + scwin.gVar.areaCoords + ' 입니다\n[참고] mapLocation 이 내부이면 Image 외부의 map 을 만들지 않고 Image 자식으로만 정의를 시도합니다\n[참고] area 는 페이지 이동 대신 클릭 발화만 관측하도록 기본 동작을 막았습니다"', '', 'label1');
+
+    // Image 외부(document.body)의 map / area 정의를 con 값에 따라 적용한다
+    scwin.applyOuterMap(cLoc);
+
+    // 조건 설정
+    let properties = {
+        usemap : cUsemap,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // usemap 을 con 값으로 가변해야 하므로 공통 함수($c.gcm.createBasicImage 는 src 고정) 대신 직접 생성한다
+    let grp_comp = $c.gcm.getTestGroup('');
+
+    // Image 컴포넌트 내부에 map / area 정의를 시도한다 (내부 정의 가능 여부 실측용)
+    let strInnerMap = '<map name="inner-map"><area shape="rect" coords="0,0,164,32" href="#inner-area"></area></map>';
+
+    let strTarget = '<xf:image ' + $c.gcm.strNameSpace + ' ' + cList + ' src="/img/png.png" ev:onclick="scwin.target1_onclick">' + strInnerMap + '</xf:image>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "image", strTarget, grp_comp);
+
+    // 이미지 로드가 확정된 후에 클릭 좌표 판정이 가능하므로 대기한다
+    await scwin.waitImage();
+}
+
+
+
+// 이미지 로드(성공/실패) 확정 대기
+scwin.waitImage = function () {
+    return new Promise(function (resolve) {
+        let img = scwin.target1.render;
+
+        if (img.complete) {
+            resolve();
+            return;
+        }
+
+        img.addEventListener("load", resolve, { once : true });
+        img.addEventListener("error", resolve, { once : true });
+        setTimeout(resolve, 2000);
+    });
+}
+
+
+
+// Image 외부(document.body)의 map / area 정의를 con_mapLocation 값에 따라 적용
+scwin.applyOuterMap = function (cLoc) {
+    // 이전 재생성에서 만든 외부 map 이 남아 있으면 판정이 오염되므로 항상 먼저 제거한다
+    let old = document.querySelector('body > map[name="image-map"]');
+
+    if (old)
+        old.parentNode.removeChild(old);
+
+    // 내부 정의 옵션이면 Image 외부에는 map 을 만들지 않는다
+    if (cLoc !== 'outer')
+        return;
+
+    let map = document.createElement("map");
+    map.name = "image-map";
+
+    let arrCoords = scwin.gVar.areaCoords;
+
+    let area = document.createElement("area");
+    area.shape = "rect";
+    area.coords = arrCoords;
+    area.href = "#usemap-area";
+    area.alt = "usemap area";
+    area.addEventListener("click", scwin.area_onclick);
+
+    map.appendChild(area);
+    document.body.appendChild(map);
+}
+
+
+
+// area 클릭 (map 의 area 영역이 이미지와 연결된 경우에만 발화)
+scwin.area_onclick = function (e) {
+    // href 로 페이지가 이동하면 샘플이 유지되지 않으므로 기본 동작을 막고 발화 사실만 관측한다
+    e.preventDefault();
+
+    scwin.printClick(e, "area");
+}
+
+
+
+// 이미지 클릭 (area 영역과 연결되지 않은 지점 클릭 시 발화)
+scwin.target1_onclick = function (e) {
+    scwin.printClick(e, "image");
+}
+
+
+
+// 클릭 좌표가 area 범위 안쪽인지 판정
+scwin.isInArea = function (x, y) {
+    let arr = scwin.gVar.areaCoords.split(",");
+
+    return (x >= Number(arr[0]) && x <= Number(arr[2]) && y >= Number(arr[1]) && y <= Number(arr[3]));
+}
+
+
+
+// usemap 속성값 (엔진은 빈 값이면 속성 자체를 출력하지 않는다)
+scwin.getUsemapAttr = function () {
+    let attr = scwin.target1.render.getAttribute("usemap");
+
+    return (attr === null) ? "없음 (usemap 속성 미출력)" : "'" + attr + "'";
+}
+
+
+
+// map 연결 상태와 사유 (usemap 속성 문자열과 문서의 map 정의를 실제로 조회해 판정)
+scwin.getLinkState = function () {
+    let attr = scwin.target1.render.getAttribute("usemap");
+
+    // 사유 1 : usemap 속성 자체가 없음
+    if (attr === null)
+        return "미연결 (usemap 속성 없음)";
+
+    // 사유 2 : '#' 문자 누락 (usemap 속성 문자열의 첫 문자로 판정)
+    if (attr.charAt(0) !== "#")
+        return "미연결 (# 누락)";
+
+    // 사유 3 : '#' 을 제거한 이름의 map 이 문서에 정의되어 있지 않음
+    let mapName = attr.substring(1);
+    let objMap = document.querySelector('map[name="' + mapName + '"]');
+
+    if (objMap === null)
+        return "미연결 (map[name=" + mapName + "] 정의 없음)";
+
+    return "연결 (map[name=" + mapName + "], area " + objMap.querySelectorAll("area").length + " 개)";
+}
+
+
+
+// validation 2 ~ 4 판정 출력 (usemap 속성값 + 실제 클릭 동작 결과를 병기)
+scwin.printClick = function (e, from) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let img = scwin.target1.render;
+
+    let ev = e.originalEvent || e;
+    let rect = img.getBoundingClientRect();
+
+    let x = Math.round(ev.clientX - rect.left);
+    let y = Math.round(ev.clientY - rect.top);
+
+    let strPos = "(" + x + ", " + y + ") " + ((scwin.isInArea(x, y)) ? "area 범위 안쪽" : "area 범위 바깥");
+
+    let strFire = (from === "area") ? "area 클릭 발화 -> area 에 정의된 동작 실행" : "이미지 클릭 발화 -> area 동작 없음";
+
+    // setSrc 로 이미지를 바꾼 뒤에도 area 클릭 동작이 유효한지 함께 판정한다
+    let strPrefix = (scwin.gVar.srcChanged) ? "[2~4,5] setSrc 이후 " : "[2~4] ";
+
+    bottom.setReturnValue(strPrefix + "usemap : " + scwin.getUsemapAttr() + " / map 연결 : " + scwin.getLinkState() + " / 클릭 : " + strPos + " / " + strFire);
+};
+
+
+
+// validation 1 판정 출력
+scwin.btn_getMapDefine_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let img = scwin.target1.render;
+
+    // Image 컴포넌트 내부에 정의를 시도한 map / area 가 실제로 남아 있는지 실측
+    let innerChild = img.childElementCount;
+    let innerMap = document.querySelector('map[name="inner-map"]');
+
+    // Image 외부에 별도 정의된 map 이 실제로 있는지 실측 (con 값이 아니라 DOM 조회로 판정)
+    let outerMap = document.querySelector('body > map[name="image-map"]');
+    let strOuter = (outerMap === null) ? "없음" : "있음 (area " + outerMap.querySelectorAll("area").length + " 개, coords " + outerMap.querySelector("area").coords + ")";
+
+    bottom.setReturnValue("[1] Image 내부 map 정의 시도 : img 자식 요소 " + innerChild + " 개 / map(inner-map) : " + ((innerMap === null) ? "없음" : "있음") + " / Image 외부 별도 정의 map(image-map) : " + strOuter + " / map 연결 : " + scwin.getLinkState());
+};
+
+
+
+// validation 5 판정 출력 (이미지 변경 전후 usemap 속성 비교)
+scwin.btn_setSrc_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let img = scwin.target1.render;
+
+    let beforeUsemap = scwin.getUsemapAttr();
+    let beforeSrc = scwin.target1.getSrc();
+
+    scwin.target1.setSrc("/img/gif.gif");
+
+    scwin.gVar.srcChanged = true;
+
+    let afterUsemap = scwin.getUsemapAttr();
+    let afterSrc = scwin.target1.getSrc();
+
+    bottom.setReturnValue("[5] 이미지 : " + beforeSrc.substring(beforeSrc.lastIndexOf("/") + 1) + " -> " + afterSrc.substring(afterSrc.lastIndexOf("/") + 1) + " / usemap 속성값 : " + beforeUsemap + " -> " + afterUsemap + " / 변경 없음 : " + (beforeUsemap === afterUsemap));
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="usemap" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_usemap" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#image-map (# 포함 / 정의된 map)</xf:label>
+												<xf:value>#image-map</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>image-map (# 미포함)</xf:label>
+												<xf:value>image-map</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#no-such-map (정의되지 않은 map)</xf:label>
+												<xf:value>#no-such-map</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="mapLocation" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_mapLocation" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>외부 (Image 외부에 map 별도 정의)</xf:label>
+												<xf:value>outer</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>내부 (Image 자식으로만 map 정의 시도)</xf:label>
+												<xf:value>inner</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getMapDefine_onclick" id="btn_getMapDefine" label="map 정의 위치 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setSrc_onclick" id="btn_setSrc" label="setSrc" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

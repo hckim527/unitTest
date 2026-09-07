@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[image] tooltipLocaleRef" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260907" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[image > P > tooltipLocaleRef]<br/>클라이언트 다국어가 적용되었을 때 tooltip 속성의 툴팁에 표시할 텍스트의 Key 값을 설정합니다.",
+    "validation" : [
+        "tooltip 속성이 설정되어 있고, 클라이언트 다국어 기능이 활성화 되었을때 동작합니다.",
+        "String 값 설정 시, 툴팁에 표시할 다국어 텍스트의 Key 값을 설정합니다.",
+        "String 값 설정 시, 설정한 Key 값이 JS 파일에 없다면 'global_undefined' 가 적용됩니다.",
+        "다국어 기능을 사용하려면 config.xml 파일에서 languagePack 항목을 설정하여야 합니다.",
+        "클라이언트 다국어는 config.xml 의 WebSquare/useLocale/@value 값을 true 로 설정해야 합니다.",
+        "다국어 기능은 Key:Value 형식으로 데이터가 정의된 JS 파일에서 Key 값에 해당하는 Value 값을 찾아 툴팁에 반영합니다.",
+        "이때 클라이언트(웹브라우저)에 설정된 언어에 해당하는 JS 파일이 적용됩니다.",
+        "부모 컴포넌트에 tooltip 속성이 설정되어 있고 Image 컴포넌트에 tooltip 속성값이 있고 useLocale=true 이면 tooltipLocaleRef, useLocale 속성이 부모 컴포넌트에 반영(빈값 포함)됩니다.",
+        "부모 컴포넌트에 tooltip 속성이 설정되어 있고 Image 컴포넌트에 tooltip 속성값이 없거나 useLocale=false 이면 부모 컴포넌트의 tooltipLocaleRef, useLocale 속성은 빈값이 됩니다.",
+        "부모 컴포넌트에 tooltip 속성이 설정되어 있으면 반영된 속성값이 적용된 툴팁이 부모 컴포넌트에 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값을 명시 설정한다.
+    //  gdl_boolean 바인딩 항목의 코드값 : 미설정="1" / true="2" / false="3"
+    con_tooltip.setValue("이미지 툴팁");
+    con_tooltipLocaleRef.setValue("websquare_name");
+    con_useLocale.setValue("2");
+    con_parentTooltip.setValue("");
+
+    // 툴팁은 마우스가 벗어나면 사라지므로, 툴팁이 표시된 상태(마우스 오버 중)의 클릭 시점에 값을 읽는다.
+    //  WebSquare 이벤트보다 먼저 동작해야 하므로 capture 단계 native click 리스너를 사용한다.
+    document.addEventListener("click", scwin.fn_clickCapture, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제 (자식 Image 를 먼저 제거한 뒤 부모 group 을 제거한다)
+    if (scwin.target1) {
+        scwin.target1.remove();
+        scwin.target1 = null;
+    }
+
+    if (scwin.parent1) {
+        scwin.parent1.remove();
+        scwin.parent1 = null;
+    }
+
+    let cTooltip   = con_tooltip.getValue();
+    let cLocaleRef = con_tooltipLocaleRef.getValue();
+    let cUseLocale = con_useLocale.getText();
+    let cParentTip = con_parentTooltip.getValue();
+
+    scwin.gVar = {
+        "tooltip" : cTooltip,
+        "localeRef" : cLocaleRef,
+        "useLocale" : cUseLocale,
+        "parentTip" : cParentTip
+    };
+
+    let fnLbl = function (v) { return (v === "") ? "미설정" : v; };
+
+    $c.gcm.createLabel('label="[현재] tooltip = ' + fnLbl(cTooltip) + ' / tooltipLocaleRef = ' + fnLbl(cLocaleRef)
+        + ' / useLocale = ' + fnLbl(cUseLocale) + ' / 부모 group tooltip = ' + fnLbl(cParentTip)
+        + '\n[전제] config.xml 의 languagePack 은 설정되어 있고(/lang/ko.js, /lang/en.js), WebSquare/useLocale/@value 는 미설정입니다'
+        + '\n[전제] 다국어 JS 의 Key : websquare_name 은 존재하는 Key, invalid_key 는 없는 Key 입니다'
+        + '\n[전제] Image 는 회색 배경의 부모 group(padding 20px) 안에 생성됩니다'
+        + '\n[절차] con 값 변경 -> Target 재생성 -> Image 위에 마우스를 올려 툴팁이 보이는 상태에서 Image 를 클릭'
+        + '\n[확인] 결과창에 표시된 툴팁 텍스트, config 값, 적용된 다국어 JS, 부모 group 반영 속성이 출력됩니다'
+        + '\n[확인] 브라우저(웹브라우저) 언어를 en 으로 변경한 뒤 페이지를 다시 열면 en.js 의 Value 로 바뀌는지 확인합니다"', '', 'label1');
+
+    // 부모 group : 부모 컴포넌트 반영 규칙 검증용 (tooltip 만 설정하고 다국어 속성은 주지 않는다)
+    let pList = $c.gcm.createCList({ tooltip : cParentTip });
+
+    let strParent = '<xf:group ' + $c.gcm.strNameSpace + ' ' + pList
+        + ' style="display:inline-block; padding:20px; background-color:var(--ws-gray-200);"></xf:group>';
+
+    scwin.parent1 = await $p.dynamicCreate("parent1", "group", strParent, $c.gcm.getTestGroup(''));
+
+    // 조건 설정
+    let properties = {
+        tooltip : cTooltip,
+        tooltipLocaleRef : cLocaleRef,
+        useLocale : cUseLocale,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 부모 group 안에 생성해야 하므로 공통 함수($c.gcm.createBasicImage) 대신 직접 생성한다
+    let strTarget = '<xf:image ' + $c.gcm.strNameSpace + ' ' + cList + ' src="/img/png.png"></xf:image>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "image", strTarget, scwin.parent1.render);
+}
+
+
+
+// 부모 group / Image 영역 클릭 시에만 결과를 출력한다
+scwin.fn_clickCapture = function (e) {
+    if (!scwin.parent1 || !scwin.parent1.render || !e.target) {
+        return;
+    }
+
+    if (!scwin.parent1.render.contains(e.target)) {
+        return;
+    }
+
+    scwin.fn_printTooltip();
+};
+
+
+
+// validation 항목별 판정 출력
+scwin.fn_printTooltip = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let g = scwin.gVar;
+
+    let fnLbl = function (v) { return (v === "" || v === undefined || v === null) ? "미설정" : v; };
+
+    // 표시된 툴팁 텍스트는 공통 함수로 확인한다 (숨겨진 잔존 풍선 DOM 오독 방지)
+    $c.gcm.getTooltipInfo(wf_body_bottom);
+
+    let objTip = document.querySelector(".w2balloonTip");
+    let objLabel = document.querySelector(".w2balloonTip_label");
+    let shown = (objTip !== null && objTip.style.display !== "none");
+    let strText = (shown && objLabel) ? objLabel.textContent : "";
+
+    let cfgLangPack  = scwin.target1.getConfiguration("/WebSquare/languagePack/@useLanguagePack");
+    let cfgUseLocale = scwin.target1.getConfiguration("/WebSquare/useLocale/@value");
+    let objLang = WebSquare.WebSquareLang || {};
+
+    // [1,2,3] 동작 조건 / Key 설정 / 없는 Key 의 global_undefined
+    bottom.setReturnValue("[1,2,3] tooltip = " + fnLbl(g.tooltip) + " / tooltipLocaleRef = " + fnLbl(g.localeRef)
+        + " / useLocale = " + fnLbl(g.useLocale)
+        + " -> 툴팁 " + (shown ? "텍스트 : " + strText : "미표시"));
+
+    // [4,5] 다국어 사용 전제 (config languagePack / config useLocale)
+    let bApplied = (shown && g.tooltip !== "" && strText !== g.tooltip);
+
+    bottom.setReturnValue("[4,5] config languagePack useLanguagePack = " + fnLbl(cfgLangPack)
+        + " (로드된 다국어 Key 개수 = " + Object.keys(objLang).length + ")"
+        + " / config useLocale = " + fnLbl(cfgUseLocale)
+        + " / Image options.useLocale = " + scwin.target1.options.useLocale
+        + " -> 다국어 " + (bApplied ? "적용" : "미적용"));
+
+    // [6,7] Key:Value 조회 / 브라우저 언어에 해당하는 JS 적용
+    if (g.localeRef !== "") {
+        bottom.setReturnValue("[6,7] 브라우저 언어 = " + navigator.language
+            + " / 적용된 언어 = " + WebSquare.systemLanguage
+            + " / 적용된 JS 의 lang_type = " + fnLbl(objLang["lang_type"])
+            + " / Key " + g.localeRef + " 의 Value = "
+            + ((objLang[g.localeRef] === undefined) ? "JS 파일에 없음" : objLang[g.localeRef]));
+    }
+
+    // [8,9,10] 부모 컴포넌트 반영
+    if (g.parentTip !== "") {
+        let objBody = WebSquare.getBody();
+
+        let strBase = (objBody._tooltipTriggerComponentId === scwin.target1.uuid) ? "Image"
+                    : (objBody._tooltipTriggerComponentId === scwin.parent1.uuid) ? "부모 group"
+                    : "판정 불가";
+
+        bottom.setReturnValue("[8,9,10] 부모 group tooltip = " + fnLbl(g.parentTip)
+            + " -> 툴팁 속성 적용 컴포넌트 : " + strBase
+            + " / 부모 group options.tooltipLocaleRef = " + fnLbl(scwin.parent1.options.tooltipLocaleRef)
+            + " / options.useLocale = " + scwin.parent1.options.useLocale
+            + " / 부모 group 에 표시된 툴팁 텍스트 : " + (shown ? strText : "미표시"));
+    }
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="tooltipLocaleRef" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_tooltipLocaleRef" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>websquare_name</xf:label>
+												<xf:value>websquare_name</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>invalid_key</xf:label>
+												<xf:value>invalid_key</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="useLocale" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_useLocale" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="tooltip" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_tooltip" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>이미지 툴팁</xf:label>
+												<xf:value>이미지 툴팁</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="부모 group tooltip" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_parentTooltip" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>부모 group 툴팁</xf:label>
+												<xf:value>부모 group 툴팁</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc"></xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

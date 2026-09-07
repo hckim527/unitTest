@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[image] ref" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260907" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_image" repeatNode="map" saveRemovedData="true" style="">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="imgPath" name="imgPath"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<imgPath><![CDATA[/img/png.png]]></imgPath>
+						</w2:row>
+						<w2:row>
+							<imgPath><![CDATA[/img/jpg.jpg]]></imgPath>
+						</w2:row>
+						<w2:row>
+							<imgPath><![CDATA[/img/gif.gif]]></imgPath>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+				<w2:dataMap baseNode="map" id="dtm_image">
+					<w2:keyInfo>
+						<w2:key dataType="text" id="imgPath" name="imgPath"></w2:key>
+					</w2:keyInfo>
+					<w2:data use="true">
+						<imgPath><![CDATA[/img/icon_F.png]]></imgPath>
+					</w2:data>
+				</w2:dataMap>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[image > P > ref]<br/>Image 컴포넌트에 표시될 이미지의 경로로 바인딩할 DataCollection 정보를 설정합니다.",
+    "validation" : [
+        "ref 속성 설정 시 src 속성값은 무시됩니다.",
+        "문자열 값 설정 시, 접근 가능한 DataCollection 의 컬럼을 'data:[DataCollection ID].[Key 또는 Column ID]' 형식으로 설정합니다.",
+        "문자열 값 설정 시, 바인딩된 데이터값이 src 속성에 적용되며 이미지가 화면에 표시됩니다.",
+        "유효하지 않은 값으로 설정 시 바인딩 처리되지 않고 이미지가 표시되지 않습니다.",
+        "ref 속성으로 바인딩된 상태에서 setSrc() 메소드로 이미지를 바꿔도 바인딩된 DataCollection 에 반영되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // 정적 select1 초기값 설정 (ref : DataList 바인딩 / src : 설정)
+    con_ref.setValue("data:dlt_image.imgPath");
+    con_src.setValue("/img/icon_M.png");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (scwin.target1) {
+        scwin.target1.remove();
+        scwin.target1 = null;
+    }
+
+    let cRef = con_ref.getValue();
+    let cSrc = con_src.getValue();
+
+    // DataList 바인딩 시 이미지가 바로 표시되도록 행 0 을 선택한 상태로 시작한다
+    dlt_image.setRowPosition(0);
+
+    let lblRef = (cRef === '') ? '미설정' : cRef;
+    let lblSrc = (cSrc === '') ? '미설정' : cSrc;
+
+    $c.gcm.createLabel('label="[현재] ref = ' + lblRef + ' / src = ' + lblSrc + '\n[절차] con 값 변경 -> Target 재생성 -> 이미지 상태 확인 버튼 클릭\n[확인] DataList 바인딩은 재생성 직후 행 0 이 선택된 상태로 바인딩 데이터값(/img/png.png)이 이미지로 표시되는지 확인합니다\n[참고] DataList 행 데이터 : 0 = /img/png.png, 1 = /img/jpg.jpg, 2 = /img/gif.gif / DataMap 데이터 : /img/icon_F.png"', '', 'label1');
+
+    // 조건 설정
+    let properties = {
+        ref : cRef,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // src 를 con 값으로 가변해야 하므로 공통 함수($c.gcm.createBasicImage 는 src 고정) 대신 직접 생성한다
+    let grp_comp = $c.gcm.getTestGroup('');
+
+    let strSrc = (cSrc === '') ? '' : ' src="' + cSrc + '"';
+
+    let strTarget = '<xf:image ' + $c.gcm.strNameSpace + ' ' + cList + strSrc + '></xf:image>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "image", strTarget, grp_comp);
+
+    // 이미지 로드 성공 / 실패가 확정된 후에 표시 상태를 관측할 수 있으므로 대기한다
+    await scwin.waitImage();
+}
+
+
+
+// 이미지 로드(성공/실패) 확정 대기
+scwin.waitImage = function () {
+    return new Promise(function (resolve) {
+        let img = scwin.target1.render;
+
+        if (img.complete) {
+            resolve();
+            return;
+        }
+
+        img.addEventListener("load", resolve, { once : true });
+        img.addEventListener("error", resolve, { once : true });
+        setTimeout(resolve, 2000);
+    });
+}
+
+
+
+// 바인딩된 DataCollection 의 현재 데이터값
+scwin.getBindValue = function () {
+    let cRef = con_ref.getValue();
+
+    if (cRef === "data:dlt_image.imgPath") {
+        let pos = dlt_image.getRowPosition();
+        return (pos < 0) ? "행 미선택" : dlt_image.getCellData(pos, "imgPath");
+    }
+
+    if (cRef === "data:dtm_image.imgPath") {
+        return dtm_image.get("imgPath");
+    }
+
+    return "바인딩 없음";
+}
+
+
+
+// 이미지 표시 여부 판정 (src 문자열이 아니라 로드 성공 여부 + 실제 렌더 박스로 판정)
+scwin.getShowState = function () {
+    let img = scwin.target1.render;
+    let loaded = img.complete && img.naturalWidth > 0;
+
+    return (loaded ? "이미지 표시됨" : "이미지 표시 안됨") + " (렌더 " + img.offsetWidth + " x " + img.offsetHeight + ")";
+}
+
+
+
+// validation 1 ~ 4 판정 출력
+scwin.btn_getState_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let img = scwin.target1.render;
+
+    let cRef = con_ref.getValue();
+    let cSrc = con_src.getValue();
+
+    let strRef = (cRef === '') ? "미설정" : cRef;
+    let strSrc = (cSrc === '') ? "미설정" : cSrc;
+
+    let curSrc = img.getAttribute("src");
+    let strCur = (curSrc === null || curSrc === "") ? "없음" : curSrc;
+
+    let applied = scwin.target1.options.ref;
+    let strApplied = (applied === undefined || applied === null || applied === "") ? "없음" : applied;
+
+    let isInvalid = (cRef === "data:invalid.imgPath");
+    let isValid = (cRef !== '' && !isInvalid);
+
+    bottom.setReturnValue("[1] ref = " + strRef + " / src 속성 = " + strSrc + " -> 실제 표시 경로 = " + strCur);
+    bottom.setReturnValue("[2] 컴포넌트에 적용된 ref 속성값 = " + strApplied);
+    bottom.setReturnValue("[3] " + (isValid ? "바인딩 데이터값 = " + scwin.getBindValue() + " -> " + scwin.getShowState() : "해당 없음 (유효한 ref 미설정)"));
+    bottom.setReturnValue("[4] " + (isInvalid ? scwin.getShowState() : "해당 없음 (유효하지 않은 ref 아님)"));
+};
+
+
+
+// validation 5 판정 출력
+scwin.btn_setSrc_onclick = async function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    scwin.target1.setSrc("/img/jpeg.jpeg");
+
+    await scwin.waitImage();
+
+    let img = scwin.target1.render;
+
+    bottom.setReturnValue("[5] setSrc 호출 -> 화면 표시 경로 = " + img.getAttribute("src") + " (" + scwin.getShowState() + ") / 바인딩 DataCollection 값 = " + scwin.getBindValue());
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ref" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_ref" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>data:dlt_image.imgPath (DataList Column ID)</xf:label>
+												<xf:value>data:dlt_image.imgPath</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>data:dtm_image.imgPath (DataMap Key)</xf:label>
+												<xf:value>data:dtm_image.imgPath</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>data:invalid.imgPath (유효하지 않은 값)</xf:label>
+												<xf:value>data:invalid.imgPath</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="src" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_src" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>/img/icon_M.png</xf:label>
+												<xf:value>/img/icon_M.png</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getState_onclick" id="btn_getState" label="이미지 상태 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setSrc_onclick" id="btn_setSrc" label="setSrc('/img/jpeg.jpeg')" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

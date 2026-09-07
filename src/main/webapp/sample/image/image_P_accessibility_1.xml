@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[image] accessibility" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260904" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[image > P > accessibility]<br/>Image 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, Image 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용합니다.",
+        "true 설정 시, tabIndex 속성을 초기 HTML 에는 포함하지 않고 컴포넌트 초기화가 완료된 후에 설정합니다.",
+        "false 설정 시, Image 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용하지 않습니다.",
+        "미설정 시, Image 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용하지 않습니다.",
+        "accessibility=true 로 설정해도 렌더링이 완료된 후에는 설정에 차이가 없습니다.",
+        "최종적으로 적용되는 tabIndex 속성은 accessibility 속성값에 관계없이 동일합니다.",
+    ]
+}
+
+
+
+// 재생성 시점의 관측 결과 보관
+//  - cur : 현재 Target 의 설정값 / 관측 결과
+//  - prev : 직전 재생성 Target 의 설정값 / 관측 결과 (validation 5 / 6 의 대비 판정용)
+scwin.gVar = {
+    "curAcc"       : "",
+    "curTab"       : "",
+    "curInitState" : "",
+    "curFinalTab"  : "",
+    "curAttrSet"   : "",
+    "prevAcc"      : "",
+    "prevTab"      : "",
+    "prevFinalTab" : "",
+    "prevAttrSet"  : "",
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 초기값 설정 (accessibility : true / tabIndex : 0)
+    con_accessibility.setValue("2");
+    con_tabIndex.setValue("0");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    // 직전 재생성 결과를 prev 로 이관 (validation 5 / 6 의 대비 판정용)
+    scwin.gVar["prevAcc"]      = scwin.gVar["curAcc"];
+    scwin.gVar["prevTab"]      = scwin.gVar["curTab"];
+    scwin.gVar["prevFinalTab"] = scwin.gVar["curFinalTab"];
+    scwin.gVar["prevAttrSet"]  = scwin.gVar["curAttrSet"];
+
+    let cAcc = con_accessibility.getText();
+    let cTab = con_tabIndex.getValue();
+
+    let lblAcc = (cAcc === '') ? '미설정' : cAcc;
+    let lblTab = (cTab === '') ? '미설정' : cTab;
+
+    $c.gcm.createLabel('label="[전제] tabIndex 값을 설정한 경우에만 accessibility 적용 여부를 판정할 수 있습니다 (tabIndex 미설정 시 두 시점 모두 tabIndex 속성 없음)\n[현재] accessibility = ' + lblAcc + ' / tabIndex = ' + lblTab + '\n[절차] con 값 변경 -> Target 재생성 -> tabIndex 확인 버튼 클릭\n[확인] 항목 5 / 6 은 직전 재생성 결과와 대비하여 판정하므로, tabIndex 는 그대로 두고 accessibility 만 변경하여 Target 을 재생성한 뒤 확인합니다"', '', 'label1');
+
+    // 조건 설정
+    let properties = {
+        accessibility : cAcc,
+        tabIndex : cTab,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // comp 생성 함수 호출
+    await $c.gcm.createBasicImage(cList, '');
+
+    // 최종(초기화 완료 후) 상태 수집
+    let finalTab = target1.render.getAttribute("tabindex");
+
+    let arrAttrName = Array.prototype.map.call(target1.render.attributes, function (attr) {
+        return attr.name;
+    });
+
+    let arrAttrPair = Array.prototype.map.call(target1.render.attributes, function (attr) {
+        return attr.name + "=" + attr.value;
+    });
+
+    // 초기 HTML 시점 판정
+    //  - 초기 HTML 에 tabIndex 가 없으면 초기화 완료 후에 설정되므로 속성 순서상 class 뒤에 위치한다
+    //  - none    : 초기 HTML 미포함 (초기화 완료 후 설정) -> 웹접근성 지원 기능 적용
+    //  - has     : 초기 HTML 포함 -> 웹접근성 지원 기능 미적용
+    //  - unknown : tabIndex 속성 없음 -> 판정 불가
+    let idxTab = arrAttrName.indexOf("tabindex");
+    let idxCls = arrAttrName.indexOf("class");
+
+    scwin.gVar["curInitState"] = (idxTab === -1) ? "unknown"
+                               : (idxTab > idxCls) ? "none"
+                               : "has";
+
+    scwin.gVar["curAcc"]      = lblAcc;
+    scwin.gVar["curTab"]      = lblTab;
+    scwin.gVar["curFinalTab"] = (finalTab === null) ? "없음" : finalTab;
+    scwin.gVar["curAttrSet"]  = arrAttrPair.slice().sort().join(" | ");
+}
+
+
+
+// validation 항목별 판정 출력
+scwin.btn_getTabIndex_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let gVar = scwin.gVar;
+
+    let acc = gVar["curAcc"];
+    let state = gVar["curInitState"];
+
+    // 항목 1 ~ 4 : 초기 HTML 의 tabIndex 포함 여부가 accessibility 적용 여부의 유일한 관측 지점이다
+    let str14 = (state === "none") ? "미포함 -> 웹접근성 기능 적용"
+              : (state === "has")  ? "포함 -> 웹접근성 기능 미적용"
+              : "두 시점 모두 없음 -> 판정 불가 (tabIndex 미설정)";
+
+    // 항목 5 ~ 6 : 직전 재생성 결과와 대비하여 판정한다
+    let str56 = "";
+
+    if (gVar["prevAcc"] === "") {
+        str56 = gVar["curFinalTab"] + " (이전 비교 대상 없음 - accessibility 변경 후 Target 재생성 필요)";
+    } else if (gVar["prevTab"] !== gVar["curTab"]) {
+        str56 = gVar["curFinalTab"] + " (비교 불가 - tabIndex 이전 " + gVar["prevTab"] + " / 현재 " + gVar["curTab"] + ")";
+    } else {
+        str56 = "이전(" + gVar["prevAcc"] + ") " + gVar["prevFinalTab"] + " / 현재(" + acc + ") " + gVar["curFinalTab"]
+              + " -> " + ((gVar["prevFinalTab"] === gVar["curFinalTab"]) ? "동일" : "다름")
+              + ", 렌더링 완료 후 설정 " + ((gVar["prevAttrSet"] === gVar["curAttrSet"]) ? "차이 없음" : "차이 있음 [이전 " + gVar["prevAttrSet"] + " / 현재 " + gVar["curAttrSet"] + "]")
+              + ((gVar["prevAcc"] === acc) ? " (accessibility 동일 값 비교)" : "");
+    }
+
+    bottom.setReturnValue("[설정] accessibility = " + acc + " / tabIndex = " + gVar["curTab"]);
+    bottom.setReturnValue("[1~4] 초기 HTML tabIndex : " + str14);
+    bottom.setReturnValue("[5~6] 최종 tabIndex : " + str56);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_accessibility" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="tabIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_tabIndex" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0</xf:label>
+												<xf:value>0</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2</xf:label>
+												<xf:value>2</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getTabIndex_onclick" id="btn_getTabIndex" label="tabIndex 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
