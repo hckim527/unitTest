@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[image] setAlt" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260908" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[image > M > setAlt]<br/>Image 컴포넌트의 alt 속성을 설정합니다.",
+    "validation" : [
+        "alt(필수) 파라미터로 Image 컴포넌트에 표시되는 이미지의 대체 텍스트를 설정합니다.",
+        "src 속성에 설정된 이미지를 표시할 수 없을때 Image 컴포넌트에 대체 텍스트를 표시합니다.",
+        "스크린 리더와 같은 접근성 도구가 Image 컴포넌트를 읽을때 사용됩니다.",
+        "검색 엔진 크롤러에서 Image 컴포넌트에 대한 정보를 수집할때 사용됩니다.",
+        "ariaLabel 속성이 설정된 경우 스크린 리더와 같은 접근성 도구가 Image 컴포넌트를 읽을때 alt 속성은 무시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // 정적 select1 초기값 설정 (src : 표시 불가 경로 / ariaLabel : 미설정 / alt 파라미터 : 텍스트)
+    con_src.setValue("/img/not_exist.png");
+    con_ariaLabel.setValue("");
+    par_alt.setValue("이미지 대체 텍스트");
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (scwin.target1) {
+        scwin.target1.remove();
+        scwin.target1 = null;
+    }
+
+    let cSrc  = con_src.getValue();
+    let cAria = con_ariaLabel.getValue();
+
+    let lblSrc  = (cSrc === "/img/png.png") ? "정상 이미지" : "잘못된 경로 (표시 불가)";
+    let lblAria = (cAria === "") ? "미설정" : cAria;
+
+    $c.gcm.createLabel('label="[현재] src = ' + cSrc + ' (' + lblSrc + ') / ariaLabel = ' + lblAria + ' / alt 은 초기 미설정 상태로 생성됩니다\n[절차] con 값 변경 -> Target 재생성 -> alt 파라미터 선택 -> setAlt 버튼 클릭\n[확인] 버튼 클릭 시점에 화면의 대체 텍스트 표시 상태가 바뀌는지 함께 확인합니다"', '', 'label1');
+
+    // 조건 설정 (alt 는 선언하지 않고 setAlt 호출로만 설정한다)
+    let properties = {
+        ariaLabel : cAria,
+    };
+
+    let cList = $c.gcm.createCList(properties);
+
+    // src 를 con 값으로 지정해야 하므로 공통 함수($c.gcm.createBasicImage 는 src 고정) 대신 직접 생성한다
+    let grp_comp = $c.gcm.getTestGroup('');
+
+    let strTarget = '<xf:image ' + $c.gcm.strNameSpace + ' ' + cList + ' src="' + cSrc + '"></xf:image>';
+
+    scwin.target1 = await $p.dynamicCreate("target1", "image", strTarget, grp_comp);
+
+    // 이미지 로드 성공 / 실패가 확정된 후에 표시 상태를 관측할 수 있으므로 대기한다
+    await new Promise(function (resolve) {
+        let img = scwin.target1.render;
+
+        if (img.complete) {
+            resolve();
+            return;
+        }
+
+        img.addEventListener("load", resolve, { once : true });
+        img.addEventListener("error", resolve, { once : true });
+        setTimeout(resolve, 2000);
+    });
+}
+
+
+
+// setAlt 호출 및 validation 항목별 판정 출력
+scwin.btn_setAlt_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let img = scwin.target1.render;
+
+    // 호출 전 상태 (초기 생성 시 alt 미설정)
+    let beforeAlt  = img.getAttribute("alt");
+    let beforeBox  = img.offsetWidth + " x " + img.offsetHeight;
+    let beforeMark = (img.outerHTML.indexOf(" alt=") > -1);
+
+    let pAlt = par_alt.getValue();
+
+    // alt(필수) 파라미터로 대체 텍스트 설정
+    scwin.target1.setAlt(pAlt);
+
+    let afterAlt = img.getAttribute("alt");
+    let ariaAttr = img.getAttribute("aria-label");
+
+    let strBefore = (beforeAlt === null) ? "없음 (alt 속성 미출력)" : "'" + beforeAlt + "'";
+    let strAfter  = (afterAlt  === null) ? "없음 (alt 속성 미출력)" : "'" + afterAlt + "'";
+
+    // 이미지를 표시할 수 있는지(로드 성공 여부)와 실제 렌더 상태를 함께 판정한다
+    let loaded = img.complete && img.naturalWidth > 0;
+
+    let strShow = (loaded) ? "이미지 정상 표시 (대체 텍스트 미표시)"
+                : (afterAlt === null || afterAlt === "") ? "이미지 표시 불가 -> 대체 텍스트 없음"
+                : "이미지 표시 불가 -> 대체 텍스트 " + strAfter + " 표시";
+
+    // 접근성 도구가 읽는 이름(접근성 이름)은 aria-label 이 있으면 alt 대신 aria-label 이 사용된다
+    let useAria = (ariaAttr !== null && ariaAttr !== "");
+    let accName = (useAria) ? ariaAttr : ((afterAlt === null) ? "" : afterAlt);
+
+    let strAcc = ((accName === "") ? "없음" : "'" + accName + "'")
+               + ((useAria) ? " (ariaLabel 우선 -> alt 무시)" : " (alt 사용)");
+
+    bottom.setReturnValue("[1] setAlt('" + pAlt + "') 호출 -> getAlt() : '" + scwin.target1.getAlt() + "' / 마크업 alt : " + strAfter + " (호출 전 : " + strBefore + ")");
+    bottom.setReturnValue("[2] " + strShow + " (렌더 영역 " + img.offsetWidth + " x " + img.offsetHeight + " / 호출 전 " + beforeBox + ")");
+    bottom.setReturnValue("[3,5] 접근성 이름 : " + strAcc);
+    bottom.setReturnValue("[4] 크롤러 수집 마크업 alt 포함 : " + (img.outerHTML.indexOf(" alt=") > -1) + " (호출 전 : " + beforeMark + ")");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="src" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_src" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>/img/not_exist.png (표시 불가)</xf:label>
+												<xf:value>/img/not_exist.png</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>/img/png.png (정상 이미지)</xf:label>
+												<xf:value>/img/png.png</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="ariaLabel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_ariaLabel" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>aria 레이블 텍스트</xf:label>
+												<xf:value>aria 레이블 텍스트</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="alt" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="par_alt" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>이미지 대체 텍스트</xf:label>
+												<xf:value>이미지 대체 텍스트</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>변경된 대체 텍스트</xf:label>
+												<xf:value>변경된 대체 텍스트</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th " tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setAlt_onclick" id="btn_setAlt" label="setAlt" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
