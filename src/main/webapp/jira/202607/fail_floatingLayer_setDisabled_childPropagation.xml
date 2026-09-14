@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] floatingLayer setDisabled 자식 미전파" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20260715" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// [FAIL] floatingLayer.setDisabled(true) 호출 시 floatingLayer 자체는 disabled 상태가 되지만
+//        내부 자식 컴포넌트(input/button)에는 disabled 가 전파되지 않아 여전히 입력/클릭이 가능하다.
+//        (동일 조건의 group 컨테이너는 자식까지 disabled 로 전파됨 → 비교군)
+
+scwin.onpageload = function () {
+    // floatingLayer 를 화면에 표시 (기본 숨김 대비)
+    if (typeof target_fl !== 'undefined' && target_fl.show) {
+        target_fl.show();
+    }
+    scwin.setReturnValue("[초기 상태] 두 컨테이너 및 자식 모두 활성(enabled). '(1) setDisabled(true)' 후 '(3) 상태 확인' 으로 자식 전파 여부를 비교하세요.");
+};
+
+
+
+// (1) 두 컨테이너 모두 setDisabled(true)
+scwin.btn_disable_onclick = function (e) {
+    grp_normal.setDisabled(true);
+    target_fl.setDisabled(true);
+    scwin.setReturnValue("===== setDisabled(true) 호출 완료 =====");
+    scwin.printState();
+};
+
+
+
+// (2) 두 컨테이너 모두 setDisabled(false)
+scwin.btn_enable_onclick = function (e) {
+    grp_normal.setDisabled(false);
+    target_fl.setDisabled(false);
+    scwin.setReturnValue("===== setDisabled(false) 호출 완료 =====");
+    scwin.printState();
+};
+
+
+
+// (3) 상태 확인 : 컨테이너 / 자식 컴포넌트 getDisabled + input DOM disabled 출력
+scwin.btn_check_onclick = function (e) {
+    scwin.printState();
+};
+
+
+
+scwin.printState = function () {
+    // group (정상 비교군) : 자식까지 전파
+    scwin.setReturnValue("[group(정상)] container.getDisabled=" + grp_normal.getDisabled()
+        + " / input.getDisabled=" + in_normal.getDisabled()
+        + " / button.getDisabled=" + btn_normal_child.getDisabled()
+        + " / input DOM disabled=" + scwin.domDisabled("in_normal"));
+
+    // floatingLayer (결함) : 컨테이너만 disabled, 자식 미전파
+    scwin.setReturnValue("[floatingLayer(결함)] container.getDisabled=" + target_fl.getDisabled()
+        + " / input.getDisabled=" + in_defect.getDisabled()
+        + " / button.getDisabled=" + btn_defect_child.getDisabled()
+        + " / input DOM disabled=" + scwin.domDisabled("in_defect"));
+
+    scwin.setReturnValue("[기대] 두 컨테이너 모두 자식 input/button.getDisabled 가 컨테이너와 동일해야 함.  [실제] floatingLayer 자식은 false 로 남음(입력 가능).");
+    scwin.setReturnValue("");
+};
+
+
+
+// 컴포넌트 id 로 실제 input DOM 의 disabled 여부 조회
+scwin.domDisabled = function (cid) {
+    var comp = null;
+    try { comp = $p.getComponentById(cid); } catch (err) {}
+    if (!comp) return "n/a";
+    var el = comp.getElement ? comp.getElement() : null;
+    if (el && el.tagName && el.tagName.toLowerCase() === 'input') return el.disabled;
+    if (el) {
+        var inner = el.querySelector ? el.querySelector('input') : null;
+        return inner ? inner.disabled : "n/a";
+    }
+    return "n/a";
+};
+
+
+
+// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_root" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+			<w2:textbox class="tc_tbx_label_1" escape="false" id="lbl_title" style=""
+				label="■ [FAIL] floatingLayer.setDisabled(true) 시 내부 자식 컴포넌트(input/button)가 비활성화되지 않음 (컨테이너 자신만 disabled). 비교군 group 은 자식까지 전파됨."></w2:textbox>
+
+			<xf:group id="grp_btns" style="display:flex; gap:8px;">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_disable_onclick" id="btn_disable" label="(1) setDisabled(true)" style=""></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_enable_onclick" id="btn_enable" label="(2) setDisabled(false)" style=""></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_check_onclick" id="btn_check" label="(3) 상태 확인" style=""></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_compare" style="display:flex; gap:40px; align-items:flex-start;">
+				<!-- 정상 비교군 : group 컨테이너 -->
+				<xf:group id="grp_normal" style="border:1px solid var(--ws-gray-400); border-radius:8px; padding:12px; width:220px;">
+					<w2:textbox class="" id="" label="[정상] group 컨테이너" style="font-weight:bold;"></w2:textbox>
+					<xf:input id="in_normal" initValue="group child input" style="width:180px; height:24px;"></xf:input>
+					<w2:button id="btn_normal_child" label="group child button" style="width:150px; height:24px;"></w2:button>
+				</xf:group>
+
+				<!-- 결함 대상 : floatingLayer 컨테이너 -->
+				<w2:floatingLayer id="target_fl" title="[결함] floatingLayer 컨테이너" style="width:260px; height:150px;">
+					<xf:input id="in_defect" initValue="floatingLayer child input" style="width:200px; height:24px;"></xf:input>
+					<w2:button id="btn_defect_child" label="floatingLayer child button" style="width:180px; height:24px;"></w2:button>
+				</w2:floatingLayer>
+			</xf:group>
+
+			<!-- ===== 리턴 값 확인 (body_bottom.xml inline) ===== -->
+			<xf:group class="" id="grp_bottom" style="">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 160px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

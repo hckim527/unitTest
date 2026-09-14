@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] updateSuffix 후 suffix 설정값 처리 동작이 6.0 과 다름" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map" />
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+// 테스트용 suffix.txt 내용 (JSON 형식). 프로젝트 공통 파일을 바꾸지 않기 위해 XHR 요청 URL 만 바꿔 전달한다.
+scwin.SUFFIX_JSON = '{"suffix":[{"path":"/langpack","defaults":"lang_${year}_${month}"},{"extension":{"js":"js_${day}","xml":"xml_${week}"},"defaults":"etc_${random}"}]}';
+
+// suffix.txt 요청을 위 JSON 내용으로 바꿔 응답시키고, 호출이 끝나면 원상복구한다
+scwin.redirectSuffixXHR = function (strBody) {
+    var fnOrigOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (strMethod, strUrl) {
+        if (typeof strUrl === "string" && strUrl.indexOf("suffix.txt") > -1) {
+            arguments[1] = "data:text/plain;charset=utf-8," + encodeURIComponent(strBody);
+        }
+        return fnOrigOpen.apply(this, arguments);
+    };
+    return {
+        restore : function () { XMLHttpRequest.prototype.open = fnOrigOpen; }
+    };
+};
+
+// WebSquare.suffix 의 타입과 값을 한 줄로 요약
+scwin.getSuffixState = function () {
+    if (typeof WebSquare === "undefined" || typeof WebSquare.suffix === "undefined") {
+        return "undefined (미설정)";
+    }
+    var objSuffix = WebSquare.suffix;
+    if (objSuffix === null) {
+        return "null";
+    }
+    if (typeof objSuffix === "string") {
+        return "string : '" + objSuffix + "'";
+    }
+    if (typeof objSuffix === "object") {
+        try { return "object : " + JSON.stringify(objSuffix); } catch (objError) { return "object"; }
+    }
+    return typeof objSuffix;
+};
+
+// 특정 리소스 URL 에 실제로 붙는 postfix 문자열
+scwin.getGeneratedPostfix = function (strUri) {
+    try {
+        if (WebSquare && WebSquare.BootLoader && typeof WebSquare.BootLoader.generateSuffixPostfix === "function") {
+            return WebSquare.BootLoader.generateSuffixPostfix(strUri);
+        }
+    } catch (objError) { }
+    return "(조회 불가)";
+};
+
+scwin.btn_updateSuffix_onclick = function (e) {
+    var objHandle = scwin.redirectSuffixXHR(scwin.SUFFIX_JSON);
+
+    scwin.setReturnValue("=====updateSuffix 호출 (suffix.txt 내용 = JSON 형식)=====");
+    scwin.setReturnValue("[호출 전] WebSquare.suffix : " + scwin.getSuffixState());
+
+    var objRet = $p.updateSuffix();
+
+    var fnDone = function () {
+        scwin.setReturnValue("[호출 후] WebSquare.suffix : " + scwin.getSuffixState());
+        scwin.setReturnValue("[호출 후] /langpack/ko.js 에 붙는 postfix : '" + scwin.getGeneratedPostfix("/langpack/ko.js") + "'");
+        objHandle.restore();
+    };
+
+    if (objRet && typeof objRet.then === "function") {
+        objRet.then(fnDone, function (objError) {
+            scwin.setReturnValue("reject : " + objError);
+            objHandle.restore();
+        });
+    } else {
+        setTimeout(fnDone, 700);
+    }
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] updateSuffix 호출 후 suffix 설정값을 보관하는 형태가 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] 프로젝트 공통 파일을 바꾸지 않기 위해 XMLHttpRequest 의 요청 URL 만 바꿔, 엔진이 읽는 suffix.txt 내용을 JSON 형식 문자열로 응답시킨다. 응답 내용은 경로·확장자별 postfix 를 정의한 JSON 이며 호출이 끝나면 원상복구한다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (updateSuffix 호출) 버튼을 클릭하고, 결과창의 '[호출 후] WebSquare.suffix' 타입과 '/langpack/ko.js 에 붙는 postfix' 값을 확인한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] [호출 후] WebSquare.suffix : object 로 보관된다 / /langpack/ko.js 에 붙는 postfix : 'lang_2026_09' (JSON 에 정의한 /langpack 경로 규칙이 적용된 값)" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] [호출 후] WebSquare.suffix : string 으로 보관된다(JSON 원문이 문자열 그대로 들어간다) / /langpack/ko.js 에 붙는 postfix : JSON 원문 문자열이 그대로 쓰이며 경로 규칙이 적용되지 않는다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] 화면을 처음 열었을 때와 updateSuffix 를 호출한 뒤의 suffix 보관 형태가 달라져, 경로·확장자별 캐시 제어 설정이 갱신 후에는 적용되지 않는다. 그 결과 서버에 새 파일을 올리고 갱신을 호출해도 브라우저가 이전 파일을 계속 쓰거나, 반대로 매번 다시 받아 느려진다. 또한 두 버전에서 결과가 달라 동일 화면을 양쪽에서 운영하거나 버전을 옮길 때 캐시 동작이 바뀐다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 동작 흐름" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
+				<w2:textbox style="padding:4px;" id="" label="1. XMLHttpRequest.prototype.open 을 감싸 suffix.txt 요청을 JSON 내용으로 응답시킨다" escape="false"></w2:textbox>
+				<w2:textbox style="padding:4px;" id="" label="2. $p.updateSuffix() 를 호출하여 엔진이 suffix 설정값을 다시 읽게 한다" escape="false"></w2:textbox>
+				<w2:textbox style="padding:4px;" id="" label="3. 갱신 후 WebSquare.suffix 의 타입과 값, 그리고 리소스 URL 에 붙는 postfix 값을 출력한다" escape="false"></w2:textbox>
+				<w2:textbox style="padding:4px;" id="" label="4. XMLHttpRequest.prototype.open 을 원상복구한다" escape="false"></w2:textbox>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_updateSuffix_onclick" id="btn_updateSuffix" label="updateSuffix 호출"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 160px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

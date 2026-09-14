@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelDownload options.showConfirm 을 true 로 설정하고 대용량 데이터를 다운로드하면 확인 레이어의 진행률이 갱신되지 않는 결함" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260831" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_down" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="empNo" name="사번" dataType="text"></w2:column>
+						<w2:column id="empName" name="사원명" dataType="text"></w2:column>
+						<w2:column id="deptName" name="부서명" dataType="text"></w2:column>
+						<w2:column id="salary" name="급여" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1208
+// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+scwin.gVar = {};
+
+
+
+// 다운로드 데이터가 여러 번에 나누어 생성될 만큼 큰 규모(3000 행)를 바인딩한다.
+scwin.onpageload = function () {
+    var arrDept = ["영업1팀", "영업2팀", "개발1팀", "개발2팀", "품질보증팀", "인사팀", "재무팀"];
+    var arrData = [];
+
+    for (var i = 0; i < 3000; i++) {
+        arrData.push({
+            "empNo" : "E" + ("00000" + (i + 1)).slice(-5),
+            "empName" : "사원" + (i + 1),
+            "deptName" : arrDept[i % arrDept.length],
+            "salary" : (3200000 + (i % 47) * 50000) + ""
+        });
+    }
+
+    dlt_down.setJSON(arrData);
+};
+
+
+
+// 다운로드 진행 중 발생하는 스크립트 오류 횟수를 센다.
+scwin.startErrorCount = function () {
+    scwin.gVar.errorCount = 0;
+
+    if (scwin.gVar.orgConsoleError) return;
+
+    scwin.gVar.orgConsoleError = console.error;
+    console.error = function () {
+        scwin.gVar.errorCount++;
+        return scwin.gVar.orgConsoleError.apply(console, arguments);
+    };
+};
+
+// 오류 감시를 원복한다.
+scwin.stopErrorCount = function () {
+    if (scwin.gVar.orgConsoleError) {
+        console.error = scwin.gVar.orgConsoleError;
+        scwin.gVar.orgConsoleError = null;
+    }
+};
+
+
+
+// 확인 레이어에 표시된 진행률 문구를 읽는다.
+scwin.getConfirmLayerText = function () {
+    try {
+        var objFrame = document.getElementById("gridDownLoadLayer");
+        if (objFrame === null || !objFrame.contentDocument) return null;
+        var objText = objFrame.contentDocument.getElementById("textLayer");
+        return (objText === null) ? null : objText.textContent;
+    } catch (e) {
+        return null;
+    }
+};
+
+// 확인 레이어의 download 버튼이 눌릴 수 있는 상태인지(데이터 생성 완료 여부) 확인한다.
+scwin.isConfirmLayerReady = function () {
+    try {
+        var objFrame = document.getElementById("gridDownLoadLayer");
+        if (objFrame === null || !objFrame.contentDocument) return false;
+        var objBtn = objFrame.contentDocument.getElementById("downloadButton");
+        return (objBtn !== null && objBtn.disabled === false);
+    } catch (e) {
+        return false;
+    }
+};
+
+
+
+// 확인 레이어의 진행률 문구 변화를 감시하여 진행률 표시가 갱신된 횟수를 센다.
+scwin.startProgressWatch = function () {
+    scwin.gVar.progressCount = 0;
+    scwin.gVar.progressSeen = {};
+    scwin.gVar.lastText = null;
+
+    scwin.gVar.watchTimer = setInterval(function () {
+        var strText = scwin.getConfirmLayerText();
+        if (strText === null || strText === scwin.gVar.lastText) return;
+        scwin.gVar.lastText = strText;
+
+        if (strText.indexOf("%") !== -1 && scwin.gVar.progressSeen[strText] !== true) {
+            scwin.gVar.progressSeen[strText] = true;
+            scwin.gVar.progressCount++;
+        }
+    }, 5);
+};
+
+scwin.stopProgressWatch = function () {
+    if (scwin.gVar.watchTimer) {
+        clearInterval(scwin.gVar.watchTimer);
+        scwin.gVar.watchTimer = null;
+    }
+};
+
+
+
+// [결함] showConfirm = true 로 다운로드
+scwin.btn_showConfirm_onclick = function () {
+    scwin.startErrorCount();
+    scwin.startProgressWatch();
+
+    target1.advancedExcelDownload({
+        "fileName" : "fail_showconfirm",
+        "extension" : "xlsx",
+        "showConfirm" : true
+    });
+
+    scwin.waitConfirmDone(0);
+};
+
+// 데이터 생성이 끝날 때까지 기다렸다가 결과를 출력한다.
+scwin.waitConfirmDone = function (nRetry) {
+    if (scwin.isConfirmLayerReady() !== true && nRetry < 160) {
+        setTimeout(function () { scwin.waitConfirmDone(nRetry + 1); }, 50);
+        return;
+    }
+
+    scwin.stopProgressWatch();
+    scwin.stopErrorCount();
+
+    scwin.setReturnValue("호출 : showConfirm = true");
+    scwin.setReturnValue("진행률 표시 갱신 횟수 : " + scwin.gVar.progressCount);
+    scwin.setReturnValue("오류 발생 횟수 : " + scwin.gVar.errorCount);
+    scwin.setReturnValue("");
+};
+
+
+
+// [비교] showConfirm 생략 (확인 레이어 없음)
+scwin.btn_noConfirm_onclick = function () {
+    scwin.startErrorCount();
+
+    target1.advancedExcelDownload({
+        "fileName" : "ok_noconfirm",
+        "extension" : "xlsx"
+    });
+
+    setTimeout(function () {
+        scwin.stopErrorCount();
+        scwin.setReturnValue("호출 : showConfirm 생략");
+        scwin.setReturnValue("오류 발생 횟수 : " + scwin.gVar.errorCount);
+        scwin.setReturnValue("");
+    }, 5000);
+};
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView advancedExcelDownload() — options.showConfirm 을 true 로 설정하고 대용량 데이터를 다운로드하면 확인 레이어의 진행률이 갱신되지 않는 결함" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[전제] 사번 / 사원명 / 부서명 / 급여 4개 Column 그리드에 3000 행이 바인딩되어 있음 (다운로드 데이터가 여러 번에 나누어 생성될 만큼 큰 규모)" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제] 첫 번째 버튼은 options.showConfirm 을 true 로 설정하고 , 두 번째 버튼은 options.showConfirm 을 생략한다 (확인 레이어가 뜨지 않음). 그 외 옵션은 두 버튼이 동일하다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제] options.massStorage 는 기본값 true 이므로 두 버튼 모두 설정하지 않는다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제] showConfirm 을 true 로 설정하면 진행 팝업창(showProcess)은 표시되지 않는다. 이 샘플에서 말하는 진행률은 확인창 안에 표시되는 진행률이다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] &quot;다운로드 (showConfirm = true)&quot; 버튼을 클릭하고 화면 가운데 뜨는 확인 레이어의 진행률 표시가 증가하는지 관찰한 뒤 , 레이어의 download 버튼을 눌러 다운로드를 마치고 결과창의 오류 발생 횟수를 확인" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] 확인 레이어의 진행률 표시가 증가하며 갱신되고 오류 발생 횟수가 0 이어야 함" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[실제] 진행률 표시가 한 번도 갱신되지 않고(갱신 횟수 0) , 데이터를 나누어 생성하는 동안 오류가 29 회 반복 발생함 (3000 행 기준 / 다운로드 자체는 정상 완료됨). showConfirm 을 생략하면 오류가 0 회" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 대상 GridView (advancedExcelDownload 호출 대상 / 3000 행)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="target1" dataList="data:dlt_down" checkAllType="false" style="width:700px;height:200px;">
+				<w2:header style="" id="header_d">
+					<w2:row style="" id="hrow_d">
+						<w2:column width="120" inputType="text" id="hcol_d1" value="사번"></w2:column>
+						<w2:column width="140" inputType="text" id="hcol_d2" value="사원명"></w2:column>
+						<w2:column width="160" inputType="text" id="hcol_d3" value="부서명"></w2:column>
+						<w2:column width="140" inputType="text" id="hcol_d4" value="급여"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody_d">
+					<w2:row style="" id="brow_d">
+						<w2:column width="120" inputType="text" dataType="text" id="empNo" dataList="empNo" value=""></w2:column>
+						<w2:column width="140" inputType="text" dataType="text" id="empName" dataList="empName" value=""></w2:column>
+						<w2:column width="160" inputType="text" dataType="text" id="deptName" dataList="deptName" value=""></w2:column>
+						<w2:column width="140" inputType="text" dataType="text" id="salary" dataList="salary" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:8px;margin-bottom:14px;position:relative;z-index:6100;width:fit-content;max-width:100%;background:#ffffff;" id="grp_btn_run">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_showConfirm_onclick" id="btn_showConfirm" label="다운로드 (showConfirm = true)" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_noConfirm_onclick" id="btn_noConfirm" label="다운로드 (showConfirm 생략)" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="position:relative;z-index:5000;background:#ffffff;">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 200px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

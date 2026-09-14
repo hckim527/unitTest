@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelUpload options.wframe 를 true 로 설정하면 options.applyDecimal 이 업로드 화면에 전달되지 않아 options.decimal 이 적용되지 않는 결함" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260826" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_upload" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col0" name="Column 0" dataType="text"></w2:column>
+						<w2:column id="col1" name="Column 1" dataType="text"></w2:column>
+						<w2:column id="col2" name="Column 2" dataType="text"></w2:column>
+						<w2:column id="col3" name="Column 3" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<col0><![CDATA[]]></col0>
+							<col1><![CDATA[]]></col1>
+							<col2><![CDATA[]]></col2>
+							<col3><![CDATA[]]></col3>
+						</w2:row>
+						<w2:row>
+							<col0><![CDATA[]]></col0>
+							<col1><![CDATA[]]></col1>
+							<col2><![CDATA[]]></col2>
+							<col3><![CDATA[]]></col3>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+// ① ② 에 공통으로 전달할 옵션
+scwin.APPLY_DECIMAL = "1";
+scwin.DECIMAL = "3";
+
+// 업로드 파일의 Column 수
+scwin.COL_COUNT = 4;
+
+
+
+// 별도 팝업창으로 열린 업로드 화면의 창 핸들
+scwin.popWin = null;
+
+
+
+// 이전 케이스에서 열린 업로드 화면(WFrame 레이어 / 별도 팝업창)을 닫는다.
+//  · 닫은 경우 true 를 반환한다. (닫기 처리가 끝나기 전에 다시 열면 ID 중복 경고가 발생하므로 호출부에서 간격을 둔다.)
+scwin.closeOpened = function () {
+    var bClosed = false;
+
+    try {
+        var objFrame = document.querySelector("[id$='_excelPop_wframe']");
+        if (objFrame !== null) {
+            WebSquare.util.closePopup(objFrame.id.replace("_wframe", ""));
+            bClosed = true;
+        }
+    } catch (e) {}
+
+    try {
+        if (scwin.popWin !== null && scwin.popWin.closed === false) {
+            scwin.popWin.close();
+            bClosed = true;
+        }
+    } catch (e) {}
+
+    scwin.popWin = null;
+    return bClosed;
+};
+
+
+
+// wframe 설정 여부만 달리하여 advancedExcelUpload 실행
+scwin.runCase = function (strNo, bWframe) {
+    var bClosed = scwin.closeOpened();
+
+    var fnRun = function () {
+        var objOptions = { "applyDecimal" : scwin.APPLY_DECIMAL, "decimal" : scwin.DECIMAL };
+        if (bWframe === true) objOptions.wframe = true;
+
+        // wframe 미설정이면 업로드 화면이 window.open 으로 열리므로 호출 시점에만 감싸서 창 핸들을 확보한다.
+        var fnOpen = window.open;
+        window.open = function () {
+            var objWin = fnOpen.apply(window, arguments);
+            scwin.popWin = objWin;
+            return objWin;
+        };
+
+        try {
+            target1.advancedExcelUpload(objOptions);
+        } finally {
+            window.open = fnOpen;
+        }
+
+        scwin.setReturnValue("[" + strNo + "] " + (bWframe === true ? "wframe : true (WFrame 레이어)" : "wframe : 미설정 (별도 팝업창)") + " / 전달한 옵션 : applyDecimal \"" + objOptions.applyDecimal + "\" , decimal \"" + objOptions.decimal + "\"");
+
+        // 엔진이 만든 값은 업로드가 끝나면 비워지므로 호출 직후 바로 읽는다.
+        scwin.printUploadInfo();
+
+        // 업로드 화면의 hidden 필드는 화면이 열린 뒤에 채워지므로 준비될 때까지 다시 읽는다.
+        scwin.printField(bWframe, 0);
+    };
+
+    // 이전 화면의 닫기 처리가 끝난 뒤 다음 케이스를 실행한다.
+    if (bClosed === true) {
+        setTimeout(fnRun, 800);
+    } else {
+        fnRun();
+    }
+};
+
+
+
+// 엔진이 만든 uploadInfo 의 applyDecimal / decimal 값 출력
+scwin.printUploadInfo = function () {
+    var strInfo = target1._excelUploadInfo;
+    if (strInfo === undefined || strInfo === null || strInfo === "") {
+        scwin.setReturnValue("엔진이 만든 uploadInfo : 확인 불가");
+        return;
+    }
+
+    var objInfo = JSON.parse(strInfo);
+    scwin.setReturnValue("엔진이 만든 uploadInfo : applyDecimal " + JSON.stringify(objInfo.applyDecimal) + " , decimal " + JSON.stringify(objInfo.decimal));
+};
+
+
+
+// 업로드 화면의 hidden 필드 값을 읽는다. (준비 전이면 null)
+scwin.readField = function (bWframe, strName) {
+    if (bWframe === true) {
+        var objInput = document.querySelector("input[id$='_excelPop_wframe_" + strName + "']");
+        if (objInput === null) return null;
+        return objInput.value;
+    }
+
+    if (scwin.popWin === null || scwin.popWin.closed === true) return null;
+
+    var objDoc = scwin.popWin.document;
+    if (objDoc === null) return null;
+
+    var objInput2 = objDoc.getElementById(strName);
+    if (objInput2 === null) return null;
+    return objInput2.value;
+};
+
+
+
+// 업로드 화면(WFrame 레이어 / 별도 팝업창)의 applyDecimal / decimal 필드 값 출력
+scwin.printField = function (bWframe, nTry) {
+    var strApply = null;
+    var strDecimal = null;
+
+    try {
+        strApply = scwin.readField(bWframe, "applyDecimal");
+        strDecimal = scwin.readField(bWframe, "decimal");
+    } catch (e) {}
+
+    // decimal 필드가 채워지면 화면이 준비된 것으로 본다.
+    if ((strDecimal === null || strDecimal === "") && nTry < 60) {
+        setTimeout(function () {
+            scwin.printField(bWframe, nTry + 1);
+        }, 250);
+        return;
+    }
+
+    scwin.setReturnValue("업로드 화면의 applyDecimal 필드 : " + (strApply === null ? "확인 불가" : "\"" + strApply + "\"") + " / decimal 필드 : " + (strDecimal === null ? "확인 불가" : "\"" + strDecimal + "\""));
+};
+
+
+
+// 업로드 완료 후 GridView 에 반영된 Row / Column 값 출력
+scwin.target1_onfilereadend = function (value) {
+    var nRow = dlt_upload.getRowCount();
+
+    for (var i = 0; i < nRow; i++) {
+        var arrCol = [];
+        for (var j = 0; j < scwin.COL_COUNT; j++) {
+            var strVal = target1.getCellData(i, "col" + j);
+            if (strVal === undefined || strVal === null || strVal === "") strVal = "-";
+            arrCol.push(strVal);
+        }
+        scwin.setReturnValue("Row " + i + " : " + arrCol.join(" | "));
+    }
+
+    scwin.setReturnValue("");
+};
+
+
+
+// ① wframe 미설정
+scwin.btn_case1_onclick = function () {
+    scwin.runCase("①", false);
+};
+
+// ② wframe true
+scwin.btn_case2_onclick = function () {
+    scwin.runCase("②", true);
+};]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView advancedExcelUpload() — options.wframe 를 true 로 설정하면 options.applyDecimal 이 업로드 화면에 전달되지 않아 options.decimal 이 적용되지 않는 결함" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제]" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="1. API 가이드 options.applyDecimal &amp;lt;String:N:&quot;0&quot;&amp;gt; : &quot;decimal 파라미터를 적용시킬지 여부를 설정합니다.&quot; / options.decimal &amp;lt;String:N:&quot;4&quot;&amp;gt; : &quot;applyDecimal 파라미터값이 &quot;0&quot; 이 아닐때 데이터에 적용할 소수점 자릿수를 설정합니다.&quot;" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="2. 업로드 파일은 같은 폴더의 fail_gridView_advancedExcelUpload_applyDecimalNotSentOnWframe.xlsx (4 Column × 3 Row , Column 0 은 Row 이름이고 Column 1 ~ 3 은 소수점 8 자리 이상의 숫자)" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="3. websquare/excel/upload/applyExcelFormat 미설정 상태이므로 Excel 서식과 무관하게 decimal 설정값이 적용되어야 하는 조건이다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="4. ① ② 는 applyDecimal &quot;1&quot; , decimal &quot;3&quot; 으로 옵션이 서로 같고 wframe 만 ① 미설정(또는 false) , ② true 로 다르다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] ① ② 버튼을 차례로 클릭하여 열린 Excel 업로드 화면에서 위 xlsx 파일을 선택 후 전송하고 결과창 출력을 확인 (다음 케이스 버튼을 누르면 이전 업로드 화면은 자동으로 닫힘)" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] ① ② 모두 decimal &quot;3&quot; 이 적용되어 소수점 3 자리로 반올림한 값이 설정되어야 함" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-bottom:8px;" id="" label="[실제] wframe 미설정 또는 false 인 ① 은 업로드 화면의 applyDecimal 필드가 &quot;true&quot; 이고 소수점 3 자리가 적용되지만 , wframe true 인 ② 는 applyDecimal 필드가 빈 값이고 Excel 원본 소수점 값이 그대로 설정된다" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 대상 GridView (advancedExcelUpload 호출 대상)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="target1" dataList="data:dlt_upload" checkAllType="false" style="width:600px;height:150px;" ev:onfilereadend="scwin.target1_onfilereadend">
+				<w2:header style="" id="header_u">
+					<w2:row style="" id="hrow_u">
+						<w2:column width="140" inputType="text" id="hcol_u0" value="Column 0"></w2:column>
+						<w2:column width="140" inputType="text" id="hcol_u1" value="Column 1"></w2:column>
+						<w2:column width="140" inputType="text" id="hcol_u2" value="Column 2"></w2:column>
+						<w2:column width="140" inputType="text" id="hcol_u3" value="Column 3"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody_u">
+					<w2:row style="" id="brow_u">
+						<w2:column width="140" inputType="text" dataType="text" id="col0" dataList="col0" value=""></w2:column>
+						<w2:column width="140" inputType="text" dataType="text" id="col1" dataList="col1" value=""></w2:column>
+						<w2:column width="140" inputType="text" dataType="text" id="col2" dataList="col2" value=""></w2:column>
+						<w2:column width="140" inputType="text" dataType="text" id="col3" dataList="col3" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:8px;margin-bottom:14px;position:relative;z-index:6100;width:fit-content;max-width:100%;background:#ffffff;" id="grp_btn_case">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case1_onclick" id="btn_case1" label="① wframe 미설정 (별도 팝업창) — applyDecimal &quot;1&quot; , decimal &quot;3&quot;" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case2_onclick" id="btn_case2" label="② wframe = true (WFrame 레이어) — applyDecimal &quot;1&quot; , decimal &quot;3&quot;" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;"></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="position:relative;z-index:5000;background:#ffffff;">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 260px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] redrawColumn / refreshColumn / refreshRow 의 화면 복원 동작이 6.0 과 다름" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_bind" repeatNode="map">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="name" name="name"></w2:column>
+						<w2:column dataType="text" id="region" name="region"></w2:column>
+						<w2:column dataType="number" id="qty" name="qty"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><name><![CDATA[노트북]]></name><region><![CDATA[서울]]></region><qty><![CDATA[3]]></qty></w2:row>
+						<w2:row><name><![CDATA[모니터]]></name><region><![CDATA[부산]]></region><qty><![CDATA[5]]></qty></w2:row>
+						<w2:row><name><![CDATA[키보드]]></name><region><![CDATA[대전]]></region><qty><![CDATA[7]]></qty></w2:row>
+						<w2:row><name><![CDATA[마우스]]></name><region><![CDATA[광주]]></region><qty><![CDATA[9]]></qty></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+
+// 화면(DOM)에만 표시할 임시값 — DataList 원본과 형태는 같고 값만 다르다
+scwin.FAKE_MAP = {
+    "name"   : ["태블릿", "프린터", "스피커", "웹캠"],
+    "region" : ["인천", "대구", "울산", "수원"],
+    "qty"    : ["11", "22", "33", "44"],
+    "total"  : ["11,000", "22,000", "33,000", "44,000"]
+};
+
+// 특정 Cell 의 화면 표시 텍스트 조회
+scwin.getCellText = function (nRow, nCol) {
+    var objTd = document.querySelector("td[id*='target1_cell_" + nRow + "_" + nCol + "']");
+    return objTd ? (objTd.textContent || "").trim() : "";
+};
+
+// 특정 Column 의 모든 Row 화면 표시 텍스트를 배열로 조회
+scwin.getColumnTexts = function (nCol) {
+    var objGrid = $p.getComponentById("target1");
+    var nCnt = objGrid.getRowCount();
+    var arr = [];
+    for (var r = 0; r < nCnt; r++) {
+        arr.push(scwin.getCellText(r, nCol));
+    }
+    return arr;
+};
+
+// 특정 Row 의 모든 Column 화면 표시 텍스트를 배열로 조회
+scwin.getRowTexts = function (nRow) {
+    var objGrid = $p.getComponentById("target1");
+    var nCnt = objGrid.getColumnCount();
+    var arr = [];
+    for (var c = 0; c < nCnt; c++) {
+        arr.push(scwin.getCellText(nRow, c));
+    }
+    return arr;
+};
+
+// [1단계] DataList 는 그대로 두고 그리드 셀의 화면 표시값만 임시값으로 바꾼다 (화면과 DataList 불일치 상태)
+scwin.btn_modifyCells_onclick = function (e) {
+    var objGrid = $p.getComponentById("target1");
+    var nRowCnt = objGrid.getRowCount();
+    var nColCnt = objGrid.getColumnCount();
+
+    for (var r = 0; r < nRowCnt; r++) {
+        for (var c = 0; c < nColCnt; c++) {
+            var objTd = document.querySelector("td[id*='target1_cell_" + r + "_" + c + "']");
+            if (!objTd) { continue; }
+            var strColId = objGrid.getColumnID(c);
+            var arrFake = scwin.FAKE_MAP[strColId];
+            objTd.textContent = (arrFake && typeof arrFake[r] !== "undefined") ? arrFake[r] : ("임시" + r);
+        }
+    }
+
+    scwin.setReturnValue("[화면 값만 수정] DataList 는 원본 유지, 화면 표시값만 임시값으로 변경");
+    scwin.setReturnValue("[화면 값만 수정] 수정 후 화면 표시값 - name : " + scwin.getColumnTexts(0).join(", ")
+        + " / region : " + scwin.getColumnTexts(1).join(", ")
+        + " / qty : " + scwin.getColumnTexts(2).join(", "));
+};
+
+// [2단계] 선택한 파라미터로 redrawColumn / refreshColumn 을 호출하고 해당 Column 의 화면 표시값을 출력
+scwin.runColumnMethod = function (strMethod) {
+    var objGrid = $p.getComponentById("target1");
+    var strPar = $p.getComponentById("par_columnInfo").getValue();
+    var parValue = (strPar === "name") ? "name" : Number(strPar);
+    var nColIdx = (strPar === "name") ? 0 : Number(strPar);
+
+    objGrid[strMethod](parValue);
+
+    scwin.setReturnValue("[" + strMethod + "(" + (typeof parValue === "string" ? "'" + parValue + "'" : parValue) + ")]"
+        + " 호출 후 화면 표시값 : " + scwin.getColumnTexts(nColIdx).join(", "));
+};
+
+scwin.btn_redrawColumn_onclick = function (e) {
+    scwin.runColumnMethod("redrawColumn");
+};
+
+scwin.btn_refreshColumn_onclick = function (e) {
+    scwin.runColumnMethod("refreshColumn");
+};
+
+// [2단계] refreshRow(0) 을 호출하고 Row 0 의 화면 표시값을 출력
+scwin.btn_refreshRow_onclick = function (e) {
+    var objGrid = $p.getComponentById("target1");
+
+    objGrid.refreshRow(0);
+
+    scwin.setReturnValue("[refreshRow(0)] 호출 후 Row 0 화면 표시값 : " + scwin.getRowTexts(0).join(", "));
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] redrawColumn() / refreshColumn() / refreshRow() 호출 시 화면이 DataList 값으로 복원되는 동작이 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] Column 구성 - 0:name(text) / 1:region(text) / 2:qty(number) / 3:total(expression = qty * 1000, displayFormat #,###). 데이터 Row 4 개. DataList 원본값은 name : 노트북, 모니터, 키보드, 마우스 / region : 서울, 부산, 대전, 광주 / qty : 3, 5, 7, 9 이다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] 1) (화면 값만 수정) 을 클릭해 DataList 는 그대로 둔 채 화면 표시값만 임시값(태블릿, 프린터, 스피커, 웹캠 / 인천, 대구, 울산, 수원 / 11, 22, 33, 44)으로 바꾼다. 2) columnInfo 를 선택하고 (redrawColumn 실행) / (refreshColumn 실행) / (refreshRow(0) 실행) 을 클릭해 결과창의 호출 후 화면 표시값을 확인한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 호출한 Column (또는 Row) 의 화면 표시값이 DataList 원본값으로 복원된다. columnInfo=0 -&gt; 노트북, 모니터, 키보드, 마우스 / columnInfo='name' -&gt; 노트북, 모니터, 키보드, 마우스 / columnInfo=2 -&gt; 3, 5, 7, 9 / refreshRow(0) -&gt; 노트북, 서울, 3, 3,000" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] 화면 표시값이 복원되지 않고 임시값이 그대로 남는다. columnInfo=0 -&gt; 태블릿, 프린터, 스피커, 웹캠 / columnInfo='name' -&gt; 태블릿, 프린터, 스피커, 웹캠 / columnInfo=2 -&gt; 11, 22, 33, 44 / refreshRow(0) -&gt; 태블릿, 인천, 11, 3,000 (expression Column 인 합계만 재계산되고 나머지 Cell 은 임시값 그대로다)" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] GridView 의 특정 Column / Row 만 다시 그려 화면을 데이터와 맞추는 동작이 5.0 에서는 수행되지 않는다. 화면에는 실제 데이터와 다른 값이 그대로 남아 사용자가 잘못된 값을 보고 작업하게 되며, 호출이 실패했다는 사실이 반환값으로 드러나지 않고 개발자 콘솔에만 오류가 남으므로 화면을 직접 확인하지 않으면 알 수 없다. 파라미터를 인덱스로 주든 Column ID 로 주든, Column 단위든 Row 단위든 동일하게 복원되지 않으므로 화면 일부만 갱신하는 처리를 5.0 에서는 사용할 수 없다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (gridView)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
+				<w2:gridView dataList="data:dlt_bind" id="target1" style="width:560px;height:240px;">
+					<w2:caption id="caption1" style="" value="화면 복원 테스트 그리드"></w2:caption>
+					<w2:header id="header1" style="">
+						<w2:row id="row1" style="">
+							<w2:column id="hcol1" inputType="text" style="" value="품목" width="140"></w2:column>
+							<w2:column id="hcol2" inputType="text" style="" value="지역" width="120"></w2:column>
+							<w2:column id="hcol3" inputType="text" style="" value="수량" width="120"></w2:column>
+							<w2:column id="hcol4" inputType="text" style="" value="합계(qty*1000)" width="*"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody id="gBody1" style="">
+						<w2:row id="row2" style="">
+							<w2:column dataList="name" id="name" inputType="text" style="" width="140"></w2:column>
+							<w2:column dataList="region" id="region" inputType="text" style="" width="120"></w2:column>
+							<w2:column dataList="qty" dataType="number" id="qty" inputType="text" style="" width="120"></w2:column>
+							<w2:column dataType="number" displayFormat="#,###" expression="Number(display('qty'))*1000" id="total" inputType="expression" style="" width="*"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_par">
+				<w2:textbox style="margin-right:6px;" id="" label="columnInfo" escape="false"></w2:textbox>
+				<xf:select1 appearance="minimal" id="par_columnInfo" style="width:200px;">
+					<xf:choices>
+						<xf:item><xf:label><![CDATA[0 (인덱스, name)]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+						<xf:item><xf:label><![CDATA['name' (Column ID)]]></xf:label><xf:value><![CDATA[name]]></xf:value></xf:item>
+						<xf:item><xf:label><![CDATA[2 (인덱스, qty)]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+					</xf:choices>
+				</xf:select1>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_modifyCells_onclick" id="btn_modifyCells" label="화면 값만 수정"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_redrawColumn_onclick" id="btn_redrawColumn" label="redrawColumn 실행"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_refreshColumn_onclick" id="btn_refreshColumn" label="refreshColumn 실행"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_refreshRow_onclick" id="btn_refreshRow" label="refreshRow(0) 실행"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 160px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

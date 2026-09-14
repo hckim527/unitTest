@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] linkedDataList getAllXML / getAllFilteredXML 이 링크 조건에 없는 행을 반환" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="gdl_org" rowNumData="true">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="cat1" name="category1"></w2:column>
+						<w2:column dataType="text" id="cat2" name="category2"></w2:column>
+						<w2:column dataType="text" id="label" name="display"></w2:column>
+						<w2:column dataType="text" id="value" name="code"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<cat1><![CDATA[A]]></cat1>
+							<cat2><![CDATA[A1]]></cat2>
+							<label><![CDATA[A-A1-1]]></label>
+							<value><![CDATA[AA11]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[A]]></cat1>
+							<cat2><![CDATA[A1]]></cat2>
+							<label><![CDATA[A-A1-2]]></label>
+							<value><![CDATA[AA12]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[A]]></cat1>
+							<cat2><![CDATA[A2]]></cat2>
+							<label><![CDATA[A-A2-1]]></label>
+							<value><![CDATA[AA21]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[A]]></cat1>
+							<cat2><![CDATA[A2]]></cat2>
+							<label><![CDATA[A-A2-2]]></label>
+							<value><![CDATA[AA22]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[B]]></cat1>
+							<cat2><![CDATA[B1]]></cat2>
+							<label><![CDATA[B-B1-1]]></label>
+							<value><![CDATA[BB11]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[B]]></cat1>
+							<cat2><![CDATA[B1]]></cat2>
+							<label><![CDATA[B-B1-2]]></label>
+							<value><![CDATA[BB12]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[B]]></cat1>
+							<cat2><![CDATA[B2]]></cat2>
+							<label><![CDATA[B-B2-1]]></label>
+							<value><![CDATA[BB21]]></value>
+						</w2:row>
+						<w2:row>
+							<cat1><![CDATA[B]]></cat1>
+							<cat2><![CDATA[B2]]></cat2>
+							<label><![CDATA[B-B2-2]]></label>
+							<value><![CDATA[BB22]]></value>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+				<w2:linkedDataList id="target1" bind="gdl_org">
+					<w2:condition type="filter"><![CDATA[cat1==ref("data:gdl_org.cat1")]]></w2:condition>
+					<w2:condition type="sort"><![CDATA[]]></w2:condition>
+				</w2:linkedDataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+
+// 원본 dataList 의 필터를 초기화한 뒤, value 가 AA11 / AA21 / BB11 / BB21 인 행만 남도록 필터를 적용한다
+// (각 버튼이 단독으로 동작하도록 모든 핸들러 선두에서 호출한다)
+scwin.applyOrgFilter = function () {
+    var objOrg = $p.getComponentById("gdl_org");
+    objOrg.clearFilter();
+    objOrg.setColumnFilter({ type: "row", colIndex: "value", key: "AA11", condition: "and" });
+    objOrg.setColumnFilter({ type: "row", colIndex: "value", key: "AA21", condition: "or" });
+    objOrg.setColumnFilter({ type: "row", colIndex: "value", key: "BB11", condition: "or" });
+    objOrg.setColumnFilter({ type: "row", colIndex: "value", key: "BB21", condition: "or" });
+
+    // 링크 조건 'cat1==ref("data:gdl_org.cat1")' 이 참조하는 원본 Row 를 첫 번째 Row(cat1 = A)로 맞춘다
+    objOrg.setRowPosition(0);
+
+    return objOrg;
+};
+
+// JSON 배열을 '[순번] cat1 / cat2 / value' 형식 한 줄로 만든다
+scwin.jsonToLine = function (arrJson) {
+    var arrText = [];
+    for (var i = 0; i < arrJson.length; i++) {
+        arrText.push("[" + i + "] " + arrJson[i].cat1 + " / " + arrJson[i].cat2 + " / " + arrJson[i].value);
+    }
+    return arrText.join("   ");
+};
+
+// XML 의 map 노드에서 하위 태그 값을 읽는다
+scwin.getNodeText = function (objMap, strTag) {
+    var arrNode = objMap.getElementsByTagName(strTag);
+    if (arrNode.length === 0) {
+        return "(없음)";
+    }
+    return arrNode[0].textContent;
+};
+
+// XMLDocument 를 '[index=n] cat1 / cat2 / value' 형식 한 줄로 만든다
+scwin.xmlToLine = function (objXml) {
+    var arrMap = objXml.getElementsByTagName("map");
+    var arrText = [];
+    for (var i = 0; i < arrMap.length; i++) {
+        arrText.push("[index=" + arrMap[i].getAttribute("index") + "] "
+            + scwin.getNodeText(arrMap[i], "cat1") + " / "
+            + scwin.getNodeText(arrMap[i], "cat2") + " / "
+            + scwin.getNodeText(arrMap[i], "value"));
+    }
+    return arrText.join("   ");
+};
+
+// 원본 dataList 에 필터만 적용하고 남은 행을 출력한다
+scwin.btn_applyFilter_onclick = function (e) {
+    var objOrg = scwin.applyOrgFilter();
+    scwin.setReturnValue("[원본 필터 적용] gdl_org 조회 행 (cat1 / cat2 / value) : " + scwin.jsonToLine(objOrg.getAllFilteredJSON()));
+};
+
+// getAllXML() 과 getAllJSON() 의 반환값을 나란히 출력한다
+scwin.btn_getAllXML_onclick = function (e) {
+    scwin.applyOrgFilter();
+
+    var objLinked = $p.getComponentById("target1");
+    var objXml = objLinked.getAllXML();
+
+    scwin.setReturnValue("[getAllJSON() - 정상 기준] (cat1 / cat2 / value) : " + scwin.jsonToLine(objLinked.getAllJSON()));
+    scwin.setReturnValue("[getAllXML()  - 비교 대상] (cat1 / cat2 / value) : " + scwin.xmlToLine(objXml));
+    scwin.setReturnValue("[getAllXML() 원문] " + (new XMLSerializer()).serializeToString(objXml));
+};
+
+// getAllFilteredXML() 과 getAllFilteredJSON() 의 반환값을 나란히 출력한다
+scwin.btn_getAllFilteredXML_onclick = function (e) {
+    scwin.applyOrgFilter();
+
+    var objLinked = $p.getComponentById("target1");
+    var objXml = objLinked.getAllFilteredXML();
+
+    scwin.setReturnValue("[getAllFilteredJSON() - 정상 기준] (cat1 / cat2 / value) : " + scwin.jsonToLine(objLinked.getAllFilteredJSON()));
+    scwin.setReturnValue("[getAllFilteredXML()  - 비교 대상] (cat1 / cat2 / value) : " + scwin.xmlToLine(objXml));
+    scwin.setReturnValue("[getAllFilteredXML() 원문] " + (new XMLSerializer()).serializeToString(objXml));
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] linkedDataList 의 getAllXML() / getAllFilteredXML() 반환값이 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] 원본 dataList 'gdl_org' (컬럼 cat1 / cat2 / label / value, 8 행) 와, 이를 참조하는 linkedDataList 'target1' 을 Filter Condition 'cat1==ref(data:gdl_org.cat1)' 으로 링크한다. gdl_org 의 현재 cat1 값은 'A' 이다. 이 상태에서 gdl_org 에 value 가 AA11 / AA21 / BB11 / BB21 인 행만 남는 필터를 적용한다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] 아래 (getAllXML / getAllJSON 비교) 버튼과 (getAllFilteredXML / getAllFilteredJSON 비교) 버튼을 클릭하고, 결과창에서 JSON 줄과 XML 줄의 두 번째 행 값을 비교한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] XML 줄도 JSON 줄과 같이 링크 조건(cat1 = A)에 맞는 2 행만 반환한다 - index=0 은 A / A1 / AA11, index=2 는 A / A2 / AA21" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] XML 줄의 index=2 자리에 링크 조건에 없는 행(B / B1 / BB11)이 담겨 반환된다. 같은 시점의 JSON 줄은 A / A1 / AA11, A / A2 / AA21 로 정상이며, getAllXML() 과 getAllFilteredXML() 이 동일한 증상을 보인다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] 같은 시점에 JSON 으로 조회하면 맞는 값이 나오는데 XML 로 조회하면 링크 조건에 없는 행이 섞여 나오므로, 이 XML 을 서버로 전송하면 화면에 보이지 않는 잘못된 데이터가 전달된다. 또한 두 버전에서 반환값이 달라 동일 화면을 양쪽에서 운영하거나 버전을 옮기면 서버로 전송되는 데이터가 바뀐다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 원본 dataList (gdl_org) / 링크된 linkedDataList (target1)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;display: flex;" id="grp_target">
+				<w2:gridView checkAllType="false" id="gridView1" style="width:400px;height:200px;" dataList="data:gdl_org" rowStatusVisible="true">
+					<w2:caption style="" id="caption1" value="gdl_org (원본)"></w2:caption>
+					<w2:header style="" id="header1">
+						<w2:row style="" id="row1">
+							<w2:column width="70" style="" inputType="text" id="column1" value="cat1"></w2:column>
+							<w2:column width="70" style="" inputType="text" id="column2" value="cat2"></w2:column>
+							<w2:column width="100" style="" inputType="text" id="column3" value="label"></w2:column>
+							<w2:column width="90" style="" inputType="text" id="column4" value="value"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody style="" id="gBody1">
+						<w2:row style="" id="row2">
+							<w2:column width="70" style="" inputType="text" id="cat1" value="" displayMode="label"></w2:column>
+							<w2:column width="70" style="" inputType="text" id="cat2" value="" displayMode="label"></w2:column>
+							<w2:column width="100" style="" inputType="text" id="label" value="" displayMode="label"></w2:column>
+							<w2:column width="90" style="" inputType="text" id="value" value="" displayMode="label"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+				<w2:gridView checkAllType="false" id="gridView2" style="margin-left:10px;width:400px;height:200px;" dataList="data:target1" rowStatusVisible="true">
+					<w2:caption style="" id="caption2" value="target1 (링크)"></w2:caption>
+					<w2:header style="" id="header2">
+						<w2:row style="" id="row3">
+							<w2:column width="70" style="" inputType="text" id="column5" value="cat1"></w2:column>
+							<w2:column width="70" style="" inputType="text" id="column6" value="cat2"></w2:column>
+							<w2:column width="100" style="" inputType="text" id="column7" value="label"></w2:column>
+							<w2:column width="90" style="" inputType="text" id="column8" value="value"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody style="" id="gBody2">
+						<w2:row style="" id="row4">
+							<w2:column width="70" style="" inputType="text" id="cat1" value="" displayMode="label"></w2:column>
+							<w2:column width="70" style="" inputType="text" id="cat2" value="" displayMode="label"></w2:column>
+							<w2:column width="100" style="" inputType="text" id="label" value="" displayMode="label"></w2:column>
+							<w2:column width="90" style="" inputType="text" id="value" value="" displayMode="label"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_applyFilter_onclick" id="btn_applyFilter" label="원본 필터 적용"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_getAllXML_onclick" id="btn_getAllXML" label="getAllXML / getAllJSON 비교"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_getAllFilteredXML_onclick" id="btn_getAllFilteredXML" label="getAllFilteredXML / getAllFilteredJSON 비교"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 160px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

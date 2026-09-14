@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelUpload options.features 에 일부 속성만 지정하면 나머지 기본 팝업 옵션이 모두 사라지는 결함" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_upload" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col1" name="name1" dataType="text"></w2:column>
+						<w2:column id="col2" name="name2" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<col1><![CDATA[col1_1]]></col1>
+							<col2><![CDATA[col2_1]]></col2>
+						</w2:row>
+						<w2:row>
+							<col1><![CDATA[col1_2]]></col1>
+							<col2><![CDATA[col2_2]]></col2>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+scwin.gVar = null;
+
+
+
+// 이전 케이스에서 열린 창을 닫는다.
+scwin.closeOpened = function () {
+    try {
+        if (scwin.gVar !== null && scwin.gVar.win !== null && scwin.gVar.win.closed === false) scwin.gVar.win.close();
+    } catch (e) {}
+};
+
+
+
+// features 값 조합으로 advancedExcelUpload 실행
+//  · Excel 파일 선택 팝업창은 window.open 으로 생성되므로 호출 시점에만 window.open 을 감싸 실제로 전달된 feature 문자열과 창 핸들을 확보한다.
+//  · GridView 의 업로드 정보(_excelUploadInfo)는 업로드가 끝나면 초기화되므로 호출 직후 그 자리에서 읽는다.
+scwin.runCase = function (strNo, strKind, objOptions) {
+    scwin.closeOpened();
+    scwin.gVar = { "no" : strNo, "win" : null, "features" : "" };
+
+    scwin.setReturnValue("[" + strNo + "] features " + strKind);
+
+    var fnOpen = window.open;
+    window.open = function (sUrl, sName, sFeatures) {
+        var objWin = fnOpen.apply(window, arguments);
+        if (sName === "fileupWindow") {
+            scwin.gVar.win = objWin;
+            scwin.gVar.features = (sFeatures === undefined || sFeatures === null) ? "" : String(sFeatures);
+        }
+        return objWin;
+    };
+    try {
+        grd_upload.advancedExcelUpload(objOptions);
+    } finally {
+        window.open = fnOpen;
+    }
+
+    var strInfo = "";
+    try {
+        var objInfo = JSON.parse(grd_upload._excelUploadInfo);
+        strInfo = (typeof objInfo.sFeatures === "string") ? objInfo.sFeatures : JSON.stringify(objInfo.sFeatures);
+    } catch (e) {}
+
+    scwin.setReturnValue("업로드 정보의 sFeatures : " + (strInfo === "" ? "없음" : strInfo));
+    scwin.setReturnValue("window.open 전달 문자열 : " + (scwin.gVar.features === "" ? "없음" : scwin.gVar.features));
+
+    setTimeout(function () { scwin.printState(0); }, 1000);
+};
+
+
+
+// 실제로 열린 창의 속성 출력
+//  · 팝업창으로 열리면 브라우저 UI 가 없어 toolbar / menubar 가 표시되지 않고 창 크기도 지정값에 가깝지만 , 탭으로 열리면 브라우저 창 전체 크기가 된다.
+scwin.printState = function (nRetry) {
+    nRetry = nRetry || 0;
+
+    var objWin = scwin.gVar.win;
+    if ((objWin === null || objWin.closed === true) && nRetry < 6) {
+        setTimeout(function () { scwin.printState(nRetry + 1); }, 500);
+        return;
+    }
+
+    if (objWin === null || objWin.closed === true) {
+        scwin.setReturnValue("열린 창 : 없음 (창이 확인되지 않음)");
+        scwin.setReturnValue("");
+        return;
+    }
+
+    try {
+        scwin.setReturnValue("열린 창 크기 : outerWidth = " + objWin.outerWidth + " , outerHeight = " + objWin.outerHeight + " , screenX = " + objWin.screenX + " , screenY = " + objWin.screenY);
+        scwin.setReturnValue("열린 창 속성 : toolbar.visible = " + objWin.toolbar.visible + " , menubar.visible = " + objWin.menubar.visible + " , locationbar.visible = " + objWin.locationbar.visible);
+    } catch (e) {
+        scwin.setReturnValue("열린 창 : 속성을 읽을 수 없음");
+    }
+    scwin.setReturnValue("");
+};
+
+
+
+// ① features 미설정
+scwin.btn_case1_onclick = function () {
+    scwin.runCase("①", "미설정", {});
+};
+
+// ② features 에 left top width height 모두 지정
+scwin.btn_case2_onclick = function () {
+    scwin.runCase("②", "= \"left=100,top=100,width=700,height=400\"", { "features" : "left=100,top=100,width=700,height=400" });
+};
+
+// ③ features 에 left top 만 지정
+scwin.btn_case3_onclick = function () {
+    scwin.runCase("③", "= \"left=100,top=100\"", { "features" : "left=100,top=100" });
+};]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView advancedExcelUpload() — options.features 에 일부 속성만 지정하면 나머지 기본 팝업 옵션이 모두 사라지는 결함" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제]" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="1. API 가이드 options.features : &quot;Excel 파일 선택 팝업창의 위치 및 크기를 설정합니다.&quot; / &quot;팝업창의 left, top, width, height 속성을 설정할 수 있습니다. (ex&gt; &quot;width=455,height=845&quot;)&quot;" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="2. 가이드에는 지정하지 않은 속성의 기본값이 유지되지 않는다는 언급이 없고 , 가이드 예시 자체도 width height 두 개만 지정한다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="3. features 미설정 시 적용되는 팝업 옵션은 top=280,height=137,left=160,width=446,location=no,menubar=no,resizable=yes,scrollbars=auto,status=no,titlebar=yes,toolbar=no 이다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] ① ~ ③ 버튼을 차례로 클릭하여 결과창에 출력되는 window.open 전달 문자열과 열린 창의 크기 / 속성을 확인 (다음 케이스 버튼을 누르면 이전 창은 자동으로 닫힘 / 팝업창의 실제 위치는 실제 브라우저에서 확인)" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] features 에 지정한 속성만 반영되고 지정하지 않은 속성은 기본값이 유지되어야 함 — 즉 ③ 처럼 left top 만 지정해도 나머지 기본 옵션은 그대로 유지되어 위치만 바뀌어 열려야 함" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-bottom:8px;" id="" label="[실제] 지정한 속성만 남고 나머지 기본 옵션은 모두 사라짐 — ③ 은 전달 문자열이 left=100,top=100 뿐이며 지정한 위치가 적용되지 않음 (② 처럼 width height 까지 함께 지정하면 정상 동작)" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 대상 GridView (advancedExcelUpload 호출 대상)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="grd_upload" dataList="data:dlt_upload" checkAllType="false" style="width:400px;height:120px;">
+				<w2:header style="" id="header_u">
+					<w2:row style="" id="hrow_u">
+						<w2:column width="200" inputType="text" id="hcol_u1" value="name1"></w2:column>
+						<w2:column width="200" inputType="text" id="hcol_u2" value="name2"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody_u">
+					<w2:row style="" id="brow_u">
+						<w2:column width="200" inputType="text" dataType="text" id="col1" dataList="col1" value=""></w2:column>
+						<w2:column width="200" inputType="text" dataType="text" id="col2" dataList="col2" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:8px;margin-bottom:14px;position:relative;z-index:6100;width:400px;background:#ffffff;" id="grp_btn_case">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case1_onclick" id="btn_case1" label="① features 미설정" style="display:block;width:390px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case2_onclick" id="btn_case2" label="② features = &quot;left=100,top=100,width=700,height=400&quot;" style="display:block;width:390px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case3_onclick" id="btn_case3" label="③ features = &quot;left=100,top=100&quot;" style="display:block;width:390px;"></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="position:relative;z-index:5000;background:#ffffff;">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 260px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

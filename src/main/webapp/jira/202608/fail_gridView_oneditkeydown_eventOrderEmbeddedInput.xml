@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView oneditkeydown embeddedInput Cell 편집 시 이벤트 발생 순서 불일치" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20260818" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_bind" repeatNode="map">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="code" name="code"></w2:column>
+						<w2:column dataType="text" id="etxt" name="etxt"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><code><![CDATA[코드0]]></code><etxt><![CDATA[텍스트0]]></etxt></w2:row>
+						<w2:row><code><![CDATA[코드1]]></code><etxt><![CDATA[텍스트1]]></etxt></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// [FAIL] gridView 가 편집 상태일때 키를 입력하면
+//        onkeydown -> oneditkeydown -> onkeyup -> oneditkeyup 순서로 이벤트가 발생해야 하는데,
+//        Body Cell 이 embeddedInput="true" 인 경우 이 순서가 성립하지 않는다.
+//        col A = embeddedInput 미사용 (더블클릭으로 편집 진입) -> 가이드대로의 순서
+//        col B = embeddedInput="true" (셀 안 입력창에 커서를 두면 편집 상태) -> 순서 불일치
+
+//  seq       : 한 번의 키 조작(누름 -> 뗌) 안에서 이벤트 발생 순번
+//  cycleDone : 직전 조작이 끝났는지 여부 (다음 누름 이벤트에서 순번을 1 부터 다시 시작)
+scwin.gVar = { "seq" : 0, "cycleDone" : true };
+
+
+
+// 이벤트 발생 즉시 한 줄씩 출력 (출력 순서 = 실제 발생 순서)
+scwin.logEvent = function (strName, bDown) {
+    if (bDown === true && scwin.gVar.cycleDone === true) {
+        scwin.gVar.seq = 0;
+        scwin.gVar.cycleDone = false;
+    }
+    scwin.gVar.seq++;
+    scwin.setReturnValue("[" + scwin.gVar.seq + "] " + strName);
+};
+
+
+
+scwin.grid1_onkeydown = function (e) {
+    scwin.logEvent("onkeydown", true);
+};
+
+scwin.grid1_oneditkeydown = function (info) {
+    scwin.logEvent("oneditkeydown (colID=" + info.colID + ")", true);
+};
+
+scwin.grid1_onkeyup = function (e) {
+    scwin.logEvent("onkeyup", false);
+    scwin.gVar.cycleDone = true;
+};
+
+scwin.grid1_oneditkeyup = function (info) {
+    scwin.logEvent("oneditkeyup (colID=" + info.colID + ")", false);
+    scwin.gVar.cycleDone = true;
+};
+
+
+
+// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+    scwin.gVar.seq = 0;
+    scwin.gVar.cycleDone = true;
+};
+
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body>
+		<xf:group id="grp_root" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+			<w2:textbox class="tc_tbx_label_1" escape="false" id="lbl_title" style=""
+				label="■ [FAIL] gridView 가 편집 상태일때 키를 입력하면 onkeydown -&gt; oneditkeydown -&gt; onkeyup -&gt; oneditkeyup 순서로 이벤트가 발생해야 하는데, Body Cell 이 embeddedInput=&quot;true&quot; 인 경우 이 순서가 성립하지 않음."></w2:textbox>
+			<w2:textbox class="" escape="false" id="lbl_guide" style=""
+				label="[확인 방법] clear 후 &apos;A. embeddedInput 미사용&apos; Column 의 Cell 을 더블클릭해 편집 상태로 만들고 일반 문자키 / Tab / Enter 를 각각 눌러 결과창의 순번을 확인합니다. 이어서 clear 후 &apos;B. embeddedInput=true&apos; Column 의 Cell 안 입력창을 클릭해 커서를 둔 뒤 같은 키를 각각 눌러 순번을 비교합니다.&lt;br/&gt;[기대] 편집 상태의 키 입력에서는 onkeydown 이 oneditkeydown 보다 먼저 발생해야 합니다. A 는 문자키에서 [1] onkeydown &amp;rarr; [2] oneditkeydown &amp;rarr; [3] onkeyup &amp;rarr; [4] oneditkeyup 으로 성립합니다.&lt;br/&gt;[실제] B 는 문자키에서 onkeydown 이 발생하지 않고 [1] oneditkeydown &amp;rarr; [2] oneditkeyup &amp;rarr; [3] onkeyup 이며, Tab / Enter 에서는 [1] oneditkeydown &amp;rarr; [2] onkeydown &amp;rarr; [3] oneditkeyup &amp;rarr; [4] onkeyup 으로 onkeydown 이 oneditkeydown 보다 늦게 발생합니다."></w2:textbox>
+
+			<xf:group id="grp_grid" style="display:flex; flex-direction:column; gap:6px;">
+				<w2:textbox class="" id="lbl_col" escape="false" style="font-weight:bold;"
+					label="A = embeddedInput 미사용 (더블클릭으로 편집 진입) / B = embeddedInput=&quot;true&quot; (Cell 안 입력창에 커서)"></w2:textbox>
+				<w2:gridView id="grid1" checkAllType="false" editable="true" dataList="data:dlt_bind"
+					ev:onkeydown="scwin.grid1_onkeydown" ev:oneditkeydown="scwin.grid1_oneditkeydown"
+					ev:onkeyup="scwin.grid1_onkeyup" ev:oneditkeyup="scwin.grid1_oneditkeyup"
+					style="width:520px;height:120px;">
+					<w2:header id="hdr1">
+						<w2:row id="hrow1">
+							<w2:column width="250" inputType="text" id="hcol1" value="A. embeddedInput 미사용"></w2:column>
+							<w2:column width="*" inputType="text" id="hcol2" value="B. embeddedInput=true"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody id="body1">
+						<w2:row id="brow1">
+							<w2:column width="250" inputType="text" dataType="text" id="code" dataList="code"></w2:column>
+							<w2:column width="*" inputType="text" dataType="text" embeddedInput="true" id="etxt" dataList="etxt"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+			</xf:group>
+
+			<!-- ===== 리턴 값 확인 (body_bottom.xml inline) ===== -->
+			<xf:group class="" id="grp_bottom" style="">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 160px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

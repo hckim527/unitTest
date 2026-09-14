@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelDownload 확인창 미닫힘" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_bind">
+					<w2:columnInfo>
+						<w2:column id="deptName" name="deptName" dataType="text"></w2:column>
+						<w2:column id="empName" name="empName" dataType="text"></w2:column>
+						<w2:column id="workDays" name="workDays" dataType="number"></w2:column>
+						<w2:column id="payAmt" name="payAmt" dataType="number"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><deptName><![CDATA[영업기획팀]]></deptName><empName><![CDATA[김민서]]></empName><workDays><![CDATA[21]]></workDays><payAmt><![CDATA[4250000]]></payAmt></w2:row>
+						<w2:row><deptName><![CDATA[영업기획팀]]></deptName><empName><![CDATA[박준형]]></empName><workDays><![CDATA[20]]></workDays><payAmt><![CDATA[3980000]]></payAmt></w2:row>
+						<w2:row><deptName><![CDATA[상품개발팀]]></deptName><empName><![CDATA[이서연]]></empName><workDays><![CDATA[22]]></workDays><payAmt><![CDATA[4610000]]></payAmt></w2:row>
+						<w2:row><deptName><![CDATA[상품개발팀]]></deptName><empName><![CDATA[정하윤]]></empName><workDays><![CDATA[19]]></workDays><payAmt><![CDATA[3720000]]></payAmt></w2:row>
+						<w2:row><deptName><![CDATA[품질관리팀]]></deptName><empName><![CDATA[오세훈]]></empName><workDays><![CDATA[23]]></workDays><payAmt><![CDATA[4480000]]></payAmt></w2:row>
+						<w2:row><deptName><![CDATA[품질관리팀]]></deptName><empName><![CDATA[윤나래]]></empName><workDays><![CDATA[18]]></workDays><payAmt><![CDATA[3560000]]></payAmt></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+scwin.arrSubmit = [];
+scwin.arrTimer = [];
+
+// 다운로드 요청은 숨겨진 iframe 으로 form 이 전송되어 발생한다.
+//  화면에서는 요청 발생 여부를 볼 수 없으므로 form 전송을 가로채 기록만 남긴다(전송은 그대로 진행된다).
+scwin.onpageload = function () {
+    let fnOrigin = HTMLFormElement.prototype.submit;
+
+    HTMLFormElement.prototype.submit = function () {
+        scwin.arrSubmit.push(this.action || "");
+        return fnOrigin.apply(this, arguments);
+    };
+};
+
+
+
+// 확인창은 최상위 문서가 아니라 iframe#gridDownLoadLayer 안에 있다.
+//  iframe 자체의 표시 여부와 그 안의 download 버튼 표시 여부를 함께 읽는다.
+scwin.getDialogState = function () {
+    let objFrame = document.getElementById("gridDownLoadLayer");
+    let objModal = document.getElementById("_modal");
+    let sFrame = "없음";
+    let sButton = "확인 불가";
+
+    if (objFrame !== null) {
+        sFrame = ((objFrame.style.display !== "none" && objFrame.offsetParent !== null) ? "표시됨" : "표시 안 됨");
+
+        try {
+            let objDoc = objFrame.contentDocument;
+            let objButton = ((objDoc === null) ? null : objDoc.getElementById("downloadButton"));
+            sButton = ((objButton === null) ? "없음" : ((objButton.offsetParent !== null) ? "표시됨" : "표시 안 됨"));
+        } catch (e) {
+            sButton = "확인 불가";
+        }
+    }
+
+    return "확인창 iframe : " + sFrame
+        + " / download 버튼 : " + sButton
+        + " / 화면 모달 : " + ((objModal === null) ? "없음" : ((objModal.style.display !== "none") ? "표시됨" : "표시 안 됨"))
+        + " / 다운로드 요청 : " + ((scwin.arrSubmit.length === 0) ? "없음" : "발생");
+};
+
+
+
+scwin.clearTimer = function () {
+    for (let i = 0; i < scwin.arrTimer.length; i++) {
+        clearTimeout(scwin.arrTimer[i]);
+    }
+    scwin.arrTimer = [];
+};
+
+
+
+// 확인창 안의 download 버튼을 사용자가 클릭하면 그 시점부터 1.5 초 간격으로 5 회 확인창 상태를 기록한다.
+//  버튼 클릭 자체는 가로채지 않고 그대로 진행된다(상태를 읽기만 한다).
+scwin.watchDialog = function (sCase) {
+    let nTry = 0;
+
+    let fnAttach = function () {
+        let objFrame = document.getElementById("gridDownLoadLayer");
+        let objDoc = null;
+
+        try {
+            objDoc = ((objFrame === null) ? null : objFrame.contentDocument);
+        } catch (e) {
+            objDoc = null;
+        }
+
+        let objButton = ((objDoc === null) ? null : objDoc.getElementById("downloadButton"));
+
+        if (objButton === null) {
+            if (++nTry < 40) {
+                scwin.arrTimer.push(setTimeout(fnAttach, 250));
+            } else {
+                scwin.setReturnValue(sCase + " 확인창이 표시되지 않음 : " + scwin.getDialogState());
+            }
+            return;
+        }
+
+        scwin.setReturnValue(sCase + " 확인창 표시 직후 : " + scwin.getDialogState());
+
+        objButton.addEventListener("click", function () {
+            for (let i = 1; i <= 5; i++) {
+                (function (nStep) {
+                    scwin.arrTimer.push(setTimeout(function () {
+                        scwin.setReturnValue(sCase + " download 클릭 +" + (nStep * 1.5) + "초 : " + scwin.getDialogState());
+                    }, nStep * 1500));
+                })(i);
+            }
+        }, true);
+    };
+
+    fnAttach();
+};
+
+
+
+// [A] 대조군 : showProcess 를 전달하지 않고 showConfirm 만 true 로 설정한다.
+scwin.btn_a_onclick = function () {
+    scwin.clearTimer();
+    scwin.arrSubmit = [];
+
+    target1.advancedExcelDownload({
+        "fileName" : "fail_dialogNotClosed_A",
+        "extension" : "xlsx",
+        "showConfirm" : true
+    });
+
+    scwin.setReturnValue("[A] showConfirm=true (showProcess 미설정)");
+    scwin.watchDialog("[A]");
+};
+
+
+
+// [B] 결함 : showProcess 를 false 로, showConfirm 을 true 로 함께 설정한다.
+scwin.btn_b_onclick = function () {
+    scwin.clearTimer();
+    scwin.arrSubmit = [];
+
+    target1.advancedExcelDownload({
+        "fileName" : "fail_dialogNotClosed_B",
+        "extension" : "xlsx",
+        "showProcess" : false,
+        "showConfirm" : true
+    });
+
+    scwin.setReturnValue("[B] showProcess=false / showConfirm=true");
+    scwin.watchDialog("[B]");
+};
+
+
+
+// 현재 확인창 상태를 한 번 더 읽는다(상태 조회 전용).
+scwin.btn_state_onclick = function () {
+    scwin.setReturnValue("[현재 상태] " + scwin.getDialogState());
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] gridView advancedExcelDownload() — options.showProcess 를 false 로 두고 options.showConfirm 을 true 로 설정하면, 확인창의 download 버튼을 클릭해 파일이 내려받아진 뒤에도 확인창(iframe#gridDownLoadLayer)이 닫히지 않고 화면에 남아 이후 화면을 조작할 수 없는 결함" escape="false"></w2:textbox>
+
+			<w2:textbox style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-top:6px;" id="" label="[전제]" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="1. 두 버튼은 showProcess 값만 다르고 나머지 전달값은 같다. [A] 는 showProcess 를 전달하지 않고 showConfirm=true 만, [B] 는 showProcess=false 와 showConfirm=true 를 함께 전달한다." escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="2. 확인창은 최상위 문서가 아니라 iframe#gridDownLoadLayer 안에 있다. 최상위의 화면 모달(#_modal)만 보면 닫힌 것처럼 보이므로, 확인창 iframe 과 그 안의 download 버튼 표시 여부로 판정한다." escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="3. [참고] 가이드 @param &amp;lt;Boolean:N:false&amp;gt; options.showConfirm — &quot;true : Excel 다운로드 확인창이 표시되며 버튼을 클릭하여야 다운로드가 진행됩니다.&quot;" escape="false"></w2:textbox>
+
+			<w2:textbox style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-top:12px;" id="" label="[확인 방법]" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[A] 버튼을 클릭하면 확인창이 표시된다. 확인창의 download 버튼을 직접 클릭하면 결과창에 1.5초 간격으로 5회 확인창 상태가 기록된다. 페이지를 새로 고친 뒤 [B] 버튼으로 같은 순서를 반복하여 두 기록을 비교한다." escape="false"></w2:textbox>
+
+			<w2:textbox style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-top:12px;" id="" label="[기대] / [실제]" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] [B] 도 [A] 와 같이 download 버튼을 클릭해 파일이 내려받아지면 확인창과 화면 모달이 닫혀 화면을 다시 조작할 수 있어야 함" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[실제] [B] 는 파일이 내려받아진 뒤에도 확인창 iframe 과 그 안의 download / cancel 버튼이 계속 표시된 채 남아 있음 ([A] 는 클릭 직후 확인창이 닫힘)" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 GridView (advancedExcelDownload 호출 대상)" escape="false"></w2:textbox>
+			<w2:gridView id="target1" dataList="data:dlt_bind" checkAllType="false" style="width:640px;height:200px;">
+				<w2:header style="" id="header1">
+					<w2:row style="" id="hrow1">
+						<w2:column width="140" style="" inputType="text" id="hcol1" value="부서명"></w2:column>
+						<w2:column width="120" style="" inputType="text" id="hcol2" value="사원명"></w2:column>
+						<w2:column width="120" style="" inputType="text" id="hcol3" value="근무일수"></w2:column>
+						<w2:column width="*" style="" inputType="text" id="hcol4" value="급여액"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody1">
+					<w2:row style="" id="brow1">
+						<w2:column width="140" style="" inputType="text" id="deptName" dataList="deptName"></w2:column>
+						<w2:column width="120" style="" inputType="text" id="empName" dataList="empName"></w2:column>
+						<w2:column width="120" style="text-align:right;" inputType="text" dataType="number" id="workDays" dataList="workDays"></w2:column>
+						<w2:column width="*" style="text-align:right;" inputType="text" dataType="number" displayFormat="#,##0" id="payAmt" dataList="payAmt"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button ev:onclick="scwin.btn_a_onclick" id="btn_a" label="[A] showConfirm=true (showProcess 미설정)" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				<w2:button ev:onclick="scwin.btn_b_onclick" id="btn_b" label="[B] showProcess=false + showConfirm=true" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-left:6px;"></w2:button>
+				<w2:button ev:onclick="scwin.btn_state_onclick" id="btn_state" label="현재 확인창 상태" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-left:6px;"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:10px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 4px;width: 100%;height: 200px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

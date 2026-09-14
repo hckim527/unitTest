@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelUpload options.features 가 options.wframe 값에 따라 위치 적용 방식이 달라지는 결함" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_upload" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col1" name="name1" dataType="text"></w2:column>
+						<w2:column id="col2" name="name2" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<col1><![CDATA[col1_1]]></col1>
+							<col2><![CDATA[col2_1]]></col2>
+						</w2:row>
+						<w2:row>
+							<col1><![CDATA[col1_2]]></col1>
+							<col2><![CDATA[col2_2]]></col2>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+// features 로 지정할 두 가지 값 (위치 지정 없음 / 위치 지정 있음)
+scwin.FEATURES_SIZE = "width=700,height=400";
+scwin.FEATURES_POS = "left=100,top=100,width=700,height=400";
+
+scwin.gVar = null;
+
+
+
+// 이전 케이스에서 열린 팝업창 / WFrame 레이어를 닫는다.
+//  · WFrame 레이어를 닫은 경우 true 를 반환한다. (닫기 처리가 끝나기 전에 다시 열면 ID 중복 경고가 발생하므로 호출부에서 간격을 둔다.)
+scwin.closeOpened = function () {
+    try {
+        if (scwin.gVar !== null && scwin.gVar.win !== null && scwin.gVar.win.closed === false) scwin.gVar.win.close();
+    } catch (e) {}
+
+    try {
+        var objFrame = document.querySelector("[id$='_excelPop_wframe']");
+        if (objFrame === null) return false;
+
+        WebSquare.util.closePopup(objFrame.id.replace("_wframe", ""));
+        return true;
+    } catch (e) {}
+
+    return false;
+};
+
+
+
+// features 값과 wframe 조합으로 advancedExcelUpload 실행
+//  · 별도 팝업창은 엔진이 호출 시점에 window 이름 fileupWindow 로 생성하므로 그 자리에서 창 핸들을 한 번만 확보한다.
+//    (나중에 window.open 으로 창을 다시 찾으면 이미 닫힌 경우 빈 창(about:blank)이 새로 열리므로 확보해 둔 핸들로만 판정한다.)
+scwin.runCase = function (strNo, strFeatures, bUseWframe) {
+    var bClosed = scwin.closeOpened();
+    scwin.gVar = { "no" : strNo, "wframe" : bUseWframe, "win" : null };
+
+    scwin.setReturnValue("[" + strNo + "] features = \"" + strFeatures + "\" , wframe = " + (bUseWframe === true ? "true" : "미설정"));
+
+    var fnRun = function () {
+        var objOptions = { "features" : strFeatures };
+        if (bUseWframe === true) objOptions.wframe = true;
+
+        var fnOpen = window.open;
+        window.open = function (sUrl, sName) {
+            var objWin = fnOpen.apply(window, arguments);
+            if (sName === "fileupWindow") scwin.gVar.win = objWin;
+            return objWin;
+        };
+        try {
+            target1.advancedExcelUpload(objOptions);
+        } finally {
+            window.open = fnOpen;
+        }
+
+        // 엔진에 실제로 전달된 features 값은 업로드가 끝나면 비워지므로 호출 직후 바로 읽는다.
+        scwin.printFeatures();
+
+        setTimeout(function () { scwin.printState(0); }, 1500);
+    };
+
+    // 이전 WFrame 레이어의 닫기 처리가 끝난 뒤 다음 케이스를 실행한다.
+    if (bClosed === true) {
+        setTimeout(fnRun, 800);
+    } else {
+        fnRun();
+    }
+};
+
+
+
+// 엔진에 실제로 전달된 features 값의 형태(타입)와 값 출력
+scwin.printFeatures = function () {
+    var strInfo = target1._excelUploadInfo;
+    if (strInfo === undefined || strInfo === null || strInfo === "") {
+        scwin.setReturnValue("전달된 features : 확인 불가");
+        return;
+    }
+
+    var objFeatures = JSON.parse(strInfo).sFeatures;
+    scwin.setReturnValue("전달된 features : " + (typeof objFeatures) + " " + JSON.stringify(objFeatures));
+};
+
+
+
+// 열린 Excel 파일 선택 팝업의 실제 위치 / 크기 출력
+//  · wframe true 는 화면 내 레이어(GridView ID + _excelPop)이므로 화면상의 left / top / width / height 를 그대로 측정한다.
+//  · wframe 미설정은 별도 팝업창이므로 창 크기만 출력한다. (창 위치는 실브라우저에서 확인한다.)
+scwin.printState = function (nRetry) {
+    nRetry = nRetry || 0;
+
+    if (scwin.gVar.wframe === true) {
+        var objLayer = document.querySelector("[id$='_excelPop']");
+        if (objLayer === null) {
+            if (nRetry < 8) {
+                setTimeout(function () { scwin.printState(nRetry + 1); }, 500);
+                return;
+            }
+            scwin.setReturnValue("레이어 위치 / 크기 : 없음 (레이어가 확인되지 않음)");
+            scwin.setReturnValue("");
+            return;
+        }
+
+        var objRect = objLayer.getBoundingClientRect();
+        scwin.setReturnValue("레이어 위치 / 크기 : left=" + Math.round(objRect.left) + " , top=" + Math.round(objRect.top) + " , width=" + Math.round(objRect.width) + " , height=" + Math.round(objRect.height));
+        scwin.setReturnValue("");
+        return;
+    }
+
+    var objWin = scwin.gVar.win;
+    if (objWin === null || objWin.closed === true) {
+        if (nRetry < 8) {
+            setTimeout(function () { scwin.printState(nRetry + 1); }, 500);
+            return;
+        }
+        scwin.setReturnValue("팝업창 크기 : 없음 (팝업창이 확인되지 않음)");
+        scwin.setReturnValue("");
+        return;
+    }
+
+    scwin.setReturnValue("팝업창 크기 : width=" + objWin.outerWidth + " , height=" + objWin.outerHeight + "  (창 위치는 실브라우저에서 확인)");
+    scwin.setReturnValue("");
+};
+
+
+
+// Ⓐ 크기만 지정 + wframe true
+scwin.btn_caseA_onclick = function () {
+    scwin.runCase("Ⓐ", scwin.FEATURES_SIZE, true);
+};
+
+// Ⓑ 크기만 지정 + wframe 미설정
+scwin.btn_caseB_onclick = function () {
+    scwin.runCase("Ⓑ", scwin.FEATURES_SIZE, false);
+};
+
+// Ⓒ 위치 + 크기 지정 + wframe true
+scwin.btn_caseC_onclick = function () {
+    scwin.runCase("Ⓒ", scwin.FEATURES_POS, true);
+};
+
+// Ⓓ 위치 + 크기 지정 + wframe 미설정
+scwin.btn_caseD_onclick = function () {
+    scwin.runCase("Ⓓ", scwin.FEATURES_POS, false);
+};]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView advancedExcelUpload() — options.features 가 options.wframe 값에 따라 위치 적용 방식이 달라지는 결함" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제]" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="1. API 가이드 options.features : &quot;Excel 파일 선택 팝업창의 위치 및 크기를 설정합니다.&quot; / &quot;팝업창의 left, top, width, height 속성을 설정할 수 있습니다. (ex&gt; &quot;width=455,height=845&quot;)&quot; / &quot;wframe 파라미터값이 true 인 경우 적용되지 않습니다.&quot;" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="2. Ⓐ Ⓑ 는 크기만 지정한 &quot;width=700,height=400&quot; 을 , Ⓒ Ⓓ 는 위치까지 지정한 &quot;left=100,top=100,width=700,height=400&quot; 을 features 로 지정하며 wframe 값만 서로 다르다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="3. left / top 을 생략했을 때 채워지는 기본 위치가 별도 팝업창은 left 160 / top 280 , WFrame 레이어는 left 280 / top 160 으로 서로 뒤바뀌어 있다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] Ⓐ ~ Ⓓ 버튼을 차례로 클릭하여 결과창 출력을 확인 (다음 케이스 버튼을 누르면 이전 팝업은 자동으로 닫힘) — 별도 팝업창의 실제 위치는 실브라우저에서 확인" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] 가이드대로 wframe 이 true 인 Ⓐ Ⓒ 는 features 가 적용되지 않아야 하며 , 적용된다면 wframe 값과 무관하게 같은 방식으로 적용되어야 함" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-bottom:8px;" id="" label="[실제] wframe true 인 Ⓐ Ⓒ 에도 features 가 적용되고 , 같은 &quot;width=700,height=400&quot; 인데 Ⓐ 는 위치가 left 280 / top 160 으로 채워지는 반면 Ⓑ 는 위치 정보 없이 크기만 전달된다 — features 값은 wframe true 일 때 객체로 , wframe 미설정일 때 문자열로 서로 다르게 전달된다" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 대상 GridView (advancedExcelUpload 호출 대상)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="target1" dataList="data:dlt_upload" checkAllType="false" style="width:400px;height:120px;">
+				<w2:header style="" id="header_u">
+					<w2:row style="" id="hrow_u">
+						<w2:column width="200" inputType="text" id="hcol_u1" value="name1"></w2:column>
+						<w2:column width="200" inputType="text" id="hcol_u2" value="name2"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody_u">
+					<w2:row style="" id="brow_u">
+						<w2:column width="200" inputType="text" dataType="text" id="col1" dataList="col1" value=""></w2:column>
+						<w2:column width="200" inputType="text" dataType="text" id="col2" dataList="col2" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:8px;margin-bottom:14px;position:relative;z-index:6100;width:fit-content;max-width:100%;background:#ffffff;" id="grp_btn_case">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_caseA_onclick" id="btn_caseA" label="Ⓐ width=700,height=400 + wframe true" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_caseB_onclick" id="btn_caseB" label="Ⓑ width=700,height=400 + wframe 미설정" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_caseC_onclick" id="btn_caseC" label="Ⓒ left=100,top=100,width=700,height=400 + wframe true" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_caseD_onclick" id="btn_caseD" label="Ⓓ left=100,top=100,width=700,height=400 + wframe 미설정" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;"></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="position:relative;z-index:5000;background:#ffffff;">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 260px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] ongroupby 선언 시 setColumnOrder() 의 동작이 6.0 과 다름" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" id="dlt_bind1" repeatNode="map">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="region" name="region"></w2:column>
+						<w2:column dataType="text" id="dept" name="dept"></w2:column>
+						<w2:column dataType="text" id="grade" name="grade"></w2:column>
+						<w2:column dataType="number" id="score" name="score"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><region><![CDATA[서울]]></region><dept><![CDATA[개발]]></dept><grade><![CDATA[A]]></grade><score><![CDATA[10]]></score></w2:row>
+						<w2:row><region><![CDATA[서울]]></region><dept><![CDATA[영업]]></dept><grade><![CDATA[B]]></grade><score><![CDATA[20]]></score></w2:row>
+						<w2:row><region><![CDATA[부산]]></region><dept><![CDATA[기획]]></dept><grade><![CDATA[C]]></grade><score><![CDATA[30]]></score></w2:row>
+						<w2:row><region><![CDATA[부산]]></region><dept><![CDATA[개발]]></dept><grade><![CDATA[A]]></grade><score><![CDATA[40]]></score></w2:row>
+					</w2:data>
+				</w2:dataList>
+				<w2:dataList baseNode="list" id="dlt_bind2" repeatNode="map">
+					<w2:columnInfo>
+						<w2:column dataType="text" id="region" name="region"></w2:column>
+						<w2:column dataType="text" id="dept" name="dept"></w2:column>
+						<w2:column dataType="text" id="grade" name="grade"></w2:column>
+						<w2:column dataType="number" id="score" name="score"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><region><![CDATA[서울]]></region><dept><![CDATA[개발]]></dept><grade><![CDATA[A]]></grade><score><![CDATA[10]]></score></w2:row>
+						<w2:row><region><![CDATA[서울]]></region><dept><![CDATA[영업]]></dept><grade><![CDATA[B]]></grade><score><![CDATA[20]]></score></w2:row>
+						<w2:row><region><![CDATA[부산]]></region><dept><![CDATA[기획]]></dept><grade><![CDATA[C]]></grade><score><![CDATA[30]]></score></w2:row>
+						<w2:row><region><![CDATA[부산]]></region><dept><![CDATA[개발]]></dept><grade><![CDATA[A]]></grade><score><![CDATA[40]]></score></w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+
+// ongroupby 핸들러 (target1 에만 선언)
+scwin.target1_ongroupby = function (result) {
+    scwin.setReturnValue("[ongroupby 발생] target1 의 핸들러가 실행되었습니다.");
+    return false;
+};
+
+// 렌더된 Header Column 의 실제 표시 순서 (DOM 순서의 Header 텍스트)
+scwin.getRenderedHeaderOrder = function (strGridId) {
+    var objHead = document.querySelector("[id*='" + strGridId + "_head_table']");
+    if (!objHead) {
+        return "(head_table 없음)";
+    }
+    var arrTh = objHead.querySelectorAll("th[class*='_header__column']");
+    var arr = [];
+    for (var i = 0; i < arrTh.length; i++) {
+        arr.push((arrTh[i].textContent || "").trim());
+    }
+    return JSON.stringify(arr);
+};
+
+// setColumnOrder([3,2,1,0]) 호출 전후의 렌더된 표시 순서와 반환값을 출력
+scwin.runSetColumnOrder = function (strGridId, strDeclare) {
+    var objGrid = $p.getComponentById(strGridId);
+    var strBefore = scwin.getRenderedHeaderOrder(strGridId);
+
+    var rtn = objGrid.setColumnOrder([3, 2, 1, 0]);
+
+    var strAfter = scwin.getRenderedHeaderOrder(strGridId);
+
+    scwin.setReturnValue("[ongroupby " + strDeclare + "] " + strGridId
+        + "  호출 전 표시 순서 : " + strBefore
+        + "  호출 후 표시 순서 : " + strAfter);
+    scwin.setReturnValue("[ongroupby " + strDeclare + "] " + strGridId
+        + "  setColumnOrder([3,2,1,0]) 반환값 : " + rtn
+        + "  실행 여부 : " + (strBefore !== strAfter ? "실행됨 (표시 순서 변경)" : "미실행 (표시 순서 동일)"));
+};
+
+scwin.btn_setColumnOrder1_onclick = function (e) {
+    scwin.runSetColumnOrder("target1", "선언 O");
+};
+
+scwin.btn_setColumnOrder2_onclick = function (e) {
+    scwin.runSetColumnOrder("target2", "선언 X");
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] ongroupby 이벤트가 선언된 GridView 에서 setColumnOrder() 가 실행되는지 여부가 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] groupbyZone=true 인 GridView 2 개를 동일한 Column 구성(0:지역 / 1:부서 / 2:등급 / 3:점수)으로 배치한다. target1 에만 ongroupby 이벤트를 선언하고 target2 에는 선언하지 않는다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] 아래 (target1 setColumnOrder - ongroupby 선언 O) 와 (target2 setColumnOrder - ongroupby 선언 X) 를 차례로 클릭하고, 결과창의 반환값 / 실행 여부 / 호출 후 표시 순서를 비교한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 선언 O 인 target1 : 반환값 undefined / 미실행 (표시 순서 동일) — 선언 X 인 target2 : 반환값 true / 실행됨 (점수, 등급, 부서, 지역 으로 역전)" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] 선언 O 인 target1 : 반환값 true / 실행됨 (점수, 등급, 부서, 지역 으로 역전) — 선언 X 인 target2 : 반환값 true / 실행됨 (동일)" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] 6.0 에서는 ongroupby 를 선언해 두면 setColumnOrder() 호출이 무시되어 Column 순서가 고정되지만, 5.0 에서는 같은 화면에서 Column 순서가 실제로 바뀐다. GroupBy 와 Column 순서를 함께 다루는 화면에서 사용자가 보는 Column 배치가 두 버전에서 서로 달라지고, 반환값도 undefined 와 true 로 갈려 호출 성공 여부로 분기하는 로직이 반대로 동작한다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (좌 target1 : ongroupby 선언 O / 우 target2 : ongroupby 선언 X)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;display: flex;gap: 20px;align-items: flex-start;" id="grp_target">
+				<w2:gridView dataList="data:dlt_bind1" groupbyZone="true" ev:ongroupby="scwin.target1_ongroupby" id="target1" style="width:560px;height:260px;">
+					<w2:caption id="caption1" style="" value="target1 : ongroupby 선언 O"></w2:caption>
+					<w2:header id="header1" style="">
+						<w2:row id="row1" style="">
+							<w2:column id="hcol1" inputType="text" style="" value="지역(0)" width="130"></w2:column>
+							<w2:column id="hcol2" inputType="text" style="" value="부서(1)" width="130"></w2:column>
+							<w2:column id="hcol3" inputType="text" style="" value="등급(2)" width="130"></w2:column>
+							<w2:column id="hcol4" inputType="text" style="" value="점수(3)" width="130"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody id="gBody1" style="">
+						<w2:row id="row2" style="">
+							<w2:column dataList="region" id="region" inputType="text" style="" width="130"></w2:column>
+							<w2:column dataList="dept" id="dept" inputType="text" style="" width="130"></w2:column>
+							<w2:column dataList="grade" id="grade" inputType="text" style="" width="130"></w2:column>
+							<w2:column dataList="score" dataType="number" id="score" inputType="text" style="" width="130"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+				<w2:gridView dataList="data:dlt_bind2" groupbyZone="true" id="target2" style="width:560px;height:260px;">
+					<w2:caption id="caption2" style="" value="target2 : ongroupby 선언 X"></w2:caption>
+					<w2:header id="header2" style="">
+						<w2:row id="row3" style="">
+							<w2:column id="hcol5" inputType="text" style="" value="지역(0)" width="130"></w2:column>
+							<w2:column id="hcol6" inputType="text" style="" value="부서(1)" width="130"></w2:column>
+							<w2:column id="hcol7" inputType="text" style="" value="등급(2)" width="130"></w2:column>
+							<w2:column id="hcol8" inputType="text" style="" value="점수(3)" width="130"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody id="gBody2" style="">
+						<w2:row id="row4" style="">
+							<w2:column dataList="region" id="region2" inputType="text" style="" width="130"></w2:column>
+							<w2:column dataList="dept" id="dept2" inputType="text" style="" width="130"></w2:column>
+							<w2:column dataList="grade" id="grade2" inputType="text" style="" width="130"></w2:column>
+							<w2:column dataList="score" dataType="number" id="score2" inputType="text" style="" width="130"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_setColumnOrder1_onclick" id="btn_setColumnOrder1" label="target1 setColumnOrder (ongroupby 선언 O)"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_setColumnOrder2_onclick" id="btn_setColumnOrder2" label="target2 setColumnOrder (ongroupby 선언 X)"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 160px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

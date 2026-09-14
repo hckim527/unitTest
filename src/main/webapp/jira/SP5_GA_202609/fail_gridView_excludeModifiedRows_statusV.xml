@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] excludeModifiedRows 의 V 상태 Row 제외 동작이 6.0 과 다름" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_bind">
+					<w2:columnInfo>
+						<w2:column id="name" name="name" dataType="text"></w2:column>
+						<w2:column id="amount" name="amount" dataType="number"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<name><![CDATA[Mike]]></name>
+							<amount><![CDATA[100]]></amount>
+						</w2:row>
+						<w2:row>
+							<name><![CDATA[Amy]]></name>
+							<amount><![CDATA[200]]></amount>
+						</w2:row>
+						<w2:row>
+							<name><![CDATA[Alex]]></name>
+							<amount><![CDATA[300]]></amount>
+						</w2:row>
+						<w2:row>
+							<name><![CDATA[Bob]]></name>
+							<amount><![CDATA[400]]></amount>
+						</w2:row>
+						<w2:row>
+							<name><![CDATA[Cara]]></name>
+							<amount><![CDATA[500]]></amount>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+// Footer 의 합계 표시 셀 텍스트를 읽어 출력
+scwin.printFooterSum = function (strPrefix) {
+    var objCell = document.querySelector("td[id$='_fcol2']");
+    scwin.setReturnValue(strPrefix + " Footer 합계(sum) 표시값 : " + (objCell ? objCell.textContent.trim() : "(없음)"));
+};
+
+scwin.btn_checkSum_onclick = function (e) {
+    scwin.printFooterSum("[현재]");
+};
+
+// 추가 후 삭제 : insertRow 로 1,000 을 추가(상태 C) 한 뒤 같은 Row 를 삭제하여 상태 V 로 만든다
+scwin.btn_makeV_onclick = function (e) {
+    var objDlt = $p.getComponentById("dlt_bind");
+
+    objDlt.insertRow(2);
+    objDlt.setCellData(2, "name", "NewRow");
+    objDlt.setCellData(2, "amount", 1000);
+    var strStatusC = objDlt.getRowStatus(2);
+
+    objDlt.deleteRow(2);
+    scwin.setReturnValue("=====1,000 짜리 Row 추가(상태 " + strStatusC + ") 후 삭제 → Row 상태값 : " + objDlt.getRowStatus(2) + "=====");
+
+    // Footer 재계산이 비동기로 처리되므로 지연 후 읽는다
+    setTimeout(function () { scwin.printFooterSum("[추가 후 삭제 적용 후]"); }, 400);
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] excludeModifiedRows=true 에서 추가 후 삭제한 Row(V 상태)를 Footer 집계에서 제외하는 동작이 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] GridView 에 excludeModifiedRows=true 를 설정하고, amount 합계를 계산하는 Footer 를 둔다. 초기 데이터는 5 건(100·200·300·400·500) 으로 합계는 1,500 이다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (1) (Footer 합계 확인) 버튼으로 초기 합계를 기록한다. (2) (1,000 Row 추가 후 삭제) 버튼을 클릭한다(해당 Row 의 상태값이 V 가 된다). (3) 결과창의 Footer 합계 표시값을 초기값과 비교한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 추가 후 삭제한 뒤에도 Footer 합계 표시값 : 1,500 (V 상태 Row 가 집계에서 제외된다)" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] 추가 후 삭제한 뒤 Footer 합계 표시값 : 2,500 (삭제한 Row 의 1,000 이 집계에 그대로 남는다)" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] 사용자가 행을 추가했다가 취소(삭제)하면 화면에서는 사라지는데 합계에는 그 금액이 계속 포함되어, 화면에 보이는 행들의 금액 합과 Footer 합계가 맞지 않는다. 같은 설정에서 수정·삭제한 행은 제외되고 추가 후 삭제한 행만 남으므로 집계 기준이 행마다 달라진다. 또한 두 버전에서 합계가 달라 동일 화면을 양쪽에서 운영하거나 버전을 옮길 때 표시되는 금액이 바뀐다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (gridView)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
+				<w2:gridView style="width:420px;height:260px;" id="target1" dataList="data:dlt_bind" excludeModifiedRows="true" rowStatusVisible="true" rowStatusHeaderValue="St." checkAllType="false">
+					<w2:caption style="" id="caption1" value="excludeModifiedRows 집계 그리드"></w2:caption>
+					<w2:header style="" id="header1">
+						<w2:row style="" id="hrow1">
+							<w2:column width="160" style="" inputType="text" id="hcol1" value="이름"></w2:column>
+							<w2:column width="*" style="" inputType="text" id="hcol2" value="금액"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody style="" id="gBody1">
+						<w2:row style="" id="brow1">
+							<w2:column width="160" style="" inputType="text" id="name" dataList="name"></w2:column>
+							<w2:column width="*" style="" inputType="text" dataType="number" displayFormat="#,###" id="amount" dataList="amount"></w2:column>
+						</w2:row>
+					</w2:gBody>
+					<w2:footer style="" id="footer1">
+						<w2:row style="" id="frow1">
+							<w2:column width="160" style="" inputType="text" id="fcol1" value="합계"></w2:column>
+							<w2:column width="*" style="" inputType="expression" dataType="number" displayFormat="#,###" id="fcol2" expression="sum('amount')"></w2:column>
+						</w2:row>
+					</w2:footer>
+				</w2:gridView>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_checkSum_onclick" id="btn_checkSum" label="Footer 합계 확인"></w2:button>
+				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_makeV_onclick" id="btn_makeV" label="1,000 Row 추가 후 삭제"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 160px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

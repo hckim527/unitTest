@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] body setDisabled/setReadOnly 자식 전파" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20260730" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="setDisabled/setReadOnly 결함 샘플 통합 및 간소화" meta_date="20260805" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// [FAIL] 증상 ① body.setDisabled(true)  : body 에만 disabled 가 적용되고 자식 컴포넌트로 전파되지 않는다.
+//        증상 ② body.setReadOnly(true)  : body 에만 readonly 가 적용되고 자식 컴포넌트로 전파되지 않는다.
+
+// 현재 적용 중인 증상 ("D" : setDisabled / "R" : setReadOnly)
+scwin.strMode = "";
+
+scwin.onpageload = function () {
+    child_input.setValue("입력값");
+    child_textarea.setValue("입력값");
+    child_select.setSelectedIndex(0);
+    child_calendar.setValue("20260730");
+};
+
+
+
+// body 컴포넌트 조회 (body 는 root 요소이므로 자식의 parentControl 로 조회한다.)
+scwin.getBody = function () {
+    return grp_main.parentControl;
+};
+
+// 자식 입력 컴포넌트 4 종
+scwin.getChildList = function () {
+    return [child_input, child_textarea, child_select, child_calendar];
+};
+
+// 자식 4 종의 getDisabled() / getReadOnly() 반환값 문자열
+scwin.joinChildState = function (strApi) {
+    var arrChild = scwin.getChildList();
+    var arrState = [];
+
+    for (var i = 0; i < arrChild.length; i++) {
+        arrState.push(String(strApi === "D" ? arrChild[i].getDisabled() : arrChild[i].getReadOnly()));
+    }
+
+    return arrState.join(" / ");
+};
+
+// body / 자식 상태 초기화
+scwin.resetAll = function () {
+    var objBody = scwin.getBody();
+    objBody.setDisabled(false);
+    objBody.setReadOnly(false);
+
+    var arrChild = scwin.getChildList();
+    for (var i = 0; i < arrChild.length; i++) {
+        arrChild[i].setDisabled(false);
+        arrChild[i].setReadOnly(false);
+    }
+};
+
+
+
+// (증상 ①) body 에 setDisabled(true)
+scwin.btn_disabled_onclick = function () {
+    scwin.resetAll();
+
+    var objBody = scwin.getBody();
+    objBody.setDisabled(true);
+    var strAttr = objBody.render.getAttribute("disabled");
+
+    scwin.setReturnValue("■ 증상 ① body.setDisabled(true)");
+    scwin.setReturnValue("   body 자신  : getDisabled()=" + objBody.getDisabled()
+        + " / DOM disabled 속성=" + (strAttr === null ? "(없음)" : strAttr) + "   (적용됨)");
+    scwin.setReturnValue("   자식 4 종  : getDisabled()=" + scwin.joinChildState("D")
+        + "   (기대 true / 실제 false → 전파 안 됨)");
+
+    scwin.strMode = "D";
+};
+
+
+
+// (증상 ②) body 에 setReadOnly(true)
+scwin.btn_readonly_onclick = function () {
+    scwin.resetAll();
+
+    var objBody = scwin.getBody();
+    objBody.setReadOnly(true);
+    var strAttr = objBody.render.getAttribute("readonly");
+
+    scwin.setReturnValue("■ 증상 ② body.setReadOnly(true)");
+    scwin.setReturnValue("   body 자신  : getReadOnly()=" + objBody.getReadOnly()
+        + " / DOM readonly 속성=" + (strAttr === null ? "(없음)" : strAttr) + "   (적용됨)");
+    scwin.setReturnValue("   자식 4 종  : getReadOnly()=" + scwin.joinChildState("R")
+        + "   (기대 true / 실제 false → 전파 안 됨)");
+
+    scwin.strMode = "R";
+};
+
+
+
+// 자식 컴포넌트의 실제 조작 결과 출력
+scwin.printAct = function (strName, strAct) {
+    if (scwin.strMode === "") {
+        return;
+    }
+
+    scwin.setReturnValue("   실제 조작  : " + strName + " " + strAct + "   (기대 차단 / 실제 동작함)");
+};
+
+scwin.child_input_onclick = function (e) {
+    if (scwin.strMode === "D") {
+        scwin.printAct("input", "클릭됨");
+    }
+};
+
+scwin.child_input_onviewchange = function (info) { scwin.printAct("input", "값 변경 → \"" + info.newValue + "\""); };
+scwin.child_textarea_onviewchange = function (info) { scwin.printAct("textarea", "값 변경 → \"" + info.newValue + "\""); };
+scwin.child_select_onviewchange = function (info) { scwin.printAct("selectbox", "값 변경 → \"" + info.newValue + "\""); };
+scwin.child_calendar_onviewchange = function (info) { scwin.printAct("inputCalendar", "값 변경 → \"" + info.newValue + "\""); };
+
+
+
+// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body id="target1" ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_main" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+			<w2:textbox class="tc_tbx_label_1" escape="false" id="lbl_title" style=""
+				label="■ [FAIL] body.setDisabled(true) / body.setReadOnly(true) 가 body 자신에만 적용되고 자식 입력 컴포넌트로 전파되지 않음"></w2:textbox>
+			<w2:textbox class="" escape="false" id="lbl_desc" style=""
+				label="[전제] body 하위에 입력 컴포넌트 4 종(input / textarea / selectbox / inputCalendar)을 정적으로 배치.&lt;br/&gt;[기대] body 에 호출하면 자식 4 종의 getDisabled() / getReadOnly() 도 true 가 되고 클릭 / 값 변경이 차단된다.&lt;br/&gt;[실제] body 에만 disabled / readonly 가 적용되고 자식 4 종은 모두 false 이며 클릭 / 값 변경이 그대로 동작한다."></w2:textbox>
+
+			<xf:group id="grp_child" style="border:1px solid var(--ws-gray-400); border-radius:8px; padding:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+				<xf:input class="" id="child_input" style="width:140px;" ev:onclick="scwin.child_input_onclick"
+					ev:onviewchange="scwin.child_input_onviewchange"></xf:input>
+				<xf:textarea class="" id="child_textarea" style="width:140px;height:40px;"
+					ev:onviewchange="scwin.child_textarea_onviewchange"></xf:textarea>
+				<xf:select1 appearance="minimal" direction="auto" id="child_select" selectedIndex="0" style="width:140px;"
+					ev:onviewchange="scwin.child_select_onviewchange">
+					<xf:choices>
+						<xf:item>
+							<xf:label><![CDATA[선택1]]></xf:label>
+							<xf:value><![CDATA[1]]></xf:value>
+						</xf:item>
+						<xf:item>
+							<xf:label><![CDATA[선택2]]></xf:label>
+							<xf:value><![CDATA[2]]></xf:value>
+						</xf:item>
+					</xf:choices>
+				</xf:select1>
+				<w2:inputCalendar calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="child_calendar"
+					renderType="component" style="width:140px;" ev:onviewchange="scwin.child_calendar_onviewchange"></w2:inputCalendar>
+			</xf:group>
+
+			<xf:group id="grp_btn" style="display:flex; gap:8px; flex-wrap:wrap;">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_disabled_onclick" id="btn_disabled"
+					label="증상 ① 재현 : body.setDisabled(true)" style=""></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_readonly_onclick" id="btn_readonly"
+					label="증상 ② 재현 : body.setReadOnly(true)" style=""></w2:button>
+			</xf:group>
+
+			<!-- ===== 리턴 값 확인 (body_bottom.xml inline) ===== -->
+			<xf:group class="" id="grp_bottom" style="">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 220px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelUpload options.popupUrl 이 wframe 값에 따라 서로 호환되지 않는 두 가지 값 형태를 요구" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260825" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_upload" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col1" name="name1" dataType="text"></w2:column>
+						<w2:column id="col2" name="name2" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<col1><![CDATA[col1_1]]></col1>
+							<col2><![CDATA[col2_1]]></col2>
+						</w2:row>
+						<w2:row>
+							<col1><![CDATA[col1_2]]></col1>
+							<col2><![CDATA[col2_2]]></col2>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+// popupUrl 로 지정할 두 가지 값 형태 (같은 내용의 커스텀 팝업 화면을 각각 .html 파일 / .xml 화면으로 준비)
+scwin.URL_HTML = "/jira/202608/fail_gridView_advancedExcelUpload_popupUrlFormAsymmetry_popup_html.html";
+scwin.URL_XML = "/jira/202608/fail_gridView_advancedExcelUpload_popupUrlFormAsymmetry_popup_xml.xml";
+
+scwin.gVar = null;
+scwin.gError = [];
+
+
+
+scwin.onpageload = function () {
+    // 케이스별 콘솔 오류를 결과창에 함께 출력하기 위해 전역 오류를 수집한다.
+    window.addEventListener("error", function (e) {
+        scwin.gError.push((e.message === undefined || e.message === null || e.message === "") ? String(e.type) : e.message);
+    });
+};
+
+
+
+// 이전 케이스에서 열린 팝업창 / WFrame 레이어를 닫는다.
+//  · WFrame 레이어를 닫은 경우 true 를 반환한다. (닫기 처리가 끝나기 전에 다시 열면 ID 중복 경고가 발생하므로 호출부에서 간격을 둔다.)
+scwin.closeOpened = function () {
+    try {
+        if (scwin.gVar !== null && scwin.gVar.win !== null && scwin.gVar.win.closed === false) scwin.gVar.win.close();
+    } catch (e) {}
+
+    try {
+        var objFrame = document.querySelector("[id$='_excelPop_wframe']");
+        if (objFrame === null) return false;
+
+        WebSquare.util.closePopup(objFrame.id.replace("_wframe", ""));
+        return true;
+    } catch (e) {}
+
+    return false;
+};
+
+
+
+// popupUrl 값 형태와 wframe 조합으로 advancedExcelUpload 실행
+//  · 별도 팝업창은 엔진이 호출 시점에 window 이름 fileupWindow 로 생성하므로 그 자리에서 창 핸들을 한 번만 확보한다.
+//    (나중에 window.open 으로 창을 다시 찾으면 이미 닫힌 경우 빈 창(about:blank)이 새로 열리므로 확보해 둔 핸들로만 판정한다.)
+scwin.runCase = function (strNo, strUrlKind, strPopupUrl, bWframe) {
+    var bClosed = scwin.closeOpened();
+    scwin.gError = [];
+    scwin.gVar = { "no" : strNo, "wframe" : bWframe, "win" : null };
+
+    scwin.setReturnValue("[" + strNo + "] popupUrl = " + strUrlKind + " , wframe = " + bWframe);
+
+    var fnRun = function () {
+        var fnOpen = window.open;
+        window.open = function (sUrl, sName) {
+            var objWin = fnOpen.apply(window, arguments);
+            if (sName === "fileupWindow") scwin.gVar.win = objWin;
+            return objWin;
+        };
+        try {
+            grd_upload.advancedExcelUpload({ "popupUrl" : strPopupUrl, "wframe" : bWframe });
+        } finally {
+            window.open = fnOpen;
+        }
+
+        setTimeout(function () { scwin.printState(0); }, 1500);
+    };
+
+    // 이전 WFrame 레이어의 닫기 처리가 끝난 뒤 다음 케이스를 실행한다.
+    if (bClosed === true) {
+        setTimeout(fnRun, 800);
+    } else {
+        fnRun();
+    }
+};
+
+
+
+// 실제로 열린 Excel 파일 선택 팝업의 형태 / 경로 / 렌더 여부 / 콘솔 오류 출력
+//  · wframe 적용 시 화면 내 레이어(WFrame ID 는 GridView ID + _excelPop_wframe), 미적용 시 window 이름 fileupWindow 인 별도 팝업창이다.
+scwin.printState = function (nRetry) {
+    nRetry = nRetry || 0;
+
+    var strKind = "";
+    var strUrl = "";
+    var strText = "";
+
+    if (scwin.gVar.wframe === true) {
+        var objFrame = document.querySelector("[id$='_excelPop_wframe']");
+        if (objFrame !== null) {
+            var objComp = WebSquare.util.getComponentById(objFrame.id);
+            strKind = "화면 내 WFrame 레이어";
+            strUrl = (objComp === null ? "" : objComp.getSrc());
+            strText = objFrame.textContent || "";
+        }
+    } else {
+        var objWin = scwin.gVar.win;
+        if (objWin !== null && objWin.closed === false && objWin.location.href !== "about:blank") {
+            strKind = "별도 팝업창";
+            strUrl = objWin.location.href;
+            try {
+                strText = (objWin.document.body === null ? "" : objWin.document.body.innerText) || "";
+                if (objWin.document.contentType !== "text/html") strKind = strKind + " (문서 형식 " + objWin.document.contentType + ")";
+            } catch (e) {}
+        }
+    }
+
+    // 팝업 생성이 끝나지 않았으면 잠시 뒤 다시 확인한다.
+    if (strKind === "" && nRetry < 8) {
+        setTimeout(function () { scwin.printState(nRetry + 1); }, 500);
+        return;
+    }
+
+    strText = strText.replace(/\s+/g, " ").replace(/^ /, "").replace(/ $/, "");
+    strUrl = strUrl.split("?")[0];
+
+    scwin.setReturnValue("열린 형태 : " + (strKind === "" ? "없음 (팝업이 확인되지 않음)" : strKind + " - " + strUrl.substring(strUrl.lastIndexOf("/") + 1)));
+    scwin.setReturnValue("렌더 내용 : " + (strText === "" ? "없음 (빈 화면)" : (strText.indexOf("CUSTOM POPUP RENDERED") > -1 ? "커스텀 팝업 화면 정상 표시" : strText.substring(0, 60))));
+
+    for (var i = 0; i < scwin.gError.length; i++) {
+        scwin.setReturnValue("콘솔 오류 : " + scwin.gError[i]);
+    }
+    scwin.setReturnValue("");
+};
+
+
+
+// ① .html 파일 경로 + wframe false
+scwin.btn_case1_onclick = function () {
+    scwin.runCase("①", ".html 파일 경로", scwin.URL_HTML, false);
+};
+
+// ② .html 파일 경로 + wframe true
+scwin.btn_case2_onclick = function () {
+    scwin.runCase("②", ".html 파일 경로", scwin.URL_HTML, true);
+};
+
+// ③ .xml 화면 경로 + wframe true
+scwin.btn_case3_onclick = function () {
+    scwin.runCase("③", ".xml 화면 경로", scwin.URL_XML, true);
+};
+
+// ④ .xml 화면 경로 + wframe false
+scwin.btn_case4_onclick = function () {
+    scwin.runCase("④", ".xml 화면 경로", scwin.URL_XML, false);
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView advancedExcelUpload() — options.popupUrl 이 options.wframe 값에 따라 서로 호환되지 않는 두 가지 값 형태를 요구하는 결함" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제]" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="1. API 가이드 options.popupUrl : &quot;Excel 파일 선택 팝업창의 경로(URL)를 설정합니다.&quot; / &quot;기본 제공하는 Excel 파일 선택 팝업창 대신 커스텀 화면으로 바꾸는 경우에 설정하며 규약에 맞게 구현하여야 합니다.&quot;" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="2. 가이드에는 popupUrl 값의 형태가 options.wframe 값에 따라 달라진다는 언급이 없다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="3. 같은 내용의 커스텀 팝업 화면을 .html 파일 / .xml 화면 두 가지로 준비하였고 (정상 렌더되면 CUSTOM POPUP RENDERED 문구 표시) , ① ② 는 .html 경로를 ③ ④ 는 .xml 경로를 popupUrl 로 지정하며 wframe 값만 서로 다르다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] ① ~ ④ 버튼을 차례로 클릭하여 화면에 열린 팝업 모습과 결과창 출력을 확인 (다음 케이스 버튼을 누르면 이전 팝업은 자동으로 닫힘)" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] popupUrl 은 하나의 값 형태로 wframe 값과 무관하게 동작해야 함 — 즉 ① ~ ④ 네 조합 모두 커스텀 팝업 화면(CUSTOM POPUP RENDERED)이 렌더되어야 함" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-bottom:8px;" id="" label="[실제] ① .html 경로 + wframe false 와 ③ .xml 경로 + wframe true 만 정상 렌더되고 , ② .html 경로 + wframe true 는 아무것도 표시되지 않는 빈 레이어 , ④ .xml 경로 + wframe false 는 문서 형식이 text/xml 인 빈 팝업창이 열린다 — 즉 같은 popupUrl 옵션인데 wframe 값에 따라 요구하는 값 형태가 서로 호환되지 않는다" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 대상 GridView (advancedExcelUpload 호출 대상)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="grd_upload" dataList="data:dlt_upload" checkAllType="false" style="width:400px;height:120px;">
+				<w2:header style="" id="header_u">
+					<w2:row style="" id="hrow_u">
+						<w2:column width="200" inputType="text" id="hcol_u1" value="name1"></w2:column>
+						<w2:column width="200" inputType="text" id="hcol_u2" value="name2"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody_u">
+					<w2:row style="" id="brow_u">
+						<w2:column width="200" inputType="text" dataType="text" id="col1" dataList="col1" value=""></w2:column>
+						<w2:column width="200" inputType="text" dataType="text" id="col2" dataList="col2" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:8px;margin-bottom:14px;position:relative;z-index:6100;width:260px;background:#ffffff;" id="grp_btn_case">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case1_onclick" id="btn_case1" label="① .html 경로 + wframe false" style="display:block;width:250px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case2_onclick" id="btn_case2" label="② .html 경로 + wframe true" style="display:block;width:250px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case3_onclick" id="btn_case3" label="③ .xml 경로 + wframe true" style="display:block;width:250px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case4_onclick" id="btn_case4" label="④ .xml 경로 + wframe false" style="display:block;width:250px;"></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="position:relative;z-index:5000;background:#ffffff;">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 260px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

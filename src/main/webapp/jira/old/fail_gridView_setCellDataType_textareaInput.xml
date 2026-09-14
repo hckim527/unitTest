@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head>
+        <w2:type>COMPONENT</w2:type>
+        <w2:buildDate/>
+        <w2:MSA/>
+        <xf:model>
+            <w2:dataCollection baseNode="map">
+                <w2:dataList baseNode="list" id="dlt_bind" repeatNode="map" useStatusValue="true">
+                    <w2:columnInfo>
+                        <w2:column id="col1" name="col1" dataType="text"></w2:column>
+                        <w2:column id="col2" name="col2" dataType="text"></w2:column>
+                        <w2:column id="col3" name="col3" dataType="text"></w2:column>
+                        <w2:column id="col4" name="col4" dataType="text"></w2:column>
+                    </w2:columnInfo>
+                    <w2:data use="false">
+                    </w2:data>
+                </w2:dataList>
+            </w2:dataCollection>
+            <w2:workflowCollection/>
+        </xf:model>
+        <w2:layoutInfo/>
+        <w2:publicInfo method=""/>
+        <script lazy="false" type="text/javascript"><![CDATA[
+// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+scwin.onpageload = function () {
+    // 정적 select1 selectedIndex 초기값 보정 (init 미적용 대비)
+    par_rowIndex.setValue("0");
+    par_columnInfo.setValue("1");
+    par_dataType.setValue("number");
+
+    dlt_bind.setJSON([
+        { "col1": "", "col2": "", "col3": "", "col4": "" },        
+    ]);
+};
+
+
+
+// ===== custom Column typeGetter =====
+// col1(custom) : Cell inputType=text     -> 가이드 허용 4종, 실제 동작
+scwin.target1_textTypeGetter = function (info) {
+    return { id: 'cell_text_' + info.rowIndex + '_' + info.colIndex, inputType: 'text', options: { textAlign: 'right' } };
+};
+
+// col2(custom) : Cell inputType=textarea -> 가이드 허용 4종, 엔진 결함으로 미동작
+scwin.target1_textareaTypeGetter = function (info) {
+    return { id: 'cell_textarea_' + info.rowIndex + '_' + info.colIndex, inputType: 'textarea', options: {} };
+};
+
+// col3(custom) : Cell inputType=input    -> 가이드 허용 4종, 엔진 결함으로 미동작
+scwin.target1_inputTypeGetter = function (info) {
+    return { id: 'cell_input_' + info.rowIndex + '_' + info.colIndex, inputType: 'input', options: {} };
+};
+
+// col4(custom) : Cell inputType=secret   -> 가이드 허용 4종, 실제 동작
+scwin.target1_secretTypeGetter = function (info) {
+    return { id: 'cell_secret_' + info.rowIndex + '_' + info.colIndex, inputType: 'secret', options: {} };
+};
+
+
+
+// 해당 Cell 의 dataType 속성값을 조회 (custom 컬럼은 Cell 단위 cellManager.options.dataType)
+scwin.getCellDataType = function (rowIndex, columnInfo) {
+    var api = target1;
+    var colIndex = api.getColumnIndex(columnInfo);
+    var cellInfo = api.getCellInfo(colIndex);
+    if (cellInfo && cellInfo.options && cellInfo.options.inputType === "custom") {
+        var realRow = api.dataList.getRealRowIndex(rowIndex);
+        var cm = cellInfo.cellManagerHashByRowIndex ? cellInfo.cellManagerHashByRowIndex[realRow] : null;
+        return cm && cm.options ? "(Cell) " + cm.options.dataType : "(Cell 미생성)";
+    }
+    return cellInfo && cellInfo.options ? "(Column) " + cellInfo.options.dataType : "(미확인)";
+};
+
+
+
+// [재현 버튼] 선택한 Cell 에 setCellDataType('number') 호출
+scwin.btn_setCellDataType_onclick = function () {
+    var rowIndex = Number(par_rowIndex.getValue());
+    var columnInfo = Number(par_columnInfo.getValue());
+    var dataType = par_dataType.getValue();
+
+    var beforeType = scwin.getCellDataType(rowIndex, columnInfo);
+
+    var ret;
+    try {
+        ret = target1.setCellDataType(rowIndex, columnInfo, dataType);
+    } catch (ex) {
+        ret = "throw: " + ex.message;
+    }
+
+    var afterType = scwin.getCellDataType(rowIndex, columnInfo);
+    var changed = (beforeType !== afterType);
+
+    scwin.setReturnValue(
+        "setCellDataType(" + rowIndex + ", " + columnInfo + ", '" + dataType + "') | 변경 전 : " + beforeType +
+        " -> 변경 후 : " + afterType + " | 변경됨 : " + changed +
+        (changed ? "" : "  <== 미동작(결함). 콘솔의 TypeError 가 try/catch 에 먹혀 조용히 무시됨"));
+};
+        ]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload">
+        <xf:group style="padding: 10px;" id="grp_root">
+            <w2:textbox style="" id="" label="[FAIL] gridView setCellDataType 는 가이드상 Column inputType=custom + Cell inputType 이 text/textarea/input/secret 4종일 때 동작해야 하나, text/secret 만 동작하고 textarea/input 셀은 미동작(콘솔 TypeError)하는 엔진 결함 재현" class="" escape="false"></w2:textbox>
+
+            <w2:textbox style="margin-top:8px;" id="" label="원인 : setDataType 프로토타입이 input 플러그인에만 존재(textarea 플러그인에 없음 → TypeError), input 셀은 getInput 이 undefined 반환 → TypeError. 두 예외 모두 gridViewApiController.js try/catch 에 먹혀 dataType 미반영(반환 false 도 아님)." class="" escape="false"></w2:textbox>
+
+            <w2:gridView checkAllType="false" id="target1" style="width:760px;height:160px;margin-top:8px;" dataList="data:dlt_bind">
+                <w2:caption style="" id="caption1" value="setCellDataType textarea/input 결함 재현"></w2:caption>
+                <w2:header style="" id="header1">
+                    <w2:row style="" id="hrow1">
+                        <w2:column width="190" inputType="text" id="hcol1" value="Cell text (custom) - 동작"></w2:column>
+                        <w2:column width="190" inputType="text" id="hcol2" value="Cell textarea (custom) - 결함"></w2:column>
+                        <w2:column width="190" inputType="text" id="hcol3" value="Cell input (custom) - 결함"></w2:column>
+                        <w2:column width="*" inputType="text" id="hcol4" value="Cell secret (custom) - 동작"></w2:column>
+                    </w2:row>
+                </w2:header>
+                <w2:gBody style="" id="gBody1">
+                    <w2:row style="" id="brow1">
+                        <w2:column width="190" inputType="custom" dataType="text" id="col1" dataList="col1" typeGetter="scwin.target1_textTypeGetter"></w2:column>
+                        <w2:column width="190" inputType="custom" dataType="text" id="col2" dataList="col2" typeGetter="scwin.target1_textareaTypeGetter"></w2:column>
+                        <w2:column width="190" inputType="custom" dataType="text" id="col3" dataList="col3" typeGetter="scwin.target1_inputTypeGetter"></w2:column>
+                        <w2:column width="*" inputType="custom" dataType="text" id="col4" dataList="col4" typeGetter="scwin.target1_secretTypeGetter"></w2:column>
+                    </w2:row>
+                </w2:gBody>
+            </w2:gridView>
+
+            <xf:group style="margin-top:10px;display:flex;gap:8px;align-items:center;" id="grp_params">
+                <w2:textbox style="" id="" label="columnInfo" class="" escape="false"></w2:textbox>
+                <xf:select1 appearance="minimal" id="par_columnInfo" selectedIndex="1" style="width:340px;">
+                    <xf:choices>
+                        <xf:item><xf:label><![CDATA[0 : Cell text (custom) - 동작]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+                        <xf:item><xf:label><![CDATA[1 : Cell textarea (custom) - 결함 미동작]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+                        <xf:item><xf:label><![CDATA[2 : Cell input (custom) - 결함 미동작]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+                        <xf:item><xf:label><![CDATA[3 : Cell secret (custom) - 동작]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+                    </xf:choices>
+                </xf:select1>
+                <w2:textbox style="margin-left:6px;" id="" label="rowIndex" class="" escape="false"></w2:textbox>
+                <xf:select1 appearance="minimal" id="par_rowIndex" selectedIndex="0" style="width:80px;">
+                    <xf:choices>
+                        <xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+                        <xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+                    </xf:choices>
+                </xf:select1>
+                <w2:textbox style="margin-left:6px;" id="" label="dataType" class="" escape="false"></w2:textbox>
+                <xf:select1 appearance="minimal" id="par_dataType" selectedIndex="0" style="width:120px;">
+                    <xf:choices>
+                        <xf:item><xf:label><![CDATA[number]]></xf:label><xf:value><![CDATA[number]]></xf:value></xf:item>
+                        <xf:item><xf:label><![CDATA[float]]></xf:label><xf:value><![CDATA[float]]></xf:value></xf:item>
+                        <xf:item><xf:label><![CDATA[date]]></xf:label><xf:value><![CDATA[date]]></xf:value></xf:item>
+                    </xf:choices>
+                </xf:select1>
+                <w2:button class="" ev:onclick="scwin.btn_setCellDataType_onclick" id="btn_setCellDataType" label="setCellDataType 실행" style="margin-left:6px;"></w2:button>
+            </xf:group>
+
+            <xf:group class="" id="grp_bottom" style="margin-top:10px;">
+                <w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+                <xf:group id="" style="display: flex;justify-content: flex-end">
+                    <w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+                </xf:group>
+                <xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 240px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+            </xf:group>
+        </xf:group>
+    </body>
+</html>

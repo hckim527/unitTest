@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelUpload options.processMsg 를 설정하지 않으면 기본값 &quot;upload...&quot; 가 적용되지 않고 업로드 진행 메시지 레이어가 생성되지 않는 결함" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260826" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_upload" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col0" name="Column 0" dataType="text"></w2:column>
+						<w2:column id="col1" name="Column 1" dataType="text"></w2:column>
+						<w2:column id="col2" name="Column 2" dataType="text"></w2:column>
+						<w2:column id="col3" name="Column 3" dataType="text"></w2:column>
+						<w2:column id="col4" name="Column 4" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<col0><![CDATA[]]></col0>
+							<col1><![CDATA[]]></col1>
+							<col2><![CDATA[]]></col2>
+							<col3><![CDATA[]]></col3>
+							<col4><![CDATA[]]></col4>
+						</w2:row>
+						<w2:row>
+							<col0><![CDATA[]]></col0>
+							<col1><![CDATA[]]></col1>
+							<col2><![CDATA[]]></col2>
+							<col3><![CDATA[]]></col3>
+							<col4><![CDATA[]]></col4>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+
+
+// ② 에서 명시할 진행 메시지
+scwin.MSG = "업로드 진행 중";
+
+
+
+// 진행 메시지 레이어 감시 결과
+scwin.observer = null;
+scwin.caseNo = "";
+scwin.layerCreated = false;
+scwin.layerMsg = "";
+
+
+
+// 진행 메시지 레이어에 실제로 표시된 메시지를 읽는다.
+//  · 메시지는 레이어 안 iframe 의 src 쿼리에 URLEncoder 로 실려 있으므로 URLDecoder 로 되돌린다.
+scwin.readLayerMsg = function (objLayer) {
+    try {
+        var objFrame = objLayer.querySelector("iframe");
+        if (objFrame !== null) {
+            var strSrc = objFrame.getAttribute("src") || "";
+            var nPos = strSrc.indexOf("?param=");
+            if (nPos >= 0) return WebSquare.text.URLDecoder(strSrc.substring(nPos + 7));
+        }
+
+        if (WebSquare.layer && typeof WebSquare.layer.processMsg === "string") {
+            return WebSquare.layer.processMsg;
+        }
+    } catch (e) {}
+
+    return "";
+};
+
+
+
+// 진행 메시지 레이어는 업로드가 끝나면 제거되므로 등장 시점에 감시하여 메시지를 보관한다.
+scwin.startWatch = function (strNo) {
+    scwin.caseNo = strNo;
+    scwin.layerCreated = false;
+    scwin.layerMsg = "";
+
+    if (scwin.observer !== null) scwin.observer.disconnect();
+
+    scwin.observer = new MutationObserver(function () {
+        try {
+            if (scwin.layerCreated === true) return;
+
+            var objLayer = document.getElementById("___processbar2_i");
+            if (objLayer === null) return;
+
+            scwin.layerCreated = true;
+            scwin.layerMsg = scwin.readLayerMsg(objLayer);
+        } catch (e) {}
+    });
+
+    scwin.observer.observe(document.body, {
+        "childList" : true,
+        "subtree" : true,
+        "attributes" : true,
+        "attributeFilter" : ["style"]
+    });
+};
+
+
+
+// 이전 케이스에서 열린 Excel 파일 선택 레이어를 닫는다.
+//  · 닫은 경우 true 를 반환한다. (닫기 처리가 끝나기 전에 다시 열면 ID 중복 경고가 발생하므로 호출부에서 간격을 둔다.)
+scwin.closeOpened = function () {
+    try {
+        var objFrame = document.querySelector("[id$='_excelPop_wframe']");
+        if (objFrame === null) return false;
+
+        WebSquare.util.closePopup(objFrame.id.replace("_wframe", ""));
+        return true;
+    } catch (e) {}
+
+    return false;
+};
+
+
+
+// processMsg 값만 달리하여 advancedExcelUpload 실행
+//  · strMsg 가 undefined 이면 processMsg 를 아예 전달하지 않는다.
+scwin.runCase = function (strNo, strMsg) {
+    var bClosed = scwin.closeOpened();
+
+    var fnRun = function () {
+        scwin.startWatch(strNo);
+
+        var objOptions = { "wframe" : true };
+        if (strMsg !== undefined) objOptions.processMsg = strMsg;
+
+        target1.advancedExcelUpload(objOptions);
+
+        scwin.setReturnValue("[" + strNo + "] 설정한 processMsg : " + (strMsg === undefined ? "미설정 (기본값 \"upload...\")" : "\"" + strMsg + "\"") + " / 엔진에 전달된 processMsg : \"" + scwin.getPassedMsg() + "\"");
+    };
+
+    // 이전 레이어의 닫기 처리가 끝난 뒤 다음 케이스를 실행한다.
+    if (bClosed === true) {
+        setTimeout(fnRun, 800);
+    } else {
+        fnRun();
+    }
+};
+
+
+
+// 엔진에 실제로 전달된 processMsg 값
+//  · 업로드가 끝나면 비워지므로 advancedExcelUpload 호출 직후 바로 읽는다.
+scwin.getPassedMsg = function () {
+    try {
+        var strInfo = target1._excelUploadInfo;
+        if (strInfo === undefined || strInfo === null || strInfo === "") return "확인 불가";
+
+        var strMsg = JSON.parse(strInfo).processMsg;
+        if (strMsg === undefined || strMsg === null || strMsg === "") return "";
+
+        return WebSquare.text.BASE64URLDecoder(strMsg);
+    } catch (e) {}
+
+    return "확인 불가";
+};
+
+
+
+// 업로드 완료 시점에 감시 결과를 출력한다.
+scwin.target1_onfilereadend = function (value) {
+    if (scwin.observer !== null) {
+        scwin.observer.disconnect();
+        scwin.observer = null;
+    }
+
+    if (scwin.layerCreated === true) {
+        scwin.setReturnValue("[" + scwin.caseNo + "] 진행 메시지 레이어 생성 : 됨 / 표시된 메시지 : \"" + scwin.layerMsg + "\"");
+    } else {
+        scwin.setReturnValue("[" + scwin.caseNo + "] 진행 메시지 레이어 생성 : 안 됨");
+    }
+
+    scwin.setReturnValue("");
+};
+
+
+
+// ① processMsg 미설정
+scwin.btn_case1_onclick = function () {
+    scwin.runCase("①", undefined);
+};
+
+// ② processMsg 값 명시
+scwin.btn_case2_onclick = function () {
+    scwin.runCase("②", scwin.MSG);
+};]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView advancedExcelUpload() — options.processMsg 를 설정하지 않으면 기본값 &quot;upload...&quot; 가 적용되지 않고 업로드 진행 메시지 레이어가 생성되지 않는 결함" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제]" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="1. API 가이드 options.processMsg &amp;lt;String:N:&quot;upload...&quot;&amp;gt; : &quot;업로드 진행 중 표시할 메시지를 설정합니다.&quot;" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="2. 업로드 파일은 같은 폴더의 fail_gridView_advancedExcelUpload_processMsgDefaultNotApplied.xlsx (5 Column × 500 Row , 셀값은 c{Column인덱스}_{Row인덱스}) — 진행 메시지는 업로드 중에만 잠시 표시되므로 Row 를 넉넉히 둔다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="3. ① ② 는 processMsg 값만 서로 다르고 나머지 옵션은 동일하다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="4. 진행 메시지 레이어는 업로드가 끝나면 제거되므로 MutationObserver 로 등장 시점에 감시하여 생성 여부와 표시된 메시지를 결과창에 출력한다" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] ① ② 버튼을 차례로 클릭하여 열린 Excel 파일 선택 레이어에서 위 xlsx 파일을 선택 후 전송하고 결과창 출력을 확인 (다음 케이스 버튼을 누르면 이전 레이어는 자동으로 닫힘)" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대] ① 은 processMsg 미설정이므로 기본값 &quot;upload...&quot; 가 진행 메시지 레이어에 표시되어야 함" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-bottom:8px;" id="" label="[실제] ① 은 엔진에 전달된 processMsg 가 빈 값이고 진행 메시지 레이어가 생성되지 않는다 — 값을 명시한 ② 는 레이어가 생성되고 메시지가 표시된다" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 대상 GridView (advancedExcelUpload 호출 대상)" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="target1" dataList="data:dlt_upload" checkAllType="false" style="width:600px;height:180px;" ev:onfilereadend="scwin.target1_onfilereadend">
+				<w2:header style="" id="header_u">
+					<w2:row style="" id="hrow_u">
+						<w2:column width="110" inputType="text" id="hcol_u0" value="Column 0"></w2:column>
+						<w2:column width="110" inputType="text" id="hcol_u1" value="Column 1"></w2:column>
+						<w2:column width="110" inputType="text" id="hcol_u2" value="Column 2"></w2:column>
+						<w2:column width="110" inputType="text" id="hcol_u3" value="Column 3"></w2:column>
+						<w2:column width="110" inputType="text" id="hcol_u4" value="Column 4"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody_u">
+					<w2:row style="" id="brow_u">
+						<w2:column width="110" inputType="text" dataType="text" id="col0" dataList="col0" value=""></w2:column>
+						<w2:column width="110" inputType="text" dataType="text" id="col1" dataList="col1" value=""></w2:column>
+						<w2:column width="110" inputType="text" dataType="text" id="col2" dataList="col2" value=""></w2:column>
+						<w2:column width="110" inputType="text" dataType="text" id="col3" dataList="col3" value=""></w2:column>
+						<w2:column width="110" inputType="text" dataType="text" id="col4" dataList="col4" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group style="margin-top:8px;margin-bottom:14px;position:relative;z-index:6100;width:fit-content;max-width:100%;background:#ffffff;" id="grp_btn_case">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case1_onclick" id="btn_case1" label="① processMsg 미설정" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;margin-bottom:4px;"></w2:button>
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_case2_onclick" id="btn_case2" label="② processMsg = &quot;업로드 진행 중&quot;" style="display:table;width:auto;min-width:0;max-width:100%;white-space:nowrap;overflow:visible;text-overflow:clip;padding-left:12px;padding-right:12px;"></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="position:relative;z-index:5000;background:#ffffff;">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 260px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

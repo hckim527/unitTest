@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView numberMask float format" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260805" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_bind" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col_num" name="number" dataType="number"></w2:column>
+						<w2:column id="col_float" name="float" dataType="float"></w2:column>
+						<w2:column id="col_big" name="bigDecimal" dataType="bigDecimal"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<col_num><![CDATA[-1234.5678]]></col_num>
+							<col_float><![CDATA[-1234.5678]]></col_float>
+							<col_big><![CDATA[-1234.5678]]></col_big>
+						</w2:row>
+						<w2:row>
+							<col_num><![CDATA[1234.5678]]></col_num>
+							<col_float><![CDATA[1234.5678]]></col_float>
+							<col_big><![CDATA[1234.5678]]></col_big>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 (body_bottom.xml inline 복사) =====
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+
+scwin.onpageload = function () {
+    // 데이터는 dataList 정적 데이터로 세팅됨(추가 처리 없음)
+};
+
+// Cell td 요소의 실제 DOM textContent 조회 (공백 1 칸으로 정규화)
+scwin.getCellText = function (gridObj, rowIndex, colIndex) {
+    var gid = gridObj.id;
+    var el = document.getElementById(gid + "_cell_" + rowIndex + "_" + colIndex);
+
+    if (el == null) {
+        var tdList = document.querySelectorAll("td[id*='" + gid + "_cell_" + rowIndex + "_" + colIndex + "']");
+        el = tdList.length > 0 ? tdList[0] : null;
+    }
+
+    if (el == null) {
+        return "(Cell 요소를 찾을 수 없음)";
+    }
+
+    return el.textContent.replace(/ /g, " ").replace(/\s+/g, " ").trim();
+};
+
+// Column 3 종(number / float / bigDecimal) 의 표시값을 기대값과 대조 출력
+scwin.printRow = function (gridObj, rowIndex, strSource, strExpected) {
+    var cols = [
+        { idx: 0, id: "col_num", type: "number     " },
+        { idx: 1, id: "col_float", type: "float      " },
+        { idx: 2, id: "col_big", type: "bigDecimal " }
+    ];
+
+    scwin.setReturnValue("  -- 원본 데이터 : " + strSource + "  (기대 표시값 : " + strExpected + ")");
+
+    for (var i = 0; i < cols.length; i++) {
+        var col = cols[i];
+        var strDom = scwin.getCellText(gridObj, rowIndex, col.idx);
+        var strApi = gridObj.getCellDisplayData(rowIndex, col.id);
+
+        scwin.setReturnValue("     dataType=" + col.type
+            + "| 셀 DOM textContent : " + strDom
+            + " | getCellDisplayData() : " + strApi
+            + " | 기대 : " + strExpected
+            + " -> " + (strDom === strExpected ? "정상" : "결함"));
+    }
+};
+
+// [증상 ①] 마스크 왼쪽 일반문자 + 음수 : float 만 부호가 일반문자 앞으로 이탈
+scwin.btn_sign_onclick = function () {
+    scwin.setReturnValue("■ 증상 ① numberMask = \"" + grd_sign.options.numberMask + "\"");
+    scwin.printRow(grd_sign, 0, "-1234.5678", "₩ -1,234.57 won");
+    scwin.printRow(grd_sign, 1, "1234.5678", "₩ 1,234.57 won");
+    scwin.setReturnValue("");
+};
+
+// [증상 ②] 정수 전용 마스크 : float 만 반올림 미적용
+scwin.btn_round_onclick = function () {
+    scwin.setReturnValue("■ 증상 ② numberMask = \"" + grd_noSuffix.options.numberMask + "\"");
+    scwin.printRow(grd_noSuffix, 0, "-1234.5678", "-1,235");
+    scwin.printRow(grd_noSuffix, 1, "1234.5678", "1,235");
+    scwin.setReturnValue("");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="" id="" label="■ [FAIL] gridView numberMask — dataType=&quot;float&quot; Column 만 마스크 적용 결과가 dataType=&quot;number&quot;/&quot;bigDecimal&quot; 과 다르게 표시되는 결함 2 건" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[전제] gridView numberMask 설정 / Body Column 3 개 모두 inputType=&quot;text&quot; / 원본 데이터 동일 (-1234.5678, 1234.5678) / Column 별 dataType 만 number, float, bigDecimal 로 상이" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[증상 ① 기대] numberMask=&quot;₩ #,###.#0[round] won&quot; (마스크 왼쪽/오른쪽에 일반문자 포함) 에서 3 개 Column 모두 &quot;₩ -1,234.57 won&quot; 으로 표시" class="" escape="false"></w2:textbox>
+			<w2:textbox style="" id="" label="[증상 ① 실제] dataType=&quot;number&quot;, &quot;bigDecimal&quot; 은 &quot;₩ -1,234.57 won&quot; 으로 표시되나 dataType=&quot;float&quot; 만 &quot;-₩ 1,234.57 won&quot; 으로 부호가 왼쪽 일반문자 앞에 표시" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[증상 ② 기대] numberMask=&quot;#,###&quot; (정수 전용 마스크, 소수 영역 없음) 에서 3 개 Column 모두 -1,235 / 1,235 로 표시" class="" escape="false"></w2:textbox>
+			<w2:textbox style="margin-bottom:8px;" id="" label="[증상 ② 실제] dataType=&quot;number&quot;, &quot;bigDecimal&quot; 은 -1,235 / 1,235 로 표시되나 dataType=&quot;float&quot; 만 -1,234 / 1,234 로 소수점 이하가 버림되어 표시" class="" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:10px;" id="" label="■ 증상 ① : numberMask = &quot;₩ #,###.#0[round] won&quot;" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="grd_sign" dataList="data:dlt_bind" style="width:640px;height:105px;" numberMask="₩ #,###.#0[round] won">
+				<w2:header style="" id="header0">
+					<w2:row style="" id="hrow0">
+						<w2:column width="212" inputType="text" id="hcol_num0" value="dataType=number"></w2:column>
+						<w2:column width="212" inputType="text" id="hcol_float0" value="dataType=float"></w2:column>
+						<w2:column width="*" inputType="text" id="hcol_big0" value="dataType=bigDecimal"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody0">
+					<w2:row style="" id="brow0">
+						<w2:column width="212" inputType="text" dataType="number" id="col_num" dataList="col_num" value=""></w2:column>
+						<w2:column width="212" inputType="text" dataType="float" id="col_float" dataList="col_float" value=""></w2:column>
+						<w2:column width="*" inputType="text" dataType="bigDecimal" id="col_big" dataList="col_big" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<xf:group style="margin-top:8px;margin-bottom:14px;" id="grp_btn_sign">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_sign_onclick" id="btn_sign" label="증상 ① 재현 (dataType 3 종 표시값 비교)" style=""></w2:button>
+			</xf:group>
+
+			<w2:textbox style="" id="" label="■ 증상 ② : numberMask = &quot;#,###&quot;" class="tc_tbx_label_1" escape="false"></w2:textbox>
+			<w2:gridView id="grd_noSuffix" dataList="data:dlt_bind" style="width:640px;height:105px;" numberMask="#,###">
+				<w2:header style="" id="header1">
+					<w2:row style="" id="hrow1">
+						<w2:column width="212" inputType="text" id="hcol_num1" value="dataType=number"></w2:column>
+						<w2:column width="212" inputType="text" id="hcol_float1" value="dataType=float"></w2:column>
+						<w2:column width="*" inputType="text" id="hcol_big1" value="dataType=bigDecimal"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody style="" id="gBody1">
+					<w2:row style="" id="brow1">
+						<w2:column width="212" inputType="text" dataType="number" id="col_num" dataList="col_num" value=""></w2:column>
+						<w2:column width="212" inputType="text" dataType="float" id="col_float" dataList="col_float" value=""></w2:column>
+						<w2:column width="*" inputType="text" dataType="bigDecimal" id="col_big" dataList="col_big" value=""></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<xf:group style="margin-top:8px;margin-bottom:14px;" id="grp_btn_round">
+				<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_round_onclick" id="btn_round" label="증상 ② 재현 (dataType 3 종 표시값 비교)" style=""></w2:button>
+			</xf:group>
+
+			<xf:group class="" id="grp_bottom" style="">
+				<w2:textbox class="tc_tbx_label_1" escape="false" id="" label="■ 리턴 값 확인" style=""></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style=""></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid var(--ws-gray-400);border-radius: 8px;width: 100%;height: 340px;" id="tbx_return" class="tc_tbx_result_1"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
