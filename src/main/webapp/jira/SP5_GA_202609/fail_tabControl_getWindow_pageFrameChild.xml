@@ -24,18 +24,80 @@ scwin.setReturnValue = function (strValue) {
 
 // ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
 
-// getWindow(info) 로 받은 객체가 해당 Tab 페이지의 window 인지( = 그 페이지의 컴포넌트 link_1 에 접근되는지) 출력
-scwin.printWindow = function (info) {
+// getWindow(info) 반환 객체가 "Tab 페이지의 Scope" 인지 "브라우저 window" 인지 판별하고,
+//  개발자가 실제로 하려는 일(Tab 페이지 컴포넌트 제어)이 되는지까지 확인한다.
+scwin.inspect = function (info) {
     var objTab = $p.getComponentById("target1");
-    var objWin = (typeof info === "undefined") ? objTab.getWindow() : objTab.getWindow(info);
-    var strLabel = "getWindow(" + (typeof info === "undefined" ? "" : (typeof info === "string" ? "'" + info + "'" : info)) + ")";
+    var strCall = "getWindow(" + (typeof info === "string" ? "'" + info + "'" : info) + ")";
+    var objRow = { call : strCall, kind : "", ctrl : "", label : "", err : "" };
 
-    scwin.setReturnValue(strLabel + " 반환 객체 : " + objWin);
+    var objWin = null;
+    try {
+        objWin = objTab.getWindow(info);
+    } catch (objError) {
+        objRow.kind = "호출 실패";
+        objRow.err = String(objError);
+        return objRow;
+    }
 
-    if (objWin && objWin.link_1) {
-        scwin.setReturnValue(strLabel + " 반환 객체의 link_1.getLabel() : " + objWin.link_1.getLabel());
+    objRow.kind = Object.prototype.toString.call(objWin);
+
+    // 실제 사용 시나리오 : Tab 페이지의 button(link_1) 을 제어한다
+    try {
+        objRow.label = objWin.link_1.getLabel();
+        objRow.ctrl = "가능";
+    } catch (objError) {
+        objRow.ctrl = "불가";
+        objRow.err = String(objError);
+    }
+    return objRow;
+};
+
+
+
+// 세 Tab 을 한 번에 호출해 나란히 비교한다
+scwin.btn_compareAll_onclick = function (e) {
+    var arrCase = [
+        { info : 0, desc : "index 0 / tabs1 / wframePreload" },
+        { info : 1, desc : "index 1 / tabs2 / pageFrame" },
+        { info : 2, desc : "index 2 / tabs3 / wframePreload" }
+    ];
+
+    scwin.setReturnValue("=====Tab 페이지 컴포넌트 제어 가능 여부=====");
+    var nFail = 0;
+    for (var i = 0; i < arrCase.length; i++) {
+        var objRow = scwin.inspect(arrCase[i].info);
+        scwin.setReturnValue("· " + arrCase[i].desc);
+        scwin.setReturnValue("    반환 객체 : " + objRow.kind);
+        if (objRow.ctrl === "가능") {
+            scwin.setReturnValue("    getWindow(...).link_1.getLabel() -> '" + objRow.label + "'  (제어 가능)");
+        } else {
+            nFail++;
+            scwin.setReturnValue("    getWindow(...).link_1.getLabel() -> 실패  (제어 불가)");
+            scwin.setReturnValue("    오류 : " + objRow.err);
+        }
+    }
+
+    scwin.setReturnValue("");
+    scwin.setReturnValue("----- 판정 -----");
+    if (nFail === 0) {
+        scwin.setReturnValue("세 Tab 모두 Tab 페이지의 컴포넌트를 제어할 수 있다 (frameMode 에 관계없이 동일)");
     } else {
-        scwin.setReturnValue(strLabel + " 반환 객체의 link_1 : 접근 불가");
+        scwin.setReturnValue("제어 불가 " + nFail + "건 — frameMode 에 따라 getWindow() 반환 형태가 달라진다");
+    }
+    scwin.setReturnValue("");
+};
+
+
+
+// 단건 출력(기존 방식 유지)
+scwin.printWindow = function (info) {
+    var objRow = scwin.inspect(info);
+    scwin.setReturnValue(objRow.call + " 반환 객체 : " + objRow.kind);
+    if (objRow.ctrl === "가능") {
+        scwin.setReturnValue(objRow.call + " -> link_1.getLabel() : '" + objRow.label + "' (제어 가능)");
+    } else {
+        scwin.setReturnValue(objRow.call + " -> link_1 제어 불가 : " + objRow.err);
     }
 };
 
@@ -57,9 +119,9 @@ scwin.btn_getWindowId_onclick = function (e) {
 
 			<w2:textbox style="" id="" label="[전제] tabControl 에 Tab 3 개를 배치하고 content1 / content3 은 frameMode='wframePreload', content2 는 frameMode='pageFrame' 으로 설정한다. 세 Tab 모두 같은 Tab 페이지(fail_tabControl_getWindow_child.xml)를 src 로 지정하며, 그 페이지에는 button(link_1) 하나가 있다" escape="false"></w2:textbox>
 
-			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] 인덱스(0 / 1 / 2)를 선택해 (인덱스로 getWindow 호출) 을 클릭하고, Tabs ID(tabs1 / tabs2 / tabs3)를 선택해 (Tabs ID 로 getWindow 호출) 을 클릭한 뒤, 결과창의 반환 객체와 link_1.getLabel() 값을 확인한다" escape="false"></w2:textbox>
-			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 인덱스 / Tabs ID 어느 쪽으로 호출해도 0, 1, 2 (tabs1, tabs2, tabs3) 모두 반환 객체 : [object Object] / 반환 객체의 link_1.getLabel() : link_1" escape="false"></w2:textbox>
-			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] frameMode='wframePreload' 인 0 (tabs1) 과 2 (tabs3) 는 반환 객체 : [object Object] / link_1.getLabel() : link_1 로 6.0 과 같지만, frameMode='pageFrame' 인 1 (tabs2) 만 반환 객체 : [object Window] / 반환 객체의 link_1 : 접근 불가 가 된다. 인덱스로 호출하든 Tabs ID 로 호출하든 동일하다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (세 Tab 한번에 비교) 버튼을 클릭한다. 세 Tab 에 대해 getWindow() 를 호출하고, 각 반환 객체로 Tab 페이지의 button(link_1) 을 제어해본 결과와 마지막 판정 줄을 확인한다. 개별 확인이 필요하면 인덱스 / Tabs ID 를 골라 각 버튼으로 호출한다." escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대(6.0)] 세 Tab 모두 반환 객체가 [object Object](Tab 페이지 Scope)이고 getWindow(...).link_1.getLabel() 이 'link_1' 을 돌려준다. frameMode 에 관계없이 Tab 페이지의 컴포넌트를 제어할 수 있다. 판정 = 제어 가능" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[실제(5.0)] wframePreload 인 0·2 는 6.0 과 같지만, pageFrame 인 1(tabs2) 만 반환 객체가 [object Window](브라우저 window)여서 link_1 이 undefined 가 되고 getLabel() 호출이 TypeError 로 실패한다. 인덱스로 호출하든 Tabs ID 로 호출하든 동일하다. 판정 = 제어 불가 1건" escape="false"></w2:textbox>
 			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] pageFrame 으로 구성한 Tab 페이지의 컴포넌트를 부모 화면에서 조작할 수 없다. 반환된 객체가 그 Tab 페이지가 아니라 화면 최상위 창이라서 해당 Tab 안의 입력값을 읽거나 설정하거나 함수를 호출하는 처리가 모두 실패한다. 선택되지 않은 Tab 의 값을 미리 채워 두거나 여러 Tab 의 값을 모아서 저장하는 화면이 5.0 에서는 동작하지 않으며, 같은 화면 안에서도 frameMode 에 따라 결과가 갈리므로 동일 화면을 양쪽에서 운영하거나 버전을 옮길 때 일부 Tab 만 조용히 동작이 바뀐다" escape="false"></w2:textbox>
 
 			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (tabControl / content1·content3 = wframePreload, content2 = pageFrame)" escape="false"></w2:textbox>
@@ -68,9 +130,9 @@ scwin.btn_getWindowId_onclick = function (e) {
 					<w2:tabs disabled="false" id="tabs1" label="Tabs1" style="height:40px;"></w2:tabs>
 					<w2:tabs disabled="false" id="tabs2" label="Tabs2" style="height:40px;"></w2:tabs>
 					<w2:tabs disabled="false" id="tabs3" label="Tabs3" style="height:40px;"></w2:tabs>
-					<w2:content frameMode="wframePreload" id="content1" src="/jira/fail_tabControl_getWindow_child.xml" style="height:160px;"></w2:content>
-					<w2:content frameMode="pageFrame" id="content2" src="/jira/fail_tabControl_getWindow_child.xml" style="height:160px;"></w2:content>
-					<w2:content frameMode="wframePreload" id="content3" src="/jira/fail_tabControl_getWindow_child.xml" style="height:160px;"></w2:content>
+					<w2:content frameMode="wframePreload" id="content1" src="/jira/SP5_GA_202609/fail_tabControl_getWindow_child.xml" style="height:160px;"></w2:content>
+					<w2:content frameMode="pageFrame" id="content2" src="/jira/SP5_GA_202609/fail_tabControl_getWindow_child.xml" style="height:160px;"></w2:content>
+					<w2:content frameMode="wframePreload" id="content3" src="/jira/SP5_GA_202609/fail_tabControl_getWindow_child.xml" style="height:160px;"></w2:content>
 				</w2:tabControl>
 			</xf:group>
 
@@ -94,6 +156,7 @@ scwin.btn_getWindowId_onclick = function (e) {
 			</xf:group>
 
 			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-right:6px;" ev:onclick="scwin.btn_compareAll_onclick" id="btn_compareAll" label="세 Tab 한번에 비교"></w2:button>
 				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_getWindowIndex_onclick" id="btn_getWindowIndex" label="인덱스로 getWindow 호출"></w2:button>
 				<w2:button style="margin-left:6px;background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_getWindowId_onclick" id="btn_getWindowId" label="Tabs ID 로 getWindow 호출"></w2:button>
 			</xf:group>

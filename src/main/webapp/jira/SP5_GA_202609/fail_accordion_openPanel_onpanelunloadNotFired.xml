@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] independentPanel=false 인데 다른 패널이 자동으로 닫히지 않음" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map" />
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+
+// 발생한 이벤트를 순서대로 기록한다.
+scwin.gVar = { log : [] };
+
+scwin.target1_onpanelload = function (panelID, userID) {
+    scwin.gVar.log.push("onpanelload (" + userID + ")");
+};
+
+scwin.target1_onpanelunload = function (panelID, userID) {
+    scwin.gVar.log.push("onpanelunload (" + userID + ")");
+};
+
+// 현재 열려 있는 패널 목록을 문자열로 만든다.
+scwin.openList = function () {
+    var arrInfo = $p.getComponentById("target1").getOpenPanelListInfo();
+    if (arrInfo === null || arrInfo.length === 0) { return "없음"; }
+    var arrId = [];
+    for (var i = 0; i < arrInfo.length; i++) {
+        arrId.push(arrInfo[i].id.replace("mf_target1_panel_", ""));
+    }
+    return arrId.join(", ");
+};
+
+// panels1 만 열린 상태를 만든다.
+scwin.btn_reset_onclick = function (e) {
+    var objTarget = $p.getComponentById("target1");
+    objTarget.closePanel("panels1");
+    objTarget.closePanel("panels2");
+    objTarget.closePanel("panels3");
+
+    setTimeout(function () {
+        objTarget.openPanel("panels1");
+        setTimeout(function () {
+            scwin.gVar.log = [];
+            scwin.setReturnValue("=====준비 완료=====");
+            scwin.setReturnValue("    열린 패널 : " + scwin.openList());
+            scwin.setReturnValue("    (이벤트 기록을 초기화했습니다. 이어서 아래 버튼을 클릭하세요)");
+            scwin.setReturnValue("");
+        }, 700);
+    }, 700);
+};
+
+// panels2 를 연다. independentPanel=false 이므로 panels1 이 자동으로 닫힌다.
+scwin.btn_open_onclick = function (e) {
+    scwin.gVar.log = [];
+    $p.getComponentById("target1").openPanel("panels2");
+
+    setTimeout(function () {
+        var arrLog = scwin.gVar.log;
+        scwin.setReturnValue("=====openPanel('panels2') 실행 결과=====");
+        scwin.setReturnValue("    열린 패널 : " + scwin.openList());
+        scwin.setReturnValue("    발생한 이벤트 : " + (arrLog.length === 0 ? "없음" : arrLog.join(" / ")));
+        scwin.setReturnValue("");
+
+        var bUnload = false;
+        for (var i = 0; i < arrLog.length; i++) {
+            if (arrLog[i].indexOf("onpanelunload") === 0) { bUnload = true; }
+        }
+        var bClosed = (scwin.openList().indexOf("panels1") < 0);
+
+        scwin.setReturnValue("----- 판정 -----");
+        scwin.setReturnValue("    panels1 자동 닫힘 : " + (bClosed ? "O" : "X"));
+        scwin.setReturnValue("    onpanelunload 발생 : " + (bUnload ? "O" : "X"));
+        if (bClosed && bUnload) {
+            scwin.setReturnValue("배타 모드가 동작해 panels1 이 닫히고 onpanelunload 가 발생했다");
+        } else {
+            scwin.setReturnValue("배타 모드가 동작하지 않아 panels1 이 열린 채로 남고 onpanelunload 도 발생하지 않았다");
+        }
+        scwin.setReturnValue("");
+    }, 900);
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] independentPanel=false 로 설정해도 다른 패널이 자동으로 닫히지 않아 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] Accordion 에 패널 3개를 두고 collapsible=&quot;true&quot; / independentPanel=&quot;false&quot; 로 설정한다. independentPanel=false 이므로 한 패널을 열면 기존에 열려 있던 패널이 자동으로 닫힌다. onpanelload / onpanelunload 두 이벤트를 모두 연결해 발생 순서를 기록한다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] 먼저 (panels1 만 열기) 버튼을 클릭해 panels1 만 열린 상태를 만든다. 이어서 (panels2 열기) 버튼을 클릭하고 결과창의 (열린 패널) / (발생한 이벤트) 와 마지막 판정 두 줄을 확인한다. 화면에서 패널 1 이 접히는지도 함께 본다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 열린 패널 : panels2. 발생한 이벤트 : onpanelunload (panels1) / onpanelload (panels2). panels2 를 열면 기존에 열려 있던 panels1 이 자동으로 닫히고 그 패널에 대해 onpanelunload 가 발생한다. 판정 = 자동 닫힘 O / onpanelunload 발생 O" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] 열린 패널 : panels1, panels2. 발생한 이벤트 : onpanelload (panels2). panels2 를 열어도 panels1 이 닫히지 않아 두 패널이 동시에 열린 채로 남으며, 닫히는 패널이 없으므로 onpanelunload 도 발생하지 않는다. independentPanel=true 로 설정한 것과 같은 결과가 된다. 판정 = 자동 닫힘 X / onpanelunload 발생 X" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[영향] 한 번에 한 패널만 펼쳐지도록 구성한 화면이 5.0 에서는 여러 패널이 동시에 펼쳐진 상태가 되어 레이아웃과 조작 흐름이 달라진다. 또한 자동으로 닫히는 패널이 없으므로 그 시점에 실행되던 처리가 수행되지 않는다. 패널을 닫을 때 입력값을 저장하거나 임시 데이터를 비우거나 타이머를 해제하는 로직을 onpanelunload 에 연결한 화면은 다른 패널로 이동해도 해당 처리가 실행되지 않아 이전 패널의 입력이 유실되거나 자원이 정리되지 않은 채 남는다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (accordion)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
+				<w2:accordion collapsible="true" id="target1" independentPanel="false" style="width:420px;" ev:onpanelload="scwin.target1_onpanelload" ev:onpanelunload="scwin.target1_onpanelunload">
+					<w2:panels class="" id="panels1" style="">
+						<w2:panelTitle id="panelTitle1" label="패널 1" style=""></w2:panelTitle>
+						<w2:panelContent id="panelContent1" style="">
+							<w2:textbox escape="false" id="" label="패널 1 내용" style="padding:10px;"></w2:textbox>
+						</w2:panelContent>
+					</w2:panels>
+					<w2:panels class="" id="panels2" style="">
+						<w2:panelTitle id="panelTitle2" label="패널 2" style=""></w2:panelTitle>
+						<w2:panelContent id="panelContent2" style="">
+							<w2:textbox escape="false" id="" label="패널 2 내용" style="padding:10px;"></w2:textbox>
+						</w2:panelContent>
+					</w2:panels>
+					<w2:panels class="" id="panels3" style="">
+						<w2:panelTitle id="panelTitle3" label="패널 3" style=""></w2:panelTitle>
+						<w2:panelContent id="panelContent3" style="">
+							<w2:textbox escape="false" id="" label="패널 3 내용" style="padding:10px;"></w2:textbox>
+						</w2:panelContent>
+					</w2:panels>
+				</w2:accordion>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-right:6px;" ev:onclick="scwin.btn_reset_onclick" id="btn_reset" label="panels1 만 열기"></w2:button>
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_open_onclick" id="btn_open" label="panels2 열기"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 200px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

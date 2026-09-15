@@ -58,6 +58,17 @@ scwin.getSuffixState = function () {
     return typeof objSuffix;
 };
 
+// WebSquare.suffix 가 어떤 형태로 보관됐는지
+scwin.getSuffixType = function () {
+    if (typeof WebSquare === "undefined" || typeof WebSquare.suffix === "undefined") return "undefined";
+    if (WebSquare.suffix === null) return "null";
+    if (typeof WebSquare.suffix === "string") return "string (JSON 원문이 문자열 그대로 들어 있다)";
+    if (typeof WebSquare.suffix === "object") return "object (JSON 이 파싱되어 있다)";
+    return typeof WebSquare.suffix;
+};
+
+
+
 // 특정 리소스 URL 에 실제로 붙는 postfix 문자열
 scwin.getGeneratedPostfix = function (strUri) {
     try {
@@ -77,8 +88,32 @@ scwin.btn_updateSuffix_onclick = function (e) {
     var objRet = $p.updateSuffix();
 
     var fnDone = function () {
-        scwin.setReturnValue("[호출 후] WebSquare.suffix : " + scwin.getSuffixState());
-        scwin.setReturnValue("[호출 후] /langpack/ko.js 에 붙는 postfix : '" + scwin.getGeneratedPostfix("/langpack/ko.js") + "'");
+        // 확인용 리소스 3종 : JSON 에 정의한 규칙이 각각 다르게 적용되어야 한다
+        var arrProbe = [
+            { uri : "/langpack/ko.js", rule : "path 규칙 (/langpack)" },
+            { uri : "/common/grid.xml", rule : "extension 규칙 (xml)" },
+            { uri : "/common/style.css", rule : "defaults 규칙" }
+        ];
+
+        scwin.setReturnValue("[호출 후] WebSquare.suffix 보관 타입 : " + scwin.getSuffixType());
+        scwin.setReturnValue("");
+        scwin.setReturnValue("----- 리소스에 실제로 만들어지는 URL -----");
+
+        var arrPostfix = [];
+        for (var i = 0; i < arrProbe.length; i++) {
+            var strPostfix = scwin.getGeneratedPostfix(arrProbe[i].uri);
+            arrPostfix.push(strPostfix);
+            scwin.setReturnValue("· " + arrProbe[i].rule);
+            scwin.setReturnValue("    " + arrProbe[i].uri + "?postfix=" + strPostfix);
+            scwin.setReturnValue("    (postfix 길이 " + String(strPostfix).length + "자)");
+        }
+
+        // 세 리소스의 postfix 가 서로 달라야 규칙이 적용된 것이다
+        var bAllSame = (arrPostfix[0] === arrPostfix[1] && arrPostfix[1] === arrPostfix[2]);
+        scwin.setReturnValue("");
+        scwin.setReturnValue("----- 판정 -----");
+        scwin.setReturnValue("경로·확장자별 규칙 적용 여부 : " + (bAllSame ? "적용 안 됨 (세 리소스의 postfix 가 모두 같다)" : "적용됨 (리소스마다 postfix 가 다르다)"));
+
         objHandle.restore();
     };
 
@@ -100,10 +135,10 @@ scwin.btn_updateSuffix_onclick = function (e) {
 
 			<w2:textbox style="" id="" label="[전제] 프로젝트 공통 파일을 바꾸지 않기 위해 XMLHttpRequest 의 요청 URL 만 바꿔, 엔진이 읽는 suffix.txt 내용을 JSON 형식 문자열로 응답시킨다. 응답 내용은 경로·확장자별 postfix 를 정의한 JSON 이며 호출이 끝나면 원상복구한다" escape="false"></w2:textbox>
 
-			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (updateSuffix 호출) 버튼을 클릭하고, 결과창의 '[호출 후] WebSquare.suffix' 타입과 '/langpack/ko.js 에 붙는 postfix' 값을 확인한다" escape="false"></w2:textbox>
-			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] [호출 후] WebSquare.suffix : object 로 보관된다 / /langpack/ko.js 에 붙는 postfix : 'lang_2026_09' (JSON 에 정의한 /langpack 경로 규칙이 적용된 값)" escape="false"></w2:textbox>
-			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] [호출 후] WebSquare.suffix : string 으로 보관된다(JSON 원문이 문자열 그대로 들어간다) / /langpack/ko.js 에 붙는 postfix : JSON 원문 문자열이 그대로 쓰이며 경로 규칙이 적용되지 않는다" escape="false"></w2:textbox>
-			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] 화면을 처음 열었을 때와 updateSuffix 를 호출한 뒤의 suffix 보관 형태가 달라져, 경로·확장자별 캐시 제어 설정이 갱신 후에는 적용되지 않는다. 그 결과 서버에 새 파일을 올리고 갱신을 호출해도 브라우저가 이전 파일을 계속 쓰거나, 반대로 매번 다시 받아 느려진다. 또한 두 버전에서 결과가 달라 동일 화면을 양쪽에서 운영하거나 버전을 옮길 때 캐시 동작이 바뀐다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (updateSuffix 호출) 버튼을 클릭하고, 결과창의 &quot;리소스에 실제로 만들어지는 URL&quot; 3줄과 마지막 &quot;판정&quot; 줄을 확인한다. 세 리소스는 JSON 에 서로 다른 규칙(path / extension / defaults)이 정의되어 있으므로 postfix 가 서로 달라야 정상이다." escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[기대(6.0)] WebSquare.suffix 가 object 로 보관되고, 리소스마다 규칙이 적용된다. /langpack/ko.js?postfix=lang_2026_09 · /common/grid.xml?postfix=xml_37 · /common/style.css?postfix=etc_… 처럼 세 postfix 가 서로 다르고 길이도 10자 내외다. 판정 = 적용됨" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[실제(5.0)] WebSquare.suffix 에 JSON 원문이 문자열 그대로 들어가고, 규칙이 전혀 적용되지 않는다. 세 리소스 모두 postfix 자리에 JSON 원문 약 200자가 통째로 붙어 /langpack/ko.js?postfix={&quot;suffix&quot;:[{&quot;path&quot;:&quot;/langpack&quot;,…}]} 같은 URL 이 만들어진다. 세 postfix 가 전부 동일하다. 판정 = 적용 안 됨" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[문제] 리소스 URL 의 캐시 갱신 파라미터 자리에 JSON 원문이 그대로 들어가 URL 이 비정상적으로 길어지고, 경로·확장자별로 다른 캐시 주기를 주려던 설정이 무력해진다. suffix.txt 를 JSON 형식으로 운영하던 화면은 리소스마다 같은 값이 붙어 의도한 캐시 분리가 되지 않는다." escape="false"></w2:textbox>
 
 			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 동작 흐름" escape="false"></w2:textbox>
 			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
