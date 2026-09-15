@@ -62,16 +62,65 @@ scwin.comp_init = async function () {
 
 
 
+// 아이템 리스트가 펼쳐질 때 애니메이션 효과가 실제로 일어나는지 확인한다.
+//  · animation 속성은 효과만 규정하고 구현 방식은 엔진 버전마다 다르다.
+//    (CSS @keyframes 로 scale 을 바꾸기도, 높이를 단계로 늘리기도 한다)
+//    두 방식 모두 공통으로 투명도가 0 에서 1 로 변하므로 그것을 관측한다.
+//  · 엔진 내부 클래스(w2show 등)는 가이드에 없는 구현 상세라 판정에 쓰지 않는다.
 scwin.btn_getAnimation_onclick = function (e) {
-    let rtn = '';    
-    let comp = &quot;target1_itemTable&quot;;
-    let targetElements = document.querySelectorAll('[id*='+comp+']');
+    let bottom = wf_body_bottom.getObj("scwin");
+    let comp = "target1_itemTable";
+    let targetElements = document.querySelectorAll('[id*=' + comp + ']');
 
-    if (targetElements.length == 0)
-            wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;CheckComboBox 의 아이템 리스트를 한번 오픈해야 아이템 리스트 정보를 가져올 수 있음&quot;);
+    if (targetElements.length == 0) {
+        bottom.setReturnValue("CheckComboBox 의 아이템 리스트를 한번 오픈해야 아이템 리스트 정보를 가져올 수 있음");
+        return;
+    }
 
-    rtn = targetElements[0].className
-    wf_body_bottom.getObj(&quot;scwin&quot;).setReturnValue(&quot;className : &quot; + rtn);
+    let target = targetElements[0];
+    bottom.setReturnValue("animation 설정값 : " + (scwin.gVar.animApplied === "" ? "미설정" : scwin.gVar.animApplied));
+    bottom.setReturnValue("펼침 중 투명도 변화 : " + (scwin.gVar.opacityMin &lt; 0.9 ? "있음" : "없음"));
+    bottom.setReturnValue("펼침 중 높이 변화 : " + ((scwin.gVar.heightMax &gt; 0 &amp;&amp; scwin.gVar.heightMin &lt; scwin.gVar.heightMax * 0.9) ? "있음" : "없음"));
+    bottom.setReturnValue("애니메이션 효과 발생 : " + (scwin.gVar.animated ? "O" : "X"));
+};
+
+
+
+// 아이템 리스트를 열면서 펼쳐지는 과정을 기록한다. (애니메이션 효과 관측용)
+//  · animation 종류마다 변하는 값이 다르므로 투명도와 높이를 함께 본다.
+//    show / fadeIn 은 투명도가 0 에서 1 로, slideDown 은 높이가 0 에서 최종값으로 늘어난다.
+//  · 최종 상태만 보면 셋 다 같으므로, 펼쳐지는 도중의 중간값이 잡히는지로 효과 유무를 판단한다.
+scwin.gVar = { animApplied : "", opacityMin : "-", heightMin : "-", heightMax : "-", animated : false };
+
+scwin.btn_openList_onclick = function (e) {
+    scwin.gVar.animApplied = $p.getComponentById("con_animation").getText();
+    scwin.gVar.opacityMin = 1;
+    scwin.gVar.heightMin = -1;
+    scwin.gVar.heightMax = 0;
+    scwin.gVar.animated = false;
+
+    let comp = "target1_itemTable";
+    document.getElementById("mf_target1_button").click();
+
+    let nStart = Date.now();
+    let nId = setInterval(function () {
+        let arr = document.querySelectorAll('[id*=' + comp + ']');
+        if (arr.length &gt; 0) {
+            let objStyle = window.getComputedStyle(arr[0]);
+            let nOp = parseFloat(objStyle.opacity);
+            let nH = arr[0].offsetHeight;
+            if (nOp &lt; scwin.gVar.opacityMin) { scwin.gVar.opacityMin = nOp; }
+            if (scwin.gVar.heightMin &lt; 0 || nH &lt; scwin.gVar.heightMin) { scwin.gVar.heightMin = nH; }
+            if (nH &gt; scwin.gVar.heightMax) { scwin.gVar.heightMax = nH; }
+        }
+        if (Date.now() - nStart &gt; 600) {
+            clearInterval(nId);
+            // 펼쳐지는 도중에 투명도가 낮아졌거나 높이가 최종값보다 작았으면 효과가 있었던 것이다
+            let bOp = (scwin.gVar.opacityMin &lt; 0.9);
+            let bH = (scwin.gVar.heightMax &gt; 0 &amp;&amp; scwin.gVar.heightMin &lt; scwin.gVar.heightMax * 0.9);
+            scwin.gVar.animated = (bOp || bH);
+        }
+    }, 20);
 };</script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
@@ -136,6 +185,7 @@ scwin.btn_getAnimation_onclick = function (e) {
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">
 					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openList_onclick" id="btn_openList" label="아이템 리스트 열기" style=""></w2:button>
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAnimation_onclick" id="btn_getAnimation" label="animation 값 확인" style=""></w2:button>
 					</xf:group>
 				</xf:group>
