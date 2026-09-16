@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] getObjList 가 정의하지 않은 엔진 내부 ID 를 반환함" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map" />
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+
+// WFrame 이 읽어들인 페이지가 실제로 선언한 객체 ID.
+//  scwin 과 $p 는 가이드상 항상 0번·1번 원소로 포함된다.
+scwin.gVar = { declared : ["scwin", "$p", "group1", "input1", "button1"] };
+
+scwin.btn_getObjList_onclick = function (e) {
+    var objTarget = $p.getComponentById("target1");
+    var arrList = objTarget.getObjList();
+
+    var arrExtra = [];
+    for (var i = 0; i < arrList.length; i++) {
+        var bFound = false;
+        for (var k = 0; k < scwin.gVar.declared.length; k++) {
+            if (arrList[i] === scwin.gVar.declared[k]) { bFound = true; }
+        }
+        if (!bFound) { arrExtra.push(arrList[i]); }
+    }
+
+    scwin.setReturnValue("=====getObjList() 반환 결과=====");
+    scwin.setReturnValue("    반환 목록 : " + arrList.join(", "));
+    scwin.setReturnValue("    페이지가 선언한 ID : " + scwin.gVar.declared.join(", "));
+    scwin.setReturnValue("    선언하지 않은 ID : " + (arrExtra.length === 0 ? "없음" : arrExtra.join(", ")));
+
+    // 선언하지 않은 ID 가 무엇인지 확인한다.
+    for (var j = 0; j < arrExtra.length; j++) {
+        var objEtc = objTarget.getObj(arrExtra[j]);
+        scwin.setReturnValue("        " + arrExtra[j] + " 의 정체 : "
+            + (objEtc ? ("태그 " + objEtc._wTagName + " / 엔진이 부여한 uuid " + objEtc.uuid) : "확인 불가"));
+    }
+
+    scwin.setReturnValue("");
+    scwin.setReturnValue("----- 판정 -----");
+    if (arrExtra.length === 0) {
+        scwin.setReturnValue("페이지에 정의된 객체의 ID 만 반환된다");
+    } else {
+        scwin.setReturnValue("페이지에 정의하지 않은 엔진 내부 ID 가 함께 반환된다 (" + arrExtra.length + "건)");
+    }
+    scwin.setReturnValue("");
+};
+
+]]></script>
+	</head>
+	<body>
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] getObjList() 가 페이지에 정의하지 않은 엔진 내부 ID 를 함께 반환하여 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] WFrame 에 연결한 페이지는 group1 / input1 / button1 세 컴포넌트만 선언한다. body 요소에는 id 를 주지 않았다. 가이드상 반환 배열의 0번과 1번 원소는 scwin, $p 이므로 정의된 ID 는 scwin, $p, group1, input1, button1 다섯 개다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[가이드] getObjList @description : WFrame 컴포넌트에 연결된 WebSquare XML 페이지에 정의된 전체 객체의 ID 를 배열로 반환합니다. @return : 0번과 1번 원소는 &quot;scwin&quot;, &quot;$p&quot; ID 를 갖습니다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (getObjList 실행) 버튼을 클릭한다. 반환 목록과 페이지가 선언한 ID 를 비교해 (선언하지 않은 ID) 값과 마지막 판정 줄을 확인한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 반환 목록 : scwin, $p, group1, input1, button1. 선언하지 않은 ID : 없음. 페이지에 정의된 객체만 반환된다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] 반환 목록 : scwin, $p, group1, input1, button1, wq_uuid_NN. 선언하지 않은 ID : wq_uuid_NN 1건이 더 반환되며, 그 정체는 id 를 주지 않은 body 요소에 엔진이 자동으로 부여한 uuid 다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[영향] 가이드 예시처럼 반환 배열을 순회하거나 인덱스로 꺼내 getObj() 로 컴포넌트를 제어하는 코드가, 개발자가 만든 적 없는 객체를 함께 다루게 된다. 컴포넌트 전용 메소드를 호출하면 오류가 나고, 개수를 세어 처리하는 로직은 결과가 어긋난다. 이 ID 는 엔진이 내부 순번으로 만드는 값이라 화면 구성이 바뀌면 값도 달라져 예외 처리로 걸러내기도 어렵다. 같은 화면과 같은 코드를 두 버전에서 운영하거나 버전을 옮기면 동작이 달라진다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (wframe)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
+				<w2:wframe id="target1" src="/jira/SP5_GA_202609/fail_wframe_getObjList_child.xml" style="width:300px;height:140px;"></w2:wframe>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_getObjList_onclick" id="btn_getObjList" label="getObjList 실행"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 220px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
