@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] 부모 DataList 의 rowPosition 변경 시 LinkedDataList 정렬이 해제됨" meta_author="InswaveSystems" meta_type="메인">
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_org">
+					<w2:columnInfo>
+						<w2:column id="cat1" name="cat1" dataType="text"></w2:column>
+						<w2:column id="cat2" name="cat2" dataType="text"></w2:column>
+						<w2:column id="col1" name="col1" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row><cat1>A</cat1><cat2>A1</cat2><col1>WebSquare</col1></w2:row>
+						<w2:row><cat1>A</cat1><cat2>A1</cat2><col1>Inswave</col1></w2:row>
+						<w2:row><cat1>A</cat1><cat2>A2</cat2><col1>websquare</col1></w2:row>
+						<w2:row><cat1>A</cat1><cat2>A2</cat2><col1>inswave</col1></w2:row>
+						<w2:row><cat1>A</cat1><cat2>A3</cat2><col1>WebSquare AI</col1></w2:row>
+						<w2:row><cat1>A</cat1><cat2>A3</cat2><col1>Inswave System</col1></w2:row>
+					</w2:data>
+				</w2:dataList>
+				<w2:linkedDataList bind="dlt_org" id="target1" style="">
+					<w2:condition type="filter"><![CDATA[cat1==ref('data:dlt_org.cat1')]]></w2:condition>
+					<w2:condition type="sort"><![CDATA[]]></w2:condition>
+				</w2:linkedDataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// ===== 리턴 값 출력 영역 =====
+scwin.btn_clear_onclick = function (e) {
+    $p.getComponentById("tbx_return").setValue("");
+};
+
+scwin.setReturnValue = function (strValue) {
+    var objReturn = $p.getComponentById("tbx_return");
+    objReturn.setValue(objReturn.getValue() + strValue);
+    objReturn.setValue(objReturn.getValue() + "\n");
+};
+
+// ===== 결함 재현 (5.0 vs 6.0 동작 비교) =====
+
+// LinkedDataList 는 부모의 현재 Row 를 기준으로 묶이므로 초기 rowPosition 을 지정해
+//  목록이 보이는 상태로 만든다. 모든 Row 가 cat1=A 라 rowPosition 이 바뀜도 목록 구성은 같고 순서만 문제가 된다.
+scwin.onpageload = function () {
+    $p.getComponentById("dlt_org").setRowPosition(0);
+};
+
+// LinkedDataList 의 현재 Row 순서를 한 줄로 만든다.
+scwin.order = function () {
+    var arrRow = $p.getComponentById("target1").getAllFilteredJSON();
+    var arrText = [];
+    for (var i = 0; i < arrRow.length; i++) {
+        arrText.push(arrRow[i].col1);
+    }
+    return arrText.join(" > ");
+};
+
+// 정렬이 걸린 상태인지(= col1 내림차순인지) 판정한다.
+//  내림차순 정렬 결과의 첫 항목은 websquare, 정렬이 풀린 원본 순서의 첫 항목은 WebSquare 다.
+scwin.isSorted = function () {
+    return (scwin.order().indexOf("websquare >") === 0);
+};
+
+scwin.btn_sort_onclick = function (e) {
+    $p.getComponentById("target1").sort("col1", 1);
+
+    scwin.setReturnValue("=====sort(\"col1\", 1) 적용=====");
+    scwin.setReturnValue("    현재 순서 : " + scwin.order());
+    scwin.setReturnValue("    정렬 적용됨 : " + (scwin.isSorted() ? "O" : "X"));
+    scwin.setReturnValue("");
+};
+
+scwin.btn_move_onclick = function (e) {
+    var objOrg = $p.getComponentById("dlt_org");
+    var nBefore = objOrg.getRowPosition();
+    var nNext = (nBefore === 0) ? 1 : 0;
+
+    objOrg.setRowPosition(nNext);
+
+    scwin.setReturnValue("=====부모 DataList rowPosition " + nBefore + " -> " + nNext + "=====");
+    scwin.setReturnValue("    현재 순서 : " + scwin.order());
+    scwin.setReturnValue("    정렬 유지됨 : " + (scwin.isSorted() ? "O" : "X"));
+    scwin.setReturnValue("");
+    scwin.setReturnValue("----- 판정 -----");
+    if (scwin.isSorted()) {
+        scwin.setReturnValue("부모 rowPosition 이 바뀌어도 LinkedDataList 의 정렬이 유지된다");
+    } else {
+        scwin.setReturnValue("부모 rowPosition 이 바뀌자 LinkedDataList 의 정렬이 해제되어 원본 순서로 돌아갔다");
+    }
+    scwin.setReturnValue("");
+};
+
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group style="padding: 10px;" id="grp_root">
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ [FAIL] 부모 DataList 의 rowPosition 이 바뀌면 LinkedDataList 에 적용해 둔 정렬이 해제되어 6.0 과 다르다" escape="false"></w2:textbox>
+
+			<w2:textbox style="" id="" label="[전제] Row 6건을 가진 DataList(dlt_org)에 LinkedDataList(target1)를 bind 하고 Filter Condition 으로 cat1 을 연결한다. col1 값은 대소문자가 섞여 있어 내림차순 정렬 시 websquare 가 맨 앞에 오고, 정렬이 풀리면 원본 순서대로 WebSquare 가 맨 앞에 온다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[가이드] sort @spec : &quot;Sort Condition&quot; 을 포함하여 LinkedDataList 모듈에 적용된 정렬이 모두 해제된 후 sort() 메소드에 의해 새로운 정렬이 적용됩니다. 부모 DataList 의 rowPosition 변경으로 정렬이 해제된다는 규정은 없습니다" escape="false"></w2:textbox>
+
+			<w2:textbox style="margin-top:6px;" id="" label="[확인 방법] (1) (sort(&quot;col1&quot;, 1) 적용) 버튼을 클릭해 정렬이 걸린 것을 확인한다. (2) 이어서 (부모 DataList rowPosition 변경) 버튼을 클릭한다. (3) 두번째 출력의 (정렬 유지됨) 값과 마지막 판정 줄을 확인한다. 위 GridView 의 표시 순서가 실제로 바뀌는지도 함께 본다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[6.0 동작] 정렬 적용됨 : O -&gt; 부모 rowPosition 변경 후에도 정렬 유지됨 : O. 순서가 websquare &gt; inswave &gt; WebSquare AI &gt; WebSquare &gt; Inswave System &gt; Inswave 로 그대로 유지된다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;" id="" label="[5.0 동작] 정렬 적용됨 : O -&gt; 부모 rowPosition 변경 후 정렬 유지됨 : X. 순서가 WebSquare &gt; Inswave &gt; websquare &gt; inswave &gt; WebSquare AI &gt; Inswave System 으로 원본 순서로 되돌아간다. sort() 를 다시 호출하면 정상 적용되므로 sort 기능 자체는 동작한다" escape="false"></w2:textbox>
+			<w2:textbox style="margin-top:6px;margin-bottom:8px;" id="" label="[영향] 화면 로드 시점이나 마스터 화면에서 선택 행을 옮길 때 부모 DataList 의 rowPosition 이 바뀌므로, 미리 걸어 둔 정렬이 사용자도 모르게 풀린다. 마스터-디테일 구조에서 상세 목록이 선택을 바꿀 때마다 정렬되지 않은 순서로 보이며, 화면 개발자는 행을 옮길 때마다 sort() 를 다시 호출해야 한다. 같은 화면과 같은 코드를 두 버전에서 운영하거나 버전을 옮기면 목록에 보이는 순서가 달라진다" escape="false"></w2:textbox>
+
+			<w2:textbox style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;" id="" label="■ 대상 컴포넌트 (LinkedDataList 를 바인딩한 GridView)" escape="false"></w2:textbox>
+			<xf:group style="border: 1px solid #C4CDD5;border-radius: 8px;padding: 10px;" id="grp_target">
+				<w2:textbox style="margin-bottom:6px;" id="" label="아래 목록의 표시 순서가 정렬 상태를 그대로 보여준다" escape="false"></w2:textbox>
+				<w2:gridView checkAllType="false" dataList="data:target1" id="grd_view" rowNumVisible="true" style="width:420px;height:250px;">
+					<w2:header id="header1" style="">
+						<w2:row id="hrow1" style="">
+							<w2:column id="hcat2" inputType="text" style="" value="cat2" width="110"></w2:column>
+							<w2:column id="hcol1" inputType="text" style="" value="col1" width="240"></w2:column>
+						</w2:row>
+					</w2:header>
+					<w2:gBody id="gBody1" style="">
+						<w2:row id="brow1" style="">
+							<w2:column id="cat2" inputType="text" style="" width="110"></w2:column>
+							<w2:column id="col1" inputType="text" style="" width="240"></w2:column>
+						</w2:row>
+					</w2:gBody>
+				</w2:gridView>
+			</xf:group>
+
+			<xf:group style="margin-top:10px;" id="grp_btn">
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-right:6px;" ev:onclick="scwin.btn_sort_onclick" id="btn_sort" label="sort(&quot;col1&quot;, 1) 적용"></w2:button>
+				<w2:button style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;" ev:onclick="scwin.btn_move_onclick" id="btn_move" label="부모 DataList rowPosition 변경"></w2:button>
+			</xf:group>
+
+			<xf:group id="grp_bottom" style="margin-top:14px;">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 240px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
