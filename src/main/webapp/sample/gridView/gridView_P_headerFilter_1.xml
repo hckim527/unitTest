@@ -60,24 +60,25 @@ scwin.comp_init = async function () {
     //  (headerFilter 는 동적 변경 불가 → con 변경 시 Target 재생성 버튼으로 재렌더)
     let vHeaderFilter = con_headerFilter.getText();
     let vDefaultShow = con_defaultShowHeaderFilter.getText();
+    let vSortableUseFilter = con_showSortableUseFilter.getText();
 
     // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
     let lblHf = (vHeaderFilter === '' ? '(미설정=기본 false)' : vHeaderFilter);
     let lblDs = (vDefaultShow === '' ? '(미설정=기본 false)' : vDefaultShow);
-    $c.gcm.createLabel('label="[전제] headerFilter=' + lblHf + ' / defaultShowHeaderFilter=' + lblDs + ' 로 그리드 생성 (DataList 바인딩, col1 은 useFilter=true / 그리드 useFilterList=true)\n[절차] (1) headerFilter 동작 확인 버튼으로 필터 행 생성/표시 여부 확인 (2) headerFilter=true+표시 상태면 HeaderFilter 필터 행의 col1 입력창에 검색어를 입력·적용(엔터) 후 필터 결과 확인 버튼 클릭\n[확인] headerFilter=true 면 HeaderFilter 필터 행이 생성되고 표시 여부는 defaultShowHeaderFilter 로 결정됨. false / 미설정이면 필터 행이 생성되지 않아 defaultShowHeaderFilter 가 동작하지 않음. headerFilter=true 면 useFilter / useFilterList 필터 아이콘이 표시되지 않아(무시) 필터 기능이 동작하지 않음. 필터 결과 확인 버튼으로 필터 적용 후 표시된 행 수/값을 확인"', '', 'label1');
+    $c.gcm.createLabel('label="[전제] headerFilter=' + lblHf + ' / defaultShowHeaderFilter=' + lblDs + ' / showSortableUseFilter=' + (vSortableUseFilter === 'true' ? 'true (sortable/showSortableImage 동반 적용)' : '(미적용)') + ' 로 그리드 생성 (DataList 바인딩, col1 은 useFilter=true / 그리드 useFilterList=true)\n[절차] (1) headerFilter 동작 확인 버튼으로 필터 행 생성/표시 여부 확인 (2) headerFilter=true+표시 상태면 HeaderFilter 필터 행의 col1 입력창에 검색어를 입력·적용(엔터) 후 필터 결과 확인 버튼 클릭\n[확인] headerFilter=true 면 HeaderFilter 필터 행이 생성되고 표시 여부는 defaultShowHeaderFilter 로 결정됨. false / 미설정이면 필터 행이 생성되지 않아 defaultShowHeaderFilter 가 동작하지 않음. headerFilter=true 면 useFilter / useFilterList 필터 아이콘이 표시되지 않아(무시) 필터 기능이 동작하지 않음. 필터 결과 확인 버튼으로 필터 적용 후 표시된 행 수/값을 확인"', '', 'label1');
 
     // dataList 생성 (4행, col1~col4) - @spec2 : DataList 바인딩 전제
     $c.gcm.createDynamicDataList('', '', 'dlt_bind');
 
     // headerFilter / defaultShowHeaderFilter / useFilterList 속성을 con 값에 따라 적용한 커스텀 gridView 생성
     //  (createBasicGridView 는 filterColumn/headerFilter 구성 불가 → 인라인 구성)
-    await scwin.createHeaderFilterGridView(vHeaderFilter, vDefaultShow);
+    await scwin.createHeaderFilterGridView(vHeaderFilter, vDefaultShow, vSortableUseFilter);
 }
 
 
 
 // HeaderFilter 필터 행(filterColumn)을 포함한 gridView 동적 생성
-scwin.createHeaderFilterGridView = async function (vHeaderFilter, vDefaultShow) {
+scwin.createHeaderFilterGridView = async function (vHeaderFilter, vDefaultShow, vSortableUseFilter) {
     let grp_comp = $c.gcm.getTestGroup('');
     let ns = $c.gcm.strNameSpace;
 
@@ -97,9 +98,16 @@ scwin.createHeaderFilterGridView = async function (vHeaderFilter, vDefaultShow) 
         dsAttr = ' defaultShowHeaderFilter="false"';
     }
 
+    // showSortableUseFilter : useFilter 와 연관된 속성. true 면 sortable/showSortableImage 를 함께 적용해
+    //  정렬 아이콘과 필터 버튼이 함께 표시되는 조건을 만든다. headerFilter=true 면 이 속성도 무시된다.
+    let sfAttr = '';
+    if (vSortableUseFilter === 'true') {
+        sfAttr = ' sortable="true" showSortableImage="true" showSortableUseFilter="true"';
+    }
+
     // useFilterList="true" : headerFilter=true 면 무시(@description|2), false/미설정이면 FilterList 필터 기능 사용 가능(@propval false|)
     let s = '';
-    s += '<w2:gridView ' + ns + hfAttr + dsAttr + ' useFilterList="true" dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:300px;">';
+    s += '<w2:gridView ' + ns + hfAttr + dsAttr + sfAttr + ' useFilterList="true" dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:300px;">';
     s += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
     s += '<w2:header style="" id="header1">';
     s += '<w2:row style="" id="row1">';
@@ -150,6 +158,24 @@ scwin.btn_checkHeaderFilter_onclick = function () {
 
     // 3) DataList 바인딩 여부 (@spec2 전제)
     scb.setReturnValue("DataList 바인딩 : " + target1.options.dataList);
+}
+
+
+
+// useFilter/useFilterList 무시 확인 : headerFilter=true 면 useFilter/useFilterList 와 연관 속성·메소드가 모두 무동작임을 확인한다.
+//  setUseFilter / setUseFilterList 로 동적 설정을 시도한 뒤 반환값·options 값·필터 아이콘 수를 함께 출력한다.
+scwin.btn_checkIgnore_onclick = function () {
+    let scb = wf_body_bottom.getObj("scwin");
+
+    let r1 = target1.setUseFilter("column1", true);
+    target1.setUseFilterList(true);
+
+    scb.setReturnValue("setUseFilter(column1, true) 반환값 : " + r1 + " / setUseFilterList(true) 후 options.useFilterList : " + target1.options.useFilterList);
+    scb.setReturnValue("options.showSortableUseFilter : " + (target1.options.showSortableUseFilter === true));
+
+    // useFilter 필터 아이콘(일반 w2grid_customFilter_open / showSortableUseFilter 적용 시 w2grid_customFilter_sortable_open)
+    let icons = document.querySelectorAll("[id*='target1_head_table'] input.w2grid_customFilter_open, [id*='target1_head_table'] input.w2grid_customFilter_sortable_open");
+    scb.setReturnValue("필터 아이콘 : " + icons.length + "개 (headerFilter=true 면 0=무시)");
 }
 
 
@@ -216,6 +242,23 @@ scwin.btn_checkFilterResult_onclick = function () {
 									</xf:select1>
 								</xf:group>
 							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="showSortableUseFilter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="con_showSortableUseFilter" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" tagname="td"></xf:group>
+							</xf:group>
 						</xf:group>
 					</xf:group>
 				</xf:group>
@@ -224,6 +267,9 @@ scwin.btn_checkFilterResult_onclick = function () {
 					<xf:group style="" id="grp_etc">
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkHeaderFilter_onclick" id="btn_checkHeaderFilter"
 							label="headerFilter 동작 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkIgnore_onclick" id="btn_checkIgnore"
+							label="useFilter/useFilterList 무시 확인" style="">
 						</w2:button>
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkFilterResult_onclick" id="btn_checkFilterResult"
 							label="필터 결과 확인" style="">
