@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head>
+		<w2:type>DEFAULT</w2:type>
+		<w2:buildDate />
+		<xf:model>
+			<xf:instance>
+				<data xmlns="" />
+			</xf:instance>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dataList1" removeDummyRowStatus="true" saveRemovedData="true">
+					<w2:columnInfo>
+						<w2:column id="col1" name="순번" dataType="text"></w2:column>
+						<w2:column id="col2" name="성명" dataType="text"></w2:column>
+						<w2:column id="col3" name="소속" dataType="text"></w2:column>
+						<w2:column id="col4" name="점수A" dataType="text"></w2:column>
+						<w2:column id="col5" name="점수B" dataType="text"></w2:column>
+						<w2:column id="col6" name="합계" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection></w2:workflowCollection>
+		</xf:model>
+		<script type="text/javascript" lazy="false"><![CDATA[
+
+	/*
+	 * ============================================================================
+	 * gridView advancedExcelUpload wframe 사용 시
+	 * 부모 화면의 동일 name 엘리먼트와 충돌하여 업로드 파라미터가 전송되지 않는 현상
+	 * ----------------------------------------------------------------------------
+	 * 확인 빌드 : 5.0_4.4647B.20220524.162541_1.5 (SP4)
+	 *
+	 * options.wframe = true 로 호출하면 업로드 창이 부모 화면과 동일한 document 에
+	 * 렌더링됩니다(type:"wframePopup", useIFrame:false).
+	 * 이 경로가 사용하는 uiplugin/grid/upload/advancedfileUpload.xml 은
+	 * 자신의 select 에 접두사 없는 name 을 부여한 뒤 document 전체에서 조회합니다.
+	 *
+	 *   L182  header.render.name = "header";
+	 *   L183  scwin.sel4 = document.getElementsByName("header")[0];
+	 *
+	 * 같은 파일에서 id 에는 업로드 창 접두사가 부여되어 격리되지만
+	 * (mf_gridView1_excelPop_wframe_header) name 에는 부여되지 않습니다.
+	 * 따라서 부모 화면에 name="header" 인 요소가 있으면 문서 순서상 앞선 요소가 조회됩니다.
+	 *
+	 *   L184  scwin.sel4[0].text = ...   <- 1차 예외. try(L102)~catch(L216) 안이라 흡수됨
+	 *   L303  scwin.sel4[0].selected     <- 2차 예외. catch 밖이라 onpageload 중단
+	 *   L319~ setValue 미실행 / L373 form action 미설정
+	 *
+	 * 결과적으로 hidden 이 initValue 그대로 전송되고
+	 * (expressionColumns="CC", 숫자 파라미터 공백) 서버가 203 을 응답합니다.
+	 * ============================================================================
+	 */
+
+	scwin.onpageload = function () {
+
+		dataList1.setJSON([
+			{ "col1": "1", "col2": "홍길동", "col3": "기획팀", "col4": "80", "col5": "90", "col6": "170" },
+			{ "col1": "2", "col2": "김철수", "col3": "개발팀", "col4": "75", "col5": "85", "col6": "160" },
+			{ "col1": "3", "col2": "이영희", "col3": "영업팀", "col4": "95", "col5": "88", "col6": "183" },
+			{ "col1": "4", "col2": "박민수", "col3": "인사팀", "col4": "60", "col5": "70", "col6": "130" },
+			{ "col1": "5", "col2": "정수진", "col3": "총무팀", "col4": "88", "col5": "92", "col6": "180" }
+		]);
+
+	};
+
+	scwin.onpageunload = function () {
+
+	};
+
+	/*
+	 * 부모 화면(다른 탭 화면)에 name="header" 인 요소가 있는 상태를 만든다.
+	 * 고객 환경에서는 공용 계정 로그인 시 기본 탭으로 열리는 다른 화면들이 이 역할을 한다.
+	 */
+	scwin.setCollision = function (use) {
+
+		if (!scwin.collisionEl) {
+			var el = document.createElement("input");
+			el.type = "text";
+			el.id = "otherTabHeaderInput";
+			el.style.cssText = "position:absolute;top:5px;left:46px;width:400px;";
+			document.body.insertBefore(el, document.body.firstChild);
+			scwin.collisionEl = el;
+		}
+
+		scwin.collisionEl.name = use ? "header" : "header_OFF";
+		scwin.collisionEl.value = use ? "다른 탭 화면의 header 엘리먼트 (name=header)"
+		                              : "충돌 해제 상태 (name=header_OFF)";
+
+	};
+
+	/*
+	 * 업로드 창이 모달로 열리면 화면의 버튼을 클릭할 수 없으므로,
+	 * 창을 연 직후 진단 결과를 Console 에 자동 출력한다.
+	 */
+	scwin.autoDiagnose = function (label) {
+
+		setTimeout(function () {
+
+			var out = ["===== [" + label + "] 진단 ====="];
+
+			var list = document.getElementsByName("header");
+			out.push('document 내 name="header" : ' + list.length + " 개");
+			for (var i = 0; i < list.length; i++) {
+				out.push("  index " + i + " : tag=" + list[i].tagName + ", id=" + list[i].id + ", hasOptions=" + !!list[i].options);
+			}
+			out.push("  ※ 엔진 팝업은 index 0 을 사용합니다. 0 번이 팝업 select 가 아니면 초기화가 중단됩니다.");
+
+			var forms = document.getElementsByName("__uploadForm__");
+			if (!forms || forms.length === 0) {
+				out.push("업로드 폼을 찾지 못했습니다.");
+			} else {
+				var f = forms[0];
+				out.push('form action = [' + (f.getAttribute("action") || "") + "]");
+
+				var keys = "columnNum,headerRows,bodyRows,delim,gridStartRow,gridStartCol,gridSheetNo,expressionColumns,gridStyle".split(",");
+				var inputs = f.getElementsByTagName("input");
+				for (var j = 0; j < inputs.length; j++) {
+					if (keys.indexOf(inputs[j].name) < 0) continue;
+					var v = inputs[j].value;
+					if (v && v.length > 40) v = v.substring(0, 40) + "...(len " + v.length + ")";
+					out.push("  " + inputs[j].name + " = [" + v + "]");
+				}
+			}
+
+			console.log(out.join("\n"));
+
+		}, 1200);
+
+	};
+
+	/*
+	 * ============================================================
+	 * 1) [재현] 부모 화면에 name="header" 가 있는 상태로 wframe 업로드
+	 * ------------------------------------------------------------
+	 * 기대 : 초기화 중단 -> hidden 이 initValue 그대로 / form action 빈 값
+	 *        expressionColumns = CC
+	 * ※ 이 경로는 form action 이 비어 있어 요청이 서버로 전송되지 않습니다.
+	 *    서버 응답까지 확인하시려면 3번을 사용해 주십시오.
+	 * ============================================================
+	 */
+	scwin.trigger1_onclick = function (e) {
+
+		scwin.setCollision(true);
+		gridView1.advancedExcelUpload({
+			wframe: true
+		});
+		scwin.autoDiagnose("1. 재현 - 충돌 있음");
+
+	};
+
+	/*
+	 * ============================================================
+	 * 2) [대조] 충돌 요소만 제거한 뒤 동일 조건으로 업로드
+	 * ------------------------------------------------------------
+	 * 고객이 "해당 탭을 닫으면 정상 동작" 이라고 확인한 상황과 동일합니다.
+	 * 기대 : 동일한 wframe 모드인데 정상 동작
+	 * ============================================================
+	 */
+	scwin.trigger2_onclick = function (e) {
+
+		scwin.setCollision(false);
+		gridView1.advancedExcelUpload({
+			wframe: true
+		});
+		scwin.autoDiagnose("2. 대조 - 충돌 없음");
+
+	};
+
+	/*
+	 * ============================================================
+	 * 3) [재현 + XHR] 서버 응답(203)까지 확인
+	 * ------------------------------------------------------------
+	 * form action 은 L373 에서 설정되므로 중단 시 빈 값이지만,
+	 * XHR 경로는 앞부분에서 확보한 actionUrl 변수를 사용하므로 요청이 전송됩니다.
+	 * 기대 : excelToGrid2.wq 응답에 deniedCodeList 203 / "Excel type is incorrect."
+	 * ============================================================
+	 */
+	scwin.trigger3_onclick = function (e) {
+
+		scwin.setCollision(true);
+		gridView1.advancedExcelUpload({
+			wframe: true,
+			useXHR: true
+		});
+		scwin.autoDiagnose("3. 재현 + XHR");
+
+	};
+
+	/*
+	 * ============================================================
+	 * 4) [진단] 수동 실행용 - 업로드 창이 닫힌 뒤에도 확인 가능
+	 * ============================================================
+	 */
+	scwin.trigger4_onclick = function (e) {
+
+		var list = document.getElementsByName("header");
+		var out = ['document 내 name="header" : ' + list.length + " 개"];
+		for (var i = 0; i < list.length; i++) {
+			out.push("  index " + i + " : tag=" + list[i].tagName + ", id=" + list[i].id + ", hasOptions=" + !!list[i].options);
+		}
+		console.log(out.join("\n"));
+		alert(out.join("\n"));
+
+	};
+
+	/*
+	 * ============================================================
+	 * 5) 엑셀 다운로드 - 업로드 테스트용 파일 생성
+	 * ============================================================
+	 */
+	scwin.trigger5_onclick = function (e) {
+
+		gridView1.advancedExcelDownload({
+			fileName: "upload_test.xlsx"
+		});
+
+	};
+
+]]></script>
+		<style type="text/css"><![CDATA[
+
+]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+		<w2:gridView defaultCellHeight="20" id="gridView1" style="position:absolute;top:31px;left:46px;width:705px;height:300px;"
+			dataList="data:dataList1">
+			<w2:caption style="" id="caption1" value="테스트 목록"></w2:caption>
+			<w2:header style="" id="header1">
+				<w2:row style="" id="row1">
+					<w2:column width="70" inputType="text" style="height:20px" id="column6" value="순번" displayMode="label"></w2:column>
+					<w2:column width="100" inputType="text" style="height:20px" id="column5" value="성명" displayMode="label"></w2:column>
+					<w2:column width="100" inputType="text" style="height:20px" id="column4" value="소속" displayMode="label"></w2:column>
+					<w2:column width="70" inputType="text" style="height:20px" id="column3" value="점수A" displayMode="label"></w2:column>
+					<w2:column width="70" inputType="text" style="height:20px" id="column2" value="점수B" displayMode="label"></w2:column>
+					<w2:column width="70" inputType="text" style="height:20px" id="column1" value="합계" displayMode="label"></w2:column>
+				</w2:row>
+			</w2:header>
+			<w2:gBody style="" id="gBody1">
+				<w2:row style="" id="row2">
+					<w2:column width="70" inputType="text" style="height:20px" id="col1" value="" displayMode="label"></w2:column>
+					<w2:column width="100" inputType="text" style="height:20px" id="col2" value="" displayMode="label"></w2:column>
+					<w2:column width="100" inputType="text" style="height:20px" id="col3" value="" displayMode="label"></w2:column>
+					<w2:column width="70" inputType="text" style="height:20px" id="col4" value="" displayMode="label"></w2:column>
+					<w2:column width="70" inputType="text" style="height:20px" id="col5" value="" displayMode="label"></w2:column>
+					<w2:column width="70" inputType="text" style="height:20px" id="col6" value="" displayMode="label"></w2:column>
+				</w2:row>
+			</w2:gBody>
+		</w2:gridView>
+		<xf:trigger type="button" id="trigger1" style="position:absolute;top:41px;left:781px;width:280px;height:23px;"
+			ev:onclick="scwin.trigger1_onclick">
+			<xf:label><![CDATA[1. [재현] wframe + name=header 충돌]]></xf:label>
+		</xf:trigger>
+		<xf:trigger type="button" id="trigger2" style="position:absolute;top:74px;left:781px;width:280px;height:23px;"
+			ev:onclick="scwin.trigger2_onclick">
+			<xf:label><![CDATA[2. [대조] 충돌 제거 후 동일 호출]]></xf:label>
+		</xf:trigger>
+		<xf:trigger type="button" id="trigger3" style="position:absolute;top:107px;left:781px;width:280px;height:23px;"
+			ev:onclick="scwin.trigger3_onclick">
+			<xf:label><![CDATA[3. [재현+XHR] 서버 203 까지 확인]]></xf:label>
+		</xf:trigger>
+		<xf:trigger type="button" id="trigger4" style="position:absolute;top:160px;left:781px;width:280px;height:23px;"
+			ev:onclick="scwin.trigger4_onclick">
+			<xf:label><![CDATA[4. [진단] name=header 목록 (수동)]]></xf:label>
+		</xf:trigger>
+		<xf:trigger type="button" id="trigger5" style="position:absolute;top:193px;left:781px;width:280px;height:23px;"
+			ev:onclick="scwin.trigger5_onclick">
+			<xf:label><![CDATA[5. 엑셀 다운로드 (테스트 파일 생성)]]></xf:label>
+		</xf:trigger>
+	</body>
+</html>

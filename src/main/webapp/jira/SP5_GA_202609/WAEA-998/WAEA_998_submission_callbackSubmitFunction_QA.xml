@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare"
+    xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="WAEA-998 callbackSubmitFunction QA" meta_author="InswaveSystems" meta_type="main">
+        <w2:type>DEFAULT</w2:type>
+        <xf:model>
+            <xf:instance>
+                <data xmlns="" />
+            </xf:instance>
+            <w2:dataCollection baseNode="map"></w2:dataCollection>
+            <w2:workflowCollection></w2:workflowCollection>
+        </xf:model>
+        <script lazy="false" type="text/javascript"><![CDATA[
+scwin.qa998Summary = null;
+scwin.qa998RunSequence = 0;
+scwin.qa998Counts = null;
+
+scwin.waitForDone = function() {
+    return new Promise(function(resolve, reject) {
+        var started = Date.now();
+        var timer = window.setInterval(function() {
+            if (scwin.qa998Counts.done === 1) {
+                window.clearInterval(timer);
+                resolve();
+            } else if (Date.now() - started > 10000) {
+                window.clearInterval(timer);
+                reject(new Error("Submission 요청이 완료되지 않았습니다."));
+            }
+        }, 25);
+    });
+};
+
+scwin.qa998Callback = function(result, submission) {
+    scwin.qa998Counts.callback += 1;
+    scwin.qa998Counts.argsValid = !!(result && submission);
+};
+
+scwin.runTest = async function() {
+    var id = "waea998Qa_" + Date.now() + "_" + (++scwin.qa998RunSequence);
+    scwin.qa998Counts = { callback: 0, done: 0, argsValid: false };
+    btn_run_all.setDisabled(true);
+    tbx_overall.setValue("실행 중");
+    tbx_result.setValue("Submission을 실행하고 callbackSubmitFunction 호출을 기다리고 있습니다...");
+
+    try {
+        $p.createSubmission({
+            id: id,
+            action: "WAEA_998_submission_callbackSubmitFunction_QA.xml",
+            method: "get",
+            mediatype: "application/xml",
+            callbackSubmitFunction: "scwin.qa998Callback",
+            submitDoneHandler: function() {
+                scwin.qa998Counts.done += 1;
+            }
+        });
+        $p.executeSubmission(id);
+        await scwin.waitForDone();
+        await new Promise(function(resolve) { window.setTimeout(resolve, 50); });
+
+        var pass = scwin.qa998Counts.callback === 1 &&
+            scwin.qa998Counts.done === 1 &&
+            scwin.qa998Counts.argsValid === true;
+        scwin.qa998Summary = {
+            done: true,
+            pass: pass,
+            callbackCount: scwin.qa998Counts.callback,
+            doneCount: scwin.qa998Counts.done,
+            argsValid: scwin.qa998Counts.argsValid
+        };
+        tbx_overall.setValue(pass ? "PASS - callbackSubmitFunction 1회 실행" : "FAIL - 실행 결과를 확인하세요");
+        tbx_result.setValue(
+            "callbackSubmitFunction 실행 횟수: " + scwin.qa998Counts.callback + "\n" +
+            "submitDoneHandler 실행 횟수: " + scwin.qa998Counts.done + "\n" +
+            "콜백 인자 전달: " + (scwin.qa998Counts.argsValid ? "정상" : "비정상") + "\n\n" +
+            "기대 결과: callbackSubmitFunction이 정확히 1회 실행됩니다."
+        );
+    } catch (error) {
+        scwin.qa998Summary = {
+            done: true,
+            pass: false,
+            error: error.stack || error.message || String(error)
+        };
+        tbx_overall.setValue("FAIL - 실행 오류");
+        tbx_result.setValue(scwin.qa998Summary.error);
+    } finally {
+        btn_run_all.setDisabled(false);
+    }
+};
+
+scwin.btn_run_all_onclick = function() {
+    scwin.qa998Summary = null;
+    scwin.runTest();
+};
+
+scwin.onpageload = function() {
+    tbx_overall.setValue("대기 - 테스트 실행 버튼을 누르세요");
+    tbx_result.setValue("확인 항목\ncreateSubmission()에 설정한 callbackSubmitFunction이 Submission 완료 시 1회 실행되는지 확인합니다.");
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload">
+        <w2:textbox id="txt_title" label="WAEA-998 callbackSubmitFunction 실행 확인"
+            style="position:absolute;left:20px;top:18px;width:760px;height:30px;font-size:20px;font-weight:bold;"></w2:textbox>
+        <w2:textbox id="txt_guide" escape="false"
+            label="&lt;b&gt;테스트 실행&lt;/b&gt; 버튼을 누르고 callbackSubmitFunction이 1회 실행되어 PASS로 표시되는지 확인합니다."
+            style="position:absolute;left:20px;top:55px;width:900px;height:42px;"></w2:textbox>
+        <xf:trigger id="btn_run_all" type="button" ev:onclick="scwin.btn_run_all_onclick"
+            style="position:absolute;left:20px;top:110px;width:150px;height:34px;">
+            <xf:label><![CDATA[테스트 실행]]></xf:label>
+        </xf:trigger>
+        <xf:output id="tbx_overall"
+            style="position:absolute;left:190px;top:110px;width:730px;height:34px;font-size:16px;font-weight:bold;"></xf:output>
+        <xf:textarea id="tbx_result" readOnly="true"
+            style="position:absolute;left:20px;top:160px;width:900px;height:220px;font-family:Consolas,monospace;font-size:13px;"></xf:textarea>
+    </body>
+</html>
