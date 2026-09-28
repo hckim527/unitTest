@@ -2326,20 +2326,78 @@ scwin.createBasicSwitch = async function (cList='', eHandler='', cID='target1', 
         cID = 'target1';    
 
     let grp_comp = scwin.getTestGroup(cParent);
-    
-    let strTarget = '';
-    let strCase1 = '';
-    let strCase2 = '';
 
-    strTarget += '&lt;xf:switch ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' style=&quot;position: relative ;width: 200px;height: 200px;&quot;&gt;';
-    strTarget += '&lt;xf:case style=&quot;position:absolute;top:2px;left:2px;width:196px;height:196px;&quot; id=&quot;case1&quot;&gt;';
-    strTarget += '&lt;w2:button style=&quot;width:80px; height:23px; &quot; id=&quot;case1_button1&quot; label=&quot;case1&quot;&gt;&lt;/w2:button&gt;';
+    // 구성 : 탭 헤더 행(grp_switchTab : btn_case1~3) + switch(case1 기본정보 폼 / case2 연락처 폼 / case3 이용 안내)
+    // 모든 자식은 고정 ID(caseN_xxx) 사용 → group.invoke 등 자식 열거 결과가 실행마다 동일하도록 자동 ID 미사용
+    // case 전환 핸들러(scwin.btn_case1_onclick ~ btn_case3_onclick)는 호출 샘플에 정의한다.
+
+    // 1) 기존 탭 헤더 삭제 (Target 재생성 대비)
+    //    comp_init 은 보통 target(switch)만 remove 하므로 헤더가 남음 → 먼저 삭제 후 재생성 (중복 방지 + &quot;헤더 → switch&quot; 순서 유지)
+    let arrTabID = ['btn_case1', 'btn_case2', 'btn_case3', 'grp_switchTab'];
+    for (let i = 0; i &lt; arrTabID.length; i++) {
+        let objTab = $p.getComponentById(arrTabID[i]);
+        if (objTab)
+            objTab.remove();
+    }
+
+    // 2) switch 생성 (target 을 가장 먼저 생성 → comp_init 이 await 없이 호출돼도 target 이 즉시 존재하도록 기존 순서 유지)
+    // 내용 영역 테두리는 case 에 적용 (switch 자체 style 에 border 를 두면 addClass/setStyle 등 target 스타일 검증 샘플과 충돌)
+    let strCaseStyle = 'position:absolute; top:0px; left:0px; width:100%; height:100%; padding:12px 16px; border:1px solid #c9d1db; border-top:none; box-sizing:border-box;';
+
+    let fnTitle = function (titleID, label) {
+        return '&lt;w2:textbox id=&quot;' + titleID + '&quot; label=&quot;' + label + '&quot; style=&quot;height:30px; line-height:30px; font-weight:bold; border-bottom:1px solid #cccccc; margin-bottom:6px;&quot;&gt;&lt;/w2:textbox&gt;';
+    };
+
+    // 입력 행 (라벨 + input)
+    let fnRow = function (grpID, lblID, label, inpID, value) {
+        let strRow = '';
+        strRow += '&lt;xf:group id=&quot;' + grpID + '&quot; style=&quot;height:34px; display:flex; align-items:center;&quot;&gt;';
+        strRow += '&lt;w2:textbox id=&quot;' + lblID + '&quot; label=&quot;' + label + '&quot; style=&quot;width:80px; height:21px; line-height:21px;&quot;&gt;&lt;/w2:textbox&gt;';
+        strRow += '&lt;xf:input id=&quot;' + inpID + '&quot; style=&quot;width:300px; height:21px;&quot; initValue=&quot;' + value + '&quot;&gt;&lt;/xf:input&gt;';
+        strRow += '&lt;/xf:group&gt;';
+        return strRow;
+    };
+
+    let strTarget = '';
+    strTarget += '&lt;xf:switch ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' style=&quot;position:relative; width:500px; height:240px;&quot;&gt;';
+
+    // case1 : 기본정보 입력 폼 (case1_button1 = 저장)
+    strTarget += '&lt;xf:case style=&quot;' + strCaseStyle + '&quot; id=&quot;case1&quot;&gt;';
+    strTarget += fnTitle('case1_textbox1', '기본정보');
+    strTarget += fnRow('case1_group1', 'case1_textbox2', '이름', 'case1_input1', '홍길동');
+    strTarget += fnRow('case1_group2', 'case1_textbox3', '생년월일', 'case1_input2', '1990-01-15');
+    strTarget += fnRow('case1_group3', 'case1_textbox4', '부서', 'case1_input3', '개발팀');
+    strTarget += '&lt;xf:group id=&quot;case1_group4&quot; style=&quot;height:40px; margin-top:8px; padding-left:80px; display:flex; align-items:center;&quot;&gt;';
+    strTarget += '&lt;w2:button style=&quot;width:80px; height:23px;&quot; id=&quot;case1_button1&quot; label=&quot;저장&quot;&gt;&lt;/w2:button&gt;';
+    strTarget += '&lt;/xf:group&gt;';
     strTarget += '&lt;/xf:case&gt;';
-    strTarget += '&lt;xf:case style=&quot;position:absolute;top:2px;left:2px;width:196px;height:196px;&quot; id=&quot;case2&quot;&gt;';
-    strTarget += '&lt;xf:input id=&quot;case2_input1&quot; style=&quot;width:144px; height:21px; &quot; initValue=&quot;case2&quot;&gt;&lt;/xf:input&gt;';
+
+    // case2 : 연락처 입력 폼 (case2_input1 = 이메일)
+    strTarget += '&lt;xf:case style=&quot;' + strCaseStyle + '&quot; id=&quot;case2&quot;&gt;';
+    strTarget += fnTitle('case2_textbox1', '연락처');
+    strTarget += fnRow('case2_group1', 'case2_textbox2', '이메일', 'case2_input1', 'hong@inswave.com');
+    strTarget += fnRow('case2_group2', 'case2_textbox3', '휴대폰', 'case2_input2', '010-1234-5678');
+    strTarget += fnRow('case2_group3', 'case2_textbox4', '주소', 'case2_input3', '서울특별시 강남구 테헤란로 123');
     strTarget += '&lt;/xf:case&gt;';
+
+    // case3 : 이용 안내 문구
+    strTarget += '&lt;xf:case style=&quot;' + strCaseStyle + '&quot; id=&quot;case3&quot;&gt;';
+    strTarget += fnTitle('case3_textbox1', '이용 안내');
+    strTarget += '&lt;xf:group id=&quot;case3_group1&quot; style=&quot;width:100%; padding:8px; border:1px solid #cccccc; background-color:#f7f7f7; box-sizing:border-box;&quot;&gt;';
+    let arrGuide = [
+        '1. 기본정보 탭 : 이름, 생년월일, 부서를 입력합니다.',
+        '2. 연락처 탭 : 이메일, 휴대폰, 주소를 입력합니다.',
+        '3. 상단 탭 버튼을 누르면 해당 화면으로 전환됩니다.',
+        '4. 입력한 값은 탭을 전환해도 유지됩니다.'
+    ];
+    for (let i = 0; i &lt; arrGuide.length; i++) {
+        strTarget += '&lt;w2:textbox id=&quot;case3_textbox' + (i + 2) + '&quot; label=&quot;' + arrGuide[i] + '&quot; style=&quot;height:22px; line-height:22px;&quot;&gt;&lt;/w2:textbox&gt;';
+    }
+    strTarget += '&lt;/xf:group&gt;';
+    strTarget += '&lt;/xf:case&gt;';
+
     strTarget += '&lt;/xf:switch&gt;';
-    
+
     // target 생성
     scwin[cID] = await $p.dynamicCreate(
         cID,
@@ -2348,23 +2406,62 @@ scwin.createBasicSwitch = async function (cList='', eHandler='', cID='target1', 
         grp_comp
     );
 
-    strCase1 += '&lt;w2:button ' + scwin.strNameSpace + ' style=&quot;height:23px;&quot; id=&quot;case1&quot; label=&quot;setSelectedIndex(0)&quot; ev:onclick=&quot;scwin.btn_case1_onclick&quot;&gt;&lt;/w2:button&gt;';
-    
-    scwin.btn_case1 = await $p.dynamicCreate(
-        &quot;btn_case1&quot;,
-        &quot;button&quot;,
-        strCase1,
+    // 3) 탭 헤더 행 (case 전환 버튼) : switch 뒤에 생성 후 DOM 을 switch 앞으로 이동 (화면상 탭 헤더 → 내용 순서)
+    let strTab = '&lt;xf:group ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;width:500px; height:32px; display:flex; align-items:flex-end; gap:2px; border-bottom:2px solid #3d7eff; box-sizing:border-box;&quot;&gt;&lt;/xf:group&gt;';
+    scwin.grp_switchTab = await $p.dynamicCreate(
+        &quot;grp_switchTab&quot;,
+        &quot;group&quot;,
+        strTab,
         grp_comp
     );
 
-    strCase2 += '&lt;w2:button ' + scwin.strNameSpace + ' style=&quot;height:23px;&quot; id=&quot;case2&quot; label=&quot;setSelectedIndex(1)&quot; ev:onclick=&quot;scwin.btn_case2_onclick&quot;&gt;&lt;/w2:button&gt;';
+    let arrTabLabel = ['기본정보', '연락처', '이용안내'];
+    let arrTabBtn = [];
+    for (let i = 0; i &lt; arrTabLabel.length; i++) {
+        let strBtn = '&lt;w2:button ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;width:100px; height:30px; border:1px solid #c9d1db; border-bottom:none; border-radius:4px 4px 0px 0px;&quot; label=&quot;' + arrTabLabel[i] + '&quot; ev:onclick=&quot;scwin.btn_case' + (i + 1) + '_onclick&quot;&gt;&lt;/w2:button&gt;';
+        scwin['btn_case' + (i + 1)] = await $p.dynamicCreate(
+            'btn_case' + (i + 1),
+            &quot;button&quot;,
+            strBtn,
+            scwin.grp_switchTab
+        );
+        arrTabBtn.push(scwin['btn_case' + (i + 1)]);
+    }
 
-    scwin.btn_case2 = await $p.dynamicCreate(
-        &quot;btn_case2&quot;,
-        &quot;button&quot;,
-        strCase2,
-        grp_comp
-    );
+    if (scwin.grp_switchTab &amp;&amp; scwin.grp_switchTab.render &amp;&amp; scwin[cID] &amp;&amp; scwin[cID].render &amp;&amp; scwin[cID].render.parentNode) 
+        scwin[cID].render.parentNode.insertBefore(scwin.grp_switchTab.render, scwin[cID].render);
+
+    // 4) 선택된 case 에 해당하는 탭 버튼 강조
+    //    setSelectedIndex / setSelectedID 등 어떤 경로로 전환되든 case 의 style(visibility) 변경을 감지해 동기화
+    let objSwitch = scwin[cID];
+
+    let fnSyncTab = function () {
+        if (!objSwitch || typeof objSwitch.getSelectedIndex !== 'function')
+            return;
+
+        let idx = objSwitch.getSelectedIndex();
+        for (let i = 0; i &lt; arrTabBtn.length; i++) {
+            if (!arrTabBtn[i] || !arrTabBtn[i].render)
+                continue;
+
+            let objStyle = arrTabBtn[i].render.style;
+            let isSelected = (i === idx);
+            objStyle.backgroundColor = isSelected ? '#3d7eff' : '#eef1f5';
+            objStyle.borderColor = isSelected ? '#3d7eff' : '#c9d1db';
+            objStyle.color = isSelected ? '#ffffff' : '#555555';
+            objStyle.fontWeight = isSelected ? 'bold' : 'normal';
+        }
+    };
+
+    if (objSwitch) {
+        let switchDom = objSwitch.render || document.getElementById(objSwitch.id);
+        if (switchDom) {
+            let observer = new MutationObserver(fnSyncTab);
+            observer.observe(switchDom, { attributes: true, attributeFilter: ['style'], subtree: true });
+        }
+    }
+
+    fnSyncTab();
 }
 
 
