@@ -1995,6 +1995,102 @@ scwin.createBasicScheduleCalendar = async function (cList='', eHandler='', cID='
 
 
 
+scwin.createBasicScrollView = async function (cList='', eHandler='', cID='target1', cParent='') {
+    if (cID === '') 
+        cID = 'target1';    
+
+    let grp_comp = scwin.getTestGroup(cParent);
+
+    // 자식 ID 부여 여부 : target1 이면 고정 ID(textbox1 ...), 그 외(generator 자식 등)는 ID 자동 부여 → 한 화면 2개 생성 시 ID 중복 방지
+    let useID = (cID === 'target1');
+
+    // 1) 기존 내부 자식 삭제 (Target 재생성 대비)
+    //    scrollView 자식은 container DOM 을 부모로 생성하므로 target.remove() 시 자식 컴포넌트 객체가 남음
+    //    → 고정 ID 자식을 먼저 삭제해야 재생성 시 동일 ID dynamicCreate 가 무시되지 않음 (행 group 은 마지막에 삭제)
+    if (useID) {
+        let arrChildID = [
+            'input1', 'input2', 'input3', 'input4', 'input5',
+            'textbox1', 'textbox2', 'textbox3', 'textbox4', 'textbox5', 'textbox6', 'textbox7', 'textbox8',
+            'button1', 'button2',
+            'group1', 'group2', 'group3', 'group4', 'group5', 'group6', 'group7'
+        ];
+
+        for (let i = 0; i &lt; arrChildID.length; i++) {
+            let objChild = $p.getComponentById(arrChildID[i]);
+            if (objChild) 
+                objChild.remove();
+        }
+    }
+
+    // 2) scrollView 생성 (자식 없이)
+    let strTarget = '';
+    strTarget += '&lt;w2:scrollView ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' id=&quot;&quot; style=&quot;width:500px; height:300px;&quot;&gt;';
+    strTarget += '&lt;/w2:scrollView&gt;';
+
+    // target 생성
+    scwin[cID] = await $p.dynamicCreate(
+        cID,
+        &quot;scrollView&quot;,
+        strTarget,
+        grp_comp
+    );
+
+    // 3) container DOM(&quot;{id}_container&quot;) 안에 자식 개별 생성 (회원 정보 입력 폼 : 제목 + 입력 5행 + 약관 안내 + 버튼 행 → 세로 스크롤 발생)
+    let containerDom = document.getElementById(scwin[cID].id + '_container');
+    if (containerDom === null) 
+        containerDom = scwin[cID].dom.container;
+
+    let fnCreate = async function (childID, childType, strComp, childParent) {
+        return await $p.dynamicCreate(useID ? childID : '', childType, strComp, childParent);
+    };
+
+    // 제목
+    let strTitle = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;회원 정보 입력&quot; style=&quot;height:30px; line-height:30px; font-weight:bold; border-bottom:1px solid #cccccc; margin-bottom:6px;&quot;&gt;&lt;/w2:textbox&gt;';
+    await fnCreate('textbox1', 'textbox', strTitle, containerDom);
+
+    // 입력 행 (라벨 + input)
+    let arrRow = [
+        ['이름', '홍길동'],
+        ['이메일', 'hong@inswave.com'],
+        ['연락처', '010-1234-5678'],
+        ['주소', '서울특별시 강남구 테헤란로 123'],
+        ['회사', '인스웨이브시스템즈']
+    ];
+
+    for (let i = 0; i &lt; arrRow.length; i++) {
+        let strRow = '&lt;xf:group ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;height:34px; display:flex; align-items:center;&quot;&gt;&lt;/xf:group&gt;';
+        let objRow = await fnCreate('group' + (i + 1), 'group', strRow, containerDom);
+
+        let strLabel = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;' + arrRow[i][0] + '&quot; style=&quot;width:80px; height:21px; line-height:21px;&quot;&gt;&lt;/w2:textbox&gt;';
+        await fnCreate('textbox' + (i + 2), 'textbox', strLabel, objRow);
+
+        let strInput = '&lt;xf:input ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;width:300px; height:21px;&quot; initValue=&quot;' + arrRow[i][1] + '&quot;&gt;&lt;/xf:input&gt;';
+        await fnCreate('input' + (i + 1), 'input', strInput, objRow);
+    }
+
+    // 약관 안내 (높이가 큰 영역)
+    let strTermsTitle = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;개인정보 수집 및 이용 안내&quot; style=&quot;height:30px; line-height:30px; margin-top:8px; font-weight:bold;&quot;&gt;&lt;/w2:textbox&gt;';
+    await fnCreate('textbox7', 'textbox', strTermsTitle, containerDom);
+
+    let strTerms = '&lt;xf:group ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;width:440px; height:160px; padding:8px; border:1px solid #cccccc; background-color:#f7f7f7; box-sizing:border-box;&quot;&gt;&lt;/xf:group&gt;';
+    let objTerms = await fnCreate('group6', 'group', strTerms, containerDom);
+
+    let strTermsText = '&lt;w2:textbox ' + scwin.strNameSpace + ' id=&quot;&quot; label=&quot;1. 수집 항목 : 이름, 이메일, 연락처, 주소, 회사&amp;#10;2. 수집 목적 : 회원 관리 및 서비스 안내&amp;#10;3. 보유 기간 : 회원 탈퇴 시까지&amp;#10;4. 동의를 거부할 수 있으며, 거부 시 회원 가입이 제한됩니다.&quot; style=&quot;white-space:pre-line; line-height:22px;&quot;&gt;&lt;/w2:textbox&gt;';
+    await fnCreate('textbox8', 'textbox', strTermsText, objTerms);
+
+    // 버튼 행
+    let strBtnRow = '&lt;xf:group ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;height:40px; margin-top:8px; display:flex; align-items:center; gap:6px;&quot;&gt;&lt;/xf:group&gt;';
+    let objBtnRow = await fnCreate('group7', 'group', strBtnRow, containerDom);
+
+    let strButton1 = '&lt;w2:button ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;width:80px; height:23px;&quot; label=&quot;저장&quot;&gt;&lt;/w2:button&gt;';
+    await fnCreate('button1', 'button', strButton1, objBtnRow);
+
+    let strButton2 = '&lt;w2:button ' + scwin.strNameSpace + ' id=&quot;&quot; style=&quot;width:80px; height:23px;&quot; label=&quot;취소&quot;&gt;&lt;/w2:button&gt;';
+    await fnCreate('button2', 'button', strButton2, objBtnRow);
+}
+
+
+
 scwin.createBasicSearchBox = async function (cList='', eHandler='', cID='target1', cParent='') {
     if (cID === '') 
         cID = 'target1';    
