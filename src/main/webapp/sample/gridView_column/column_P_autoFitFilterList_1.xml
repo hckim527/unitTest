@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] autoFitFilterList" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260930" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > autoFitFilterList]<br/>Header Column 에서 FilterList 필터의 너비를 데이터 목록의 길이에 맞게 자동 조정할지 설정합니다.",
+    "validation" : [
+        "GridView 의 useFilterList=true, Column 의 useFilter=true 인 경우에 동작합니다.",
+        "Header Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다.",
+        "true 설정 시, FilterList 목록에 표시된 아이템 중 가장 긴 아이템의 길이에 맞춰 FilterList 필터의 너비를 자동 조정합니다.",
+        "true 설정 시, 가장 긴 아이템의 길이가 Column 너비보다 짧으면 Column 너비가 적용됩니다.",
+        "false 설정 시, FilterList 필터의 너비를 자동 조정하지 않고 Column 너비가 적용됩니다.",
+        "미설정 시, FilterList 필터의 너비를 자동 조정하지 않고 Column 너비가 적용됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Header Column 별 필터 버튼 클릭 시점에 기록한 FilterList 너비 정보
+    "filterInfo" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_autoFitFilterList.setValue("2");
+    con_setArea.setValue("header");
+    con_useFilterList.setValue("2");
+    con_useFilter.setValue("2");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - column1 (너비 120) : Column 너비보다 긴 아이템을 가진 Column
+//  - column2 (너비 200) : Column 너비보다 짧은 아이템만 가진 Column
+//  - autoFitFilterList 는 설정 영역(Header / Body / Footer)의 두 Column 모두에 설정
+//  - GridView 의 autoFitFilterList 는 미설정 (Column 설정만 확인)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.filterInfo = {};
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cAutoFit = con_autoFitFilterList.getText();
+    let cArea = con_setArea.getValue();
+    let cUseFilterList = con_useFilterList.getText();
+    let cUseFilter = con_useFilter.getText();
+
+    let attrAutoFit = (cAutoFit === '') ? '' : ' autoFitFilterList="' + cAutoFit + '"';
+    let attrHeader = (cArea === 'header') ? attrAutoFit : '';
+    let attrBody = (cArea === 'gBody') ? attrAutoFit : '';
+    let attrFooter = (cArea === 'footer') ? attrAutoFit : '';
+    let attrUseFilter = (cUseFilter === '') ? '' : ' useFilter="' + cUseFilter + '"';
+    let attrUseFilterList = (cUseFilterList === '') ? '' : ' useFilterList="' + cUseFilterList + '"';
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] col1 은 Column 너비 120 에 더 긴 아이템, col2 는 Column 너비 200 에 더 짧은 아이템만 보유\n[절차] Header 의 col1, col2 필터 버튼을 차례로 클릭해 목록을 연 뒤 너비 확인 버튼 클릭 (CustomFilter 팝업이 열리면 닫기 버튼으로 닫은 뒤 클릭)\n[확인] 필터 버튼 클릭 시점의 너비(필터와 Column 은 테두리 제외, 아이템은 체크박스와 좌우 여백 포함)로 FilterList 필터 너비가 가장 긴 아이템 너비와 Column 너비 중 어느 쪽에 맞는지 비교"', '', 'label1');
+
+    // dataList 생성 (col1 : 긴 아이템 포함, col2 : 짧은 아이템)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1" : "서울특별시 강남구 테헤란로 123 역삼빌딩", "col2" : "A", "col3" : "", "col4" : "" },
+        { "col1" : "부산", "col2" : "B", "col3" : "", "col4" : "" },
+        { "col1" : "대전광역시 유성구", "col2" : "C", "col3" : "", "col4" : "" },
+        { "col1" : "인천", "col2" : "D", "col3" : "", "col4" : "" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id=""' + attrUseFilterList + ' style="width:560px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"' + attrUseFilter + attrHeader + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column2" value="col2"' + attrUseFilter + attrHeader + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="col2" value=""' + attrBody + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="footer_col1" value="footer1"' + attrFooter + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="footer_col2" value="footer2"' + attrFooter + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // FilterList 는 그리드 밖을 누르면 닫히므로, 필터 버튼 클릭 시점의 너비를 기록해 둔다
+    target1.render.addEventListener("click", scwin.recordFilterInfo);
+}
+
+
+
+// 필터 버튼 클릭 시 해당 Header Column 의 FilterList 너비 정보 기록 (목록이 열린 뒤 측정)
+scwin.recordFilterInfo = function (e) {
+    let elem = e.target;
+    let match = (elem && elem.id) ? elem.id.match(/_(column[12])_filter$/) : null;
+    if (!match) {
+        return;
+    }
+    let headerID = match[1];
+    setTimeout(function () {
+        scwin.gVar.filterInfo[headerID] = scwin.getFilterInfo(headerID);
+    }, 100);
+}
+
+
+
+// 표시 중인 요소인지 확인
+scwin.isShown = function (elem) {
+    return !!elem && window.getComputedStyle(elem).display !== "none" && elem.getBoundingClientRect().width > 0;
+}
+
+
+
+// FilterList 필터 너비 / Column 너비 / 가장 긴 아이템 너비 (렌더된 너비, 테두리 제외)
+//  - 아이템 너비 : 아이템 행의 좌우 padding + 구성 요소(체크박스 + 텍스트)의 너비와 좌우 margin 합
+scwin.getFilterInfo = function (headerID) {
+    let gridId = target1.id;
+    let scrollView = document.getElementById(gridId + "_customFilter_scrollView");
+    let customFilter = document.getElementById(gridId + "_customFilter");
+
+    if (!scwin.isShown(scrollView)) {
+        return scwin.isShown(customFilter) ? "FilterList 미표시 (CustomFilter 팝업 표시)" : "FilterList 미표시";
+    }
+
+    let th = document.getElementById(gridId + "_" + headerID);
+    let list = document.getElementById(gridId + "_customFilter_list");
+    let maxItemWidth = 0;
+    for (let i = 0; i < list.children.length; i++) {
+        let rowStyle = window.getComputedStyle(list.children[i]);
+        let itemWidth = (parseFloat(rowStyle.paddingLeft) || 0) + (parseFloat(rowStyle.paddingRight) || 0);
+        let parts = list.children[i].children;
+        for (let j = 0; j < parts.length; j++) {
+            let cs = window.getComputedStyle(parts[j]);
+            itemWidth += parts[j].offsetWidth + (parseFloat(cs.marginLeft) || 0) + (parseFloat(cs.marginRight) || 0);
+        }
+        maxItemWidth = Math.max(maxItemWidth, Math.round(itemWidth));
+    }
+
+    return "FilterList 필터 너비 " + scrollView.clientWidth + " / Column 너비 " + th.clientWidth + " / 가장 긴 아이템 너비 " + maxItemWidth;
+}
+
+
+
+// 설정 조건과 Header Column 별 FilterList 너비 출력
+//  - validation 1 : useFilterList / useFilter 조건별 FilterList 표시 여부와 너비
+//  - validation 2 : 설정 영역 Body / Footer 이면 미설정과 같은 너비
+//  - validation 3 : true 설정 시 col1 필터 너비 = 가장 긴 아이템 너비
+//  - validation 4 : true 설정 시 col2 필터 너비 = Column 너비
+//  - validation 5, 6 : false / 미설정 시 col1, col2 필터 너비 = Column 너비
+scwin.btn_checkWidth_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cAutoFit = con_autoFitFilterList.getText();
+
+    bottom.setReturnValue("autoFitFilterList : " + (cAutoFit === '' ? "(미설정)" : cAutoFit + " (" + con_setArea.getText() + " Column)")
+        + " / useFilterList : " + (con_useFilterList.getText() === '' ? "(미설정)" : con_useFilterList.getText())
+        + " / useFilter : " + (con_useFilter.getText() === '' ? "(미설정)" : con_useFilter.getText()));
+
+    let arrHeader = [["column1", "col1"], ["column2", "col2"]];
+    for (let i = 0; i < arrHeader.length; i++) {
+        let headerID = arrHeader[i][0];
+        if (!document.getElementById(target1.id + "_" + headerID + "_filter")) {
+            bottom.setReturnValue(arrHeader[i][1] + " : 필터 버튼 없음");
+        } else if (scwin.gVar.filterInfo.hasOwnProperty(headerID)) {
+            bottom.setReturnValue(arrHeader[i][1] + " : " + scwin.gVar.filterInfo[headerID]);
+        }
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFitFilterList" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_autoFitFilterList" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="설정 영역" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_setArea" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>Header</xf:label>
+												<xf:value>header</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>Body</xf:label>
+												<xf:value>gBody</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>Footer</xf:label>
+												<xf:value>footer</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useFilterList" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useFilterList" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useFilter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useFilter" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkWidth_onclick" id="btn_checkWidth"
+							label="너비 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

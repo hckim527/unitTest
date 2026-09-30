@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] autoDecimalPoint" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260930" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > autoDecimalPoint]<br/>Column 의 maxLength 속성이 소수 형식으로 설정되어 있을때 소수점을 자동으로 추가할지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text' 또는 'textImage', dataType='float' 또는 'bigDecimal', applyFormat='all', validateOnInput='true' 인 경우에 동작합니다.",
+        "true 설정 시, 정수부가 자릿수에 맞게 입력되면 소수점이 자동으로 추가됩니다.",
+        "true 설정 시, 입력값에 이미 소수점이 있으면 자동으로 추가되지 않습니다.",
+        "false 설정 시, 소수점을 포함하여 모든 입력을 형식에 맞게 입력해야 합니다.",
+        "미설정 시, 소수점을 포함하여 모든 입력을 형식에 맞게 입력해야 합니다.",
+        "입력값을 붙여넣기 하는 경우는 자동으로 소수점이 추가되지 않습니다.",
+        "dataType='number' 인 Column 은 소수점이 자동으로 삽입되지 않습니다.",
+        "maskFormat 속성과 displayFormat 속성을 함께 설정한 Column 은 소수점이 자동으로 삽입되지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Row 별 편집 중 키를 뗄 때마다 기록한 입력창 값 (셀 더블클릭 시 해당 Row 초기화)
+    "editValue" : {},
+    // 현재 편집 중인 Row
+    "editRow" : -1
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_autoDecimalPoint.setValue("2");
+    con_inputType.setValue("text");
+    con_dataType.setValue("float");
+    con_maskFormat.setSelectedIndex(0);
+    con_applyFormat.setValue("all");
+    con_validateOnInput.setValue("true");
+
+    // 붙여넣기 원본 값
+    par_copyValue.setValue("12345");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - guide : 입력 방법 안내 Column (readOnly)
+//  - val   : 검증 대상 Column (maxLength=3.2 고정, autoDecimalPoint / inputType / dataType / maskFormat / applyFormat / validateOnInput 을 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = {};
+    scwin.gVar.editRow = -1;
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cAutoDecimalPoint = con_autoDecimalPoint.getText();
+    let cInputType = con_inputType.getValue();
+    let cDataType = con_dataType.getValue();
+    let cMaskFormat = con_maskFormat.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] val Column 은 maxLength=3.2 (정수부 3자리, 소수부 2자리)\n[절차] 결과창 clear -> val 셀 더블클릭 -> 같은 Row 의 입력 방법대로 한 자씩 입력 (붙여넣기 Row 는 복사할 값을 Ctrl+C 후 Ctrl+V) -> 셀 밖 클릭으로 포커스 해제 -> 셀 값 확인\n[확인] 편집 중 입력창 값에 소수점이 자동으로 추가되는지 확인"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "guide" : "키 입력 : 12345", "val" : "" },
+        { "guide" : "소수점 포함 입력 : 123.45", "val" : "" },
+        { "guide" : "소수점 뒤 정수부 입력 : 1.5 -> Home -> 234", "val" : "" },
+        { "guide" : "붙여넣기 : 복사할 값 Ctrl+C -> Ctrl+V", "val" : "" }
+    ], false);
+
+    // val Column 속성
+    let attrVal = ' inputType="' + cInputType + '" dataType="' + cDataType + '" maxLength="3.2"'
+        + ' applyFormat="' + con_applyFormat.getValue() + '" validateOnInput="' + con_validateOnInput.getValue() + '"';
+    if (cInputType === "textImage") {
+        // textImage 는 셀에 이미지도 표시되도록 아이콘 이미지 설정 (column_P_allowChar_1 과 동일 경로)
+        attrVal += ' viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg"';
+    }
+    if (cMaskFormat !== '') {
+        attrVal += ' maskFormat="' + cMaskFormat + '" displayFormat="###"';
+    }
+    if (cAutoDecimalPoint !== '') {
+        attrVal += ' autoDecimalPoint="' + cAutoDecimalPoint + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:620px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="340" style="" inputType="text" id="column1" value="입력 방법"></w2:column>';
+    strTarget += '<w2:column width="260" style="" inputType="text" id="column2" value="val (' + cInputType + ' / ' + cDataType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="340" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="260" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록
+    //  - 셀 더블클릭(편집 진입) 시 해당 Row 의 기록 초기화
+    //  - GridView 영역의 keyup 으로 입력창 값을 기록
+    target1.render.addEventListener("dblclick", scwin.startEditRecord, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+}
+
+
+
+// 셀 더블클릭 시 편집 Row 를 기억하고 그 Row 의 기록을 초기화
+scwin.startEditRecord = function (e) {
+    let td = e.target.closest ? e.target.closest("td[id*='_cell_']") : null;
+    if (!td) {
+        return;
+    }
+    let match = td.id.match(/_cell_(\d+)_/);
+    if (!match) {
+        return;
+    }
+    scwin.gVar.editRow = parseInt(match[1], 10);
+    scwin.gVar.editValue[scwin.gVar.editRow] = [];
+}
+
+
+
+// 편집 중 키를 뗄 때마다 입력창 값을 기록 (입력창의 처리가 끝난 뒤의 값을 읽고, 값이 바뀐 경우만 기록)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    let row = scwin.gVar.editRow;
+    if (!elem || elem.tagName !== "INPUT" || row < 0) {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue[row];
+        if (arr.length === 0 || arr[arr.length - 1] !== elem.value) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// 설정 조건과 편집한 Row 의 편집 중 입력창 값 / 포커스 해제 후 셀 표시값 출력
+//  - validation 1 : 조건(inputType / dataType / applyFormat / validateOnInput) 별 키 입력 Row 결과
+//  - validation 2 : true 설정 시 키 입력 Row 에서 정수부 3자리 초과 입력 시 소수점 추가
+//  - validation 3 : true 설정 시 소수점 뒤 정수부 입력 Row 에서 소수점 미추가
+//  - validation 4, 5 : false / 미설정 시 키 입력 Row 와 소수점 포함 입력 Row 비교
+//  - validation 6 : 붙여넣기 Row 결과
+//  - validation 7 : dataType=number 결과
+//  - validation 8 : maskFormat + displayFormat 설정 결과
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cAutoDecimalPoint = con_autoDecimalPoint.getText();
+
+    bottom.setReturnValue("autoDecimalPoint : " + (cAutoDecimalPoint === '' ? "(미설정)" : cAutoDecimalPoint)
+        + " / inputType : " + con_inputType.getValue() + " / dataType : " + con_dataType.getValue()
+        + " / maskFormat : " + (con_maskFormat.getValue() === '' ? "(미설정)" : con_maskFormat.getValue() + " (displayFormat=###)")
+        + " / applyFormat : " + con_applyFormat.getValue() + " / validateOnInput : " + con_validateOnInput.getValue());
+
+    let arrName = ["키 입력", "소수점 포함 입력", "소수점 뒤 정수부 입력", "붙여넣기"];
+    for (let i = 0; i < arrName.length; i++) {
+        // 편집하지 않은 Row 는 출력하지 않는다
+        if (!scwin.gVar.editValue.hasOwnProperty(i)) {
+            continue;
+        }
+        let td = document.querySelector("td[id*='target1_cell_" + i + "_1']");
+        let cellText = td ? td.textContent : "";
+        bottom.setReturnValue("Row " + i + " (" + arrName[i] + ") 편집 중 입력창 값 : " + scwin.gVar.editValue[i].join(" > ")
+            + " -> 포커스 해제 후 셀 표시값 : " + cellText);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoDecimalPoint" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_autoDecimalPoint" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textImage</xf:label>
+												<xf:value>textImage</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>float</xf:label>
+												<xf:value>float</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>bigDecimal</xf:label>
+												<xf:value>bigDecimal</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maskFormat + displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maskFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>default (displayFormat=###)</xf:label>
+												<xf:value>default</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="applyFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_applyFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>all</xf:label>
+												<xf:value>all</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>display</xf:label>
+												<xf:value>display</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="validateOnInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_validateOnInput" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>true</xf:label>
+												<xf:value>true</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>false</xf:label>
+												<xf:value>false</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="복사할 값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_copyValue" style=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

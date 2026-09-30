@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] applyFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260929" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > applyFormat]<br/>Column 에서 입력값을 편집할때 Column 에 적용된 표시 포맷을 유지할지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType 속성값이 'calendar' 인 경우 동작합니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 편집 중 키를 뗄 때마다 기록한 입력창 값 (셀 더블클릭 시 초기화)
+    "editValue" : []
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_applyFormat.setValue("all");
+    con_format.setValue("displayFormat");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// displayFormatter 로 지정하는 표시 포맷 함수 (천 단위 구분 + 원 단위 표시)
+scwin.formatter_won = function (value) {
+    if (value === "" || value === null || typeof value === "undefined") {
+        return value;
+    }
+    return WebSquare.text.formatCurrency(String(value), "#,###") + " 원";
+}
+
+
+
+// 표시 포맷 설정 문자열 / 출력 문구 (con_format 선택값 기준)
+scwin.getFormatAttr = function () {
+    if (con_format.getValue() === "displayFormatter") {
+        return ' displayFormatter="scwin.formatter_won"';
+    }
+    return ' displayFormat="#,###"';
+}
+
+scwin.getFormatText = function () {
+    if (con_format.getValue() === "displayFormatter") {
+        return "displayFormatter=scwin.formatter_won";
+    }
+    return "displayFormat=#,###";
+}
+
+
+
+// comp 생성
+//  - guide : 입력 방법 안내 Column (readOnly)
+//  - val   : 검증 대상 drilldown Column (depthColumn=depth, dataType=number + 표시 포맷, applyFormat 을 옵션값으로 설정)
+//  - Row 0 은 상위(depth 1), Row 1 은 하위(depth 2) - 초기값이 있는 Row 1 을 편집한다 (값 텍스트를 더블클릭할 수 있도록 초기값 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = [];
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cApplyFormat = con_applyFormat.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] val Column 은 inputType=drilldown (depthColumn=depth, dataType=number), Row 0 = 상위(depth 1), Row 1 = 하위(depth 2)\n[절차] 결과창 clear -> Row 1 의 val 셀 값(1,000,000) 더블클릭 -> Ctrl+A 로 기존 값 전체 선택 -> 숫자 12345 를 한 자씩 입력 -> 셀 밖 클릭으로 포커스 해제 -> 셀 값 확인\n[확인] 편집 중 입력창 값과 포커스 해제 후 셀 표시값 / getCellData 비교"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "guide" : "상위 Row (depth 1)", "depth" : "1", "val" : "1000" },
+        { "guide" : "숫자 입력 : 12345", "depth" : "2", "val" : "1000000" }
+    ], false);
+
+    // val Column 속성
+    let attrVal = ' inputType="drilldown" depthColumn="depth" showDepth="2" dataType="number"' + scwin.getFormatAttr();
+    if (cApplyFormat !== '') {
+        attrVal += ' applyFormat="' + cApplyFormat + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column1" value="입력 방법"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column2" value="val (drilldown)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="240" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록
+    //  - drilldown 은 oneditkeyup 이 발생하지 않으므로 GridView 영역의 keyup 으로 기록한다.
+    //  - 셀 더블클릭(편집 진입) 시 기록 초기화
+    target1.render.addEventListener("dblclick", function () {
+        scwin.gVar.editValue = [];
+    }, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+}
+
+
+
+// 편집 중 키를 뗄 때마다 입력창 값을 기록 (입력창의 포맷 처리가 끝난 뒤의 값을 읽는다)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    if (!elem || elem.tagName !== "INPUT") {
+        return;
+    }
+    // 기존 값 선택(Ctrl+A) 등 수정자 키 조합은 입력이 아니므로 기록하지 않는다
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key === "Control" || e.key === "Meta" || e.key === "Alt" || e.key === "Shift") {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue;
+        if (arr.length === 0 || arr[arr.length - 1] !== elem.value) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// 설정값과 Row 1 의 편집 중 입력창 값 / 포커스 해제 후 셀 표시값 / DataList 저장값 출력
+//  - validation 1 : drilldown Column 에서 applyFormat 별 편집 중 포맷 적용 여부
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cApplyFormat = con_applyFormat.getValue();
+
+    bottom.setReturnValue("applyFormat : " + (cApplyFormat === '' ? "(미설정)" : cApplyFormat)
+        + " / inputType : drilldown / " + scwin.getFormatText());
+
+    let cellData = target1.getCellData(1, "val");
+    let td = document.querySelector("td[id*='target1_cell_1_1']");
+    // drilldown 셀은 들여쓰기 공백이 앞에 붙으므로 제거
+    let cellText = td ? td.textContent.trim() : "";
+
+    // 편집하지 않았으면 값 줄은 출력하지 않는다
+    if (scwin.gVar.editValue.length === 0 && (cellData === "" || cellData === null)) {
+        return;
+    }
+
+    bottom.setReturnValue("편집 중 입력창 값 : " + scwin.gVar.editValue.join(" > ")
+        + " -> 포커스 해제 후 셀 표시값 : " + cellText + " / getCellData : " + cellData);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="applyFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_applyFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>all</xf:label>
+												<xf:value>all</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>display</xf:label>
+												<xf:value>display</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="표시 포맷" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_format" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>displayFormat (#,###)</xf:label>
+												<xf:value>displayFormat</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>displayFormatter (#,### 원)</xf:label>
+												<xf:value>displayFormatter</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

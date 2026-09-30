@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] blockSelect" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260930" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1342
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > blockSelect]<br/>Column 의 Cell 선택(포커스)을 차단할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, Body Column 의 Cell 선택(포커스)를 차단합니다.",
+        "true 설정 시, Cell 클릭, 키보드 이동, 범위 선택, 스크립트 등 다양한 방법에 의한 Cell 선택(포커스)를 차단합니다.",
+        "true 설정 시, Cell 선택(포커스)과 관련된 백그라운드 속성이 적용되지 않습니다.",
+        "true 설정 시, Cell 에서 마우스 Drag 가 시작되거나 Drag 선택이 되지 않습니다.",
+        "true 설정 시, Cell 의 편집 상태 전환, Cell 값 편집, 체크박스/토글 등 Cell 내부 기능, 클릭/더블클릭 관련 이벤트 발생은 차단되지 않습니다.",
+        "false 설정 시, Body Column 의 Cell 선택(포커스)를 차단하지 않습니다.",
+        "미설정 시, Body Column 의 Cell 선택(포커스)를 차단하지 않습니다.",
+        "선택(포커스) 되지 않은 Cell 은 'Ctrl+C' 로 Cell 값을 복사할 수 없습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Drag 판정용 mousedown 시작 Cell
+    "dragStartTd" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_blockSelect.setValue("2");
+    par_rowIndex.setValue("1");
+    par_colIndex.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - col2(text, 편집 가능) / col3(checkbox) 에 Body Column 에 blockSelect 적용
+//  - col1 / col4 는 비교용 일반 Column
+//  - 범위 선택(Shift+클릭) / Drag 선택 확인을 위해 GridView 의 useShiftKey=true, dataDragSelect=true 고정
+//  - 행 경계를 넘는 키보드 이동에서도 blockSelect Column 을 건너뛰는지 확인하기 위해 focusFlow=linear 고정
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.dragStartTd = null;
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cBlockSelect = con_blockSelect.getText();
+
+    let attrBlock = (cBlockSelect === '') ? '' : ' blockSelect="' + cBlockSelect + '"';
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body 의 col2(text), col3(checkbox) Column 에 blockSelect 적용, col1 / col4 는 비교용. GridView 는 useShiftKey=true, dataDragSelect=true, focusFlow=linear(행 끝에서 키보드 이동 시 이전/다음 행으로 이동) 고정\n[절차] col2 Cell 클릭, col3 체크박스 클릭 / col1 클릭 후 방향키, Tab 이동, 행의 col4 에서 오른쪽 방향키/Tab, col1 에서 왼쪽 방향키/Shift+Tab / col1 클릭 후 Shift+col4 클릭 / col1 에서 col4 로 Drag, col2 에서 시작하는 Drag / setFocusedCell 버튼 / col2 더블클릭 후 값 편집\n[복사] Target 재생성 직후 col2 Cell 클릭 -> Ctrl+C -> 붙여넣기 영역에 Ctrl+V 후 영역 밖 클릭\n[확인] 결과창의 getAllFocusedIndex, 선택 표시 Cell, 클릭한 Cell 배경색(선택 배경색 rgb(252, 167, 60)) 과 이벤트 발생 로그"', '', 'label1');
+
+    // dataList 생성 (col3 은 checkbox 값 0 / 1)
+    await $c.gcm.createDynamicDataList('', '', 'dlt_bind');
+    dlt_bind.setJSON([
+        { "col1" : "A1", "col2" : "B1", "col3" : "0", "col4" : "D1" },
+        { "col1" : "A2", "col2" : "B2", "col3" : "1", "col4" : "D2" },
+        { "col1" : "A3", "col2" : "B3", "col3" : "0", "col4" : "D3" },
+        { "col1" : "A4", "col2" : "B4", "col3" : "1", "col4" : "D4" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let eList = $c.gcm.createEList(["oncellclick", "oncelldblclick", "onbeforeedit", "onviewchange", "onkeyup"]);
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" useShiftKey="true" dataDragSelect="true" focusFlow="linear" style="width:520px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="col1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="col2 (blockSelect)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="col3 (blockSelect)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="col4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col2" value=""' + attrBlock + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="checkbox" id="col3" value=""' + attrBlock + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="col4" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="footer_col1" value="footer1"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="footer_col2" value="footer2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="footer_col3" value="footer3"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="footer_col4" value="footer4"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // Drag 판정 : mousedown Cell 과 mouseup Cell 이 다르면 Drag 로 보고 결과 출력
+    target1.render.addEventListener("mousedown", scwin.recordDragStart);
+    target1.render.addEventListener("mouseup", scwin.checkDragEnd);
+}
+
+
+
+// 이벤트 대상 요소가 속한 Body Cell(td) 반환
+scwin.getBodyTd = function (elem) {
+    let td = (elem && elem.closest) ? elem.closest("td[id*='_cell_']") : null;
+    return (td && td.id.indexOf(target1.id + "_cell_") === 0) ? td : null;
+}
+
+
+
+// Body Cell id 를 '(Row, Column ID)' 문자열로 변환
+scwin.getCellName = function (td) {
+    let pos = td.id.replace(target1.id + "_cell_", "").split("_");
+    return "(" + pos[0] + ", " + target1.getColumnID(Number(pos[1])) + ")";
+}
+
+
+
+// 현재 포커스 상태 (엔진 포커스 정보 + 화면 선택 표시 Cell)
+scwin.getFocusInfo = function () {
+    let body = document.getElementById(target1.id + "_body_tbody");
+    let tds = body ? body.querySelectorAll("td.focusedTd") : [];
+    let arrName = [];
+    for (let i = 0; i < tds.length; i++) {
+        arrName.push(scwin.getCellName(tds[i]));
+    }
+    return "getAllFocusedIndex : " + JSON.stringify(target1.getAllFocusedIndex()) + " / 선택 표시 Cell : " + (arrName.length === 0 ? "없음" : arrName.join(" "));
+}
+
+
+
+// Cell 클릭 (클릭 / Shift+클릭 범위 선택 / 체크박스 클릭)
+//  - validation 1, 2(클릭, 범위 선택), 3(배경색), 6, 7 : 클릭한 Cell 의 포커스 여부와 배경색
+//  - validation 5 : blockSelect Column 에서도 oncellclick 발생
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    let td = document.querySelector("td[id='" + target1.id + "_cell_" + rowIndex + "_" + columnIndex + "']");
+    let bgColor = td ? window.getComputedStyle(td).backgroundColor : "";
+    wf_body_bottom.getObj("scwin").setReturnValue("oncellclick (" + rowIndex + ", " + columnId + ") -> " + scwin.getFocusInfo() + " / 클릭한 Cell 배경색 : " + bgColor);
+}
+
+
+
+// validation 5 : blockSelect Column 에서도 oncelldblclick 발생
+scwin.target1_oncelldblclick = function (rowIndex, columnIndex, columnId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncelldblclick (" + rowIndex + ", " + columnId + ")");
+}
+
+
+
+// validation 5 : blockSelect Column 에서도 편집 상태 전환
+scwin.target1_onbeforeedit = function (rowIndex, colIndex, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("onbeforeedit (" + rowIndex + ", " + target1.getColumnID(colIndex) + ") : " + value);
+}
+
+
+
+// validation 5 : blockSelect Column 에서도 Cell 값 편집 / 체크박스 값 변경
+scwin.target1_onviewchange = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("onviewchange (" + info.rowIndex + ", " + info.colId + ") : " + info.oldValue + " -> " + info.newValue);
+}
+
+
+
+// validation 2(키보드 이동) : 방향키 / Tab 이동 후 포커스 상태
+scwin.target1_onkeyup = function (e) {
+    if (e.key.indexOf("Arrow") === 0 || e.key === "Tab") {
+        wf_body_bottom.getObj("scwin").setReturnValue("키보드 이동 (" + (e.shiftKey ? "Shift+" : "") + e.key + ") -> " + scwin.getFocusInfo());
+    }
+}
+
+
+
+// Drag 시작 Cell 기록
+scwin.recordDragStart = function (e) {
+    scwin.gVar.dragStartTd = scwin.getBodyTd(e.target);
+}
+
+
+
+// validation 4 : Drag 종료 후 포커스 상태 (시작 Cell 과 종료 Cell 이 다른 경우만)
+scwin.checkDragEnd = function (e) {
+    let startTd = scwin.gVar.dragStartTd;
+    let endTd = scwin.getBodyTd(document.elementFromPoint(e.clientX, e.clientY));
+    scwin.gVar.dragStartTd = null;
+    if (!startTd || !endTd || startTd === endTd) {
+        return;
+    }
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("Drag " + scwin.getCellName(startTd) + " -> " + scwin.getCellName(endTd) + " : " + scwin.getFocusInfo());
+    }, 50);
+}
+
+
+
+// validation 2(스크립트) : setFocusedCell 로 포커스 시도
+scwin.btn_setFocusedCell_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let colIndex = Number(par_colIndex.getValue());
+
+    target1.setFocusedCell(rowIndex, colIndex);
+
+    wf_body_bottom.getObj("scwin").setReturnValue("setFocusedCell(" + rowIndex + ", " + colIndex + ") -> " + scwin.getFocusInfo());
+}
+
+
+
+// validation 8 : 붙여넣은 값(클립보드) 출력
+scwin.txa_paste_onchange = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("붙여넣은 값 : " + txa_paste.getValue());
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="blockSelect" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_blockSelect" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_colIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[0 : col1]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1 : col2]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2 : col3]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3 : col4]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 영역" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:textarea id="txa_paste" ev:onchange="scwin.txa_paste_onchange" style=""></xf:textarea>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setFocusedCell_onclick" id="btn_setFocusedCell"
+							label="setFocusedCell" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

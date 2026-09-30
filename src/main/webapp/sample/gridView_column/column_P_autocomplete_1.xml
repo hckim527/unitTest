@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] autocomplete" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260930" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > autocomplete]<br/>Column 이 편집 상태일때 웹브라우저의 자동완성 기능을 사용할지 설정합니다.",
+    "validation" : [
+        "속성값은 Column 편집에 사용되는 입력 요소의 HTML autocomplete 속성값으로 적용됩니다.",
+        "Column 의 inputType='text', 'textImage', 'calendar', 'drilldown', 'secret' 인 경우에 동작합니다.",
+        "문자열 설정 시, 웹브라우저의 자동완성 정책을 나타내는 HTML autocomplete 속성값을 문자열로 설정합니다.",
+        "문자열 설정 시, 'on', 'off' 와 'username', 'current-password', 'new-password' 등의 HTML 자동완성 토큰을 설정할 수 있습니다.",
+        "문자열 설정 시, 설정값은 검증 없이 그대로 입력 요소의 HTML autocomplete 속성값으로 설정되므로 실제 자동완성 동작은 웹브라우저의 해석을 따릅니다.",
+        "on 설정 시, 값 입력 시 웹브라우저의 자동완성 기능을 사용합니다.",
+        "미설정 시, 값 입력 시 웹브라우저의 자동완성 기능을 사용합니다.",
+        "off 설정 시, 웹브라우저의 자동완성 기능을 사용하지 않습니다.",
+        "HTML5 의 autocomplete 속성과 동일한 기능입니다.",
+        "웹브라우저에 따라 설정값과 다른 동작을 할 수 있으며 웹브라우저 설정에 따라 자동완성 기능이 활성화 되지 않을 수 있습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 편집 상태에서 포커스를 받은 입력 요소의 autocomplete 속성값 / 브라우저 해석값 (Target 재생성 시 초기화)
+    "editInfo" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_autocomplete.setValue("off");
+    con_inputType.setValue("text");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 입력 요소의 autocomplete 속성값 / 브라우저 해석값(autocomplete 프로퍼티) 문구
+scwin.getAttrText = function (elem) {
+    let attr = elem.hasAttribute("autocomplete") ? elem.getAttribute("autocomplete") : "(속성 없음)";
+    return "autocomplete 속성값 : " + attr + " / 브라우저 해석값 : " + (elem.autocomplete === "" ? "(빈값)" : elem.autocomplete);
+}
+
+
+
+// comp 생성
+//  - guide : 편집 안내 Column (readOnly)
+//  - val   : 검증 대상 Column (autocomplete / inputType 을 옵션값으로 설정)
+//  - drilldown 은 Row 0 = 상위(depth 1), Row 1 = 하위(depth 2) 로 구성하고 값이 있는 마지막 Row 를 편집한다
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editInfo = null;
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cAutocomplete = con_autocomplete.getValue();
+    let cInputType = con_inputType.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] autocomplete 확인 (편집 전) -> 편집 Row 의 val 셀 더블클릭 -> autocomplete 확인 (편집 상태)\n[확인] 편집 입력 요소의 autocomplete 속성값과 브라우저 해석값"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    let editValue = "abc";
+    if (cInputType === "calendar") {
+        editValue = "20260930";
+    }
+    let arrData = [];
+    if (cInputType === "drilldown") {
+        arrData.push({ "guide" : "상위 Row (depth 1)", "depth" : "1", "val" : "상위" });
+    }
+    arrData.push({ "guide" : "편집 Row : val 셀 더블클릭", "depth" : "2", "val" : editValue });
+    dlt_bind.setJSON(arrData, false);
+
+    // val Column 속성
+    let attrVal = ' inputType="' + cInputType + '"';
+    if (cInputType === "textImage") {
+        // textImage 는 셀에 이미지도 표시되도록 아이콘 이미지 설정 (column_P_allowChar_1 과 동일 경로)
+        attrVal += ' viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg"';
+    } else if (cInputType === "calendar") {
+        attrVal += ' ioFormat="yyyyMMdd"';
+    } else if (cInputType === "drilldown") {
+        attrVal += ' depthColumn="depth" showDepth="2"';
+    }
+    if (cAutocomplete !== '') {
+        attrVal += ' autocomplete="' + cAutocomplete + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:120px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column1" value="편집 안내"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column2" value="val (' + cInputType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="240" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 상태에서 포커스를 받은 입력 요소의 속성값을 기록 (편집 시작 시점의 값)
+    target1.render.addEventListener("focusin", function (e) {
+        let elem = e.target;
+        if (elem && elem.tagName === "INPUT") {
+            scwin.gVar.editInfo = scwin.getAttrText(elem);
+        }
+    }, true);
+}
+
+
+
+// 편집 전 : 편집 Row 의 val 셀 안 입력 요소 출력
+// 편집 상태 : 편집 시작 시 포커스를 받은 입력 요소의 autocomplete 속성값 / 브라우저 해석값 출력
+//  - validation 1, 3, 4, 6, 7, 8, 9 : 설정값 -> 편집 입력 요소 autocomplete 속성값
+//  - validation 2 : inputType 별 편집 입력 요소 속성값
+//  - validation 5, 10 : 속성값(설정값 그대로)과 브라우저 해석값의 차이
+scwin.btn_checkAutocomplete_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cAutocomplete = con_autocomplete.getValue();
+    let prefix = "autocomplete 설정값 : " + (cAutocomplete === '' ? "(미설정)" : cAutocomplete);
+
+    if (scwin.gVar.editInfo !== null) {
+        bottom.setReturnValue(prefix + " -> 편집 상태 입력 요소 " + scwin.gVar.editInfo);
+        return;
+    }
+
+    let editRow = dlt_bind.getRowCount() - 1;
+    let td = document.querySelector("td[id*='target1_cell_" + editRow + "_1']");
+    let elem = td ? td.querySelector("input") : null;
+    if (elem === null) {
+        bottom.setReturnValue(prefix + " -> 편집 전 val 셀 입력 요소 : 없음");
+    } else {
+        bottom.setReturnValue(prefix + " -> 편집 전 val 셀 입력 요소 " + scwin.getAttrText(elem));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autocomplete" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_autocomplete" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>on</xf:label>
+												<xf:value>on</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>off</xf:label>
+												<xf:value>off</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>username</xf:label>
+												<xf:value>username</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>current-password</xf:label>
+												<xf:value>current-password</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>new-password</xf:label>
+												<xf:value>new-password</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>abc (자동완성 토큰 아님)</xf:label>
+												<xf:value>abc</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textImage</xf:label>
+												<xf:value>textImage</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>calendar</xf:label>
+												<xf:value>calendar</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>drilldown</xf:label>
+												<xf:value>drilldown</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>secret</xf:label>
+												<xf:value>secret</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkAutocomplete_onclick" id="btn_checkAutocomplete"
+							label="autocomplete 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

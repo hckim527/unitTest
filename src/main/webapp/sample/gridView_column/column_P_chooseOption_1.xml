@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] chooseOption" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260929" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1333
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > chooseOption]<br/>Column 의 SelectBox 에 '선택 안내'를 의미하는 아이템의 추가 여부를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='select' 인 경우에 동작합니다.",
+        "true 설정 시, '선택 안내'를 의미하는 아이템을 자동으로 추가합니다.",
+        "true 설정 시, 아이템의 Label 값은 '-선택-', Value 값은 ''(Empty String)으로 설정됩니다.",
+        "false 설정 시, Column 에 아이템을 추가하지 않습니다.",
+        "미설정 시, Column 에 아이템을 추가하지 않습니다.",
+        "'선택 안내' 아이템을 선택해도 아이템이 선택되지 않은 것으로 처리됩니다.",
+        "단, GridView 의 setColumnChooseOption() 메소드를 사용하여 Value 값을 설정한 경우 일반 아이템과 동일하게 취급됩니다.",
+        "Column 의 allOption 속성으로 추가된 '전체 선택' 아이템은 일반 아이템과 동일하게 취급됩니다.",
+        "Column 의 chooseOptionLabel 속성을 설정하면 추가되는 아이템의 Label 값을 변경할 수 있습니다.",
+        "'선택 안내' 아이템이 추가되면 나머지 일반 아이템의 인덱스는 1 씩 증가합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_chooseOption.setValue("2");
+    con_chooseOptionLabel.setValue("");
+    con_allOption.setValue("");
+    con_chooseOptionValue.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name   : 비교용 text Column
+//  - region : 검증 대상 Column (inputType=select, 아이템 서울(S) / 부산(B) / 대구(D) 정적 정의, chooseOption 을 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cChooseOption = con_chooseOption.getText();
+    let cChooseOptionLabel = con_chooseOptionLabel.getValue();
+    let cAllOption = con_allOption.getValue();
+    let cChooseOptionValue = con_chooseOptionValue.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 검증 대상은 region Column (inputType=select, 아이템 : 서울(S) / 부산(B) / 대구(D))\nsetColumnChooseOption Value 설정 시 Target 생성 후 setColumnChooseOption(region, 설정값, 선택 안내 Label) 실행\n[절차] Row 0 region 셀 더블클릭 -> 목록에서 아이템 선택 -> chooseOption 확인\n[확인] 아이템 리스트와 선택 후 셀 값을 확인"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "홍길동", "region" : "S" },
+        { "name" : "김철수", "region" : "B" },
+        { "name" : "이영희", "region" : "D" }
+    ], false);
+
+    // region Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrRegion = ' inputType="select"';
+    if (cChooseOption !== '') {
+        attrRegion += ' chooseOption="' + cChooseOption + '"';
+    }
+    if (cChooseOptionLabel !== '') {
+        attrRegion += ' chooseOptionLabel="' + cChooseOptionLabel + '"';
+    }
+    if (cAllOption !== '') {
+        attrRegion += ' allOption="' + cAllOption + '"';
+    }
+
+    // 정적 아이템
+    let strItems = '';
+    strItems += '<w2:choices>';
+    strItems += '<w2:item><w2:label>서울</w2:label><w2:value>S</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>부산</w2:label><w2:value>B</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>대구</w2:label><w2:value>D</w2:value></w2:item>';
+    strItems += '</w2:choices>';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column2" value="region (select)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="300" style="" id="region" value=""' + attrRegion + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // setColumnChooseOption Value 설정 조건 : '선택 안내' 아이템의 Value 를 설정 (Label 은 현재 조건의 Label 유지)
+    if (cChooseOptionValue !== '') {
+        let chooseLabel = (cChooseOptionLabel !== '') ? cChooseOptionLabel : "-선택-";
+        target1.setColumnChooseOption("region", cChooseOptionValue, chooseLabel);
+    }
+}
+
+
+
+// Row 0 region 셀의 아이템 리스트 / 셀 값 확인 (inputType=select 고정)
+//  - validation 1 : select Column 편집기의 아이템 리스트 출력
+//  - validation 2, 3, 9 : 아이템 리스트 [0] 의 Label (Value)
+//  - validation 4, 5 : 아이템 리스트에 추가 아이템 없음
+//  - validation 10 : 일반 아이템(서울/부산/대구) 의 인덱스
+//  - validation 6, 7, 8 : 선택 후 셀 값(getCellData) 과 셀 표시값
+scwin.btn_checkChooseOption_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    // 셀 편집 시 생성되는 region Column 의 선택 아이템 편집기 (selectbox)
+    let editor = $p.getComponentById("G_" + target1.id + "___selectbox_region");
+
+    if (!editor) {
+        bottom.setReturnValue("아이템 리스트 : 선택 아이템 편집기 미생성");
+    } else {
+        let arrItem = editor.getItemArray().map(function (item, idx) {
+            return "[" + idx + "] " + item.label + " (" + item.value + ")";
+        });
+        bottom.setReturnValue("아이템 리스트 : " + arrItem.join(" / "));
+    }
+
+    let cellData = target1.getCellData(0, "region");
+    let td = document.querySelector("td[id*='target1_cell_0_1']");
+    let cellText = td ? td.textContent : "";
+    bottom.setReturnValue("Row 0 셀 값(getCellData) : " + (cellData === "" ? "(빈 값)" : cellData) + " / 셀 표시값 : " + (cellText === "" ? "(빈 값)" : cellText));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="chooseOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_chooseOption" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="chooseOptionLabel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_chooseOptionLabel" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>지역을 선택하세요</xf:label>
+												<xf:value>지역을 선택하세요</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="allOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_allOption" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>true</xf:label>
+												<xf:value>true</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="setColumnChooseOption Value 설정" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_chooseOptionValue" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkChooseOption_onclick" id="btn_checkChooseOption"
+							label="chooseOption 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

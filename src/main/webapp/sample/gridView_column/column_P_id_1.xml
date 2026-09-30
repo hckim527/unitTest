@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView.column] id" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260928" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > id]<br/>Column 의 ID 를 설정합니다.",
+    "validation" : [
+        "문자열 설정 시, GridView 내에서 Column 을 구별할 수 있는 유일값을 설정합니다.",
+        "Body 영역의 Column 은 바인딩 된 DataCollection 의 Column ID 를 설정하여야 데이터가 바인딩됩니다.",
+        "데이터 바인딩과 Column 을 식별하는 id 로 함께 사용되므로 반드시 유일값을 설정해야 합니다.",
+        "속성명이나 메소드명과 같은 예약어를 설정할 경우 오류가 발생할 수 있습니다.",
+        "DataCollection 의 Column id 가 변경된 경우 바인딩 된 Column 의 id 를 함께 변경하여야 데이터 바인딩이 유지됩니다.",
+        "DataCollection 의 Column id 는 동일 GridView 에서 한번만 설정할 수 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_dataListColId.setValue("dept");
+    con_bodyColId.setValue("dept");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - DataList(dlt_emp) 컬럼 : empNo, empName, {con_dataListColId} (3번째 컬럼 id 를 옵션으로 변경 - DataCollection Column id 변경)
+//  - GridView Body Column : empNo, empName, {con_bodyColId} (3번째 Body Column id 를 옵션으로 변경)
+//    · dept / deptCode : DataList 컬럼 id 와 일치/불일치에 따른 바인딩 확인
+//    · empName        : 2번째 Body Column 과 같은 DataList Column id 를 한번 더 설정 (유일값 위반)
+//    · __proto__      : 예약어(JavaScript 객체 속성명) 설정
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_emp !== 'undefined') {
+        $p.data.remove("dlt_emp");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let dlColId = con_dataListColId.getValue();
+    let bodyColId = con_bodyColId.getValue();
+
+    // 현재 설정 상태 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] DataList 컬럼 = empNo, empName, ' + dlColId + ' / Body Column id = empNo, empName, ' + bodyColId + ' (3번째 Column 이 검증 대상)\n[절차] 옵션 선택 -> Target 재생성 -> 바인딩 확인 -> 데이터 변경\n[확인] Column 별 id, getColumnIndex 결과, 화면 셀 값, 생성 시 오류 여부, DataList 값 변경 후 화면 반영"', '', 'label1');
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // DataList 생성 (3번째 컬럼 id = con_dataListColId)
+    let strDataList = '';
+    strDataList += '<w2:dataList ' + strNameSpace + ' id="dlt_emp" baseNode="list" repeatNode="map">';
+    strDataList += '<w2:columnInfo>';
+    strDataList += '<w2:column id="empNo" name="사번" dataType="text"></w2:column>';
+    strDataList += '<w2:column id="empName" name="이름" dataType="text"></w2:column>';
+    strDataList += '<w2:column id="' + dlColId + '" name="부서" dataType="text"></w2:column>';
+    strDataList += '</w2:columnInfo>';
+    strDataList += '<w2:data use="true"></w2:data>';
+    strDataList += '</w2:dataList>';
+    $p.data.create(strDataList);
+
+    let arrDept = ["Sales", "HR", "IT", "Finance"];
+    let arrName = ["Kim", "Lee", "Park", "Choi"];
+    let jsonData = [];
+    for (let i = 0; i < 4; i++) {
+        let row = { "empNo" : "E00" + (i + 1), "empName" : arrName[i] };
+        row[dlColId] = arrDept[i];
+        jsonData.push(row);
+    }
+    dlt_emp.setJSON(jsonData);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_emp" checkAllType="false" id="" style="width:500px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="Column id 테스트 그리드"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hEmpNo" value="사번"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hEmpName" value="이름"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hTarget" value="대상 Column"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="empNo"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="empName"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="' + bodyColId + '"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    // 생성 중 엔진 오류 수집 (엔진은 내부 오류를 console.error 로 출력)
+    scwin.arrCreateErr = [];
+    let orgError = console.error;
+    console.error = function () {
+        // 엔진 출력 형식 : (순번, 오류 메시지 + 스택) -> 순번 제거 후 첫 줄만 보관 (줄바꿈 문자는 XML 역슬래시 이슈 회피용 charCode 사용)
+        let args = Array.prototype.slice.call(arguments);
+        if (typeof args[0] === "number") {
+            args.shift();
+        }
+        let msg = args.join(" ").split(String.fromCharCode(10))[0];
+        scwin.arrCreateErr.push(msg);
+        orgError.apply(console, arguments);
+    };
+    try {
+        scwin.target1 = await $p.dynamicCreate(
+            "target1",
+            "gridView",
+            strTarget,
+            grp_comp
+        );
+    } finally {
+        console.error = orgError;
+    }
+}
+
+
+
+// Row 0 의 화면 셀 textContent (렌더되지 않은 셀은 null)
+scwin.getCellText = function (colIndex) {
+    let td = document.querySelector("td[id*='target1_cell_0_" + colIndex + "']");
+    return td ? td.textContent : null;
+}
+
+
+
+// 바인딩 확인 버튼
+//  - validation 1, 3 : Body Column 별 id 와 getColumnIndex(id) 로 Column 식별 여부 확인
+//  - validation 2, 5 : DataList 컬럼 id 와 Body Column id 일치/불일치 시 화면 셀(Row 0) 표시값 확인
+//  - validation 6    : 같은 DataList Column id 를 두 번 설정한 경우 렌더된 셀 확인
+//  - validation 4    : 예약어(__proto__) 설정 시 Target 생성 중 발생한 엔진 오류 출력
+scwin.btn_checkBinding_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    bottom.setReturnValue("DataList Column id : empNo, empName, " + con_dataListColId.getValue());
+
+    let colCnt = 3;
+    for (let i = 0; i < colCnt; i++) {
+        let colId = target1.getColumnID(i);
+        let cellText = scwin.getCellText(i);
+        bottom.setReturnValue("Body Column[" + i + "] id : " + colId + " -> getColumnIndex : " + target1.getColumnIndex(colId) + " / 화면 셀(Row 0) : " + (cellText === null ? "(렌더되지 않음)" : "'" + cellText + "'"));
+    }
+
+    // validation 4 : Target 생성 중 엔진 오류 발생 여부
+    let arrErr = scwin.arrCreateErr || [];
+    bottom.setReturnValue("Target 생성 시 오류 : " + (arrErr.length > 0 ? arrErr.length + "건 (" + arrErr.join(" / ") + ")" : "없음"));
+}
+
+
+
+// 데이터 변경 버튼
+//  - validation 2, 5 : DataList 3번째 컬럼 값 변경 후 대상 Column 화면 반영 여부 (바인딩 유지)
+scwin.btn_changeData_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let dlColId = con_dataListColId.getValue();
+    dlt_emp.setCellData(0, dlColId, "Changed");
+
+    let cellText = scwin.getCellText(2);
+    bottom.setReturnValue("DataList Row 0 " + dlColId + " = " + dlt_emp.getCellData(0, dlColId) + " -> 대상 Column 화면 셀(Row 0) : " + (cellText === null ? "(렌더되지 않음)" : "'" + cellText + "'"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="DataList Column id" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataListColId" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>dept</xf:label>
+												<xf:value>dept</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>deptCode</xf:label>
+												<xf:value>deptCode</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Body Column id" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_bodyColId" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>dept</xf:label>
+												<xf:value>dept</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>deptCode</xf:label>
+												<xf:value>deptCode</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>empName</xf:label>
+												<xf:value>empName</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>__proto__</xf:label>
+												<xf:value>__proto__</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkBinding_onclick" id="btn_checkBinding"
+							label="바인딩 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_changeData_onclick" id="btn_changeData"
+							label="데이터 변경" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

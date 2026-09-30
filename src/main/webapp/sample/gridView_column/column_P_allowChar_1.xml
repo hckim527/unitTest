@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] allowChar" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20260929" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > allowChar]<br/>Column 에서 입력이 가능한 문자의 집합을 정규식의 문자클래스 형식으로 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text','textImage','secret' 인 경우에 동작합니다.",
+        "Column 의 ignoreChar 속성에 같은 문자가 설정된 경우 해당 문자는 입력 되지 않습니다.",
+        "문자열 설정 시, 정규식의 문자클래스 형식으로 입력이 가능한 문자 집합을 설정합니다.",
+        "문자열 설정 시, 정규식의 문자클래스에서 특수문자로 사용되는 ']', '-', '\\' 등의 문자는 이스케이프 처리를 하여야 합니다.",
+        "문자열 설정 시, 설정값은 정규식의 문자클래스('[...]')에 반영되어 입력이 가능한 문자를 찾는데 사용됩니다.",
+        "한글과 같은 다국어 문자와 붙여넣기로 입력된 값은 Column 에서 포커스가 해제될 때 처리됩니다.",
+        "dataType 속성값이 숫자 유형이면 allowChar 속성을 설정하지 않아도 숫자, '+', '-', '.' 문자만 입력이 허용됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Row 별 포커스 해제 전 마지막 입력창 값 (oneditkeyup 의 newValue)
+    "editValue" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    // 역슬래시가 포함된 이스케이프 옵션은 XML 에서 역슬래시가 늘어나므로 라벨을 문자 코드로 조립해 추가 (value 는 토큰)
+    let bs = String.fromCharCode(92);
+    con_allowChar.addItem("escHyphen", "0-9+" + bs + "-. (- 이스케이프)", 4);
+    con_allowChar.addItem("escBracket", "0-9" + bs + "] (] 이스케이프)", 6);
+    con_allowChar.addItem("escBackslash", "0-9" + bs + bs + " (역슬래시 이스케이프)", 7);
+    con_allowChar.setValue("0-9");
+    con_inputType.setValue("text");
+    con_ignoreChar.setSelectedIndex(0);
+    con_dataType.setSelectedIndex(0);
+
+    // 붙여넣기 원본 값 (역슬래시는 XML 에서 늘어나므로 문자 코드로 조립)
+    par_copyValue.setValue("ab12가나+-.,]" + String.fromCharCode(92));
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// con_allowChar 값을 실제 allowChar 문자열로 변환
+//  - 역슬래시가 포함된 이스케이프 값은 XML 에서 역슬래시가 늘어나므로 토큰으로 두고 String.fromCharCode(92) 로 조립한다.
+scwin.getAllowChar = function () {
+    let bs = String.fromCharCode(92);
+    let cAllowChar = con_allowChar.getValue();
+
+    if (cAllowChar === "escHyphen") {
+        return "0-9+" + bs + "-.";
+    } else if (cAllowChar === "escBracket") {
+        return "0-9" + bs + "]";
+    } else if (cAllowChar === "escBackslash") {
+        return "0-9" + bs + bs;
+    }
+    return cAllowChar;
+}
+
+
+
+// comp 생성
+//  - guide : 입력 방법 안내 Column (readOnly)
+//  - val   : 검증 대상 Column (allowChar / inputType / ignoreChar / dataType 을 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = {};
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cAllowChar = scwin.getAllowChar();
+    let cInputType = con_inputType.getValue();
+    let cIgnoreChar = con_ignoreChar.getValue();
+    let cDataType = con_dataType.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] 결과창 clear -> val 셀 더블클릭 -> 같은 Row 의 입력 방법대로 입력 -> 셀 밖 클릭으로 포커스 해제 -> 셀 값 확인\n[확인] 포커스 해제 전 입력창 값과 해제 후 셀 값을 비교"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "guide" : "키 입력 : ab12+-.,]" + String.fromCharCode(92), "val" : "" },
+        { "guide" : "한글 입력 : 12가나", "val" : "" },
+        { "guide" : "붙여넣기 : 복사할 값 Ctrl+C -> Ctrl+V", "val" : "" }
+    ], false);
+
+    // val Column 속성
+    let attrVal = ' inputType="' + cInputType + '"';
+    if (cInputType === "textImage") {
+        // textImage 는 셀에 이미지도 표시되도록 아이콘 이미지 설정 (column_P_alt_1 과 동일 경로)
+        attrVal += ' viewType="icon" imageSrc="/cm/images/base/ico_grid_del.svg"';
+    }
+    if (cAllowChar !== '') {
+        attrVal += ' allowChar="' + cAllowChar + '"';
+    }
+    if (cIgnoreChar !== '') {
+        attrVal += ' ignoreChar="' + cIgnoreChar + '"';
+    }
+    if (cDataType !== '') {
+        attrVal += ' dataType="' + cDataType + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:170px;"'
+        + ' ev:oneditkeyup="scwin.target1_oneditkeyup">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column1" value="입력 방법"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column2" value="val (' + cInputType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="240" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 편집 중 키를 뗄 때마다 입력창 값을 Row 별로 기록 (포커스 해제 전 값 비교용, 출력하지 않음)
+scwin.target1_oneditkeyup = function (info) {
+    scwin.gVar.editValue[info.rowIndex] = info.newValue;
+}
+
+
+
+// 설정 allowChar 와 편집한 Row 의 포커스 해제 전 입력창 값 / 해제 후 셀 값 출력
+//  - validation 1, 2, 3, 5, 7 : 키 입력 Row 의 입력창 값(입력 단계에서 걸러진 결과)과 셀 값
+//  - validation 4 : 이스케이프 여부에 따른 allowChar 실제 문자열과 입력 결과 비교
+//  - validation 6 : 한글 입력 / 붙여넣기 Row 의 포커스 해제 전 입력창 값 -> 해제 후 셀 값
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cAllowChar = scwin.getAllowChar();
+
+    bottom.setReturnValue("allowChar : " + (cAllowChar === '' ? "(미설정)" : cAllowChar));
+
+    let arrName = ["키 입력", "한글 입력", "붙여넣기"];
+    for (let i = 0; i < arrName.length; i++) {
+        let cellData = target1.getCellData(i, "val");
+        let td = document.querySelector("td[id*='target1_cell_" + i + "_1']");
+        let cellText = td ? td.textContent : "";
+
+        // 편집하지 않은 Row 는 출력하지 않는다
+        if (!scwin.gVar.editValue.hasOwnProperty(i) && (cellData === "" || cellData === null)) {
+            continue;
+        }
+
+        let editValue = scwin.gVar.editValue.hasOwnProperty(i) ? scwin.gVar.editValue[i] : "(키 입력 없음)";
+        bottom.setReturnValue("Row " + i + " (" + arrName[i] + ") 포커스 해제 전 입력창 값 : " + editValue
+            + " -> 셀 값(getCellData) : " + cellData + " / 셀 표시값 : " + cellText);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="allowChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_allowChar" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0-9</xf:label>
+												<xf:value>0-9</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>a-z</xf:label>
+												<xf:value>a-z</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0-9+-. (- 미이스케이프)</xf:label>
+												<xf:value>0-9+-.</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0-9] (] 미이스케이프)</xf:label>
+												<xf:value>0-9]</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textImage</xf:label>
+												<xf:value>textImage</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>secret</xf:label>
+												<xf:value>secret</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ignoreChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ignoreChar" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>1</xf:label>
+												<xf:value>1</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>float</xf:label>
+												<xf:value>float</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="복사할 값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_copyValue" style=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
