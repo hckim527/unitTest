@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] checkboxLabelFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261002" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > checkboxLabelFormatter]<br/>inputType='checkbox' 인 Column 에 표시할 라벨 텍스트를 반환하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "체크박스의 라벨 텍스트를 만드는 사용자 정의 함수의 이름을 설정합니다.",
+        "함수 이름 설정 시, 사용자 정의 함수의 파라미터로 Cell 의 Row 인덱스, Column 인덱스, 라벨 텍스트값이 전달됩니다.",
+        "함수 이름 설정 시, 사용자 정의 함수의 반환값이 체크박스의 라벨 텍스트로 적용됩니다.",
+        "사용자 정의 함수의 세번째 파라미터로 checkboxLabel 과 checkboxLabelColumn 으로 조합된 라벨 텍스트가 전달됩니다.",
+        "두 속성을 모두 설정하지 않으면 빈 문자열('')이 전달됩니다.",
+        "사용자 정의 함수에서 아무 값도 반환하지 않으면 체크박스의 라벨 텍스트에 'undefined' 가 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (검증 대상 속성만 의미 있는 값으로 초기 선택)
+    con_checkboxLabelFormatter.setValue("scwin.chk_formatLabelRowCol");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Body 의 chk Column(inputType=checkbox, Body Column 인덱스 3) 에만 con 값 적용
+//  - checkboxLabel / checkboxLabelColumn 은 세 번째 파라미터 확인용 전제 조건으로만 사용
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 사용자 정의 함수는 체크박스 Column(선택, Body Column 인덱스 3) 에 설정\n[확인] 재생성 직후 결과창의 함수 파라미터 (row, col, 라벨) 와 행별 라벨 텍스트"', '', 'label1');
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cFormatter = con_checkboxLabelFormatter.getValue();
+    let cLabel = con_checkboxLabel.getValue();
+    let cLabelColumn = con_checkboxLabelColumn.getValue();
+
+    let attrChk = '';
+    attrChk += (cFormatter === '') ? '' : ' checkboxLabelFormatter="' + cFormatter + '"';
+    attrChk += (cLabel === '') ? '' : ' checkboxLabel="' + cLabel + '"';
+    attrChk += (cLabelColumn === '') ? '' : ' checkboxLabelColumn="' + cLabelColumn + '"';
+
+    // 사용자 정의 함수 호출 파라미터 수집 초기화
+    scwin.formatterArr = [];
+
+    // dataList 생성
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="regDate" name="regDate" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "노트북", "price" : "1250000", "regDate" : "20260105", "chk" : "0" },
+        { "name" : "모니터", "price" : "320000", "regDate" : "20260212", "chk" : "1" },
+        { "name" : "키보드", "price" : "89000", "regDate" : "20260320", "chk" : "0" },
+        { "name" : "마우스", "price" : "45000", "regDate" : "20260418", "chk" : "1" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column1" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column2" value="가격"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column3" value="등록일"></w2:column>';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="column4" value="선택"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="price" value="" dataType="number" displayFormat="#,###"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="regDate" value="" displayFormat="####-##-##"></w2:column>';
+    strTarget += '<w2:column width="360" style="text-align:left;" inputType="checkbox" id="chk" value=""' + attrChk + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    setTimeout(function () {
+        // validation 1, 2, 4, 5 : 재생성 시 함수에 전달된 파라미터 (row, col, 라벨)
+        if (scwin.formatterArr.length > 0) {
+            wf_body_bottom.getObj("scwin").setReturnValue("함수 파라미터 (row, col, 라벨) : " + scwin.formatterArr.join(" / "));
+        }
+        // validation 3, 6 : 행별 실제 라벨 텍스트
+        wf_body_bottom.getObj("scwin").setReturnValue("라벨 텍스트 : " + scwin.getAllLabelStr());
+    }, 100);
+}
+
+
+
+// 사용자 정의 함수 : 전달받은 라벨 뒤에 Row/Column 인덱스를 덧붙여 반환
+scwin.chk_formatLabelRowCol = function (row, col, checkboxLabel) {
+    scwin.formatterArr.push("(" + row + ", " + col + ", '" + checkboxLabel + "')");
+    return checkboxLabel + ":[" + row + "," + col + "]";
+}
+
+
+
+// 사용자 정의 함수 : 아무 값도 반환하지 않음
+scwin.chk_formatNoReturn = function (row, col, checkboxLabel) {
+    scwin.formatterArr.push("(" + row + ", " + col + ", '" + checkboxLabel + "')");
+}
+
+
+
+// Body chk Column 의 행별 라벨 textContent
+scwin.getLabelStr = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_3']");
+    let label = td ? td.querySelector("label") : null;
+    return label ? "'" + label.textContent + "'" : "라벨 없음";
+}
+
+
+
+scwin.getAllLabelStr = function () {
+    let arr = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arr.push(i + "행=" + scwin.getLabelStr(i));
+    }
+    return arr.join(" / ");
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkboxLabelFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkboxLabelFormatter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.chk_formatLabelRowCol]]></xf:label>
+												<xf:value><![CDATA[scwin.chk_formatLabelRowCol]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.chk_formatNoReturn]]></xf:label>
+												<xf:value><![CDATA[scwin.chk_formatNoReturn]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkboxLabel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkboxLabel" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[선택]]></xf:label>
+												<xf:value><![CDATA[선택]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkboxLabelColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkboxLabelColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[name]]></xf:label>
+												<xf:value><![CDATA[name]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

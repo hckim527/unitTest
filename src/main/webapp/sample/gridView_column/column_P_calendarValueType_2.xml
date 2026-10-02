@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] calendarValueType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261001" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1346
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > calendarValueType]<br/>inputType='calendar' 인 Column 에 입력할 수 있는 날짜 및 시간의 종류를 설정합니다.",
+    "validation" : [
+        "Column 의 dataType='date' 일때 displayFormatFunc 속성을 설정하고 displayFormat 속성을 설정하지 않으면 사용자 함수의 반환값이 Column 의 표시 포맷이 됩니다.",
+        "Column 의 useEditFormat=true 이면 calendarValueType 속성값에 맞는 편집 입력 포맷이 강제로 설정됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // calendarValueType 별 초기값 / 입력 예시 (ioFormat 기본값 자릿수에 맞춘 숫자값)
+    "initValue" : {
+        "" : "20261001",
+        "yearMonthDate" : "20261001",
+        "year" : "2026",
+        "yearMonth" : "202610",
+        "yearMonthDateHour" : "2026100109",
+        "yearMonthDateTime" : "202610010930",
+        "yearMonthDateTimeSec" : "20261001093015"
+    },
+    "inputValue" : {
+        "" : "20261015",
+        "yearMonthDate" : "20261015",
+        "year" : "2030",
+        "yearMonth" : "202612",
+        "yearMonthDateHour" : "2026101513",
+        "yearMonthDateTime" : "202610151345",
+        "yearMonthDateTimeSec" : "20261015134530"
+    },
+    // displayFormatFunc 호출 시 전달받은 인자 / 반환값 (Target 생성 시 초기화)
+    "funcCall" : null,
+    // 편집 중 마지막으로 키를 뗀 시점의 입력창 값 (값 확정 시 출력 후 초기화)
+    "editValue" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_calendarValueType.setValue("yearMonthDateTime");
+    con_displayFormatFunc.setValue("scwin.displayFormatFunc");
+    con_useEditFormat.setValue("2");
+
+    // 편집 입력창에서 키를 뗄 때마다 입력값 기록 (페이지 로딩 시 1회만 등록)
+    document.addEventListener("keyup", scwin.onDocumentKeyup, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// displayFormatFunc 로 지정하는 사용자 함수 (calendarValueType 별로 '/' 구분자 포맷 반환)
+scwin.displayFormatFunc = function (calendarValueType) {
+    let format = {
+        "year" : "yyyy년",
+        "yearMonth" : "yyyy/MM",
+        "yearMonthDate" : "yyyy/MM/dd",
+        "yearMonthDateHour" : "yyyy/MM/dd HH",
+        "yearMonthDateTime" : "yyyy/MM/dd HH:mm",
+        "yearMonthDateTimeSec" : "yyyy/MM/dd HH:mm:SS"
+    }[calendarValueType] || "yyyy/MM/dd";
+    scwin.gVar.funcCall = { "arg" : calendarValueType, "ret" : format };
+    return format;
+}
+
+
+
+// comp 생성
+//  - guide : 입력 예시 Column (readOnly)
+//  - cal   : 검증 대상 Body Column (inputType="calendar" + dataType="date" + viewType="icon", displayFormat / ioFormat 미설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.funcCall = null;
+    scwin.gVar.editValue = null;
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cValueType = con_calendarValueType.getValue();
+    let cFunc = con_displayFormatFunc.getValue();
+    let cUseEditFormat = con_useEditFormat.getText();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] cal Column 은 dataType=date, displayFormat / ioFormat 미설정\n[절차] cal 셀 더블클릭 -> 입력 예시의 숫자를 한 자씩 입력하며 입력창 표시 확인 -> 셀 밖 클릭\n[확인] Target 생성 시 사용자 함수 반환값과 적용 포맷, 값 확정 시 편집 중 입력값과 셀 표시값 출력"', '', 'label1');
+
+    // dataList 생성 (calendar Column 바인딩 컬럼은 dataType="date")
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.bind("oncelldatachange", scwin.dlt_bind_oncelldatachange);
+    dlt_bind.setJSON([
+        { "guide" : "숫자 입력 : " + scwin.gVar.inputValue[cValueType], "cal" : scwin.gVar.initValue[cValueType] }
+    ], false);
+
+    // cal Column 속성 문자열 (미설정이면 속성 자체를 넣지 않는다)
+    let attrCal = '';
+    if (cValueType !== '') {
+        attrCal += ' calendarValueType="' + cValueType + '"';
+    }
+    if (cFunc !== '') {
+        attrCal += ' displayFormatFunc="' + cFunc + '"';
+    }
+    if (cUseEditFormat !== '') {
+        attrCal += ' useEditFormat="' + cUseEditFormat + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:460px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column1" value="입력 예시"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column2" value="cal"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="" id="guide" inputType="text" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="220" style="" id="cal" inputType="calendar" dataType="date" viewType="icon"' + attrCal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // validation 1 : 사용자 함수 호출 결과(인자 / 반환값)와 Column 에 적용된 표시 포맷 비교
+    let funcText = "displayFormatFunc : (미설정)";
+    if (cFunc !== '') {
+        funcText = (scwin.gVar.funcCall === null) ? "displayFormatFunc : 호출 안 됨"
+            : "displayFormatFunc('" + scwin.gVar.funcCall.arg + "') 반환값 : " + scwin.gVar.funcCall.ret;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(funcText
+        + " -> displayFormat : " + target1.getColumnOption("cal", "displayFormat")
+        + " / 셀 표시값 : " + target1.getCellDisplayData(0, "cal"));
+}
+
+
+
+// 편집 중인 cal 셀 입력창에서 키를 뗄 때마다 입력값 기록
+scwin.onDocumentKeyup = function (e) {
+    let elem = e.target;
+    if (!elem || typeof target1 === 'undefined' || !target1 || !elem.id) {
+        return;
+    }
+    if (elem.id.indexOf("G_" + target1.id + "__cal") >= 0) {
+        scwin.gVar.editValue = elem.value;
+    }
+}
+
+
+
+// validation 2 : 편집 중 입력창에 표시된 값(편집 입력 포맷)과 확정값 / 셀 표시값
+scwin.dlt_bind_oncelldatachange = function (info) {
+    if (info.colID !== "cal") {
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("useEditFormat : " + (con_useEditFormat.getText() === '' ? "(미설정)" : con_useEditFormat.getText())
+        + " -> 편집 중 입력값 : " + scwin.gVar.editValue
+        + " / oncelldatachange : " + info.oldValue + " -> " + info.newValue
+        + " / 셀 표시값 : " + target1.getCellDisplayData(info.rowIndex, "cal"));
+    scwin.gVar.editValue = null;
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_calendarValueType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDate</xf:label>
+												<xf:value>yearMonthDate</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>year</xf:label>
+												<xf:value>year</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonth</xf:label>
+												<xf:value>yearMonth</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateHour</xf:label>
+												<xf:value>yearMonthDateHour</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateTime</xf:label>
+												<xf:value>yearMonthDateTime</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateTimeSec</xf:label>
+												<xf:value>yearMonthDateTimeSec</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormatFunc" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormatFunc" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.displayFormatFunc</xf:label>
+												<xf:value>scwin.displayFormatFunc</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useEditFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useEditFormat" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

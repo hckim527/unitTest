@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] calendarValueType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261001" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1347
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > calendarValueType]<br/>inputType='calendar' 인 Column 에 입력할 수 있는 날짜 및 시간의 종류를 설정합니다.",
+    "validation" : [
+        "팝업 달력의 UI 도 속성값에 맞게 변경되어 표시됩니다.",
+        "yearMonthDate 설정 시, Column 에 '년/월/일' 을 입력할 수 있습니다.",
+        "미설정 시, Column 에 '년/월/일' 을 입력할 수 있습니다.",
+        "yearMonthDate 설정 시, displayFormat, ioFormat 미설정 시 각각 'yyyy-MM-dd', 'yyyyMMdd' 가 설정됩니다.",
+        "year 설정 시, Column 에 '연도' 를 입력할 수 있습니다.",
+        "year 설정 시, displayFormat, ioFormat 미설정 시 각각 'yyyy', 'yyyy' 가 설정됩니다.",
+        "yearMonth 설정 시, Column 에 '년/월' 을 입력할 수 있습니다.",
+        "yearMonth 설정 시, displayFormat, ioFormat 미설정 시 각각 'yyyy-MM', 'yyyyMM' 가 설정됩니다.",
+        "yearMonthDateHour 설정 시, Column 에 '년/월/일/시' 를 입력할 수 있습니다.",
+        "yearMonthDateHour 설정 시, displayFormat, ioFormat 미설정 시 각각 'yyyy-MM-dd HH', 'yyyyMMddHH' 가 설정됩니다.",
+        "yearMonthDateTime 설정 시, Column 에 '년/월/일/시/분' 을 입력할 수 있습니다.",
+        "yearMonthDateTime 설정 시, displayFormat, ioFormat 미설정 시 각각 'yyyy-MM-dd HH:mm', 'yyyyMMddHHmm' 가 설정됩니다.",
+        "yearMonthDateTimeSec 설정 시, Column 에 '년/월/일/시/분/초' 를 입력할 수 있습니다.",
+        "yearMonthDateTimeSec 설정 시, displayFormat, ioFormat 미설정 시 각각 'yyyy-MM-dd HH:mm:SS', 'yyyyMMddHHmmSS' 가 설정됩니다.",
+        "ioFormat 속성에 설정된 포맷에 맞게 숫자값만 입력해야 정상 처리됩니다.",
+        "팝업 달력에서 날짜를 클릭했을 때의 확정 시점이 속성값에 따라 달라집니다.",
+        "'year', 'yearMonth', 'yearMonthDate' : 날짜를 클릭하면 즉시 확정됩니다.",
+        "'yearMonthDateHour', 'yearMonthDateTime', 'yearMonthDateTimeSec' : 날짜를 클릭해도 확정되지 않고 시간 선택 영역에서 확인 버튼을 눌러야 확정됩니다.",
+    ]
+}
+
+
+
+// calendarValueType 별 초기값 / 입력 예시 (ioFormat 기본값 자릿수에 맞춘 숫자값)
+scwin.gVar = {
+    "initValue" : {
+        "" : "20261001",
+        "yearMonthDate" : "20261001",
+        "year" : "2026",
+        "yearMonth" : "202610",
+        "yearMonthDateHour" : "2026100109",
+        "yearMonthDateTime" : "202610010930",
+        "yearMonthDateTimeSec" : "20261001093015"
+    },
+    "inputValue" : {
+        "" : "20261015",
+        "yearMonthDate" : "20261015",
+        "year" : "2030",
+        "yearMonth" : "202612",
+        "yearMonthDateHour" : "2026101513",
+        "yearMonthDateTime" : "202610151345",
+        "yearMonthDateTimeSec" : "20261015134530"
+    }
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_calendarValueType.setValue("yearMonthDate");
+
+    // 달력 아이콘 클릭으로 팝업 달력이 열리면 팝업 UI 출력 (페이지 로딩 시 1회만 등록)
+    document.addEventListener("click", scwin.onDocumentClick, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - guide : 입력 예시 Column (readOnly)
+//  - cal   : 검증 대상 Body Column (inputType="calendar" + dataType="date" + viewType="icon", displayFormat / ioFormat 미설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cValueType = con_calendarValueType.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] cal Column 은 dataType=date, displayFormat / ioFormat 미설정\n[절차1] cal 셀 더블클릭 -> 입력 예시의 숫자 입력 (구분자 / 문자를 섞은 입력과 비교) -> 셀 밖 클릭\n[절차2] cal 셀 클릭 -> 달력 아이콘 클릭 -> 팝업에서 날짜 클릭 (year 는 연도, yearMonth 는 월 선택) -> 확인 버튼 클릭 여부를 바꿔 셀 밖 클릭\n[확인] Target 생성 시 적용 포맷, 팝업 열림 시 UI 구성, 팝업 내부 클릭으로 닫힐 때 편집 입력값, 셀 값이 바뀌면 oncelldatachange 출력"', '', 'label1');
+
+    // dataList 생성 (calendar Column 바인딩 컬럼은 dataType="date")
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.bind("oncelldatachange", scwin.dlt_bind_oncelldatachange);
+    dlt_bind.setJSON([
+        { "guide" : "숫자 입력 : " + scwin.gVar.inputValue[cValueType], "cal" : scwin.gVar.initValue[cValueType] }
+    ], false);
+
+    // calendarValueType 속성 문자열 (미설정이면 속성 자체를 넣지 않는다)
+    let attrValueType = (cValueType === '') ? '' : ' calendarValueType="' + cValueType + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:460px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column1" value="입력 예시"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column2" value="cal"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="" id="guide" inputType="text" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="220" style="" id="cal" inputType="calendar" dataType="date" viewType="icon"' + attrValueType + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // validation 2 ~ 14 : 미설정된 displayFormat / ioFormat 에 적용된 기본 포맷과 초기값 표시
+    wf_body_bottom.getObj("scwin").setReturnValue("calendarValueType : " + (cValueType === '' ? "(미설정)" : cValueType)
+        + " -> displayFormat : " + target1.getColumnOption("cal", "displayFormat")
+        + " / ioFormat : " + target1.getColumnOption("cal", "ioFormat")
+        + " / 셀 표시값 : " + target1.getCellDisplayData(0, "cal")
+        + " / getCellData : " + target1.getCellData(0, "cal"));
+}
+
+
+
+// validation 2 ~ 18 : 셀 편집 / 팝업 달력 선택으로 값이 확정되는 시점과 확정값
+scwin.dlt_bind_oncelldatachange = function (info) {
+    if (info.colID !== "cal") {
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("oncelldatachange : " + info.oldValue + " -> " + info.newValue
+        + " / 셀 표시값 : " + target1.getCellDisplayData(info.rowIndex, "cal"));
+}
+
+
+
+// 화면에 열려 있는 target1 의 팝업 달력 render 반환 (없으면 null)
+scwin.getOpenedCalendar = function () {
+    if (typeof target1 === 'undefined' || !target1) {
+        return null;
+    }
+    let cals = document.querySelectorAll("div.w2calendar[id*='G_" + target1.id + "__']");
+    for (let i = 0; i < cals.length; i++) {
+        if (cals[i].offsetWidth > 0 && cals[i].offsetHeight > 0) {
+            return cals[i];
+        }
+    }
+    return null;
+}
+
+
+
+// 편집 중인 cal 셀의 입력창 값
+scwin.getEditInputValue = function () {
+    let input = document.querySelector("input[id*='G_" + target1.id + "__cal']");
+    return input ? input.value : "";
+}
+
+
+
+// 달력 아이콘 클릭 시 팝업 UI 출력 / 팝업 내부 클릭으로 팝업이 닫히면 편집 입력값 출력
+scwin.onDocumentClick = function (e) {
+    let elem = e.target;
+    if (!elem || !elem.closest || typeof target1 === 'undefined' || !target1) {
+        return;
+    }
+    let btn = elem.closest("button.w2inputCalendar_button");
+    if (btn && btn.id.indexOf("G_" + target1.id + "__") >= 0) {
+        setTimeout(scwin.printCalendarInfo, 300);
+        return;
+    }
+    let cal = elem.closest("div.w2calendar");
+    if (cal && cal.id.indexOf("G_" + target1.id + "__") >= 0) {
+        setTimeout(function () {
+            // validation 16 ~ 18 : 팝업 내부 클릭(날짜 / 확인 버튼)으로 선택이 확정되어 팝업이 닫힌 시점
+            if (!scwin.getOpenedCalendar()) {
+                wf_body_bottom.getObj("scwin").setReturnValue("팝업 달력 닫힘 -> 편집 입력값 : " + scwin.getEditInputValue());
+            }
+        }, 300);
+    }
+}
+
+
+
+// 요소가 화면에 표시되어 있는지 여부
+scwin.isShown = function (cal, selector) {
+    let list = cal.querySelectorAll(selector);
+    for (let i = 0; i < list.length; i++) {
+        if (list[i].offsetWidth > 0 && list[i].offsetHeight > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+
+// validation 1 : 팝업 달력 UI 구성 (표시 여부)
+scwin.printCalendarInfo = function () {
+    let cal = scwin.getOpenedCalendar();
+    if (!cal) {
+        return;
+    }
+    let ox = function (b) { return b ? "O" : "X"; };
+    wf_body_bottom.getObj("scwin").setReturnValue("팝업 달력 UI : 년=" + ox(scwin.isShown(cal, "[id$='_selectbox_year']"))
+        + ", 월=" + ox(scwin.isShown(cal, "[id$='_selectbox_month']"))
+        + ", 일=" + ox(scwin.isShown(cal, "td[class*='w2calendar_col_date']"))
+        + ", 시=" + ox(scwin.isShown(cal, "[id$='_selectbox_hour']"))
+        + ", 분=" + ox(scwin.isShown(cal, "[id$='_selectbox_minute']"))
+        + ", 초=" + ox(scwin.isShown(cal, "[id$='_selectbox_second']"))
+        + ", 헤더 확인 버튼=" + ox(scwin.isShown(cal, ".w2calendar_header_btn_ok, .w2calendar_header_btn_ok_yearType"))
+        + ", 시간 확인 버튼=" + ox(scwin.isShown(cal, ".w2calendar_time_confirm")));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_calendarValueType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDate</xf:label>
+												<xf:value>yearMonthDate</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>year</xf:label>
+												<xf:value>year</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonth</xf:label>
+												<xf:value>yearMonth</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateHour</xf:label>
+												<xf:value>yearMonthDateHour</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateTime</xf:label>
+												<xf:value>yearMonthDateTime</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateTimeSec</xf:label>
+												<xf:value>yearMonthDateTimeSec</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

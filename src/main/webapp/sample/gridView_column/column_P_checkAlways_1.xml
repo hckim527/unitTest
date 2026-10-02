@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] checkAlways" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261001" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > checkAlways]<br/>Header Column 의 체크박스로 전체 선택/해제 시 읽기전용(readonly)과 비활성화(disabled) Cell 을 포함할지 설정합니다.",
+    "validation" : [
+        "Header 와 Body Column 의 inputType 속성값이 모두 'checkbox' 인 경우에 동작합니다.",
+        "true 설정 시, Header Column 의 체크박스 클릭 시 읽기전용(readonly)과 비활성화(disabled) Cell 도 값 변경 대상에 포함합니다.",
+        "false 설정 시, Header Column 의 체크박스 클릭 시 읽기전용(readonly)과 비활성화(disabled) Cell 은 기존값을 유지합니다.",
+        "미설정 시, Header Column 의 체크박스 클릭 시 읽기전용(readonly)과 비활성화(disabled) Cell 은 기존값을 유지합니다.",
+        "checkAlways 속성은 Header Column 의 체크박스로 값을 일괄 변경할 때와 Header Column 의 체크박스 선택 상태를 표시할 때에 적용됩니다.",
+    ]
+}
+
+
+
+// 행별 Cell 상태 구분 (readonly / disabled 는 comp_init 에서 chk Cell 에 고정 설정)
+scwin.gVar = {
+    "rowType" : ["일반", "readonly", "readonly", "disabled", "disabled", "일반"]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_checkAlways.setValue("2");
+    con_headerInputType.setValue("checkbox");
+    con_bodyInputType.setValue("checkbox");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - checkAlways 는 Body Column(chk) 에만 설정
+//  - chk Cell 의 1, 2행은 setCellReadOnly, 3, 4행은 setCellDisabled 로 고정 (readonly / disabled Cell 을 만들기 위한 전제)
+//  - 초기값 : readonly / disabled 각각 미체크 1행, 체크 1행 (선택 / 해제 양방향 확인)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cCheckAlways = con_checkAlways.getText();
+    let cHeaderInputType = con_headerInputType.getValue();
+    let cBodyInputType = con_bodyInputType.getValue();
+
+    let attrCheckAlways = (cCheckAlways === '') ? '' : ' checkAlways="' + cCheckAlways + '"';
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] chk Cell 의 1, 2행은 readonly, 3, 4행은 disabled 로 고정 (구분 Column 에 표시)\n[절차] chk Header 체크박스 클릭으로 전체 선택/해제, 일반 행(0, 5행) 체크박스 클릭으로 값 변경\n[확인] 결과창의 행별 chk 값과 Header 체크 상태(checked / indeterminate)"', '', 'label1');
+
+    // dataList 생성
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="type" name="type" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="product" name="product" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "type" : "일반", "product" : "노트북", "chk" : "0" },
+        { "type" : "readonly", "product" : "모니터", "chk" : "0" },
+        { "type" : "readonly", "product" : "키보드", "chk" : "1" },
+        { "type" : "disabled", "product" : "마우스", "chk" : "0" },
+        { "type" : "disabled", "product" : "스피커", "chk" : "1" },
+        { "type" : "일반", "product" : "프린터", "chk" : "1" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let eList = $c.gcm.createEList(["onviewchange"]);
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" id="" style="width:420px;height:230px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="구분"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column2" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="' + cHeaderInputType + '" id="column3" value="chk"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="type" value=""></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="product" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="' + cBodyInputType + '" id="chk" value=""' + attrCheckAlways + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // readonly / disabled Cell 고정 (전제 조건)
+    target1.setCellReadOnly(1, "chk", true);
+    target1.setCellReadOnly(2, "chk", true);
+    target1.setCellDisabled(3, "chk", true);
+    target1.setCellDisabled(4, "chk", true);
+
+    // Header 체크박스 클릭 감지 (Header 를 다시 그려도 유지되도록 grid render 에서 capture 단계로 위임 처리)
+    target1.render.addEventListener("click", scwin.onHeaderCheckClick, true);
+
+    // 초기 Header 체크 상태 출력 (validation 5 : 선택 상태 표시)
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("생성 직후 -> " + scwin.getCheckInfo());
+    }, 100);
+}
+
+
+
+// Header 의 chk 체크박스 요소 반환 (Header inputType 이 checkbox 가 아니면 null)
+scwin.getHeaderCheckbox = function () {
+    return document.querySelector("#" + target1.id + "_column3 input[type='checkbox']");
+}
+
+
+
+// 행별 chk 값과 Header 체크 상태 문자열
+scwin.getCheckInfo = function () {
+    let arr = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arr.push(i + "행(" + scwin.gVar.rowType[i] + ")=" + dlt_bind.getCellData(i, "chk"));
+    }
+    let hChk = scwin.getHeaderCheckbox();
+    let strHeader = hChk ? "checked=" + hChk.checked + ", indeterminate=" + hChk.indeterminate : "체크박스 없음";
+    return "chk 값 : " + arr.join(", ") + " / Header 체크 상태 : " + strHeader;
+}
+
+
+
+// validation 1 ~ 5 : Header 체크박스 클릭 후 행별 값과 Header 체크 상태
+scwin.onHeaderCheckClick = function (e) {
+    let hChk = scwin.getHeaderCheckbox();
+    if (!hChk || e.target !== hChk) {
+        return;
+    }
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("Header 체크박스 클릭 -> " + scwin.getCheckInfo());
+    }, 50);
+}
+
+
+
+// validation 5 : Body Cell 체크박스로 값 변경 후 Header 체크 상태
+scwin.target1_onviewchange = function (info) {
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue(info.rowIndex + "행 체크박스 변경 (" + info.oldValue + " -> " + info.newValue + ") -> " + scwin.getCheckInfo());
+    }, 50);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkAlways" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkAlways" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Header inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_headerInputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[checkbox]]></xf:label>
+												<xf:value><![CDATA[checkbox]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Body inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_bodyInputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[checkbox]]></xf:label>
+												<xf:value><![CDATA[checkbox]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[radio]]></xf:label>
+												<xf:value><![CDATA[radio]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
