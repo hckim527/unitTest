@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] checkcomboboxUseEdit" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261006" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 속성값(true / false / 미설정) 동작 + GridViewItemSet 무시
+//  - _2 : 입력 형식 관련 (checkcomboboxRangeSeparator 범위 선택, displayMode + delimiter, 동일 라벨 아이템)
+scwin.tData = {
+    "description" : "[column > P > checkcomboboxUseEdit]<br/>inputType='checkcombobox' 인 Column 에서 값을 직접 입력하여 아이템을 선택하는 기능을 허용할지 설정합니다.",
+    "validation" : [
+        "Column 의 checkcomboboxRangeSeparator 속성을 설정한 경우 구분자를 사용한 범위 선택이 가능합니다.",
+        "Column 의 displayMode 속성 설정 시 delimiter 속성값을 포함하여 라벨 표시 형식에 맞게 정확한 값을 입력해야 합니다.",
+        "라벨값이 동일한 아이템이 있는 경우 입력값과 동일한 라벨값의 아이템은 모두 선택됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_checkcomboboxRangeSeparator.setValue("~");
+    con_displayMode.setValue("");
+    con_delimiter.setValue("-");
+    con_itemComposition.setValue("basic");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 아이템 (value = 지역 코드), 동일 라벨 포함 시 경기 광주(41) 를 광주 라벨로 추가
+scwin.basicItems = [
+    { "value" : "11", "label" : "서울" },
+    { "value" : "26", "label" : "부산" },
+    { "value" : "27", "label" : "대구" },
+    { "value" : "28", "label" : "인천" },
+    { "value" : "29", "label" : "광주" },
+    { "value" : "30", "label" : "대전" }
+];
+scwin.duplicateItem = { "value" : "41", "label" : "광주" };
+scwin.rowData = [
+    { "name" : "선택 없음", "city" : "" },
+    { "name" : "서울, 부산 선택", "city" : "11,26" }
+];
+
+
+
+// comp 생성
+//  - name : 초기 선택 상태 설명 Column
+//  - city : 검증 대상 Body Column (inputType=checkcombobox, checkcomboboxUseEdit=true, separator=, 고정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cRangeSeparator = con_checkcomboboxRangeSeparator.getValue();
+    let cDisplayMode = con_displayMode.getValue();
+    let cDelimiter = con_delimiter.getValue();
+    let cItemComposition = con_itemComposition.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] city Column 은 checkcomboboxUseEdit=true, separator=, 고정 (아이템 value 는 지역 코드)\n[절차] city 셀 더블클릭 -> 라벨 표시 영역 클릭 -> 값 입력 -> Enter\n[입력 예] 범위 선택: 서울~대구\n[입력 예] displayMode=value delim label, delimiter=- : 11-서울,27-대구\n[입력 예] 동일 라벨 포함: 광주\n[확인] 편집 종료 후 출력되는 선택값/표시값"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList (선택값 구분자는 Column separator 와 같은 , )
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="city" name="city" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // 아이템 정의
+    let arrItem = scwin.basicItems.slice();
+    if (cItemComposition === "duplicate") {
+        arrItem.push(scwin.duplicateItem);
+    }
+    let strItems = '<w2:choices>';
+    for (let i = 0; i < arrItem.length; i++) {
+        strItems += '<w2:item><w2:label>' + arrItem[i].label + '</w2:label><w2:value>' + arrItem[i].value + '</w2:value></w2:item>';
+    }
+    strItems += '</w2:choices>';
+
+    // city Column 속성
+    let attrCity = ' inputType="checkcombobox" checkcomboboxUseEdit="true" separator=","';
+    attrCity += (cRangeSeparator === '') ? '' : ' checkcomboboxRangeSeparator="' + cRangeSeparator + '"';
+    attrCity += (cDisplayMode === '') ? '' : ' displayMode="' + cDisplayMode + '"';
+    attrCity += (cDelimiter === '') ? '' : ' delimiter="' + cDelimiter + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:600px;height:150px;" ev:oneditend="scwin.target1_oneditend">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column1" value="초기 선택 상태"></w2:column>';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="column2" value="city (checkcombobox)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="360" style="text-align:left;" id="city" value=""' + attrCity + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// city Column 셀의 표시 텍스트
+scwin.getCellText = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_1']");
+    return td ? "'" + td.textContent + "'" : "셀 없음";
+}
+
+
+
+// validation 1 ~ 3 : 편집 종료 후 해당 행 선택값과 셀 표시값
+scwin.target1_oneditend = function (rowIndex, colIndex) {
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 종료 후 " + rowIndex + "행 : 선택값 '" + dlt_bind.getCellData(rowIndex, "city") + "' -> 표시값 " + scwin.getCellText(rowIndex));
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:220px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkcomboboxRangeSeparator" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkcomboboxRangeSeparator" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[~]]></xf:label>
+												<xf:value><![CDATA[~]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[label]]></xf:label>
+												<xf:value><![CDATA[label]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[value delim label]]></xf:label>
+												<xf:value><![CDATA[value delim label]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[label delim value]]></xf:label>
+												<xf:value><![CDATA[label delim value]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="delimiter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_delimiter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[-]]></xf:label>
+												<xf:value><![CDATA[-]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[:]]></xf:label>
+												<xf:value><![CDATA[:]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="아이템 구성" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_itemComposition" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[기본]]></xf:label>
+												<xf:value><![CDATA[basic]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[동일 라벨 포함 (광주 2개)]]></xf:label>
+												<xf:value><![CDATA[duplicate]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

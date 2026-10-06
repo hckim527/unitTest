@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] checkcomboboxVisibleColNum" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261006" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > checkcomboboxVisibleColNum]<br/>inputType='checkcombobox' 인 Column 에서 아이템 리스트창에 표시할 아이템 컬럼의 갯수를 설정합니다.",
+    "validation" : [
+        "아이템 리스트창에 표시할 아이템 컬럼의 갯수를 양의 정수로 설정합니다.",
+        "속성값을 설정하지 않으면 1 로 적용됩니다.",
+        "Column 의 아이템이 GridViewItemSet 으로 정의된 경우 GridView 팝업창이 표시되므로 checkcomboboxVisibleColNum 속성이 무시됩니다.",
+        "Column 의 checkcomboboxVisibleColNum 속성이 설정된 경우 checkcomboboxVisibleColMax 속성은 무시됩니다.",
+        "아이템 리스트창에 아이템이 행 우선으로 렌더링됩니다. 즉, 첫번째 행에 차례로 아이템이 표시된 후 두번째 행에 아이템이 표시됩니다.",
+        "아이템 전체 갯수가 (checkcomboboxVisibleRowNum 속성값 * checkcomboboxVisibleColNum 속성값) 보다 크면 아이템 리스트창에 세로 스크롤이 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (ColNum=3, RowNum=5, ColMax 미설정, 아이템 12개)
+    con_checkcomboboxVisibleColNum.setValue("3");
+    con_checkcomboboxVisibleRowNum.setValue("5");
+    con_checkcomboboxVisibleColMax.setValue("");
+    con_itemCount.setValue("12");
+    con_itemDefinition.setValue("item");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name : 아이템 갯수 표시 Column (readOnly)
+//  - code : 검증 대상 Body Column (inputType=checkcombobox, 아이템 1 ~ N)
+scwin.comp_init = async function () {
+    // 기존 target / dataList 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_code !== 'undefined' && dlt_code) {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] code 셀 더블클릭으로 아이템 리스트창 열기\n[확인] 결과창의 세로 스크롤 여부와 리스트창 행별 아이템 (한 행의 아이템 수 = 컬럼 갯수)"', '', 'label1');
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cColMax = con_checkcomboboxVisibleColMax.getValue();
+    let cRowNum = con_checkcomboboxVisibleRowNum.getValue();
+    let cColNum = con_checkcomboboxVisibleColNum.getValue();
+    let cItemCount = Number(con_itemCount.getValue());
+    let cItemDefinition = con_itemDefinition.getValue();
+    scwin.itemCount = cItemCount;
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "아이템 " + cItemCount + "개", "code" : "" }
+    ], false);
+
+    // 아이템 정의 (label / value : 1 ~ N)
+    let strItems = '<w2:choices>';
+    if (cItemDefinition === "gridViewItemset") {
+        // GridViewItemSet : checkbox item 은 dataList 첫 컬럼(chk) 을 참조 (checkColumn=0)
+        let strItemDlt = '';
+        strItemDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_code" baseNode="list" repeatNode="map">';
+        strItemDlt += '<w2:columnInfo>';
+        strItemDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+        strItemDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+        strItemDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+        strItemDlt += '</w2:columnInfo>';
+        strItemDlt += '<w2:data use="true"></w2:data>';
+        strItemDlt += '</w2:dataList>';
+        $p.data.create(strItemDlt);
+        let arrItem = [];
+        for (let i = 1; i <= cItemCount; i++) {
+            arrItem.push({ "chk" : "0", "value" : String(i), "label" : String(i) });
+        }
+        dlt_code.setJSON(arrItem, false);
+
+        strItems += '<w2:gridViewItemset nodeset="data:dlt_code" label="label" value="value" checkColumn="0">';
+        strItems += '<w2:item header="선택" inputType="checkbox" ref="chk"></w2:item>';
+        strItems += '<w2:item header="value" ref="value"></w2:item>';
+        strItems += '<w2:item header="label" ref="label"></w2:item>';
+        strItems += '</w2:gridViewItemset>';
+    } else {
+        for (let i = 1; i <= cItemCount; i++) {
+            strItems += '<w2:item><w2:label>' + i + '</w2:label><w2:value>' + i + '</w2:value></w2:item>';
+        }
+    }
+    strItems += '</w2:choices>';
+
+    // code Column 속성
+    let attrCode = ' inputType="checkcombobox"';
+    attrCode += (cRowNum === '') ? '' : ' checkcomboboxVisibleRowNum="' + cRowNum + '"';
+    attrCode += (cColNum === '') ? '' : ' checkcomboboxVisibleColNum="' + cColNum + '"';
+    attrCode += (cColMax === '') ? '' : ' checkcomboboxVisibleColMax="' + cColMax + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:600px;height:120px;" ev:oncelldblclick="scwin.target1_oncelldblclick">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="아이템 구성"></w2:column>';
+    strTarget += '<w2:column width="380" style="" inputType="text" id="column2" value="code (checkcombobox)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="380" style="text-align:left;" id="code" value=""' + attrCode + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 ~ 6 : code 셀 더블클릭으로 리스트창이 열린 뒤 아이템 리스트창 구성 출력
+scwin.target1_oncelldblclick = function (rowIndex, colIndex, columnId) {
+    if (columnId !== "code") {
+        return;
+    }
+    setTimeout(function () {
+        scwin.printItemList();
+    }, 300);
+}
+
+
+
+// 아이템 리스트창 구성 출력
+//  - 첫 줄 : 아이템 갯수와 세로 스크롤 여부 (validation 6) / GridViewItemSet 이면 GridView 팝업창 표시 여부 (validation 3)
+//  - 이후 : 리스트창의 행마다 표시된 아이템 라벨 (행당 아이템 수 = 컬럼 갯수, 행 우선 렌더링 : validation 1, 2, 4, 5)
+scwin.printItemList = function () {
+    let strPrefix = "G_" + target1.id + "___checkcombobox_code";
+    let gridItemTable = document.querySelector("div[id='" + strPrefix + "_gridViewItemTable']");
+    if (gridItemTable && gridItemTable.offsetHeight > 0) {
+        let arrHeader = Array.prototype.map.call(gridItemTable.querySelectorAll("thead th"), function (th) {
+            return th.getAttribute("data-value");
+        });
+        wf_body_bottom.getObj("scwin").setReturnValue("아이템 " + scwin.itemCount + "개 -> GridView 팝업창 표시 (헤더 : " + arrHeader.join(", ") + ")");
+        return;
+    }
+
+    let itemTable = document.querySelector("div[id='" + strPrefix + "_itemTable']");
+    if (!itemTable || itemTable.offsetHeight === 0) {
+        return;
+    }
+    let bScroll = itemTable.scrollHeight > itemTable.clientHeight;
+    wf_body_bottom.getObj("scwin").setReturnValue("아이템 " + scwin.itemCount + "개 -> 세로 스크롤 : " + bScroll);
+
+    let rows = itemTable.querySelectorAll("table[id='" + strPrefix + "_itemTable_main'] tr");
+    for (let i = 0; i < rows.length; i++) {
+        let arrLabel = Array.prototype.map.call(rows[i].querySelectorAll("td[data-index]"), function (td) {
+            return td.textContent;
+        });
+        wf_body_bottom.getObj("scwin").setReturnValue((i + 1) + "행 : " + arrLabel.join(", "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkcomboboxVisibleColNum" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkcomboboxVisibleColNum" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkcomboboxVisibleRowNum" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkcomboboxVisibleRowNum" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[5]]></xf:label>
+												<xf:value><![CDATA[5]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkcomboboxVisibleColMax" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkcomboboxVisibleColMax" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[8]]></xf:label>
+												<xf:value><![CDATA[8]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="아이템 갯수" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_itemCount" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[4]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[12]]></xf:label>
+												<xf:value><![CDATA[12]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[15]]></xf:label>
+												<xf:value><![CDATA[15]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[24]]></xf:label>
+												<xf:value><![CDATA[24]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="아이템 정의" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_itemDefinition" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[Item]]></xf:label>
+												<xf:value><![CDATA[item]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[GridViewItemSet]]></xf:label>
+												<xf:value><![CDATA[gridViewItemset]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

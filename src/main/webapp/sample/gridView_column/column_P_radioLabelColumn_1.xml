@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] radioLabelColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261006" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > radioLabelColumn]<br/>inputType='radio' 인 Column 에 표시할 라벨 텍스트를 Column ID 로 설정합니다.",
+    "validation" : [
+        "Column ID 설정 시, 라디오 버튼의 라벨 텍스트로 조합할 Column 의 ID 를 콤마(',') 구분자로 한 개 이상 설정합니다.",
+        "Column ID 설정 시, 라벨 텍스트는 해당 Row 의 다른 Column 값으로 조합됩니다.",
+        "두 개 이상의 Column 을 설정한 경우 각 값은 radioLabelDelimiter 속성값으로 구분됩니다.",
+        "Column ID 설정 시, 라벨 텍스트에 사용되는 Column 의 값은 표시 포맷이 적용된 값이 사용됩니다.",
+        "Column ID 설정 시, 설정된 Column 값으로 라벨 텍스트가 조합된 뒤 마지막에 radioLabel 속성값이 추가됩니다.",
+        "라벨로 사용한 Column 의 값이 변경되면 라벨 텍스트도 변경된 값으로 갱신됩니다.",
+        "단, 첫 번째 Column 의 값이 변경되면 라벨이 즉시 갱신되지 않습니다.",
+        "Column 의 radioLabelFormatter 속성을 설정하면 radioLabelColumn 속성으로 조합된 라벨 텍스트가 세 번째 파라미터로 전달됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (검증 대상 속성만 의미 있는 값으로 초기 선택)
+    con_radioLabelColumn.setValue("name,price");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Body 의 sel Column(inputType=radio) 에만 con 값 적용
+//  - radioLabel / radioLabelDelimiter / radioLabelFormatter 는 전제 조건으로만 사용
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 그리드 첫 번째 Column 은 상품명(name), 가격(price) 은 표시 포맷 #,### , 등록일(regDate) 은 표시 포맷 ####-##-## 적용\n[절차] 상품명 / 가격 / 등록일 셀을 더블클릭해 값을 바꾸고 Enter\n[확인] 결과창의 편집 후 라벨 텍스트"', '', 'label1');
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cLabelColumn = con_radioLabelColumn.getValue();
+    let cLabel = con_radioLabel.getValue();
+    let cDelimiter = con_radioLabelDelimiter.getValue();
+    let cFormatter = con_radioLabelFormatter.getValue();
+
+    let attrSel = '';
+    attrSel += (cLabelColumn === '') ? '' : ' radioLabelColumn="' + cLabelColumn + '"';
+    attrSel += (cLabel === '') ? '' : ' radioLabel="' + cLabel + '"';
+    attrSel += (cDelimiter === '') ? '' : ' radioLabelDelimiter="' + cDelimiter + '"';
+    attrSel += (cFormatter === '') ? '' : ' radioLabelFormatter="' + cFormatter + '"';
+
+    // radioLabelFormatter 세 번째 파라미터 수집 초기화
+    scwin.formatterArr = [];
+
+    // dataList 생성
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="regDate" name="regDate" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="sel" name="sel" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "노트북", "price" : "1250000", "regDate" : "20260105", "sel" : "0" },
+        { "name" : "모니터", "price" : "320000", "regDate" : "20260212", "sel" : "1" },
+        { "name" : "키보드", "price" : "89000", "regDate" : "20260320", "sel" : "0" },
+        { "name" : "마우스", "price" : "45000", "regDate" : "20260418", "sel" : "0" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:220px;" ev:onafteredit="scwin.target1_onafteredit">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column1" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column2" value="가격"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column3" value="등록일"></w2:column>';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="column4" value="선택"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="price" value="" dataType="number" displayFormat="#,###"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="regDate" value="" displayFormat="####-##-##"></w2:column>';
+    strTarget += '<w2:column width="360" style="text-align:left;" inputType="radio" id="sel" value=""' + attrSel + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // validation 1 ~ 5 : 재생성 직후 각 행 라벨 텍스트 출력
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("라벨 텍스트 : " + scwin.getAllLabelStr());
+    }, 100);
+}
+
+
+
+// Body sel Column 의 행별 라벨 textContent
+scwin.getLabelStr = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_3']");
+    let label = td ? td.querySelector("label") : null;
+    return label ? "'" + label.textContent + "'" : "라벨 없음";
+}
+
+
+
+scwin.getAllLabelStr = function () {
+    let arr = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arr.push(i + "행=" + scwin.getLabelStr(i));
+    }
+    return arr.join(" / ");
+}
+
+
+
+// validation 8 : radioLabelFormatter 세 번째 파라미터 출력 (같은 시점 호출분을 모아 1줄로 출력)
+scwin.sel_radioLabelFormatter = function (rowIndex, colIndex, radioLabel) {
+    scwin.formatterArr.push(rowIndex + "행='" + radioLabel + "'");
+    clearTimeout(scwin.formatterTimer);
+    scwin.formatterTimer = setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("radioLabelFormatter 세 번째 파라미터 : " + scwin.formatterArr.join(" / "));
+        scwin.formatterArr = [];
+    }, 0);
+    return radioLabel;
+}
+
+
+
+// validation 6, 7 : 셀 편집 후 해당 행 라벨 텍스트 출력
+scwin.target1_onafteredit = function (rowIndex, columnIndex, value) {
+    let colId = target1.getColumnID(columnIndex);
+    if (colId === "sel") {
+        return;
+    }
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue(colId + " 편집 후 " + rowIndex + "행 라벨 : " + scwin.getLabelStr(rowIndex));
+    }, 50);
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:180px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="radioLabelColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_radioLabelColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[name]]></xf:label>
+												<xf:value><![CDATA[name]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[price]]></xf:label>
+												<xf:value><![CDATA[price]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[name,price]]></xf:label>
+												<xf:value><![CDATA[name,price]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[price,name]]></xf:label>
+												<xf:value><![CDATA[price,name]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[name,price,regDate]]></xf:label>
+												<xf:value><![CDATA[name,price,regDate]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="radioLabel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_radioLabel" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[선택]]></xf:label>
+												<xf:value><![CDATA[선택]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="radioLabelDelimiter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_radioLabelDelimiter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/]]></xf:label>
+												<xf:value><![CDATA[/]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="radioLabelFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_radioLabelFormatter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.sel_radioLabelFormatter]]></xf:label>
+												<xf:value><![CDATA[scwin.sel_radioLabelFormatter]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

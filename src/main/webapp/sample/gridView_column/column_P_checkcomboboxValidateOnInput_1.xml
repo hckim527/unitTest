@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] checkcomboboxValidateOnInput" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261006" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > checkcomboboxValidateOnInput]<br/>checkcomboboxUseEdit=true 인 Column 에서 라벨 표시 영역에 입력하는 값에 대한 검증 여부를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='checkcombobox', checkcomboboxUseEdit=true 인 경우에 동작하며, allowChar 또는 ignoreChar 속성을 설정해야 검증이 진행됩니다.",
+        "true 설정 시, 아이템 리스트창의 라벨 표시 영역에서 허용되지 않은 문자는 입력되지 않습니다.",
+        "true 설정 시, Column 의 allowChar, ignoreChart 속성을 설정해야 입력값에 대한 검증이 진행되며, 두 속성을 모두 설정하지 않으면 false 로 설정한 것과 동일하게 동작합니다.",
+        "false 설정 시, 아이템 리스트창의 라벨 표시 영역에서 입력되는 값에 대한 검증을 수행하지 않습니다.",
+        "미설정 시, 아이템 리스트창의 라벨 표시 영역에서 입력되는 값에 대한 검증을 수행하지 않습니다.",
+        "입력값에 대한 검증은 allowChar, ignoreChar 속성만 적용됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 라벨 표시 영역 편집창의 마지막 입력값 (엔진 검증 처리 후 값)
+    "editValue" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (true / useEdit true / allowChar / maxLength 미설정)
+    con_checkcomboboxValidateOnInput.setValue("2");
+    con_checkcomboboxUseEdit.setValue("2");
+    con_restrictChar.setValue("allowChar");
+    con_maxLength.setValue("");
+
+    // 라벨 표시 영역 편집창 입력값 기록 (bubble 단계라 엔진 검증 처리 후 값이 기록됨, 출력하지 않음)
+    document.addEventListener("input", function (e) {
+        let el = e.target;
+        if (typeof target1 === 'undefined' || !target1 || !el || !el.id) {
+            return;
+        }
+        // 셀 checkcombobox 편집창 id 형식 : G_{gridView id}___checkcombobox_{Column id}_input
+        if (el.id.indexOf(target1.id + "___checkcombobox_") >= 0 && /_input$/.test(el.id)) {
+            scwin.gVar.editValue = el.value;
+        }
+    });
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 아이템 1월 ~ 6월 (value 1 ~ 6), Column separator 는 ',' 고정
+scwin.itemCount = 6;
+scwin.separator = ",";
+// 입력 제한 속성 설정값
+scwin.restrictValue = {
+    "allowChar" : "0-9월,",
+    "ignoreChar" : "a-zA-Z"
+};
+
+
+
+// comp 생성
+//  - guide : 입력 방법 안내 Column (readOnly)
+//  - month : 검증 대상 Body Column (inputType=checkcombobox, 아이템 1월 ~ 6월)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = null;
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cValidateOnInput = con_checkcomboboxValidateOnInput.getText();
+    let cUseEdit = con_checkcomboboxUseEdit.getText();
+    let cRestrictChar = con_restrictChar.getValue();
+    let cMaxLength = con_maxLength.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] month Column 은 separator=, 고정, 입력 제한 속성 allowChar=0-9월, / ignoreChar=a-zA-Z\n[절차] month 셀 더블클릭으로 아이템 리스트창 열기 -> 셀의 라벨 표시 영역 클릭 -> 편집창에 3월,a4월 입력 -> Enter\n[확인] 출력되는 입력창 값(a 입력 여부, maxLength=3 초과 입력 여부)과 선택값"', '', 'label1');
+
+    // 바인딩 dataList
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="month" name="month" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "guide" : "키 입력 : 3월,a4월", "month" : "" }
+    ], false);
+
+    // 아이템 정의
+    let strItems = '<w2:choices>';
+    for (let i = 1; i <= scwin.itemCount; i++) {
+        strItems += '<w2:item><w2:label>' + i + '월</w2:label><w2:value>' + i + '</w2:value></w2:item>';
+    }
+    strItems += '</w2:choices>';
+
+    // month Column 속성
+    let attrMonth = ' inputType="checkcombobox" separator="' + scwin.separator + '"';
+    attrMonth += (cUseEdit === '') ? '' : ' checkcomboboxUseEdit="' + cUseEdit + '"';
+    attrMonth += (cValidateOnInput === '') ? '' : ' checkcomboboxValidateOnInput="' + cValidateOnInput + '"';
+    attrMonth += (cRestrictChar === '') ? '' : ' ' + cRestrictChar + '="' + scwin.restrictValue[cRestrictChar] + '"';
+    attrMonth += (cMaxLength === '') ? '' : ' maxLength="' + cMaxLength + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:600px;height:120px;" ev:oneditend="scwin.target1_oneditend">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column1" value="입력 방법"></w2:column>';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="column2" value="month (checkcombobox)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="360" style="text-align:left;" id="month" value=""' + attrMonth + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 ~ 6 : 편집 종료 시 라벨 표시 영역 편집창 입력값과 선택값
+//  - 편집창에 입력하지 않은 경우(useEdit 미적용) 선택값만 출력
+scwin.target1_oneditend = function (rowIndex, colIndex) {
+    setTimeout(function () {
+        let strEdit = (scwin.gVar.editValue === null) ? "" : "입력창 값 '" + scwin.gVar.editValue + "' -> ";
+        wf_body_bottom.getObj("scwin").setReturnValue(strEdit + "선택값 '" + dlt_bind.getCellData(rowIndex, "month") + "'");
+        scwin.gVar.editValue = null;
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkcomboboxValidateOnInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkcomboboxValidateOnInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="checkcomboboxUseEdit" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_checkcomboboxUseEdit" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="allowChar / ignoreChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_restrictChar" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[allowChar=0-9월,]]></xf:label>
+												<xf:value><![CDATA[allowChar]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[ignoreChar=a-zA-Z]]></xf:label>
+												<xf:value><![CDATA[ignoreChar]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxLength" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maxLength" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
