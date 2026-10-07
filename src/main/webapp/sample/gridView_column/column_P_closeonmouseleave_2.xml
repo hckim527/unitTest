@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] closeonmouseleave" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261007" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1367
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  - _1 : inputType(select / checkcombobox / autoComplete) x 속성값(true / false / 미설정) 동작 + 리스트창이 닫힌 뒤 편집 상태
+//  - _2 : closeonmouseleave=true 고정. GridViewItemSet 으로 정의된 경우 + select 의 embeddedInput=true 인 경우
+scwin.tData = {
+    "description" : "[column > P > closeonmouseleave]<br/>아이템 리스트창이 표시된 Column 에서 마우스가 해당 영역을 벗어날때 아이템 리스트창을 닫을지 설정합니다.",
+    "validation" : [
+        "true 설정 시, Column 의 아이템이 GridViewItemSet 으로 정의된 경우 마우스가 GridView 컴포넌트 영역을 벗어나야 아이템 리스트창이 닫힙니다.",
+        "Column 의 inputType='select', embeddedInput=true 인 경우엔 closeonmouseleave 속성이 false 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (GridViewItemSet / embeddedInput 미설정)
+    con_itemDefinition.setValue("gridViewItemset");
+    con_embeddedInput.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 아이템 (value / label)
+scwin.itemData = [
+    { "value" : "1", "label" : "서울" },
+    { "value" : "2", "label" : "부산" },
+    { "value" : "3", "label" : "대구" },
+    { "value" : "4", "label" : "광주" }
+];
+
+
+
+// 아이템 리스트창 표시 상태 감시 타이머
+scwin.watchTimer = null;
+scwin.listOpened = false;
+
+
+
+// comp 생성
+//  - branch : 지점명 Column (readOnly)
+//  - region : 검증 대상 Body Column (inputType=select, closeonmouseleave=true 고정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label / 감시 타이머 삭제
+    if (scwin.watchTimer) {
+        clearInterval(scwin.watchTimer);
+        scwin.watchTimer = null;
+    }
+    scwin.listOpened = false;
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_region !== 'undefined' && dlt_region) {
+        $p.data.remove("dlt_region");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cItemDefinition = con_itemDefinition.getValue();
+    let cEmbeddedInput = con_embeddedInput.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] region Column 은 closeonmouseleave=true 고정, GridViewItemSet 정의 시 embeddedInput 은 지원되지 않아 적용되지 않음\n[절차] region 셀 더블클릭(embeddedInput=true 이면 셀의 선택창 클릭)으로 아이템 리스트창 열기 -> 마우스를 같은 GridView 의 다른 셀로 이동 / 아이템 리스트창 위로 이동 후 GridView 밖으로 이동\n[확인] 리스트창이 닫히는 시점 (결과창에 표시/닫힘 출력, embeddedInput=true 는 화면으로 확인)"', '', 'label1');
+
+    // 바인딩 dataList
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="branch" name="branch" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "branch" : "본점", "region" : "1" },
+        { "branch" : "해운대지점", "region" : "2" },
+        { "branch" : "동성로지점", "region" : "3" }
+    ], false);
+
+    // 아이템 정의
+    let strItems = '<w2:choices>';
+    if (cItemDefinition === "gridViewItemset") {
+        let strItemDlt = '';
+        strItemDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_region" baseNode="list" repeatNode="map">';
+        strItemDlt += '<w2:columnInfo>';
+        strItemDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+        strItemDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+        strItemDlt += '</w2:columnInfo>';
+        strItemDlt += '<w2:data use="true"></w2:data>';
+        strItemDlt += '</w2:dataList>';
+        $p.data.create(strItemDlt);
+        dlt_region.setJSON(scwin.itemData, false);
+
+        strItems += '<w2:gridViewItemset nodeset="data:dlt_region" label="label" value="value">';
+        strItems += '<w2:item header="코드" ref="value"></w2:item>';
+        strItems += '<w2:item header="지역" ref="label"></w2:item>';
+        strItems += '</w2:gridViewItemset>';
+    } else {
+        for (let i = 0; i < scwin.itemData.length; i++) {
+            strItems += '<w2:item><w2:label>' + scwin.itemData[i].label + '</w2:label><w2:value>' + scwin.itemData[i].value + '</w2:value></w2:item>';
+        }
+    }
+    strItems += '</w2:choices>';
+
+    // region Column 속성
+    let attrRegion = ' inputType="select" closeonmouseleave="true"';
+    attrRegion += (cEmbeddedInput === '') ? '' : ' embeddedInput="' + cEmbeddedInput + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="지점"></w2:column>';
+    strTarget += '<w2:column width="280" style="" inputType="text" id="column2" value="지역 (select)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="branch" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="280" style="" id="region" value=""' + attrRegion + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 아이템 리스트창 표시 상태 감시 시작
+    scwin.watchTimer = setInterval(scwin.watchItemList, 100);
+}
+
+
+
+// validation 1 판정 출력 : 아이템 리스트창 표시 / 닫힘 전환 시점을 출력
+//  - GridView 가 셀 편집 시 생성하는 select 편집 컴포넌트의 아이템 리스트창(Item : _itemTable, GridViewItemSet : _gridViewItemTable)
+//  - embeddedInput=true 는 셀마다 브라우저 기본 선택창으로 표시되어 출력되지 않는다 (화면으로 확인)
+scwin.watchItemList = function () {
+    if (typeof target1 === 'undefined' || !target1) {
+        return;
+    }
+    let listArr = document.querySelectorAll("[id^='G_" + target1.id + "___selectbox_region_'][id$='temTable']");
+    let opened = false;
+    for (let i = 0; i < listArr.length; i++) {
+        let rect = listArr[i].getBoundingClientRect();
+        let style = window.getComputedStyle(listArr[i]);
+        if (rect.height > 0 && style.display !== "none" && style.visibility !== "hidden") {
+            opened = true;
+            break;
+        }
+    }
+    if (opened !== scwin.listOpened) {
+        scwin.listOpened = opened;
+        wf_body_bottom.getObj("scwin").setReturnValue(opened ? "아이템 리스트창 표시" : "아이템 리스트창 닫힘");
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="아이템 정의" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_itemDefinition" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[GridViewItemSet]]></xf:label>
+												<xf:value><![CDATA[gridViewItemset]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Item]]></xf:label>
+												<xf:value><![CDATA[item]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

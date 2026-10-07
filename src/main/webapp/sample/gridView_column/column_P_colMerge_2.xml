@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] colMerge" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261007" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// _2 담당 : 그룹핑 시 미동작 + 정렬/필터 적용 시 재구성 (기본 표시·편집 Cell·upperColumn·구조 유지는 _1 담당)
+scwin.tData = {
+    "description" : "[column > P > colMerge]<br/>Column 에서 연속된 Row 의 값이 같을때 하나의 Cell 처럼 표시할지 설정합니다.",
+    "validation" : [
+        "GridView 가 그룹핑된 상태이면 colMerge 속성이 동작하지 않습니다.",
+        "화면에 표시되는 Row 순서를 기준으로 바로 윗 Row 값을 비교하므로 정렬이나 필터가 적용되면 다시 구성됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 검증 데이터 : 지역(region) 값이 서울/부산으로 섞여 있어 화면 순서에 따라 병합 범위가 달라진다.
+//  - 초기 순서   : 서울, 서울, 부산, 서울, 부산, 부산  -> 서울(2) / 부산 / 서울 / 부산(2)
+//  - 지역 정렬   : 같은 지역이 인접 -> 부산(3) / 서울(3) (내림차순은 서울(3) / 부산(3))
+//  - 점수 내림   : 부산, 부산, 서울, 부산, 서울, 서울 -> 부산(2) / 서울 / 부산 / 서울(2)
+//  - 등급 A 필터 : 부산(B) Row 가 빠져 서울 3 Row 가 인접 -> 서울(3) / 부산(2)
+//  - 부서 그룹핑 : 그룹 안에서 같은 지역이 인접해도 병합되지 않음
+//                  (Group Header 2 Row 포함 표시 Row 8개 -> 높이 330px 에서 마지막 Row 는 화면 밖이므로 measureAllRows 로 측정)
+scwin.GRID_DATA = [
+    { "region": "서울", "dept": "영업", "grade": "A", "score": 10 },
+    { "region": "서울", "dept": "개발", "grade": "A", "score": 20 },
+    { "region": "부산", "dept": "영업", "grade": "B", "score": 30 },
+    { "region": "서울", "dept": "개발", "grade": "A", "score": 40 },
+    { "region": "부산", "dept": "영업", "grade": "A", "score": 50 },
+    { "region": "부산", "dept": "개발", "grade": "A", "score": 60 }
+];
+
+
+
+// comp 생성 : 지역 Column 에 colMerge="true" 고정 (검증 축이 true 동작의 조건이므로 con 옵션 없음)
+scwin.comp_init = async function () {
+    // 기존 target / label / DataList 삭제
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+
+    $c.gcm.createLabel('label="[전제] 지역 Column 에 colMerge=true 고정, Header 클릭 정렬 가능(sortable=true, sortEvent=onclick)\n[절차] Header 클릭(오름차순 -> 내림차순 -> 정렬 해제) / setColumnFilter(등급=A) / removeColumnFilterAll / groupby(부서 기준) / clearGroupby 를 실행\n[확인] 각 조작 후 (병합 표시 확인) 버튼으로 화면에 표시된 전체 Row 의 지역 / 부서 / 등급 / 점수 Cell 표시값 확인 (필터·그룹핑 버튼은 실행 직후 자동 출력)\n[출력] Row n 지역 표시값 / 부서 표시값 / 등급 표시값 / 점수 표시값 (Row n = 정렬·필터·그룹핑이 반영된 화면 표시 순서 기준 인덱스, 빈값 = 윗 Cell 과 하나의 Cell 처럼 표시되어 값 숨김, 그룹핑 시 Group Header Row 는 4개 Column 을 합친 Cell 1개의 표시값만 출력)"', '', 'label1');
+
+    // GridView 와 바인딩할 DataList 동적 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="지역" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="부서" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="등급" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="score" name="점수" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.GRID_DATA, false);
+
+    let properties = {
+        dataList: "data:dlt_bind",
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' id="" checkAllType="false"';
+    strTarget += ' sortable="true" sortEvent="onclick"';
+    strTarget += ' style="width:480px;height:330px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="colMerge sample"></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="지역"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column3" value="등급"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="점수"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="region" colMerge="true"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="grade"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="score" dataType="number"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin.target1 = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 필터 적용 : 등급이 A 인 Row 만 표시 (부산/B Row 가 빠지면서 서울 Row 가 인접)
+scwin.btn_setColumnFilter_onclick = function (e) {
+    dlt_bind.setColumnFilter({ type: "row", colIndex: "grade", key: "A", condition: "and", exactMatch: true });
+    scwin.printDisplayAfterRender();
+}
+
+
+
+// 필터 해제
+scwin.btn_removeColumnFilterAll_onclick = function (e) {
+    dlt_bind.removeColumnFilterAll();
+    scwin.printDisplayAfterRender();
+}
+
+
+
+// 그룹핑 : 부서(Body Column 인덱스 1) 기준 오름차순
+scwin.btn_groupby_onclick = function (e) {
+    target1.groupby({
+        sortIndex: [1],
+        sortOrder: [1],
+        hideFooter: true,
+        groupbyHeader: [
+            { inputType: "toggleButton", depthVisible: true, colSpan: 4, align: "left" }
+        ]
+    });
+    scwin.printDisplayAfterRender();
+}
+
+
+
+// 그룹핑 해제
+scwin.btn_clearGroupby_onclick = function (e) {
+    target1.clearGroupby();
+    scwin.printDisplayAfterRender();
+}
+
+
+
+// 현재 상태 확인 (Header 클릭 정렬 후 사용)
+scwin.btn_checkMerge_onclick = function (e) {
+    scwin.printDisplay();
+}
+
+
+
+// 필터·그룹핑 실행 직후 다시 그려진 화면 기준으로 출력
+scwin.printDisplayAfterRender = function () {
+    setTimeout(function () {
+        scwin.printDisplay();
+    }, 100);
+}
+
+
+
+// 화면에 렌더링된 Body Row 목록 (tr, Row 인덱스)
+//  - Row 인덱스는 GridView 표시 기준 인덱스 (getTopRowIndex 와 같은 기준 : 정렬·필터·그룹핑이 반영된 화면 순서, 그룹핑 시 Group Header Row 포함)
+scwin.getDisplayedRows = function () {
+    let arr = [];
+    let tbody = document.querySelector("#" + target1.id + "_body_tbody");
+    if (!tbody) {
+        return arr;
+    }
+    let topRowIndex = target1.getTopRowIndex();
+    let dataLength = target1.getDataLength();
+    let trList = Array.prototype.filter.call(tbody.children, function (tr) {
+        return tr.tagName === "TR" && tr.style.display !== "none" && tr.querySelector("td[data-col_id]");
+    });
+    for (let i = 0; i < trList.length; i++) {
+        let rowIndex = topRowIndex + i;
+        if (rowIndex >= dataLength) {
+            break;
+        }
+        arr.push({ "tr" : trList[i], "rowIndex" : rowIndex });
+    }
+    return arr;
+}
+
+
+
+// DOM 의 tr 이 해당 Row 인덱스의 Row 인지 확인
+//  - Group Header Row : getRealRowIndex 가 Object(type header) 를 반환하고 tr 에 Group Header Cell(w2grid_groupby) 이 있어야 함
+//  - 데이터 Row       : Group Header Cell 이 없고 점수 Cell 표시값이 getCellData 값과 같아야 함
+scwin.isRowMatched = function (tr, rowIndex) {
+    let real = target1.getRealRowIndex(rowIndex);
+    let groupTd = tr.querySelector("td.w2grid_groupby");
+    if (real !== null && typeof real === "object") {
+        return real.type === "header" && !!groupTd;
+    }
+    if (groupTd) {
+        return false;
+    }
+    let scoreTd = tr.querySelector("td[data-col_id='score']");
+    return !!scoreTd && scoreTd.textContent === String(target1.getCellData(rowIndex, "score"));
+}
+
+
+
+// 전체 Row 실측 : 세로 가상 렌더링으로 화면에 보이는 Row 만 DOM 이 있으므로 (그룹핑 시 마지막 Row 가 화면 밖)
+//  - 현재 화면의 Row 를 먼저 측정하고, 화면 밖 Row 는 setTopRowIndex 로 해당 Row 가 보이게 이동해 측정한 뒤 원래 위치로 복귀
+//  - setTopRowIndex 는 동기로 다시 그리므로 한 번의 처리 안에서 측정·복귀가 끝나 화면이 바뀌지 않는다
+//  - DOM 과 Row 인덱스 대응이 확인되지 않으면 측정하지 않는다 (측정 불가로 남김)
+//  - 반환 : { rows : [Row 인덱스] = { value : fnMeasure 결과 } }
+scwin.measureAllRows = function (fnMeasure) {
+    let result = { rows : [] };
+    let curTop = target1.getTopRowIndex();
+    let dataLength = target1.getDataLength();
+    let sy = document.getElementById(target1.id + "_scrollY_div");
+    let savedScrollTop = sy ? sy.scrollTop : 0;
+
+    let collect = function () {
+        let rows = scwin.getDisplayedRows();
+        for (let i = 0; i < rows.length; i++) {
+            let rowIndex = rows[i].rowIndex;
+            if (result.rows[rowIndex] || !scwin.isRowMatched(rows[i].tr, rowIndex)) {
+                continue;
+            }
+            result.rows[rowIndex] = { "value" : fnMeasure(rows[i].tr) };
+        }
+    };
+
+    collect();
+    for (let r = 0; r < dataLength; r++) {
+        if (!result.rows[r]) {
+            target1.setTopRowIndex(r, true);
+            collect();
+        }
+    }
+
+    // 원래 스크롤 위치로 복귀
+    if (curTop >= 0 && target1.getTopRowIndex() !== curTop) {
+        target1.setTopRowIndex(curTop, true);
+    }
+    if (sy && sy.scrollTop !== savedScrollTop) {
+        target1.setScrollTop(savedScrollTop);
+    }
+    return result;
+}
+
+
+
+// Row 하나의 Cell 표시값 : 화면에 그려지는 Cell 만 왼쪽부터 읽는다
+//  - colSpan 으로 덮인 Column 수를 누적해 전체 Column 수를 채우면 중단 (Group Header Row 는 colSpan=4 Cell 1개만 표시됨)
+scwin.getRowDisplayText = function (tr) {
+    let colCnt = target1.getTotalCol();
+    let covered = 0;
+    let arr = [];
+    let tds = tr.querySelectorAll("td[data-col_id]");
+    for (let i = 0; i < tds.length && covered < colCnt; i++) {
+        arr.push("'" + tds[i].textContent + "'");
+        covered += tds[i].colSpan || 1;
+    }
+    return arr.join(" / ");
+}
+
+
+
+// validation 1, 2 판정 출력 : 화면에 표시된 전체 Row 의 지역 / 부서 / 등급 / 점수 Cell 표시값 (빈값 = 윗 Cell 과 하나의 Cell 처럼 표시)
+scwin.printDisplay = function () {
+    let m = scwin.measureAllRows(scwin.getRowDisplayText);
+    let dataLength = target1.getDataLength();
+    for (let r = 0; r < dataLength; r++) {
+        let info = m.rows[r];
+        if (!info) {
+            wf_body_bottom.getObj("scwin").setReturnValue("Row " + r + " : 표시값 측정 불가 (렌더링된 Cell 없음)");
+            continue;
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue("Row " + r + " " + info.value);
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="setColumnFilter" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_removeColumnFilterAll_onclick" id="btn_removeColumnFilterAll" label="removeColumnFilterAll" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_groupby_onclick" id="btn_groupby" label="groupby" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_clearGroupby_onclick" id="btn_clearGroupby" label="clearGroupby" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkMerge_onclick" id="btn_checkMerge" label="병합 표시 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
