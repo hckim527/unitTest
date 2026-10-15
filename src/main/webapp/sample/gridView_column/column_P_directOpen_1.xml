@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] directOpen" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261014" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - description 첫 문장(Enter 키에 의한 아이템 리스트창 표시 설정)은 description 으로 사용
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (설정 영역 con 옵션 미생성)
+scwin.tData = {
+    "description" : "[column > P > directOpen]<br/>Column 에서 Enter 키에 의해 아이템 리스트창이 표시될지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='select', 'autoComplete' 인 경우에 동작합니다.",
+        "true 설정 시, Cell 에 포커스가 있을때 Enter 키를 입력하면 아이템 리스트창이 표시됩니다.",
+        "true 설정 시, inputType='autoComplete' 일때 아이템 리스트만 표시되고 편집 상태로 변경되지 않습니다.",
+        "false 설정 시, Cell 에 포커스가 있을때 Enter 키를 입력해도 아이템 리스트창이 표시되지 않습니다.",
+        "미설정 시, Cell 에 포커스가 있을때 Enter 키를 입력해도 아이템 리스트창이 표시되지 않습니다.",
+        "Column 의 embeddedInput=true 인 경우 directOpen 속성은 false 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (directOpen=true, embeddedInput 미설정)
+    con_directOpen.setValue("2");
+    con_embeddedInput.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 행 데이터 (아이템 1월 ~ 6월, value 1 ~ 6)
+scwin.rowPattern = [
+    { "name" : "Row 0", "txt" : "서울", "sel" : "1", "auto" : "1" },
+    { "name" : "Row 1", "txt" : "부산", "sel" : "2", "auto" : "3" },
+    { "name" : "Row 2", "txt" : "대구", "sel" : "3", "auto" : "5" }
+];
+
+
+
+// Enter 입력 직전 상태 / 출력 지연 타이머
+scwin.beforeState = null;
+scwin.enterTimer = null;
+
+
+
+// comp 생성
+//  - txt  : 대조군 Body Column (inputType=text, directOpen = con_directOpen)
+//  - sel  : 검증 대상 Body Column (inputType=select, directOpen = con_directOpen, embeddedInput = con_embeddedInput)
+//  - auto : 검증 대상 Body Column (inputType=autoComplete, directOpen = con_directOpen)
+//  - Enter 키 입력 시 입력 직전 포커스 셀과 300ms 후 리스트창 표시 여부 / 편집 상태 / 포커스 셀을 결과창에 출력
+scwin.comp_init = async function () {
+    // 기존 타이머 / target / dataList / label 삭제
+    if (scwin.enterTimer) {
+        clearTimeout(scwin.enterTimer);
+        scwin.enterTimer = null;
+    }
+    scwin.beforeState = null;
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cDirectOpen = con_directOpen.getText();
+    let cEmbeddedInput = con_embeddedInput.getText();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] directOpen 은 txt / sel / auto Column 에, embeddedInput 은 sel Column 에만 적용\n[절차] 셀을 한 번 클릭해 포커스 -> 키보드 Enter 입력\n(embeddedInput=true 인 sel 셀은 클릭하면 브라우저 기본 목록이 열리므로, 왼쪽 txt 셀 클릭 후 방향키(->)로 포커스 이동)\n[확인] Enter 입력 시점마다 리스트창 표시 여부, 편집 상태, Enter 후 포커스 셀이 결과창에 자동 출력"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="txt" name="txt" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="sel" name="sel" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="auto" name="auto" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowPattern, false);
+
+    // 아이템 정의 (일반 item)
+    let strItems = '<w2:choices>';
+    for (let i = 1; i <= 6; i++) {
+        strItems += '<w2:item><w2:label>' + i + '월</w2:label><w2:value>' + i + '</w2:value></w2:item>';
+    }
+    strItems += '</w2:choices>';
+
+    // 검증 대상 Column 속성
+    let attrDirect = (cDirectOpen === '') ? '' : ' directOpen="' + cDirectOpen + '"';
+    let attrEmbedded = (cEmbeddedInput === '') ? '' : ' embeddedInput="' + cEmbeddedInput + '"';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:630px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column2" value="txt (text)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column3" value="sel (select)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column4" value="auto (autoComplete)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="txt" value=""' + attrDirect + '></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="select" id="sel" value=""' + attrDirect + attrEmbedded + '>' + strItems + '</w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="autoComplete" id="auto" value=""' + attrDirect + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // Enter 키 감시 (capture 단계에서 입력 직전 상태 저장)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("keydown", scwin.target1_enterCapture, true);
+    }
+}
+
+
+
+// 현재 상태 (포커스 셀 / 리스트창 표시 여부 / 편집 상태)
+scwin.getState = function () {
+    return {
+        "rowIndex" : target1.getFocusedRowIndex(),
+        "colID" : target1.getFocusedColumnID(),
+        "listVisible" : scwin.isItemListVisible(),
+        "editing" : target1.isEditing()
+    };
+}
+
+
+
+// 표시 중인 target1 아이템 리스트창 존재 여부
+scwin.isItemListVisible = function () {
+    let divs = document.querySelectorAll("div[id^='G_" + target1.id + "_'][id$='_itemTable']");
+    for (let i = 0; i < divs.length; i++) {
+        let style = window.getComputedStyle(divs[i]);
+        if (style.display !== "none" && style.visibility !== "hidden" && divs[i].offsetHeight > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+
+// Enter 키 입력 직전 상태 저장 (리스트창도 편집도 없는 포커스 Cell 에서 누른 Enter 만 대상)
+scwin.target1_enterCapture = function (e) {
+    if (e.keyCode !== 13 || typeof target1 === 'undefined' || !target1) {
+        return;
+    }
+    let before = scwin.getState();
+    if (before.listVisible || before.editing || before.rowIndex < 0 || !before.colID) {
+        return;
+    }
+    scwin.beforeState = before;
+    if (scwin.enterTimer) {
+        clearTimeout(scwin.enterTimer);
+    }
+    scwin.enterTimer = setTimeout(scwin.printEnterResult, 300);
+}
+
+
+
+// validation 1 ~ 6 판정 출력 : Enter 입력 셀 -> 리스트창 표시 여부 / 편집 상태 / Enter 후 포커스 셀
+scwin.printEnterResult = function () {
+    scwin.enterTimer = null;
+    if (typeof target1 === 'undefined' || !target1 || !scwin.beforeState) {
+        return;
+    }
+    let before = scwin.beforeState;
+    let cur = scwin.getState();
+    scwin.beforeState = null;
+    wf_body_bottom.getObj("scwin").setReturnValue(before.colID + " 셀 (Row " + before.rowIndex + ") Enter -> 리스트창 : " + (cur.listVisible ? "표시" : "없음") + " / 편집 상태 : " + cur.editing + " / 포커스 셀 : " + cur.colID + " (Row " + cur.rowIndex + ")");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="directOpen" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_directOpen" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

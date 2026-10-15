@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] dateValidCheck" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261014" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : 유효성 체크 활성화 여부(true / false / 미설정, dateValidSet 연동)와 실패 시 처리(invalidMessageFunc, 기본 메시지, 포커스 유지)
+//  - 포맷 / 길이 / 범위 / ioFormat 위치 기준 검사는 column_P_dateValidCheck_2.xml 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외
+//    (편집 입력이 가능한 Body Column 전용 속성이며 Header / SubTotal / Footer Column 은 입력 수단이 없어 설정 영역 con 옵션 미생성)
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > dateValidCheck]<br/>inputType='calendar' 인 Column 에서 입력값에 대한 날짜/시간 유효성 체크를 활성화합니다.",
+    "validation" : [
+        "Column 의 dateValidSet=true 이면 dateValidCheck 속성은 true 로 동작합니다.",
+        "true 설정 시, 입력값에 대한 날짜/시간 유효성 체크를 활성화합니다.",
+        "false 설정 시, 입력값에 대한 날짜/시간 유효성 체크를 하지 않습니다.",
+        "미설정 시, 입력값에 대한 날짜/시간 유효성 체크를 하지 않습니다.",
+        "유효성 체크에 실패했을때 Column 의 invalidMessageFunc 속성 사용자 함수가 실행됩니다.",
+        "Column 의 invalidMessageFunc 속성이 설정되지 않으면 '날짜 형식이 잘못 되었습니다.' 메시지가 출력됩니다.",
+        "유효성 체크를 통과하지 못하면 해당 Cell 에 포커스가 유지됩니다.",
+        "Column 의 dateValidSet 속성은 dateValidCheck 속성값에 관계없이 동작합니다.",
+    ]
+}
+
+// 편집 종료 결과 출력 지연 타이머
+scwin.editEndTimer = null;
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // validation 1, 2, 6, 8 : 엔진이 표시하는 alert 문구를 결과창에 기록 (기록 후 원래 alert 도 그대로 실행, 페이지 종료 시 원복)
+    scwin.orgAlert = window.alert;
+    window.alert = function (msg) {
+        wf_body_bottom.getObj("scwin").setReturnValue("alert : " + msg);
+        return scwin.orgAlert.apply(window, arguments);
+    };
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (dateValidCheck=true, dateValidSet / invalidMessageFunc 미설정)
+    con_dateValidCheck.setValue("2");
+    con_dateValidSet.setValue("1");
+    con_invalidMessageFunc.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 페이지 종료 시 alert 후킹 원복
+scwin.onpageunload = function () {
+    if (scwin.orgAlert) {
+        window.alert = scwin.orgAlert;
+    }
+};
+
+
+
+// comp 생성
+//  - cal : 검증 대상 Body Column (inputType="calendar" + dataType="date", calendarValueType="yearMonthDate")
+//          dateValidCheck / dateValidSet / invalidMessageFunc 는 con (미설정이면 속성 자체를 넣지 않음)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] 결과창 clear -> cal Row 0 셀 클릭 -> 기존 값을 지우고 유효하지 않은 날짜(예: 20261345) 입력 -> 셀 밖(조건 영역) 클릭\n[확인] invalidMessageFunc 호출 줄 / alert 문구, 편집 종료 결과 줄의 편집 유지 여부와 포커스 위치, DataList 값\n편집이 유지되면 Esc 로 편집을 취소하거나 유효한 날짜(예: 20261020)로 고쳐 셀 밖을 클릭한 뒤 Target 재생성"', '', 'label1');
+
+    // dataList 생성 (calendar Column 바인딩 컬럼은 dataType="date")
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "cal" : "20261001" },
+        { "cal" : "20261015" }
+    ], false);
+
+    // con 값 (gdl_boolean 은 라벨로 읽고, 미설정이면 속성 자체를 넣지 않는다)
+    let properties = {
+        dateValidCheck : con_dateValidCheck.getText(),
+        dateValidSet : con_dateValidSet.getText(),
+        invalidMessageFunc : con_invalidMessageFunc.getValue()
+    };
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["oneditend"]);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:300px;height:120px;" ' + eList + '>';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="260" style="" inputType="text" id="column1" value="cal"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="260" style="" id="cal" inputType="calendar" dataType="date" viewType="icon" calendarValueType="yearMonthDate" ' + cList + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 5 : 유효성 체크 실패 시 실행되는 사용자 함수 (반환값 없음 -> 메시지 표시 없음)
+scwin.target1_cal_invalidMessageFunc = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("invalidMessageFunc 호출 : 입력값 " + this.getCaller().getValue());
+}
+
+
+
+// validation 1 ~ 8 : 셀 밖 클릭으로 편집 종료를 시도한 뒤의 결과 (편집 유지 여부, 포커스 위치, DataList 값)
+//  - 같은 클릭에서 여러 번 발생해도 마지막 상태 1줄만 출력
+scwin.target1_oneditend = function (rowIndex, columnIndex, value) {
+    clearTimeout(scwin.editEndTimer);
+    scwin.editEndTimer = setTimeout(function () {
+        scwin.printEditResult(rowIndex, value);
+    }, 300);
+}
+
+
+
+scwin.printEditResult = function (rowIndex, value) {
+    let activeEl = document.activeElement;
+    let strFocus = "";
+    if (activeEl && target1.render.contains(activeEl) && activeEl.tagName === "INPUT") {
+        strFocus = "Row " + target1.getFocusedRowIndex() + " cal 입력창 (입력창 값 " + activeEl.value + ")";
+    } else {
+        strFocus = "그리드 밖";
+    }
+    let arrData = [];
+    let rowCnt = dlt_bind.getRowCount();
+    for (let i = 0; i < rowCnt; i++) {
+        arrData.push("Row " + i + " '" + dlt_bind.getCellData(i, "cal") + "'");
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("입력값 " + value + " -> 편집 유지 : " + target1.isEditing()
+        + " / 포커스 : " + strFocus + " / DataList : " + arrData.join(", "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dateValidCheck" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dateValidCheck" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dateValidSet" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dateValidSet" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="invalidMessageFunc" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_invalidMessageFunc" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.target1_cal_invalidMessageFunc</xf:label>
+												<xf:value>scwin.target1_cal_invalidMessageFunc</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

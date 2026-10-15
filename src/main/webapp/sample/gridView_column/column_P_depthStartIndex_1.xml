@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] depthStartIndex" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261014" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (설정 영역 con 옵션 미생성)
+//  - description 첫 문장(시작값 설정)은 propval 항목("0" / "1" / 미설정) 으로 검증
+scwin.tData = {
+    "description" : "[column > P > depthStartIndex]<br/>inputType='drilldown' 인 Column 에서 계층 깊이 값의 시작값을 설정합니다.",
+    "validation" : [
+        "Column 의 depthColumn 속성으로 계층 깊이 값이 지정되어야 동작합니다.",
+        "'0' 설정 시, 최상위 Row 의 계층 깊이 값을 '0' 으로 설정합니다.",
+        "'1' 설정 시, 최상위 Row 의 계층 깊이 값을 '1' 으로 설정합니다.",
+        "미설정 시, 최상위 Row 의 계층 깊이 값을 '1' 으로 설정합니다.",
+        "depthStartIndex='1' 일때 계층 깊이 값이 '0' 인 Row 는 계층 깊이 값이 '1' 인 Row 와 들여쓰기가 동일하게 처리되므로 주의해야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (depthColumn=depth, depthStartIndex 미설정)
+    con_depthColumn.setValue("depth");
+    con_depthStartIndex.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 조직 데이터 (8건) - 같은 Row 에 계층 깊이 값 Column 2종을 둔다
+//  - depth  : 1 부터 시작하는 계층 깊이 값 (1 ~ 3)
+//  - depth0 : 0 부터 시작하는 계층 깊이 값 (depth - 1)
+scwin.rowData = [
+    { "name" : "본사", "depth" : "1", "depth0" : "0" },
+    { "name" : "경영지원본부", "depth" : "2", "depth0" : "1" },
+    { "name" : "인사팀", "depth" : "3", "depth0" : "2" },
+    { "name" : "재무팀", "depth" : "3", "depth0" : "2" },
+    { "name" : "영업본부", "depth" : "2", "depth0" : "1" },
+    { "name" : "영업1팀", "depth" : "3", "depth0" : "2" },
+    { "name" : "연구소", "depth" : "1", "depth0" : "0" },
+    { "name" : "개발센터", "depth" : "2", "depth0" : "1" }
+];
+
+
+
+// comp 생성
+//  - name : 검증 대상 Body Column (inputType=drilldown, depthColumn = con_depthColumn, depthStartIndex = con_depthStartIndex)
+//  - depth / depth0 : 계층 깊이 값 표시용 Column
+//  - showDepth 는 설정하지 않음 (데이터 로딩 시 전체 Row 펼침)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 조직명 Column 에 inputType=drilldown 적용, 계층 깊이 값 Column 은 depth (1 부터), depth0 (0 부터)\n[확인] (계층 상태 확인) 버튼으로 Row 별 깊이 값 / 들여쓰기(px) / 하위 Row 확인 (최상위 Row 는 들여쓰기가 가장 작고, 하위 Row 는 한 단계씩 들어감)"', '', 'label1');
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let properties = {
+        depthColumn : con_depthColumn.getValue(),
+        depthStartIndex : con_depthStartIndex.getValue()
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="조직명" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth0" name="depth0" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:420px;height:400px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column1" value="조직명 (drilldown)"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column2" value="depth"></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="column3" value="depth0"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="text-align:left;" inputType="drilldown" id="name" value="" ' + cList + '></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="depth" value=""></w2:column>';
+    strTarget += '<w2:column width="90" style="" inputType="text" id="depth0" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1, 2, 3, 4, 5 판정 출력 : 전체 데이터 Row 의 조직명 / 깊이 값 / 들여쓰기 / 하위 Row
+//  - 화면 표시 Row(getDataLength) 를 getRealRowIndex 로 데이터 Row 인덱스로 바꿔 Cell 을 찾고, 접혀서 보이지 않는 Row 는 숨김 출력
+//  - 들여쓰기 : 조직명 Cell 왼쪽 경계부터 펼침/접힘 아이콘까지의 거리(px)
+//  - 하위 Row : 아이콘 class (w2grid_minus = 있음(펼침), w2grid_plus = 있음(접힘), w2grid_leaf = 없음)
+scwin.btn_checkStatus_onclick = function () {
+    let depthColumn = con_depthColumn.getValue();
+    let shown = {};
+    let displayLength = target1.getDataLength();
+    for (let i = 0; i < displayLength; i++) {
+        shown[target1.getRealRowIndex(i)] = i;
+    }
+    let arrAll = dlt_bind.getAllJSON();
+    let totalRow = target1.getTotalRow();
+    for (let r = 0; r < totalRow; r++) {
+        let str = "Row " + r + " '" + arrAll[r].name + "'";
+        if (depthColumn !== "") {
+            str += " / 깊이 값 : '" + arrAll[r][depthColumn] + "'";
+        }
+        if (shown[r] === undefined) {
+            wf_body_bottom.getObj("scwin").setReturnValue(str + " / 숨김");
+            continue;
+        }
+        let td = document.querySelector("#" + target1.id + " td[id$='_cell_" + shown[r] + "_0']");
+        let icon = td ? td.querySelector(".w2grid_minus, .w2grid_plus, .w2grid_leaf") : null;
+        if (icon) {
+            let indent = Math.round(icon.getBoundingClientRect().left - td.getBoundingClientRect().left);
+            let child = icon.classList.contains("w2grid_minus") ? "있음(펼침)" : (icon.classList.contains("w2grid_plus") ? "있음(접힘)" : "없음");
+            str += " / 들여쓰기 : " + indent + "px / 하위 Row : " + child;
+        } else {
+            str += " / 펼침/접힘 아이콘 없음";
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue(str);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="depthStartIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_depthStartIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="depthColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_depthColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[depth]]></xf:label>
+												<xf:value><![CDATA[depth]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[depth0]]></xf:label>
+												<xf:value><![CDATA[depth0]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkStatus_onclick" id="btn_checkStatus" label="계층 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] defaultValue" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261014" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 담당 : 빈값 표시 / DataList 데이터 유지 / value 와 상호 적용 / 서로 다른 값 설정 시 표시 / 편집 상태 전환
+//  - _2 담당 : inputType expression 무시 / checkbox, radio trueValue 와 같을 때 체크 표시
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (설정 영역 con 옵션 미생성, showDepth / invalidMessageFunc 선례)
+scwin.tData = {
+    "description" : "[column > P > defaultValue]<br/>Column 값이 ''(Empty String)일때 표시할 값을 설정합니다.",
+    "validation" : [
+        "문자열 설정 시, Column 값이 ''(Empty String)일때 대신 표시할 값을 설정합니다.",
+        "문자열 설정 시, 속성값은 화면 표시에만 적용되고 바인딩된 DataList 의 데이터는 그대로 유지됩니다.",
+        "Column 의 value 속성과 defaultValue 속성 중 한쪽만 설정하면 나머지 속성에도 같은 값이 적용됩니다.",
+        "value 속성과 defaultValue 속성에 서로 다른 값을 설정하면 defaultValue 속성값이 화면에 표시됩니다.",
+        "Column 을 편집 상태로 전환하면 Column 값에 관계없이 defaultValue 속성으로 표시된 값은 다시 표시되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (defaultValue 설정 / value 미설정)
+    con_defaultValue.setSelectedIndex(1);
+    con_value.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 행 데이터 (6건) : 담당자(manager) 가 빈값("") 인 Row 와 값이 있는 Row 를 섞는다
+scwin.rowPattern = [
+    { "project" : "물류센터 이전", "dept" : "운영팀", "manager" : "" },
+    { "project" : "신규 채용", "dept" : "인사팀", "manager" : "김지현" },
+    { "project" : "보안 점검", "dept" : "정보보호팀", "manager" : "" },
+    { "project" : "고객 설문", "dept" : "마케팅팀", "manager" : "박서준" },
+    { "project" : "예산 편성", "dept" : "재무팀", "manager" : "" },
+    { "project" : "사내 교육", "dept" : "인사팀", "manager" : "이수민" }
+];
+
+
+
+// comp 생성
+//  - manager : 검증 대상 Body Column (defaultValue = con_defaultValue, value = con_value, 미설정이면 속성 자체를 넣지 않는다)
+//  - project / dept : 일반 Column
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 담당자 Column 에만 defaultValue / value 적용, 담당자 값은 Row 0 / 2 / 4 가 빈값\n[확인] 표시값 확인 : Row n 담당자 표시값 / DataList 값\n[확인] 엑셀 다운로드 : 담당자 Column 의 value 속성값이 쓰이는 엑셀 파일 기록값 출력 (useValueAttribute=true 고정)\n[편집] 빈값 Row 의 담당자 Cell 더블클릭 -> 입력 없이 Esc 또는 Cell 밖 클릭 -> 표시값 확인"', '', 'label1');
+
+    // 조건 설정
+    let cDefaultValue = con_defaultValue.getValue();
+    let cValue = con_value.getValue();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="project" name="과제" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="부서" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="manager" name="담당자" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowPattern, false);
+
+    // 검증 대상 Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrDefault = (cDefaultValue === '') ? '' : ' defaultValue="' + cDefaultValue + '"';
+    let attrValue = (cValue === '') ? '' : ' value="' + cValue + '"';
+
+    // target 생성 (6개 Row 가 스크롤 없이 모두 보이는 높이)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:420px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="과제"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="부서"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="담당자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="project"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="manager"' + attrDefault + attrValue + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1, 2, 3(한쪽만 설정 -> 화면 표시), 4, 5 판정 출력 : 전체 Row 의 담당자 표시값 / DataList 값
+scwin.btn_checkDisplay_onclick = function () {
+    let colIndex = target1.getColumnIndex("manager");
+    for (let r = 0; r < dlt_bind.getRowCount(); r++) {
+        let td = document.querySelector("td[id='" + target1.id + "_cell_" + r + "_" + colIndex + "']");
+        let display = td ? "'" + td.textContent + "'" : "Cell 없음";
+        wf_body_bottom.getObj("scwin").setReturnValue("Row " + r + " " + display + " / '" + dlt_bind.getCellData(r, "manager") + "'");
+    }
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 캡처한 요청 본문에서 엑셀 Body Cell 데이터 배열을 읽는다. (hashkey='data' 항목의 array CDATA 안 ["v1","v2", ...])
+scwin.getSentCellData = function () {
+    let sBody = scwin.gVar.body || "";
+    let nKey = sBody.indexOf("hashkey='data'");
+    if (nKey < 0) return [];
+    let sRest = sBody.substring(nKey);
+    let nStart = sRest.indexOf("[[");
+    let nEnd = sRest.indexOf("]]" + "]" + ">");
+    if (nStart < 0 || nEnd < 0) return [];
+    let sData = sRest.substring(nStart + 2, nEnd);
+    if (sData.length < 2) return [];
+    return sData.substring(1, sData.length - 1).split('","');
+}
+
+
+
+// validation 3(defaultValue 만 설정 -> value 속성에 적용) 판정 출력 : 엑셀 파일에 기록될 전체 Row 의 담당자 값
+//  - Body Column 의 value 속성값은 화면 표시에 쓰이지 않고 엑셀 다운로드(useValueAttribute=true) 시 빈값 Cell 에 기록되므로, 이 값으로 value 속성 적용 여부를 확인한다.
+scwin.btn_excelDownload_onclick = function () {
+    let options = { "fileName" : "column_defaultValue", "extension" : "xlsx", "useValueAttribute" : "true" };
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    let arrData = scwin.getSentCellData();
+    let colCnt = target1.getTotalCol();
+    let colIndex = target1.getColumnIndex("manager");
+    for (let r = 0; r < target1.getDataLength(); r++) {
+        let v = arrData[r * colCnt + colIndex];
+        wf_body_bottom.getObj("scwin").setReturnValue("엑셀 Row " + r + " '" + ((v === undefined) ? "" : v) + "'");
+    }
+}]]></script>
+		<style type="text/css"><![CDATA[]]></style>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="defaultValue (담당자)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_defaultValue" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[배정 대기]]></xf:label>
+												<xf:value><![CDATA[배정 대기]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="value (담당자)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_value" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[미배정]]></xf:label>
+												<xf:value><![CDATA[미배정]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkDisplay_onclick" id="btn_checkDisplay" label="표시값 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_excelDownload_onclick" id="btn_excelDownload" label="엑셀 다운로드" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
