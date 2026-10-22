@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] customFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261016" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1430
+
+// 테스트 설명, 유효성 값 설정
+//  ★ _3 : inputType="spinner" 전용 샘플 (_1 기본 동작, _2 escape/embeddedInput 은 별도 샘플)
+scwin.tData = {
+    "description" : "[column > P > customFormatter]<br/>Column 이 편집 상태가 아닐때 표시될 Column 값을 반환하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "inputType='spinner' 인 Column 은 반환값이 Column 표시값으로 사용되지 않고 스피너 버튼을 클릭할 때 사용자 함수는 Row 인덱스, Column 인덱스 두 개의 파라미터만 전달받으며 함수 안에서 this 는 GridView 컴포넌트 객체가 아닙니다.",
+        "inputType='spinner' 인 Column 은 스피너 버튼을 클릭할 때 사용자 함수가 반환한 객체의 minValue, maxValue, increment 값이 해당 시점의 스피너 설정을 덮어씁니다. (minValue, maxValue, increment 키로 반환해야 반영됩니다.)",
+        "inputType='spinner' 인 Column 은 스피너 버튼을 클릭할 때 사용자 함수가 객체가 아닌 값을 반환하면 스피너 설정이 변경되지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 사용자 함수가 호출된 셀 (Row 인덱스_Column 인덱스) - 셀마다 첫 호출만 출력
+    "called" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// customFormatter 사용자 함수 (spinner Column 은 스피너 버튼 클릭 시 호출)
+//  - Row 0 : minValue / maxValue / increment 키 객체 (최대값 18, 증감 5)
+//  - Row 1 : minValue / maxValue / increment 키 객체 (최소값 5, 증감 3)
+//  - Row 2 : 다른 키(min / max / step) 객체
+//  - Row 3 : 객체가 아닌 값(문자열)
+scwin.customFormatter_spin = function (rowIndex, colIndex) {
+    // validation 1 판정 출력 : 파라미터 수와 값, this 가 GridView 인지 (셀마다 첫 호출만)
+    let key = rowIndex + "_" + colIndex;
+    if (!scwin.gVar.called[key]) {
+        scwin.gVar.called[key] = true;
+        wf_body_bottom.getObj("scwin").setReturnValue("customFormatter 호출 : 파라미터 수 " + arguments.length
+            + " (rowIndex=" + rowIndex + ", colIndex=" + colIndex + ") / this 가 GridView : " + (this === target1));
+    }
+
+    if (rowIndex === 0) {
+        return { "minValue" : 0, "maxValue" : 18, "increment" : 5 };
+    }
+    if (rowIndex === 1) {
+        return { "minValue" : 5, "maxValue" : 100, "increment" : 3 };
+    }
+    if (rowIndex === 2) {
+        return { "min" : 0, "max" : 11, "step" : 10 };
+    }
+    return "설정 변경 없음";
+}
+
+
+
+// comp 생성
+//  - info        : Row 별 사용자 함수 반환값 안내 Column (readOnly)
+//  - spinBasic   : spinner Column (embeddedInput 미설정, 셀 더블클릭으로 편집)
+//  - spinEmbedded: spinner Column (embeddedInput=true, 화살표 상시 표시)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.called = {};
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] spinBasic, spinEmbedded 는 inputType=spinner (dataType=number, 초기값 10, 기본 증감 1) 이며 customFormatter=scwin.customFormatter_spin. spinEmbedded 만 embeddedInput=true\n[절차] 결과창 clear -> Row 0 부터 Row 3 까지 차례로 Row 0 증가 2회, Row 1 감소 2회, Row 2 증가 2회, Row 3 증가 2회 클릭 (spinBasic 은 셀 더블클릭 후 버튼 클릭, spinEmbedded 는 셀의 버튼 바로 클릭) -> 셀 값 확인\n[확인] 호출 줄의 파라미터와 this, Row 별 셀 값이 반환 설정대로 바뀌었는지"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="info" name="info" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="spinBasic" name="spinBasic" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="spinEmbedded" name="spinEmbedded" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "info" : "{ minValue : 0, maxValue : 18, increment : 5 }", "spinBasic" : "10", "spinEmbedded" : "10" },
+        { "info" : "{ minValue : 5, maxValue : 100, increment : 3 }", "spinBasic" : "10", "spinEmbedded" : "10" },
+        { "info" : "{ min : 0, max : 11, step : 10 }", "spinBasic" : "10", "spinEmbedded" : "10" },
+        { "info" : "설정 변경 없음 (문자열)", "spinBasic" : "10", "spinEmbedded" : "10" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" defaultCellHeight="30" id="" style="width:700px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="320" style="" inputType="text" id="column1" value="사용자 함수 반환값"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column2" value="spinBasic"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column3" value="spinEmbedded"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="320" style="" inputType="text" id="info" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="spinner" dataType="number" id="spinBasic" value="" customFormatter="scwin.customFormatter_spin"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="spinner" dataType="number" embeddedInput="true" id="spinEmbedded" value="" customFormatter="scwin.customFormatter_spin"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1, 2, 3 판정 출력 : Column 별 모든 Row 셀 표시값
+//  - 셀 표시값이 숫자(반환 객체/문자열이 아님) -> 반환값이 표시값으로 사용되지 않음 (validation 1)
+//  - Row 0, 1 : 반환 객체의 maxValue / minValue / increment 반영 결과 (validation 2)
+//  - Row 2 : 다른 키 객체 -> 반영되지 않은 결과 (validation 2)
+//  - Row 3 : 객체가 아닌 값 -> 설정이 변경되지 않은 결과 (validation 3)
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cnt = dlt_bind.getRowCount();
+    let arrCol = ["spinBasic", "spinEmbedded"];
+
+    for (let c = 0; c < arrCol.length; c++) {
+        let colIndex = target1.getColumnIndex(arrCol[c]);
+        let arr = [];
+        for (let r = 0; r < cnt; r++) {
+            let td = document.querySelector("td[id*='target1_cell_" + r + "_" + colIndex + "']");
+            // embeddedInput=true 인 spinner 는 셀 안 입력창에 값이 표시된다
+            let input = td ? td.querySelector("input") : null;
+            arr.push(input ? input.value : (td ? td.textContent.trim() : ""));
+        }
+        bottom.setReturnValue(arrCol[c] + " 셀 표시값 (Row 0~" + (cnt - 1) + ") : " + arr.join(" | "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

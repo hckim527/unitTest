@@ -4,6 +4,7 @@
 	<head meta_screenName="[column] directOpen" meta_author="InswaveSystems" meta_type="메인">
 		<w2:historyInfo>
 			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261014" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="편집 상태 출력 -> 편집창 표시 여부 출력으로 변경" meta_date="20261016" meta_user="InswaveSystems"></w2:history>
 		</w2:historyInfo>
 		<w2:type>COMPONENT</w2:type>
 		<w2:buildDate />
@@ -67,7 +68,7 @@ scwin.enterTimer = null;
 //  - txt  : 대조군 Body Column (inputType=text, directOpen = con_directOpen)
 //  - sel  : 검증 대상 Body Column (inputType=select, directOpen = con_directOpen, embeddedInput = con_embeddedInput)
 //  - auto : 검증 대상 Body Column (inputType=autoComplete, directOpen = con_directOpen)
-//  - Enter 키 입력 시 입력 직전 포커스 셀과 300ms 후 리스트창 표시 여부 / 편집 상태 / 포커스 셀을 결과창에 출력
+//  - Enter 키 입력 시 입력 직전 포커스 셀과 300ms 후 리스트창 표시 여부 / 편집창 표시 여부 / 포커스 셀을 결과창에 출력
 scwin.comp_init = async function () {
     // 기존 타이머 / target / dataList / label 삭제
     if (scwin.enterTimer) {
@@ -90,7 +91,7 @@ scwin.comp_init = async function () {
     let cEmbeddedInput = con_embeddedInput.getText();
 
     // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
-    $c.gcm.createLabel('label="[전제] directOpen 은 txt / sel / auto Column 에, embeddedInput 은 sel Column 에만 적용\n[절차] 셀을 한 번 클릭해 포커스 -> 키보드 Enter 입력\n(embeddedInput=true 인 sel 셀은 클릭하면 브라우저 기본 목록이 열리므로, 왼쪽 txt 셀 클릭 후 방향키(->)로 포커스 이동)\n[확인] Enter 입력 시점마다 리스트창 표시 여부, 편집 상태, Enter 후 포커스 셀이 결과창에 자동 출력"', '', 'label1');
+    $c.gcm.createLabel('label="[전제] directOpen 은 txt / sel / auto Column 에, embeddedInput 은 sel Column 에만 적용\n[절차] 셀을 한 번 클릭해 포커스 -> 키보드 Enter 입력\n(embeddedInput=true 인 sel 셀은 클릭하면 브라우저 기본 목록이 열리므로, 왼쪽 txt 셀 클릭 후 방향키(->)로 포커스 이동)\n[확인] Enter 입력 시점마다 리스트창 표시 여부, 편집창(입력란) 표시 여부, Enter 후 포커스 셀이 결과창에 자동 출력"', '', 'label1');
 
     let strNameSpace = $c.gcm.getNameSpace();
     let grp_comp = $c.gcm.getTestGroup();
@@ -157,14 +158,29 @@ scwin.comp_init = async function () {
 
 
 
-// 현재 상태 (포커스 셀 / 리스트창 표시 여부 / 편집 상태)
+// 현재 상태 (포커스 셀 / 리스트창 표시 여부 / 편집창 표시 여부)
 scwin.getState = function () {
     return {
         "rowIndex" : target1.getFocusedRowIndex(),
         "colID" : target1.getFocusedColumnID(),
         "listVisible" : scwin.isItemListVisible(),
-        "editing" : target1.isEditing()
+        "editorVisible" : scwin.isEditorVisible()
     };
+}
+
+
+
+// 표시 중인 target1 편집창(입력란) 존재 여부
+//  - Column 편집용 입력 요소(id 가 G_{gridId}_ 로 시작)만 대상, embeddedInput 의 셀 내장 select 는 셀 표시 요소라 제외
+scwin.isEditorVisible = function () {
+    let els = target1.render.querySelectorAll("input[id^='G_" + target1.id + "_'], textarea[id^='G_" + target1.id + "_'], select[id^='G_" + target1.id + "_']");
+    for (let i = 0; i < els.length; i++) {
+        let style = window.getComputedStyle(els[i]);
+        if (style.display !== "none" && style.visibility !== "hidden" && els[i].offsetHeight > 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -189,7 +205,7 @@ scwin.target1_enterCapture = function (e) {
         return;
     }
     let before = scwin.getState();
-    if (before.listVisible || before.editing || before.rowIndex < 0 || !before.colID) {
+    if (before.listVisible || target1.isEditing() || before.rowIndex < 0 || !before.colID) {
         return;
     }
     scwin.beforeState = before;
@@ -201,7 +217,7 @@ scwin.target1_enterCapture = function (e) {
 
 
 
-// validation 1 ~ 6 판정 출력 : Enter 입력 셀 -> 리스트창 표시 여부 / 편집 상태 / Enter 후 포커스 셀
+// validation 1 ~ 6 판정 출력 : Enter 입력 셀 -> 리스트창 표시 여부 / 편집창 표시 여부 / Enter 후 포커스 셀
 scwin.printEnterResult = function () {
     scwin.enterTimer = null;
     if (typeof target1 === 'undefined' || !target1 || !scwin.beforeState) {
@@ -210,7 +226,7 @@ scwin.printEnterResult = function () {
     let before = scwin.beforeState;
     let cur = scwin.getState();
     scwin.beforeState = null;
-    wf_body_bottom.getObj("scwin").setReturnValue(before.colID + " 셀 (Row " + before.rowIndex + ") Enter -> 리스트창 : " + (cur.listVisible ? "표시" : "없음") + " / 편집 상태 : " + cur.editing + " / 포커스 셀 : " + cur.colID + " (Row " + cur.rowIndex + ")");
+    wf_body_bottom.getObj("scwin").setReturnValue(before.colID + " 셀 (Row " + before.rowIndex + ") Enter -> 리스트창 : " + (cur.listVisible ? "표시" : "없음") + " / 편집창 : " + (cur.editorVisible ? "표시" : "없음") + " / 포커스 셀 : " + cur.colID + " (Row " + cur.rowIndex + ")");
 }]]></script>
 	</head>
 	<body ev:onpageload="scwin.onpageload">
