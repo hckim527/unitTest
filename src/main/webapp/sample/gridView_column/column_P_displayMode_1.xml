@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] displayMode" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외
+//    (gridView column 속성 샘플은 설정 영역 con 옵션을 만들지 않음)
+scwin.tData = {
+    "description" : "[column > P > displayMode]<br/>Column 과 아이템 리스트창에서 아이템이 표시되는 형식을 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='select', 'checkcombobox', 'autoComplete' 인 경우에 동작합니다.",
+        "label 설정 시, 아이템의 Label 값을 라벨로 표시합니다.",
+        "미설정 시, 아이템의 Label 값을 라벨로 표시합니다.",
+        "value delim label 설정 시, 아이템의 Value 값과 Label 값을 구분자로 구분하여 순서대로 표시합니다.",
+        "label delim value 설정 시, 아이템의 Label 값과 Value 값을 구분자로 구분하여 순서대로 표시합니다.",
+        "value 설정 시, 아이템의 Value 값을 라벨로 표시합니다.",
+        "inputType='select' 인 Column 에 customFormatter 속성 설정 시 Column 의 표시 영역엔 customFormatter 함수의 반환값이 표시됩니다.",
+        "아이템이 GridViewItemSet 으로 정의된 경우 아이템 리스트창엔 적용되지 않습니다.",
+        "구분자는 Column 의 delimiter 속성값을 사용하며 해당 속성을 설정하지 않으면 Tab('\\t')이 적용됩니다.",
+        "inputType='checkcombobox' 인 Column 은 선택값이 여러 개이므로, 각 아이템의 Label 과 Value 를 구분자로 결합한 뒤 separator 속성값으로 이어 붙여 표시합니다.",
+        "inputType='select' 인 Column 에 chooseOption, chooseOptionLabel, allOption 속성으로 추가된 아이템은 Column 에 표시될때 라벨값이 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_inputType.setValue("select");
+    con_displayMode.setValue("value delim label");
+    con_delimiter.setValue(":");
+    con_separator.setValue("");
+    con_itemDefinition.setValue("item");
+    con_customFormatter.setValue("");
+    con_addOption.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 아이템 : 서울(SEL) / 부산(BSN) / 대구(DGU) / 인천(ICN)
+//  - select / autoComplete / text 는 행별 첫번째 값만, checkcombobox 는 행별 값 전체를 separator 로 연결해 저장
+//  - 4행(미정) 은 추가 아이템 확인용 : allOption 이면 'all', 그 외는 빈 값 (chooseOption 의 기본 Value)
+scwin.rowPattern = [
+    { "branch" : "본사", "city" : ["SEL"] },
+    { "branch" : "영남지사", "city" : ["BSN", "DGU"] },
+    { "branch" : "수도권지사", "city" : ["ICN", "SEL", "BSN"] },
+    { "branch" : "미정", "city" : [] }
+];
+scwin.arrItem = [
+    { "label" : "서울", "value" : "SEL" },
+    { "label" : "부산", "value" : "BSN" },
+    { "label" : "대구", "value" : "DGU" },
+    { "label" : "인천", "value" : "ICN" }
+];
+
+
+
+// customFormatter 사용자 정의 함수 : 포맷된 값 앞에 표식을 붙여 반환
+scwin.fmt_city = function (data, formattedData, rowIndex, columnIndex) {
+    return "★ " + formattedData;
+}
+
+
+
+// comp 생성
+//  - branch : 비교용 text Column
+//  - city   : 검증 대상 Body Column (inputType / displayMode / delimiter / separator / 아이템 정의 / customFormatter / 추가 아이템 = con 값)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_city !== 'undefined' && dlt_city) {
+        $p.data.remove("dlt_city");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cInputType = con_inputType.getValue();
+    let cDisplayMode = con_displayMode.getValue();
+    let cDelimiter = con_delimiter.getValue();
+    let cSeparator = con_separator.getValue();
+    let cItemDefinition = con_itemDefinition.getValue();
+    let cCustomFormatter = con_customFormatter.getValue();
+    let cAddOption = con_addOption.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] city Column 아이템 : 서울(SEL) / 부산(BSN) / 대구(DGU) / 인천(ICN), 4행(미정) 은 allOption 이면 all, 그 외는 빈 값\n[전제] 추가 아이템 chooseOption 은 chooseOption=true, chooseOptionLabel=지역 선택 을 함께 설정\n[절차] city 셀 더블클릭으로 아이템 리스트창 열기 -> 아이템 리스트창 확인 (autoComplete 는 셀 값으로 걸러진 항목만 표시)\n[확인] 재생성 직후 출력되는 Column 셀 표시값과 아이템 리스트창 항목, 결과창의 Tab 구분자는 [TAB] 으로 표기"', '', 'label1');
+
+    // 바인딩 dataList
+    let dataSeparator = (cSeparator === '') ? ' ' : cSeparator;
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="branch" name="branch" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="city" name="city" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowPattern.map(function (row) {
+        let city = "";
+        if (row.city.length === 0) {
+            city = (cAddOption === "allOption") ? "all" : "";
+        } else {
+            city = (cInputType === "checkcombobox") ? row.city.join(dataSeparator) : row.city[0];
+        }
+        return { "branch" : row.branch, "city" : city };
+    }), false);
+
+    // 아이템 정의
+    let strItems = '<w2:choices>';
+    if (cItemDefinition === "gridViewItemset") {
+        // GridViewItemSet : checkcombobox 는 dataList 첫 컬럼(chk) 을 체크 컬럼으로 참조 (checkColumn=0)
+        let strItemDlt = '';
+        strItemDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_city" baseNode="list" repeatNode="map">';
+        strItemDlt += '<w2:columnInfo>';
+        strItemDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+        strItemDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+        strItemDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+        strItemDlt += '</w2:columnInfo>';
+        strItemDlt += '<w2:data use="true"></w2:data>';
+        strItemDlt += '</w2:dataList>';
+        $p.data.create(strItemDlt);
+        dlt_city.setJSON(scwin.arrItem.map(function (item) {
+            return { "chk" : "0", "value" : item.value, "label" : item.label };
+        }), false);
+
+        if (cInputType === "checkcombobox") {
+            strItems += '<w2:gridViewItemset nodeset="data:dlt_city" label="label" value="value" checkColumn="0">';
+            strItems += '<w2:item header="선택" inputType="checkbox" ref="chk"></w2:item>';
+        } else {
+            strItems += '<w2:gridViewItemset nodeset="data:dlt_city" label="label" value="value">';
+        }
+        strItems += '<w2:item header="value" ref="value"></w2:item>';
+        strItems += '<w2:item header="label" ref="label"></w2:item>';
+        strItems += '</w2:gridViewItemset>';
+    } else {
+        scwin.arrItem.forEach(function (item) {
+            strItems += '<w2:item><w2:label>' + item.label + '</w2:label><w2:value>' + item.value + '</w2:value></w2:item>';
+        });
+    }
+    strItems += '</w2:choices>';
+
+    // city Column 속성
+    let attrCity = ' inputType="' + cInputType + '"';
+    attrCity += (cDisplayMode === '') ? '' : ' displayMode="' + cDisplayMode + '"';
+    attrCity += (cDelimiter === '') ? '' : ' delimiter="' + cDelimiter + '"';
+    attrCity += (cSeparator === '' || cInputType !== "checkcombobox") ? '' : ' separator="' + cSeparator + '"';
+    attrCity += (cCustomFormatter === '') ? '' : ' customFormatter="' + cCustomFormatter + '"';
+    if (cAddOption === "chooseOption") {
+        attrCity += ' chooseOption="true" chooseOptionLabel="지역 선택"';
+    } else if (cAddOption === "allOption") {
+        attrCity += ' allOption="true"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:600px;height:180px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="branch"></w2:column>';
+    strTarget += '<w2:column width="430" style="" inputType="text" id="column2" value="city (' + cInputType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="branch" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="430" style="text-align:left;" id="city" value=""' + attrCity + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // validation 1 ~ 7, 9 ~ 11 : 재생성 직후 Column 셀 표시값
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("Column 셀 표시값 : " + scwin.getAllCellText());
+    }, 100);
+}
+
+
+
+// Tab 구분자를 판별할 수 있도록 [TAB] 으로 치환하고 따옴표로 감싸 공백 구분자 확인
+scwin.escapeText = function (str) {
+    return "'" + String(str).split("\t").join("[TAB]") + "'";
+}
+
+
+
+scwin.getAllCellText = function () {
+    let arr = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        let td = document.querySelector("td[id*='" + target1.id + "_cell_" + i + "_1']");
+        arr.push(i + "행=" + (td ? scwin.escapeText(td.textContent) : "셀 없음"));
+    }
+    return arr.join(" / ");
+}
+
+
+
+// validation 1 ~ 6, 8 ~ 10 : city 셀 편집 시 열린 아이템 리스트창 항목 텍스트
+//  - 한번 열었던 아이템 리스트창의 항목 DOM 은 닫아도 유지되고, Target 재생성 시 함께 삭제됨
+//  - 일반 아이템 : G_{gridID}___{편집기}_city..._itemTable_{n}
+//  - GridViewItemSet : G_{gridID}___{편집기}_city..._gridViewItemTable 의 행별 셀 텍스트
+scwin.btn_checkItemList_onclick = function () {
+    let strPrefix = "G_" + target1.id + "___";
+    let arr = [];
+    let gridItemTable = document.querySelector("div[id^='" + strPrefix + "'][id$='_gridViewItemTable']");
+    if (gridItemTable) {
+        // autoComplete 입력값으로 걸러져 숨겨진 행(w2grid_hidedRow) 은 제외
+        gridItemTable.querySelectorAll("tbody tr.grid_body_row:not(.w2grid_hidedRow)").forEach(function (tr) {
+            let arrCell = Array.prototype.map.call(tr.querySelectorAll("td"), function (td) {
+                return td.textContent;
+            });
+            if (arrCell.join("") !== "") {
+                arr.push(scwin.escapeText(arrCell.join(" | ")));
+            }
+        });
+        wf_body_bottom.getObj("scwin").setReturnValue("아이템 리스트창(GridView 팝업) : " + (arr.length ? arr.join(" / ") : "열린 아이템 리스트창 없음"));
+        return;
+    }
+    document.querySelectorAll("td[id^='" + strPrefix + "'][id*='_itemTable_']").forEach(function (td) {
+        if (/_itemTable_\d+$/.test(td.id)) {
+            arr.push(scwin.escapeText(td.textContent));
+        }
+    });
+    wf_body_bottom.getObj("scwin").setReturnValue("아이템 리스트창 : " + (arr.length ? arr.join(" / ") : "열린 아이템 리스트창 없음"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[select]]></xf:label>
+												<xf:value><![CDATA[select]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[checkcombobox]]></xf:label>
+												<xf:value><![CDATA[checkcombobox]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[autoComplete]]></xf:label>
+												<xf:value><![CDATA[autoComplete]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[label]]></xf:label>
+												<xf:value><![CDATA[label]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[value delim label]]></xf:label>
+												<xf:value><![CDATA[value delim label]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[label delim value]]></xf:label>
+												<xf:value><![CDATA[label delim value]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[value]]></xf:label>
+												<xf:value><![CDATA[value]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="delimiter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_delimiter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[:]]></xf:label>
+												<xf:value><![CDATA[:]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="separator" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_separator" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[,]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="아이템 정의" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_itemDefinition" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[item]]></xf:label>
+												<xf:value><![CDATA[item]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[gridViewItemset]]></xf:label>
+												<xf:value><![CDATA[gridViewItemset]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="customFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_customFormatter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.fmt_city]]></xf:label>
+												<xf:value><![CDATA[scwin.fmt_city]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="추가 아이템" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_addOption" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[chooseOption]]></xf:label>
+												<xf:value><![CDATA[chooseOption]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[allOption]]></xf:label>
+												<xf:value><![CDATA[allOption]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkItemList_onclick" id="btn_checkItemList"
+							label="아이템 리스트창 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] displayType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > displayType]<br/>inputType='textarea' 인 Column 에서 데이터가 모두 표시되게 Row 의 높이를 자동 조정할지 설정합니다.",
+    "validation" : [
+        "Column 의 embeddedInput=true 이면 displayType 속성은 무시됩니다.",
+        "hidden 설정 시, Column 에 데이터를 한 줄로 표시하며 Column 너비를 넘어가는 데이터는 잘려서 표시됩니다.",
+        "미설정 시, Column 에 데이터를 한 줄로 표시하며 Column 너비를 넘어가는 데이터는 잘려서 표시됩니다.",
+        "hidden 설정 시, 데이터에 포함된 개행 문자가 줄바꿈으로 표시되지 않고 공백으로 표시됩니다.",
+        "all 설정 시, Column 에 데이터가 모두 표시되게 Row 높이를 자동으로 조정합니다.",
+        "all 설정 시, Column 의 너비는 조정되지 않으며 데이터가 자동 줄바꿈 되거나 개행 문자에 맞춰 개행 처리됩니다.",
+        "Column 의 width 속성을 설정하지 않으면 displayType 속성이 적용되지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // memo Column 바인딩 데이터 (Row 0 : Column 너비를 넘는 긴 문장, Row 1 : 개행 문자 포함, Row 2 : 짧은 문장)
+    "memoData" : [
+        "서울특별시 강남구 테헤란로 152 강남파이낸스센터 21층 인스웨이브시스템즈 본사",
+        "1차 배송 완료\n2차 배송 예정",
+        "정상 처리"
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_displayType.setValue("all");
+    con_embeddedInput.setValue("1");
+    con_width.setValue("220");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - no : 순번 Column (readOnly)
+//  - memo : 검증 대상 Column (inputType=textarea 고정, con 값으로 displayType / embeddedInput / width 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] memo Column 은 inputType=textarea 고정, Row 0 은 Column 너비를 넘는 긴 문장, Row 1 은 개행 문자 포함 데이터\n[절차] 조건 선택 -> Target 재생성 -> 셀 표시 확인\n[확인] Column 너비, Row 별 높이와 표시 줄 수, 너비 초과 잘림 여부"', '', 'label1');
+
+    let cDisplayType = con_displayType.getValue();
+    let cEmbeddedInput = con_embeddedInput.getText();
+    let cWidth = con_width.getValue();
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="no" name="no" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.gVar.memoData.map(function (v, i) {
+        return { "no" : String(i + 1), "memo" : v };
+    }), false);
+
+    // memo Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrWidth = (cWidth !== '') ? ' width="' + cWidth + '"' : '';
+    let attrMemo = ' inputType="textarea"' + attrWidth;
+    if (cDisplayType !== '') {
+        attrMemo += ' displayType="' + cDisplayType + '"';
+    }
+    if (cEmbeddedInput !== '') {
+        attrMemo += ' embeddedInput="' + cEmbeddedInput + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:400px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="60" style="" inputType="text" id="column1" value="No"></w2:column>';
+    strTarget += '<w2:column' + attrWidth + ' style="" inputType="text" id="column2" value="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="60" style="" inputType="text" id="no" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column style="" id="memo" value=""' + attrMemo + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 요소 안 텍스트가 화면에 표시된 줄 수 (텍스트 영역의 줄 단위 사각형 top 값 개수)
+scwin.getLineCount = function (elem) {
+    let range = document.createRange();
+    range.selectNodeContents(elem);
+    let tops = [];
+    Array.prototype.forEach.call(range.getClientRects(), function (rect) {
+        let top = Math.round(rect.top);
+        if (tops.indexOf(top) < 0) {
+            tops.push(top);
+        }
+    });
+    return tops.length;
+}
+
+
+
+// 설정 조건 / Column 너비 / Row 별 높이, 표시 줄 수, 너비 초과 잘림 여부 출력
+//  - validation 1 : embeddedInput=true 의 Row 높이(내용과 무관하게 동일) / 입력창 내용 높이 초과 여부
+//  - validation 2, 3 : hidden / 미설정 의 표시 줄 수 1 / Row 0 너비 초과 잘림
+//  - validation 4 : hidden 의 Row 1(개행 문자 포함) 표시 줄 수 1
+//  - validation 5 : all 의 Row 별 높이 (내용 길이에 따라 증가)
+//  - validation 6 : all 의 Column 너비 / Row 0 자동 줄바꿈, Row 1 개행 처리 (표시 줄 수)
+//  - validation 7 : width 미설정 의 Column 너비 / Row 높이 / 표시 줄 수
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    let arrCond = [];
+    [["displayType", con_displayType.getValue()], ["embeddedInput", con_embeddedInput.getText()], ["width", con_width.getValue()]].forEach(function (opt) {
+        if (opt[1] !== '') {
+            arrCond.push(opt[0] + " : " + opt[1]);
+        }
+    });
+    bottom.setReturnValue("설정 조건 : " + (arrCond.length === 0 ? "모두 미설정" : arrCond.join(" / ")));
+
+    let tdCol = document.querySelector("td[id*='" + target1.id + "_cell_0_1']");
+    bottom.setReturnValue("memo Column 너비 : " + (tdCol ? tdCol.offsetWidth : 0) + "px");
+
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        let td = document.querySelector("td[id*='" + target1.id + "_cell_" + i + "_1']");
+        if (!td) {
+            continue;
+        }
+        let str = "Row " + i + (i === 1 ? " (개행 문자 포함)" : "") + " 높이 : " + td.parentNode.offsetHeight + "px";
+        let textarea = td.querySelector("textarea");
+        let div = td.querySelector(".w2grid_textarea");
+        if (textarea) {
+            // embeddedInput=true : 셀 안 입력창에 표시되므로 입력창 내용이 입력창 높이를 넘는지 확인
+            str += " / 입력창 내용 높이 초과 : " + (textarea.scrollHeight > textarea.clientHeight);
+        } else if (div) {
+            str += " / 표시 줄 수 : " + scwin.getLineCount(div) + " / 너비 초과 잘림 : " + (div.scrollWidth > td.clientWidth);
+        }
+        bottom.setReturnValue(str);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>hidden</xf:label>
+												<xf:value>hidden</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>all</xf:label>
+												<xf:value>all</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="width" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_width" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>220</xf:label>
+												<xf:value>220</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

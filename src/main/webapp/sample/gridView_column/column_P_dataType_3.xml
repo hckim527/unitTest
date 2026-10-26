@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] dataType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// dataType 분할 _3 : bigDecimal / 통화(euro, rupee, tenge) / 12 자리 반올림 / Footer, SubTotal 축
+scwin.tData = {
+    "description" : "[column > P > dataType]<br/>Column 의 데이터 유형을 설정합니다.",
+    "validation" : [
+        "bigDecimal 설정 시, Column 의 데이터 유형을 정밀도 손실이 없는 십진수로 설정합니다.",
+        "bigDecimal 설정 시, 큰 숫자나 자릿수가 많은 소수를 오차 없이 저장하고 계산할 때 사용합니다.",
+        "dataType='bigDecimal' 일때 Footer 와 SubTotal 의 합계·평균·최대·최소 계산이 정밀 연산으로 수행됩니다.",
+        "euro 설정 시, Column 의 데이터 유형을 유로 통화로 설정합니다.",
+        "dataType='euro' 일때 inputType='text' 이고 displayFormat 속성을 설정하지 않으면 천단위 구분자 '.' 와 소수점 구분자 ',' 가 적용됩니다.",
+        "rupee 설정 시, Column 의 데이터 유형을 루피 통화로 설정합니다.",
+        "dataType='rupee' 일때 inputType='text' 이고 displayFormat 속성을 설정하지 않으면 천단위 구분자 ',' 와 소수점 구분자 '.' 가 적용됩니다.",
+        "tenge 설정 시, Column 의 데이터 유형을 텡게 통화로 설정합니다.",
+        "dataType='tenge' 일때 inputType='text' 이고 displayFormat 속성을 설정하지 않으면 천단위 구분자 공백(' ') 과 소수점 구분자 ',' 가 적용됩니다.",
+        "dataType='number','float' 인 Column 은 정수부와 소수부의 자릿수 합이 12 자리를 넘으면 반올림됩니다.",
+        "큰 숫자나 정밀한 소수를 오차 없이 표현하려면 dataType='bigDecimal' 로 설정해야 합니다.",
+        "Footer 와 SubTotal 의 Column 에 dataType 을 설정하지 않으면 대상 Body Column 의 dataType 속성값이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_dataType.setSelectedIndex(0);
+    con_inputType.setSelectedIndex(0);
+    con_displayFormat.setSelectedIndex(0);
+    con_sumDataType.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 통화 dataType 별 GridView 마스크 (Column displayFormat 미설정 시 적용되는 마스크, 각 통화 구분자로 구성)
+scwin.currencyMask = {
+    "euro" : "#.###.###,######",
+    "rupee" : "#,###,###.######",
+    "tenge" : "# ### ###,######"
+};
+
+// displayFormat 설정 대조값 (통화 dataType 과 무관하게 동일 마스크)
+scwin.contrastFormat = "#,###.##";
+
+
+
+// comp 생성
+//  - grp    : SubTotal 기준 Column (A, B 그룹)
+//  - raw    : 저장값 원문 표시 Column (dataType=text)
+//  - amount : 검증 대상 Column (dataType 을 옵션값으로 설정)
+//  - Footer / SubTotal : 합계·평균·최대·최소 4 Row (expression, dataType 은 옵션값)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cDataType = con_dataType.getValue();
+    let cInputType = con_inputType.getValue();
+    let cDisplayFormat = con_displayFormat.getValue();
+    let cSumDataType = con_sumDataType.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 마스크 고정 : euroMask=' + scwin.currencyMask.euro + ' / rupeeMask=' + scwin.currencyMask.rupee + ' / tengeMask=' + scwin.currencyMask.tenge + ' (amount Column displayFormat 미설정 시 적용)\n[전제] DataList 의 amount 컬럼은 dataType=text, Footer 와 SubTotal(그룹 A, B) 은 sum / avg / max / min 4 Row (통화 dataType 이면 같은 통화 마스크를 displayFormat 으로 지정)\n[절차] 옵션 선택 -> Target 재생성 -> (셀 표시값 확인) / (Footer, SubTotal 확인) 클릭\n[확인] 저장값과 amount 표시값의 구분자 / Footer 와 SubTotal 계산값을 정밀 계산값(저장값 그대로 계산)과 비교 / 통화 dataType 은 Footer, SubTotal dataType 옵션별 통화 포맷 적용 여부 비교"', '', 'label1');
+
+    // dataList 생성 (소수 자릿수가 많은 값, A/B 그룹 연속 배치)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="grp" name="grp" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="raw" name="raw" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrGrp = ["A", "A", "B", "B"];
+    let arrValue = ["1234567.891234", "2345678.912345", "3456789.123456", "4567891.234567"];
+    let jsonData = [];
+    for (let i = 0; i < arrValue.length; i++) {
+        // euro, tenge 는 소수점 구분자가 ',' 이므로 저장값도 ',' 소수점으로 구성
+        let v = (cDataType === "euro" || cDataType === "tenge") ? arrValue[i].replace(".", ",") : arrValue[i];
+        jsonData.push({ "grp" : arrGrp[i], "raw" : v, "amount" : v });
+    }
+    dlt_bind.setJSON(jsonData, false);
+
+    // amount Column 속성
+    let attrAmount = ' inputType="' + cInputType + '" dataType="' + cDataType + '"';
+    if (cDisplayFormat === 'set') {
+        attrAmount += ' displayFormat="' + scwin.contrastFormat + '"';
+    }
+
+    // Footer / SubTotal expression Column 속성 (dataType 미설정 시 키 생략)
+    let sumDataType = (cSumDataType === 'body') ? cDataType : cSumDataType;
+    let attrSum = (sumDataType !== '') ? ' dataType="' + sumDataType + '"' : '';
+    // 통화 dataType 이면 Footer / SubTotal 에 같은 통화 마스크를 displayFormat 으로 지정 (적용된 dataType 에 따라 포맷 적용 여부가 달라짐)
+    if (scwin.currencyMask[cDataType]) {
+        attrSum += ' displayFormat="' + scwin.currencyMask[cDataType] + '"';
+    }
+    let arrFunc = ["sum", "avg", "max", "min"];
+
+    // GridView 마스크 속성 (통화 dataType 의 displayFormat 미설정 경로에서 사용)
+    let attrMask = ' euroMask="' + scwin.currencyMask.euro + '" rupeeMask="' + scwin.currencyMask.rupee + '" tengeMask="' + scwin.currencyMask.tenge + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:620px;height:700px;"' + attrMask + '>';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="column1" value="그룹"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column2" value="저장값"></w2:column>';
+    strTarget += '<w2:column width="340" style="" inputType="text" id="column3" value="amount (' + cDataType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="80" style="" inputType="text" dataType="text" id="grp" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" dataType="text" id="raw" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="340" style="" id="amount" value=""' + attrAmount + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="grp">';
+    for (let i = 0; i < arrFunc.length; i++) {
+        strTarget += '<w2:row style="" id="srow' + i + '">';
+        strTarget += '<w2:column style="" inputType="text" id="scol' + i + '_1" value="소계"></w2:column>';
+        strTarget += '<w2:column style="" inputType="text" id="scol' + i + '_2" value="' + arrFunc[i] + '"></w2:column>';
+        strTarget += '<w2:column style="" inputType="expression" id="scol' + i + '_3" expression="' + arrFunc[i] + '(\'amount\')"' + attrSum + '></w2:column>';
+        strTarget += '</w2:row>';
+    }
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    for (let i = 0; i < arrFunc.length; i++) {
+        strTarget += '<w2:row style="" id="frow' + i + '">';
+        strTarget += '<w2:column style="" inputType="text" id="fcol' + i + '_1" value="합계"></w2:column>';
+        strTarget += '<w2:column style="" inputType="text" id="fcol' + i + '_2" value="' + arrFunc[i] + '"></w2:column>';
+        strTarget += '<w2:column style="" inputType="expression" id="fcol' + i + '_3" expression="' + arrFunc[i] + '(\'amount\')"' + attrSum + '></w2:column>';
+        strTarget += '</w2:row>';
+    }
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Row 별 저장값 -> amount 셀 표시값 출력
+//  - validation 1, 4, 6, 8 : 적용된 dataType (getColumnOption) 과 표시값
+//  - validation 5, 7, 9 : 통화 dataType 의 천단위 / 소수점 구분자 (inputType, displayFormat 조건별)
+scwin.btn_checkCell_onclick = function () {
+    let colIndex = target1.getColumnIndex("amount");
+    let cnt = dlt_bind.getRowCount();
+    let arr = [];
+    arr.push("amount dataType : " + target1.getColumnOption("amount", "dataType"));
+    for (let r = 0; r < cnt; r++) {
+        let td = target1.render.querySelector("td[id*='" + target1.id + "_cell_" + r + "_" + colIndex + "']");
+        let cellText = td ? td.textContent : "";
+        arr.push("Row " + r + " 저장값 : " + target1.getCellData(r, "amount") + " -> 표시값 : " + cellText);
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(arr.join("\n"));
+}
+
+
+
+// Footer / SubTotal 계산값 출력
+//  - validation 2, 3, 10, 11 : 합계·평균·최대·최소 결과의 자릿수 (number/float 12 자리 반올림 vs bigDecimal 정밀 연산)
+//  - validation 12 : Footer / SubTotal dataType 미설정 시 표시 포맷 (대상 Body Column dataType 적용 여부)
+scwin.btn_checkSum_onclick = function () {
+    let arr = [];
+    arr.push("정밀 계산값 : " + scwin.getExactText());
+    let footRows = target1.render.querySelectorAll("table[id$='_foot_table'] tr");
+    for (let i = 0; i < footRows.length; i++) {
+        let tds = footRows[i].querySelectorAll("td");
+        if (tds.length < 2) continue;
+        arr.push("Footer " + tds[tds.length - 2].textContent + " : " + tds[tds.length - 1].textContent);
+    }
+    let subRows = target1.render.querySelectorAll("tr[data-subtotalrowindex]");
+    for (let i = 0; i < subRows.length; i++) {
+        if (subRows[i].style.display === "none") continue;
+        let tds = subRows[i].querySelectorAll("td");
+        arr.push("SubTotal " + scwin.getSubGroup(subRows[i]) + " " + tds[tds.length - 2].textContent + " : " + tds[tds.length - 1].textContent);
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(arr.join("\n"));
+}
+
+
+
+// SubTotal Row 위쪽 데이터 Row 의 그룹값 (SubTotal 4 Row 가 연속이므로 데이터 Row 까지 거슬러 올라감)
+scwin.getSubGroup = function (tr) {
+    let prev = tr.previousElementSibling;
+    while (prev && prev.getAttribute("data-subtotalrowindex") !== null) {
+        prev = prev.previousElementSibling;
+    }
+    let td = prev ? prev.querySelector("td[id*='" + target1.id + "_cell_']") : null;
+    return td ? td.textContent : "";
+}
+
+
+
+// 저장값 그대로(소수 6 자리를 정수로 환산) 계산한 sum / avg 정밀값 : 전체(Footer 비교용) / 그룹별(SubTotal 비교용)
+scwin.getExactText = function () {
+    let cnt = dlt_bind.getRowCount();
+    let hash = { "전체" : [] };
+    for (let r = 0; r < cnt; r++) {
+        let g = dlt_bind.getCellData(r, "grp");
+        let n = BigInt(String(dlt_bind.getCellData(r, "amount")).replace(/[.,]/, ""));
+        hash["전체"].push(n);
+        if (!hash[g]) hash[g] = [];
+        hash[g].push(n);
+    }
+    // 정수 환산값 -> 소수 문자열 (scale = 소수 자릿수)
+    let toDec = function (big, scale) {
+        let str = big.toString().padStart(scale + 1, "0");
+        let res = str.substring(0, str.length - scale) + "." + str.substring(str.length - scale);
+        return res.replace(/0+$/, "").replace(/[.]$/, "");
+    };
+    let arr = [];
+    for (let key in hash) {
+        let sum = hash[key].reduce(function (a, b) { return a + b; }, 0n);
+        let avg = sum * 10n / BigInt(hash[key].length);
+        arr.push(key + " sum=" + toDec(sum, 6) + ", avg=" + toDec(avg, 7));
+    }
+    return arr.join(" / ");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>float</xf:label>
+												<xf:value>float</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>bigDecimal</xf:label>
+												<xf:value>bigDecimal</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>euro</xf:label>
+												<xf:value>euro</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>rupee</xf:label>
+												<xf:value>rupee</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>tenge</xf:label>
+												<xf:value>tenge</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textarea</xf:label>
+												<xf:value>textarea</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,###.##</xf:label>
+												<xf:value>set</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Footer/SubTotal dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_sumDataType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>Body Column 과 동일</xf:label>
+												<xf:value>body</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSum_onclick" id="btn_checkSum"
+							label="Footer, SubTotal 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

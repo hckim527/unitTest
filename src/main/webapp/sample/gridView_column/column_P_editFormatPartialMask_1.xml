@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] editFormatPartialMask" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > editFormatPartialMask]<br/>inputType='text' 인 Column 에서 마스킹 처리된 범위에 값을 입력할때 마지막으로 입력된 값의 표시 여부를 설정합니다.",
+    "validation" : [
+        "Column 의 editFormat 속성에 '{,}'(중괄호) 기호로 설정된 마스크 문자가 있고, editDisplayChar 속성이 설정된 상태에서 해당 범위에 값을 입력할때 동작합니다.",
+        "true 설정 시, 마스킹 범위의 마지막 입력값을 그대로 표시합니다.",
+        "true 설정 시, 마지막 입력값은 다음 값이 입력되거나 포커스가 해제될때 editDisplayChar 속성의 문자로 변경됩니다.",
+        "false 설정 시, 마스킹 범위의 모든 입력값을 editDisplayChar 속성의 문자로 표시합니다.",
+        "미설정 시, 마스킹 범위의 모든 입력값을 editDisplayChar 속성의 문자로 표시합니다.",
+        "바인딩된 DataList 에는 editFormat 속성의 포맷이 제거된 상태로 반영됩니다.",
+        "Column 의 editFormat 속성값에 한글 입력을 위한 'K' 토큰이 포함되어 있으면 editFormatPartialMask 속성은 무시됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // editFormat 별 Row 0 바인딩 값 (KK{KKK} 는 한글 입력이 들어가도록 빈 값으로 시작)
+    "rowValues" : {
+        "######-#{######}" : "9001011234567",
+        "######-#######" : "9001011234567",
+        "KK{KKK}" : ""
+    },
+    // 편집 중 입력창 값 기록 (셀 더블클릭 시 초기화)
+    "editRow" : -1,
+    "editValue" : []
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_editFormatPartialMask.setValue("2");
+    con_editFormat.setValue("######-#{######}");
+    con_editDisplayChar.setValue("*");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - raw : 원본값 Column (readOnly)
+//  - val : 검증 대상 Column (inputType=text, editFormatPartialMask / editFormat / editDisplayChar 를 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editRow = -1;
+    scwin.gVar.editValue = [];
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] 조건 선택 -> Target 재생성 -> 결과창 clear -> val 셀 더블클릭 -> 한 자씩 입력 (기존 값은 대체됨, 숫자 예: 8505052345678 / KK{KKK} 는 빈 셀에 한글 예: 부산광역시) -> 셀 밖 클릭으로 포커스 해제 -> 셀 표시값 확인\n[확인] 키 입력마다 기록된 편집 중 입력창 값, 포커스 해제 후 셀 표시값과 DataList 값"', '', 'label1');
+
+    let cPartialMask = con_editFormatPartialMask.getText();
+    let cEditFormat = con_editFormat.getValue();
+    let cEditDisplayChar = con_editDisplayChar.getValue();
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="raw" name="raw" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let rowValue = scwin.gVar.rowValues[cEditFormat] || "";
+    dlt_bind.setJSON([{ "raw" : rowValue, "val" : rowValue }], false);
+
+    // val Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrVal = ' inputType="text" dataType="text" editFormat="' + cEditFormat + '"';
+    if (cEditDisplayChar !== '') {
+        attrVal += ' editDisplayChar="' + cEditDisplayChar + '"';
+    }
+    if (cPartialMask !== '') {
+        attrVal += ' editFormatPartialMask="' + cPartialMask + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:80px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="원본값"></w2:column>';
+    strTarget += '<w2:column width="340" style="" inputType="text" id="column2" value="val (' + cEditFormat + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="raw" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="340" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록
+    //  - 셀 더블클릭(편집 진입) 시 기록을 초기화하고 편집 진입 직후 입력창 값을 첫 값으로 기록
+    //  - 키를 뗄 때마다 입력창 값 기록
+    target1.render.addEventListener("dblclick", function () {
+        scwin.gVar.editValue = [];
+        setTimeout(function () {
+            scwin.gVar.editRow = target1.getFocusedRowIndex();
+            let elem = document.activeElement;
+            if (elem && elem.tagName === "INPUT" && target1.render.contains(elem)) {
+                scwin.gVar.editValue.push(elem.value);
+            }
+        }, 0);
+    }, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+    // 한글(K 토큰) 입력 기록 : 조합 중이 아닌 입력과 조합 완료 시점의 입력창 값 기록
+    target1.render.addEventListener("input", function (e) {
+        if (!e.isComposing) {
+            scwin.recordEditValue(e);
+        }
+    }, true);
+    target1.render.addEventListener("compositionend", scwin.recordEditValue, true);
+}
+
+
+
+// 편집 중 키를 뗄 때마다 입력창 값을 기록 (입력창의 포맷 처리가 끝난 뒤의 값을 읽는다)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    if (!elem || elem.tagName !== "INPUT") {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue;
+        if (arr.length === 0 || arr[arr.length - 1] !== elem.value) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// val 셀의 화면 표시값
+scwin.getCellText = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_1']");
+    return td ? td.textContent : "";
+}
+
+
+
+// 설정 조건, 편집 중 입력창 값, 포커스 해제 후 셀 표시값 / DataList 값 출력
+//  - validation 1 : editFormat 중괄호 유무 / editDisplayChar 설정 유무별 편집 중 입력창 값
+//  - validation 2, 4, 5, 7 : editFormatPartialMask (true / false / 미설정) 및 editFormat 별 편집 중 입력창 값
+//  - validation 3 : 다음 값 입력 시 직전 입력값 변경(입력창 값 기록), 포커스 해제 후 셀 표시값
+//  - validation 6 : DataList 값
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cPartialMask = con_editFormatPartialMask.getText();
+    let cEditDisplayChar = con_editDisplayChar.getValue();
+
+    bottom.setReturnValue("editFormatPartialMask : " + (cPartialMask === '' ? "(미설정)" : cPartialMask) + " / editFormat : " + con_editFormat.getValue() + " / editDisplayChar : " + (cEditDisplayChar === '' ? "(미설정)" : cEditDisplayChar));
+
+    // 편집했을 때만 편집 줄을 출력한다
+    if (scwin.gVar.editRow >= 0 && scwin.gVar.editValue.length > 0) {
+        bottom.setReturnValue("Row " + scwin.gVar.editRow + " 편집 중 입력창 값 : " + scwin.gVar.editValue.join(" > "));
+    }
+    bottom.setReturnValue("셀 표시값 : " + scwin.getCellText(0) + " -> DataList 값 : " + dlt_bind.getCellData(0, "val"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editFormatPartialMask" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editFormatPartialMask" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>######-#{######}</xf:label>
+												<xf:value>######-#{######}</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>######-#######</xf:label>
+												<xf:value>######-#######</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>KK{KKK}</xf:label>
+												<xf:value>KK{KKK}</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editDisplayChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editDisplayChar" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>*</xf:label>
+												<xf:value>*</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

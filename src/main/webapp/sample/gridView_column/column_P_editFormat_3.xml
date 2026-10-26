@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] editFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 담당 범위(3개 분할 중 _3) : maxLength 무시 / applyFormat 'all' 동작 / displayFormat·displayFormatter·ioFormat 설정 시 표시값 미적용 / embeddedInput=true 예외 / DataList 포맷 제거 반영
+//  - 마스크 문자별 입력 제한은 _1, 특수 기호(||, {,}, !) 는 _2 에서 다룬다.
+scwin.tData = {
+    "description" : "[column > P > editFormat]<br/>inputType='text' 인 Column 에 값을 입력중이거나 값이 표시될때 적용할 포맷을 마스크 문자로 설정합니다.",
+    "validation" : [
+        "editFormat 속성 설정 시 Column 의 maxLength 속성은 무시됩니다.",
+        "editFormat 속성 설정 시 Column 의 applyFormat 속성이 'all' 로 동작하여 값을 입력중일때와 값이 표시될때 모두 동일 포맷이 적용됩니다.",
+        "단, Column 의 displayFormat, displayFormatter, ioFormat 속성이 하나라도 설정되면 표시되는 값에 editFormat 속성이 적용되지 않습니다.",
+        "Column 의 embeddedInput=true 이면 displayFormat, ioFormat 속성이 무시되고 editFormat 속성이 적용됩니다.",
+        "바인딩된 DataList 에는 editFormat 속성의 포맷이 제거된 상태로 반영됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 편집 중 키를 뗄 때마다 기록한 입력창 값 (셀 더블클릭 시 초기화)
+    "editValue" : []
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_editFormat.setValue("###-####-####");
+    con_maxLength.setValue("");
+    con_applyFormat.setValue("");
+    con_displayFormat.setValue("");
+    con_displayFormatter.setValue("");
+    con_ioFormat.setValue("");
+    con_embeddedInput.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// displayFormatter 사용자 정의 함수 : 값을 대괄호로 감싸 반환
+scwin.fmt_bracket = function (data) {
+    if (data === "" || data === null || typeof data === "undefined") {
+        return data;
+    }
+    return "[" + data + "]";
+}
+
+
+
+// comp 생성
+//  - guide : 입력 방법 안내 Column (readOnly)
+//  - val   : 검증 대상 Column (inputType=text, dataType=text, con 값으로 editFormat / maxLength / applyFormat / displayFormat / displayFormatter / ioFormat / embeddedInput 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = [];
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Row 0 은 01012345678 바인딩, Row 1 은 빈값\n[절차] 조건 선택 -> Target 재생성 -> 결과창 clear -> Row 1 val 셀 더블클릭 -> 0101234567899 를 한 자씩 입력 -> 결과창 클릭으로 포커스 해제 -> 셀 값 확인\n[확인] 편집 중 입력창 값(입력 가능 자릿수), 포커스 해제 후 셀 표시값, Row 0 셀 표시값, DataList 저장값"', '', 'label1');
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cEditFormat = con_editFormat.getValue();
+    let cMaxLength = con_maxLength.getValue();
+    let cApplyFormat = con_applyFormat.getValue();
+    let cDisplayFormat = con_displayFormat.getValue();
+    let cDisplayFormatter = con_displayFormatter.getValue();
+    let cIoFormat = con_ioFormat.getValue();
+    let cEmbeddedInput = con_embeddedInput.getText();
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "guide" : "표시 확인 : 01012345678", "val" : "01012345678" },
+        { "guide" : "입력 확인 : 0101234567899", "val" : "" }
+    ], false);
+
+    // val Column 속성
+    let attrVal = ' inputType="text" dataType="text"';
+    if (cEditFormat !== '') {
+        attrVal += ' editFormat="' + cEditFormat + '"';
+    }
+    if (cMaxLength !== '') {
+        attrVal += ' maxLength="' + cMaxLength + '"';
+    }
+    if (cApplyFormat !== '') {
+        attrVal += ' applyFormat="' + cApplyFormat + '"';
+    }
+    if (cDisplayFormat !== '') {
+        attrVal += ' displayFormat="' + cDisplayFormat + '"';
+    }
+    if (cDisplayFormatter !== '') {
+        attrVal += ' displayFormatter="' + cDisplayFormatter + '"';
+    }
+    if (cIoFormat !== '') {
+        attrVal += ' ioFormat="' + cIoFormat + '"';
+    }
+    if (cEmbeddedInput !== '') {
+        attrVal += ' embeddedInput="' + cEmbeddedInput + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column1" value="확인 방법"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column2" value="val"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="240" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록 (셀 더블클릭(편집 진입) 시 기록 초기화)
+    target1.render.addEventListener("dblclick", function () {
+        scwin.gVar.editValue = [];
+    }, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+}
+
+
+
+// 편집 중 키를 뗄 때마다 입력창 값을 기록 (입력창의 포맷 처리가 끝난 뒤의 값을 읽는다)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    if (!elem || elem.tagName !== "INPUT") {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue;
+        if (arr.length === 0 || arr[arr.length - 1] !== elem.value) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// val 셀의 화면 표시값 (embeddedInput 은 셀 입력창 값, 그 외는 셀 텍스트)
+scwin.getCellText = function (rowIndex) {
+    let td = document.querySelector("td[id*='target1_cell_" + rowIndex + "_1']");
+    if (!td) {
+        return "";
+    }
+    let input = td.querySelector("input");
+    if (input) {
+        return "입력창 값 " + input.value;
+    }
+    return td.textContent;
+}
+
+
+
+// 설정값과 Row 0 표시값 / Row 1 편집 중 입력창 값·포커스 해제 후 표시값 / DataList 저장값 출력
+//  - validation 2, 3, 4 : Row 0 셀 표시값 (editFormat 적용 여부)
+//  - validation 1, 2    : Row 1 편집 중 입력창 값 (maxLength 초과 입력 여부, 입력중 포맷)
+//  - validation 5       : DataList 저장값 (포맷 제거)
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let arrCon = [
+        ["editFormat", con_editFormat.getValue()],
+        ["maxLength", con_maxLength.getValue()],
+        ["applyFormat", con_applyFormat.getValue()],
+        ["displayFormat", con_displayFormat.getValue()],
+        ["displayFormatter", con_displayFormatter.getValue()],
+        ["ioFormat", con_ioFormat.getValue()],
+        ["embeddedInput", con_embeddedInput.getText()]
+    ];
+    bottom.setReturnValue(arrCon.map(function (item) {
+        return item[0] + " : " + (item[1] === '' ? "(미설정)" : item[1]);
+    }).join(" / "));
+
+    bottom.setReturnValue("Row 0 셀 표시값 : " + scwin.getCellText(0) + " / DataList 저장값 : " + dlt_bind.getCellData(0, "val"));
+
+    // Row 1 을 편집하지 않았으면 출력하지 않는다
+    let cellData = dlt_bind.getCellData(1, "val");
+    if (scwin.gVar.editValue.length === 0 && (cellData === "" || cellData === null)) {
+        return;
+    }
+    bottom.setReturnValue("Row 1 편집 중 입력창 값 : " + scwin.gVar.editValue.join(" > ")
+        + " -> 포커스 해제 후 셀 표시값 : " + scwin.getCellText(1) + " / DataList 저장값 : " + cellData);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>###-####-####</xf:label>
+												<xf:value>###-####-####</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxLength" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maxLength" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>5</xf:label>
+												<xf:value>5</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="applyFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_applyFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>display</xf:label>
+												<xf:value>display</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>###.####.####</xf:label>
+												<xf:value>###.####.####</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormatter" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.fmt_bracket</xf:label>
+												<xf:value>scwin.fmt_bracket</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ioFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ioFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yyyyMMdd</xf:label>
+												<xf:value>yyyyMMdd</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

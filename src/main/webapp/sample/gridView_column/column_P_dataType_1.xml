@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] dataType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 담당 범위(3개 분할 중 _1) : 기본 데이터 유형 text / number / float / date / time / boolean
+//  - 표시 포맷 / 입력 제한 / 정렬 방식 차이를 관측한다.
+//  - "" (미설정) / DataList 상속 / 유형 결정 규칙은 _2, bigDecimal / 통화 / 12자리 반올림 / Footer, SubTotal 합계는 _3 에서 검증
+scwin.tData = {
+    "description" : "[column > P > dataType]<br/>Column 의 데이터 유형을 설정합니다.",
+    "validation" : [
+        "속성값에 따라 표시 포맷, 입력 제한, 정렬 방식, Footer 와 SubTotal 의 합계 계산 방식 등이 달라집니다.",
+        "text 설정 시, Column 의 데이터 유형을 문자열로 설정합니다.",
+        "number 설정 시, Column 의 데이터 유형을 숫자로 설정합니다.",
+        "number 설정 시, inputType='text' 인 Cell 을 편집할때 displayFormat 속성이 없으면 숫자, '+', '-', '.' 만 입력할 수 있습니다.",
+        "float 설정 시, Column 의 데이터 유형을 소수점이 있는 숫자로 설정합니다.",
+        "date 설정 시, Column 의 데이터 유형을 날짜로 설정합니다.",
+        "time 설정 시, Column 의 데이터 유형을 시간으로 설정합니다.",
+        "boolean 설정 시, Column 의 데이터 유형을 Bool 로 설정합니다.",
+        "boolean 설정 시, 값을 true/false 로 제한하거나 변환하지 않습니다.",
+    ]
+}
+
+
+
+// dataType 별 바인딩 데이터 (Row 0 ~ Row 3)
+//  - text / number 는 같은 값을 사용하여 정렬 방식(문자열 순 / 숫자 크기 순) 차이를 비교한다.
+scwin.gVar = {
+    "rowData" : {
+        "text" : ["10", "9", "100", "-5"],
+        "number" : ["10", "9", "100", "-5"],
+        "float" : ["1.5", "10.25", "9.75", "-0.5"],
+        "date" : ["20250115", "20241231", "20250101", "20240229"],
+        "time" : ["0930", "1405", "0800", "2359"],
+        "boolean" : ["true", "false", "1", "Y"]
+    },
+    // 편집 중 키를 뗄 때마다 기록한 입력창 값 (셀 더블클릭 시 초기화)
+    "editValue" : []
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_dataType.setValue("number");
+    con_inputType.setValue("text");
+    con_displayFormat.setValue("");
+    scwin.con_dataType_onviewchange();
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// inputType / displayFormat 은 number 의 입력 제한 전제 확인용이므로 dataType=number 일 때만 활성화
+scwin.con_dataType_onviewchange = function () {
+    let isNumber = (con_dataType.getValue() === "number");
+    con_inputType.setDisabled(!isNumber);
+    con_displayFormat.setDisabled(!isNumber);
+}
+
+
+
+// 현재 조건의 inputType / displayFormat (number 외에는 inputType=text, displayFormat 미설정 고정)
+scwin.getCondition = function () {
+    let isNumber = (con_dataType.getValue() === "number");
+    return {
+        "dataType" : con_dataType.getValue(),
+        "inputType" : isNumber ? con_inputType.getValue() : "text",
+        "displayFormat" : isNumber ? con_displayFormat.getValue() : ""
+    };
+}
+
+
+
+// comp 생성
+//  - raw : 원본값 표시 Column (readOnly, 정렬 제외)
+//  - val : 검증 대상 Column (dataType 을 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = [];
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 바인딩 DataList 의 Column dataType 은 text 고정, number 외 dataType 은 inputType=text / displayFormat 미설정 고정\n[절차] 조건 선택 -> Target 재생성 -> 셀 표시값 확인 / val 헤더 클릭(정렬) 후 셀 표시값 확인 / 결과창 clear -> val 셀 더블클릭 -> 12a+-.b3 입력 -> 셀 밖 클릭 후 셀 표시값 확인\n[확인] 원본값 대비 셀 표시값, 정렬 후 Row 순서, 편집 중 입력창 값과 저장값"', '', 'label1');
+
+    let cond = scwin.getCondition();
+    let arrData = scwin.gVar.rowData[cond.dataType];
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용, dataType=text 고정)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="raw" name="raw" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrJSON = [];
+    for (let i = 0; i < arrData.length; i++) {
+        arrJSON.push({ "raw" : arrData[i], "val" : arrData[i] });
+    }
+    dlt_bind.setJSON(arrJSON, false);
+
+    // val Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrVal = ' inputType="' + cond.inputType + '" dataType="' + cond.dataType + '"';
+    if (cond.displayFormat !== '') {
+        attrVal += ' displayFormat="' + cond.displayFormat + '"';
+    }
+
+    // target 생성 (헤더 클릭 정렬, 원본값 Column 은 정렬 제외)
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" sortable="true" sortEvent="onclick" id="" style="width:560px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column1" value="원본값" sortable="false"></w2:column>';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column2" value="val (' + cond.dataType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="raw" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="300" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록 (셀 더블클릭(편집 진입) 시 기록 초기화)
+    target1.render.addEventListener("dblclick", function () {
+        scwin.gVar.editValue = [];
+    }, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+}
+
+
+
+// 편집 중 키를 뗄 때마다 입력창 값을 기록 (입력창의 입력 제한 처리가 끝난 뒤의 값을 읽는다)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    if (!elem || (elem.tagName !== "INPUT" && elem.tagName !== "TEXTAREA")) {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue;
+        if (arr.length === 0 || arr[arr.length - 1] !== elem.value) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// 설정 조건과 Row 별 원본값 -> 셀 표시값 / 저장값 출력 (화면에 보이는 Row 순서)
+//  - validation 1 : dataType 별 표시 포맷 / 입력 제한 / 정렬 결과 비교
+//  - validation 2, 3, 5 : text / number / float 의 헤더 클릭 정렬 후 Row 순서 (문자열 순 / 숫자 크기 순)
+//  - validation 6, 7 : date / time 의 셀 표시값 (날짜 / 시간 포맷)
+//  - validation 4 : 편집 중 입력창 값 (inputType / displayFormat 조건별)
+//  - validation 8, 9 : boolean 의 셀 표시값 / 저장값 (원본값 그대로, 편집 입력값 그대로)
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cond = scwin.getCondition();
+
+    bottom.setReturnValue("dataType : " + target1.getColumnOption("val", "dataType")
+        + " / inputType : " + cond.inputType
+        + " / displayFormat : " + (cond.displayFormat === '' ? "(미설정)" : cond.displayFormat));
+
+    if (scwin.gVar.editValue.length > 0) {
+        bottom.setReturnValue("편집 중 입력창 값 : " + scwin.gVar.editValue.join(" > "));
+    }
+
+    for (let i = 0; i < target1.getDataLength(); i++) {
+        bottom.setReturnValue("Row " + i + " 원본값 : " + target1.getCellData(i, "raw")
+            + " -> 셀 표시값 : " + target1.getCellDisplayData(i, "val")
+            + " / 저장값 : " + target1.getCellData(i, "val"));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onviewchange="scwin.con_dataType_onviewchange" id="con_dataType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>float</xf:label>
+												<xf:value>float</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>date</xf:label>
+												<xf:value>date</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>time</xf:label>
+												<xf:value>time</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>boolean</xf:label>
+												<xf:value>boolean</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textarea</xf:label>
+												<xf:value>textarea</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,###</xf:label>
+												<xf:value>#,###</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

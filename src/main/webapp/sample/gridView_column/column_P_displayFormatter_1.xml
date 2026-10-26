@@ -1,0 +1,509 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] displayFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 담당 범위(2개 분할 중 _1) : 무시 inputType / 표시 관련 속성 무시 / 파라미터·반환값 / customFormatter 연동 / DataList 미반영 / 실행 시점 / dataType 표시 포맷 미적용
+//  - embeddedInput, escape, applyFormat=all, secret, textarea 조건은 _2 에서 다룬다
+scwin.tData = {
+    "description" : "[column > P > displayFormatter]<br/>Column 이 편집 상태가 아닐때 표시될 Column 값을 반환하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='checkbox', 'radio', 'image', 'select', 'checkcombobox', 'autoComplete' 이면 displayFormatter 속성은 무시됩니다.",
+        "Column 에 displayFormatter 속성이 적용되면 displayFormat, maskFormat, ioFormat 등 표시와 관계된 속성은 무시됩니다.",
+        "함수 이름 설정 시, 사용자 정의 함수의 파라미터로 Column 의 실제값이 전달됩니다.",
+        "함수 이름 설정 시, 사용자 정의 함수의 반환값이 Column 에 표시되는 값으로 적용됩니다.",
+        "Column 의 customFormatter 속성이 함께 설정되면 사용자 함수의 반환값이 customFormatter 사용자 함수의 두 번째 파라미터로 전달되고, Column 의 최종 표시값은 customFormatter 의 반환값으로 결정됩니다.",
+        "displayFormatter 속성의 사용자 함수 반환값은 Column 값 표시에만 사용되며 바인딩된 DataList 의 원본 데이터엔 반영되지 않습니다.",
+        "displayFormatter 속성의 사용자 함수는 Column 이 그려질 때마다 실행되므로, 스크롤이나 데이터 변경으로 같은 값에 대해 여러 번 실행될 수 있습니다.",
+        "displayFormatter 속성이 설정되면 dataType 속성값에 따른 표시 포맷은 적용되지 않고 사용자 함수의 반환값이 표시됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 바인딩 Row 수 (스크롤이 생기도록 GridView 높이보다 많은 Row)
+    "rowCount" : 30,
+    // displayFormatter 사용자 함수 호출 인자 기록 (Target 생성 시 초기화)
+    "formatterCalls" : [],
+    // customFormatter 사용자 함수의 Row 인덱스별 두 번째 파라미터 (Target 생성 시 초기화)
+    "customParams" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_inputType.setValue("text");
+    con_dataType.setValue("text");
+    con_displayFormat.setValue("");
+    con_maskFormat.setValue("");
+    con_ioFormat.setValue("");
+    con_displayFormatter.setValue("scwin.formatter_bracket");
+    con_customFormatter.setValue("");
+    scwin.con_inputType_onviewchange();
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// displayFormatter 로 지정하는 사용자 함수 (전달된 값을 기록하고 대괄호로 감싸 반환)
+scwin.formatter_bracket = function (data) {
+    scwin.gVar.formatterCalls.push(String(data));
+    if (data === "" || data === null || typeof data === "undefined") {
+        return data;
+    }
+    return "[" + data + "]";
+}
+
+
+
+// customFormatter 로 지정하는 사용자 함수 (두 번째 파라미터를 기록하고 앞에 별표를 붙여 반환)
+scwin.custom_star = function (data, formattedData, rowIndex, columnIndex) {
+    scwin.gVar.customParams[rowIndex] = formattedData;
+    return "★ " + formattedData;
+}
+
+
+
+// dataType 은 inputType=text 일 때만 선택 (그 외 inputType 은 text 고정)
+scwin.con_inputType_onviewchange = function () {
+    con_dataType.setDisabled(con_inputType.getValue() !== "text");
+}
+
+
+
+// inputType / dataType 별 Row 데이터 (Row 마다 다른 값)
+scwin.getRowValue = function (cInputType, cDataType, i) {
+    if (cInputType === "checkbox" || cInputType === "radio") {
+        return (i % 2 === 0) ? "1" : "0";
+    }
+    if (cInputType === "image") {
+        return "/cm/images/base/ico_grid_del.svg";
+    }
+    if (cInputType === "select" || cInputType === "checkcombobox" || cInputType === "autoComplete") {
+        return ["A", "B", "C"][i % 3];
+    }
+    if (cDataType === "number") {
+        return String(1250000 + i * 12500);
+    }
+    if (cDataType === "date") {
+        return "202610" + String(i + 1).padStart(2, "0");
+    }
+    return "010" + String(23450000 + i * 1111);
+}
+
+
+
+// comp 생성
+//  - raw : 원본값 Column (readOnly)
+//  - val : 검증 대상 Column (con 값으로 inputType / dataType / displayFormatter 등 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.formatterCalls = [];
+    scwin.gVar.customParams = {};
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 30개 Row 바인딩 (스크롤 발생), dataType 은 val Column 과 DataList 컬럼에 함께 적용 (inputType=text 외에는 text 고정)\n[절차] 조건 선택 -> Target 재생성 -> 셀 표시값 확인\n[절차] 호출 횟수 확인 -> GridView 스크롤 또는 val 셀 더블클릭 후 값 수정 -> 호출 횟수 확인\n[확인] DataList 값, 사용자 함수 인자와 셀 표시값 비교, 호출 횟수 증가 여부"', '', 'label1');
+
+    let cInputType = con_inputType.getValue();
+    let cDataType = (cInputType === "text") ? con_dataType.getValue() : "text";
+    let cDisplayFormat = con_displayFormat.getValue();
+    let cMaskFormat = con_maskFormat.getValue();
+    let cIoFormat = con_ioFormat.getValue();
+    let cDisplayFormatter = con_displayFormatter.getValue();
+    let cCustomFormatter = con_customFormatter.getValue();
+
+    // dataList 생성 (val 컬럼 dataType 은 Column 과 동일)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="raw" name="raw" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="' + cDataType + '"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrData = [];
+    for (let i = 0; i < scwin.gVar.rowCount; i++) {
+        let v = scwin.getRowValue(cInputType, cDataType, i);
+        arrData.push({ "raw" : v, "val" : v });
+    }
+    dlt_bind.setJSON(arrData, false);
+
+    // val Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrVal = ' inputType="' + cInputType + '" dataType="' + cDataType + '"';
+    if (cDisplayFormat !== '') {
+        attrVal += ' displayFormat="' + cDisplayFormat + '"';
+    }
+    if (cMaskFormat !== '') {
+        attrVal += ' maskFormat="' + cMaskFormat + '"';
+    }
+    if (cIoFormat !== '') {
+        attrVal += ' ioFormat="' + cIoFormat + '"';
+    }
+    if (cDisplayFormatter !== '') {
+        attrVal += ' displayFormatter="' + cDisplayFormatter + '"';
+    }
+    if (cCustomFormatter !== '') {
+        attrVal += ' customFormatter="' + cCustomFormatter + '"';
+    }
+
+    // select / checkcombobox / autoComplete 아이템
+    let strChoices = '';
+    if (cInputType === "select" || cInputType === "checkcombobox" || cInputType === "autoComplete") {
+        strChoices += '<w2:choices>';
+        strChoices += '<w2:item><w2:label>최우수</w2:label><w2:value>A</w2:value></w2:item>';
+        strChoices += '<w2:item><w2:label>우수</w2:label><w2:value>B</w2:value></w2:item>';
+        strChoices += '<w2:item><w2:label>보통</w2:label><w2:value>C</w2:value></w2:item>';
+        strChoices += '</w2:choices>';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:180px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column1" value="원본값"></w2:column>';
+    strTarget += '<w2:column width="320" style="" inputType="text" id="column2" value="val (' + cInputType + ' / ' + cDataType + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="raw" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="320" style="" id="val" value=""' + attrVal + '>' + strChoices + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// val 셀의 화면 표시값
+//  - image : img src / checkbox, radio : 체크 상태 / 그 외 : 셀 텍스트
+scwin.getCellText = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_1']");
+    if (!td) {
+        return "";
+    }
+    let img = td.querySelector("img");
+    if (img) {
+        return "img src=" + img.getAttribute("src");
+    }
+    let input = td.querySelector("input");
+    if (input && (input.type === "checkbox" || input.type === "radio")) {
+        return input.type + " checked=" + input.checked;
+    }
+    return td.textContent;
+}
+
+
+
+// 설정 조건, 사용자 함수 호출 인자, Row 0, 1 의 DataList 값 -> 셀 표시값 출력
+//  - validation 1 : inputType 별 사용자 함수 호출 여부와 셀 표시값
+//  - validation 2, 8 : displayFormat / maskFormat / ioFormat / dataType 조건에서의 셀 표시값
+//  - validation 3, 4 : 사용자 함수 인자 (DataList 값과 비교) / 셀 표시값 (반환값)
+//  - validation 5 : customFormatter 두 번째 파라미터와 최종 셀 표시값
+//  - validation 6 : DataList 값이 원본 그대로인지 (셀 표시값과 비교)
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cInputType = con_inputType.getValue();
+    let cDisplayFormatter = con_displayFormatter.getValue();
+    let cCustomFormatter = con_customFormatter.getValue();
+
+    let arrCond = ["inputType : " + cInputType, "dataType : " + target1.getColumnOption("val", "dataType")];
+    if (con_displayFormat.getValue() !== '') {
+        arrCond.push("displayFormat : " + con_displayFormat.getValue());
+    }
+    if (con_maskFormat.getValue() !== '') {
+        arrCond.push("maskFormat : " + con_maskFormat.getValue());
+    }
+    if (con_ioFormat.getValue() !== '') {
+        arrCond.push("ioFormat : " + con_ioFormat.getValue());
+    }
+    arrCond.push("displayFormatter : " + (cDisplayFormatter === '' ? "(미설정)" : cDisplayFormatter));
+    if (cCustomFormatter !== '') {
+        arrCond.push("customFormatter : " + cCustomFormatter);
+    }
+    bottom.setReturnValue(arrCond.join(" / "));
+
+    // Target 생성 시 처음 그려진 Row 0, 1 에 대한 사용자 함수 인자 (호출되지 않으면 호출 안 됨)
+    if (cDisplayFormatter !== '') {
+        let calls = scwin.gVar.formatterCalls;
+        bottom.setReturnValue("displayFormatter 호출 인자 (앞 2건) : " + (calls.length === 0 ? "호출 안 됨" : calls.slice(0, 2).join(", ")));
+    }
+
+    for (let i = 0; i < 2; i++) {
+        let value = target1.getCellData(i, "val");
+        let arrText = ["Row " + i + " DataList 값 : " + value];
+        if (cCustomFormatter !== '') {
+            let param = scwin.gVar.customParams[i];
+            arrText.push("customFormatter 두 번째 인자 : " + (typeof param === "undefined" ? "호출 안 됨" : param));
+        }
+        arrText.push("셀 표시값 : " + scwin.getCellText(i));
+        bottom.setReturnValue(arrText.join(" -> "));
+    }
+}
+
+
+
+// validation 7 : Target 생성 이후 사용자 함수 누적 호출 횟수와 Row 0 값에 대한 호출 횟수 (스크롤 / 셀 값 수정 전후 비교)
+scwin.btn_checkCount_onclick = function () {
+    let calls = scwin.gVar.formatterCalls;
+    let value = String(target1.getCellData(0, "val"));
+    let sameCount = calls.filter(function (v) { return v === value; }).length;
+    wf_body_bottom.getObj("scwin").setReturnValue("사용자 함수 호출 횟수 : 누적 " + calls.length + " 회 / Row 0 값 (" + value + ") " + sameCount + " 회");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onviewchange="scwin.con_inputType_onviewchange" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>checkbox</xf:label>
+												<xf:value>checkbox</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>radio</xf:label>
+												<xf:value>radio</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>image</xf:label>
+												<xf:value>image</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>select</xf:label>
+												<xf:value>select</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>checkcombobox</xf:label>
+												<xf:value>checkcombobox</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>autoComplete</xf:label>
+												<xf:value>autoComplete</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dataType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>date</xf:label>
+												<xf:value>date</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>###-####-####</xf:label>
+												<xf:value>###-####-####</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,###</xf:label>
+												<xf:value>#,###</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yyyy/MM/dd</xf:label>
+												<xf:value>yyyy/MM/dd</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maskFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maskFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>default</xf:label>
+												<xf:value>default</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>reverse</xf:label>
+												<xf:value>reverse</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ioFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ioFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yyyyMMdd</xf:label>
+												<xf:value>yyyyMMdd</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormatter" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.formatter_bracket</xf:label>
+												<xf:value>scwin.formatter_bracket</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="customFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_customFormatter" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.custom_star</xf:label>
+												<xf:value>scwin.custom_star</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCount_onclick" id="btn_checkCount"
+							label="호출 횟수 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

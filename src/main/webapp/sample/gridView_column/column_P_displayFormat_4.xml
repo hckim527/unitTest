@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] displayFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261026" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// displayFormat 분할 _4 : dataType 이 text/date/time 이 아닌 경우(숫자) 축 (propval 그외 마스크 / 숫자 마스크 적용 규칙 6종)
+scwin.tData = {
+    "description" : "[column > P > displayFormat]<br/>Column 이 편집 상태가 아닐때 Column 값이 표시되는 포맷을 마스크 문자로 설정합니다.",
+    "validation" : [
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 : '#', '0', ',', '.' 마스크 문자를 사용하여 포맷 설정",
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 '#' 마스크는 해당 위치에 숫자가 있으면 표시되고 없으면 표시되지 않습니다.",
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 '0' 마스크는 소수 영역에만 사용되며, 해당 위치에 숫자가 있으면 표시되고 없으면 0 으로 표시됩니다.",
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 ',', '.' 마스크는 천단위 구분자와 소수점 위치로 표시됩니다.",
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 소수값이 있을때 마스크 문자 오른쪽에 '[round]', '[floor]', '[ceil]' 을 설정하여 반올림, 버림, 올림을 적용할 수 있습니다.",
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 마스크 포맷 왼쪽과 오른쪽의 일반문자는 그대로 적용됩니다.",
+        "dataType 속성값이 'text', 'date', 'time' 이 아닌 경우 내부 텍스트에 부호와 숫자가 아닌 값이 포함되면 'NaN' 으로 표시됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (가이드 예시 포맷)
+    con_displayFormat.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - raw    : 저장값 원문 표시 Column (dataType=text, readOnly)
+//  - amount : 검증 대상 Column (inputType=text, dataType=number, displayFormat 을 옵션값으로 설정)
+//  - Row 0 : 소수 셋째자리 값 / Row 1 : 소수 한자리 값 / Row 2 : 정수 / Row 3 : 음수 소수값 / Row 4 : 숫자가 아닌 문자 포함
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정
+    let cDisplayFormat = con_displayFormat.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] amount Column 은 inputType=text, dataType=number 고정. 저장값 Column 은 원본 문자열\n[절차] displayFormat 선택 -> Target 재생성 -> (셀 표시값 확인) 클릭\n[확인] Row 별 저장값과 amount 표시값 비교"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용, 문자 포함값 보존을 위해 text 타입)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="raw" name="raw" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrValue = ["1234567.891", "1234.5", "350000", "-9876.555", "12A34"];
+    let jsonData = [];
+    for (let i = 0; i < arrValue.length; i++) {
+        jsonData.push({ "raw" : arrValue[i], "amount" : arrValue[i] });
+    }
+    dlt_bind.setJSON(jsonData, false);
+
+    // amount Column 속성
+    let attrAmount = ' inputType="text" dataType="number"';
+    if (cDisplayFormat !== '') {
+        attrAmount += ' displayFormat="' + cDisplayFormat + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:190px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="저장값"></w2:column>';
+    strTarget += '<w2:column width="340" style="" inputType="text" id="column2" value="amount (number)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" dataType="text" id="raw" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="340" style="" id="amount" value=""' + attrAmount + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Row 별 저장값(getCellData) -> amount 셀 표시값 출력
+//  - validation 1, 4 : 각 포맷에서 천단위 구분자/소수점 위치 표시 결과
+//  - validation 2 : '#' 소수 마스크 포맷에서 Row 1, 2 (소수 자릿수 부족/없음) 표시값
+//  - validation 3 : '0' 소수 마스크 포맷에서 Row 1, 2 표시값 (0 채움)
+//  - validation 5 : [round]/[floor]/[ceil] 포맷별 Row 0, 3 표시값
+//  - validation 6 : 일반문자 포함 포맷의 표시값
+//  - validation 7 : Row 4 (숫자가 아닌 문자 포함) 표시값
+scwin.btn_checkCell_onclick = function () {
+    let colIndex = target1.getColumnIndex("amount");
+    let cnt = dlt_bind.getRowCount();
+    let arr = [];
+    for (let r = 0; r < cnt; r++) {
+        let td = document.querySelector("td[id*='" + target1.id + "_cell_" + r + "_" + colIndex + "']");
+        let cellText = td ? td.textContent : "";
+        arr.push("Row " + r + " 저장값 : " + target1.getCellData(r, "amount") + " -> 표시값 : " + cellText);
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(arr.join("\n"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="displayFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_displayFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>#,##0.00[round]</xf:label>
+												<xf:value>#,##0.00[round]</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,##0.00[floor]</xf:label>
+												<xf:value>#,##0.00[floor]</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,##0.00[ceil]</xf:label>
+												<xf:value>#,##0.00[ceil]</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,###.##</xf:label>
+												<xf:value>#,###.##</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>#,##0.000</xf:label>
+												<xf:value>#,##0.000</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>####.##</xf:label>
+												<xf:value>####.##</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>금액 #,##0원</xf:label>
+												<xf:value>금액 #,##0원</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
