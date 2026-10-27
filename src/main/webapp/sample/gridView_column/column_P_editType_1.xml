@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] editType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261027" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//  - 프로젝트 config.xml : WebSquare/gridView/column[@inputType="text"]/editType/@value = select, 다른 inputType 은 항목 없음
+scwin.tData = {
+    "description" : "[column > P > editType]<br/>Cell 이 편집 모드로 변경될 때 입력란에 표시된 값을 선택할지 설정합니다.",
+    "validation" : [
+        "편집이 가능한 inputType='text','secret','textImage','drilldown','textarea','calendar','spinner' 인 Column 에서 동작합니다.",
+        "미설정 시, config.xml 파일의 WebSquare/gridView/column[@inputType={value}]/editType/@value 항목에 설정한 값이 적용됩니다.",
+        "미설정 시, config.xml 파일에 해당 항목이 설정되지 않으면 'focus' 가 적용됩니다.",
+        "focus 설정 시, 마우스가 클릭된 위치 또는 입력값 마지막 위치에 Caret 이 표시되며 포커스됩니다.",
+        "focus 설정 시, inputType='text','secret','textImage' 인 Column 은 커서가 입력값의 맨 끝에 위치합니다.",
+        "select 설정 시, 입력값 전체가 선택되며 포커스됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Column id -> inputType
+    "inputTypes" : {
+        "txt" : "text",
+        "sec" : "secret",
+        "timg" : "textImage",
+        "dd" : "drilldown",
+        "area" : "textarea",
+        "cal" : "calendar",
+        "spn" : "spinner"
+    },
+    // 조작 중인 셀 / 출력 타이머 (클릭 묶음 단위로 1회 출력)
+    "pending" : null,
+    "timer" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (editType 미설정)
+    con_editType.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 7종 Body Column (text / secret / textImage / drilldown / textarea / calendar / spinner) 에 editType = con_editType 일괄 적용
+//  - GridView editModeEvent 는 미설정 (기본 ondblclick)
+//  - 셀 더블클릭(편집 진입) 후 포커스된 입력창의 값 길이와 selectionStart / selectionEnd 를 결과창에 자동 출력
+scwin.comp_init = async function () {
+    // 기존 타이머 / target / dataList / label 삭제
+    if (scwin.gVar.timer) {
+        clearTimeout(scwin.gVar.timer);
+    }
+    scwin.gVar.pending = null;
+    scwin.gVar.timer = null;
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 프로젝트 config.xml 은 inputType=text 만 editType=select 설정, 다른 inputType 은 항목 없음\n[절차] editType 선택 -> Target 재생성 -> 셀 밖 클릭 -> 셀 값의 가운데 또는 끝을 더블클릭하여 편집 진입\n[확인] 진입마다 입력창 값 길이와 selectionStart / selectionEnd 자동 출력 (전체 선택 = 0 ~ 길이, 입력값 마지막 위치 Caret = 길이 ~ 길이, 더블클릭 위치와 관계없이 확인)"', '', 'label1');
+
+    // 조건 설정 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cEditType = con_editType.getValue();
+    let attrCol = (cEditType === '') ? '' : ' editType="' + cEditType + '"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용, depth 는 drilldown 단계)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="txt" name="txt" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="sec" name="sec" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="timg" name="timg" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dd" name="dd" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="area" name="area" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="spn" name="spn" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "txt" : "InswaveSystems", "sec" : "password1234", "timg" : "report_2026.pdf", "dd" : "영업본부 수도권", "area" : "서울시 강남구 테헤란로", "cal" : "20260105", "spn" : "1250000", "depth" : "1" },
+        { "txt" : "WebSquare Studio", "sec" : "qwerty5678", "timg" : "invoice_1027.xlsx", "dd" : "영업1팀 강남지점", "area" : "부산시 해운대구 센텀로", "cal" : "20260210", "spn" : "980000", "depth" : "2" }
+    ], false);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:1000px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column1" value="txt (text)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column2" value="sec (secret)"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column3" value="timg (textImage)"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column4" value="dd (drilldown)"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="column5" value="area (textarea)"></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="column6" value="cal (calendar)"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column7" value="spn (spinner)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="txt" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="secret" id="sec" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="textImage" id="timg" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="drilldown" depthColumn="depth" showDepth="2" id="dd" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="textarea" id="area" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" id="cal" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="spinner" id="spn" value=""' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 셀 클릭 감시 (capture 단계)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("click", scwin.target1_clickCapture, true);
+    }
+}
+
+
+
+// 셀 클릭 묶음 집계
+//  - Body 셀(td) 첫 클릭 시점에 조작 셀을 기록하고, 이어지는 클릭(편집창 위 클릭 포함)은 클릭 횟수(e.detail)만 갱신
+//  - 마지막 클릭 400ms 후 1회 출력 (더블클릭은 1회로 묶임)
+scwin.target1_clickCapture = function (e) {
+    let pending = scwin.gVar.pending;
+    if (pending) {
+        pending.detail = Math.max(pending.detail, e.detail);
+    } else {
+        let td = e.target.closest ? e.target.closest("td[id*='" + target1.id + "_cell_']") : null;
+        let match = td ? td.id.match(/_cell_(\d+)_(\d+)$/) : null;
+        if (!match) {
+            return;
+        }
+        pending = {
+            "rowIndex" : Number(match[1]),
+            "colId" : target1.getColumnID(Number(match[2])),
+            "detail" : e.detail
+        };
+        scwin.gVar.pending = pending;
+    }
+    if (scwin.gVar.timer) {
+        clearTimeout(scwin.gVar.timer);
+    }
+    scwin.gVar.timer = setTimeout(scwin.reportSelection, 400);
+}
+
+
+
+// 조작 셀 -> 포커스된 입력창의 값 길이 / selectionStart / selectionEnd 출력
+//  - validation 1 : 7종 Column 모두 editType 에 맞는 선택 상태로 포커스
+//  - validation 2, 3 : 미설정 시 text = select (config 항목), 다른 inputType = focus (config 항목 없음)
+//  - validation 4 : focus 시 Caret 이 입력값 마지막 위치(길이 ~ 길이)
+//  - validation 5 : focus 시 text / secret / textImage 는 길이 ~ 길이
+//  - validation 6 : select 시 0 ~ 길이
+//  - secret 은 값이 마스킹되므로 selection 범위만 비교한다
+scwin.reportSelection = function () {
+    let p = scwin.gVar.pending;
+    scwin.gVar.pending = null;
+    scwin.gVar.timer = null;
+    if (!p) {
+        return;
+    }
+    let action = (p.detail >= 2) ? "더블클릭" : "클릭";
+    let head = action + " : Row " + p.rowIndex + " / " + p.colId + " (" + scwin.gVar.inputTypes[p.colId] + ") -> ";
+    let elem = document.activeElement;
+    let isInput = elem && (elem.tagName === "INPUT" || elem.tagName === "TEXTAREA") && elem.id.indexOf(target1.id) > -1;
+    if (!isInput) {
+        wf_body_bottom.getObj("scwin").setReturnValue(head + "입력창 포커스 없음 (포커스 요소 : " + (elem ? elem.tagName : "") + ")");
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(head + "값 길이 : " + elem.value.length
+        + ", selectionStart : " + elem.selectionStart + ", selectionEnd : " + elem.selectionEnd);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>focus</xf:label>
+												<xf:value>focus</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>select</xf:label>
+												<xf:value>select</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

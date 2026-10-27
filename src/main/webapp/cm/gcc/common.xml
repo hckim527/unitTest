@@ -1838,6 +1838,30 @@ scwin.createBasicPageControl = async function (cList='', eHandler='', cID='targe
 
 
 
+scwin.createBasicPageFrame = async function (cList='', eHandler='', cID='target1', cParent='') {
+    if (cID === '')
+        cID = 'target1';
+
+    let grp_comp = scwin.getTestGroup(cParent);
+
+    let strTarget = '';
+
+    strTarget += '&lt;w2:pageFrame ' + scwin.strNameSpace + ' ' + cList + ' ' + eHandler + ' style=&quot;width:500px; height:300px; background-color:silver;&quot; id=&quot;&quot; src=&quot;/sample/common_link/pageFrame_link_1.xml&quot;&gt;&lt;/w2:pageFrame&gt;';
+
+    // pageFrame target 생성 (엔진이 mode=async·scope=true 고정. src 페이지 로드 후 반환)
+    scwin[cID] = await $p.dynamicCreate(
+        cID,
+        &quot;pageFrame&quot;,
+        strTarget,
+        grp_comp
+    );
+
+    // 생성된 pageFrame 반환 -> 래퍼가 scwin.target1 로 캡처(커스텀 id 등 대응)
+    return scwin[cID];
+}
+
+
+
 scwin.createBasicPageList = async function (cList='', eHandler='', cID='target1', cParent='') {
     if (cID === '')
         cID = 'target1';
@@ -2328,6 +2352,46 @@ scwin.createBasicSpinner = async function (cList='', eHandler='', cID='target1',
 
 
 
+// Submission 동적 생성 (UI 컴포넌트가 아니므로 $p.dynamicCreate 대신 $p.createSubmission 사용, 실제 통신은 하지 않음)
+//  - sInfo : 기본 submissionInfo 에 병합(덮어쓰기)할 속성 JSON. sInfo.id 가 있으면 cID 대신 사용
+//  - cID   : Submission ID (빈값이면 'target1')
+//  - 동일 ID 가 이미 있으면 createSubmission 이 기존 것을 삭제 후 새로 생성한다(가이드).
+//    ID 를 바꿔 재생성할 때 남는 이전 ID 의 Submission 은 호출 샘플에서 $p.deleteSubmission 으로 정리한다.
+//    (존재하지 않는 ID 로 deleteSubmission 호출 시 엔진이 콘솔 TypeError 를 남기므로 getSubmission 으로 존재 확인 후 삭제)
+//  - 반환 : $p.getSubmission(cID) 객체 (scwin[cID] 에도 보관, 단 공통 함수명과 같은 ID 는 보관 생략). 생성 실패 시 null
+//    Submission 객체는 getID 등 컴포넌트 메소드가 없으므로 ID 는 반환 객체의 id 속성(Scope 접두사 포함, 예: mf_target1)으로 확인
+scwin.createBasicSubmission = async function (sInfo={}, cID='target1') {
+    if (sInfo === null || typeof sInfo !== 'object')
+        sInfo = {};
+
+    if (typeof sInfo.id === 'string' &amp;&amp; sInfo.id !== '')
+        cID = sInfo.id;
+
+    if (cID === '')
+        cID = 'target1';
+
+    let submissionInfo = Object.assign({
+        id : cID,
+        action : '',
+        method : 'post',
+        mediatype : 'application/json'
+    }, sInfo);
+    submissionInfo.id = cID;
+
+    // target 생성
+    $p.createSubmission(submissionInfo);
+
+    let objSubmission = $p.getSubmission(cID);
+
+    // 공통 모듈 함수명(createLabel 등)과 같은 ID 이면 공통 함수가 덮어써지므로 보관하지 않는다
+    if (typeof scwin[cID] !== 'function')
+        scwin[cID] = objSubmission;
+
+    return objSubmission;
+}
+
+
+
 scwin.createBasicSwitch = async function (cList='', eHandler='', cID='target1', cParent='') {
     if (cID === '') 
         cID = 'target1';    
@@ -2503,6 +2567,181 @@ scwin.createBasicTabControl = async function (cList='', eHandler='', cID='target
         strTarget,
         grp_comp
     );
+}
+
+
+
+// tableLayout 동적 생성 (업무 화면 입력 테이블 형태 : colgroup 4열 x tr 3행, 행 구성은 scwin.appendTableLayoutRows)
+//  - 엔진에 tableLayout 전용 플러그인 없음 : xf:group tagname=&quot;table&quot; + class=&quot;w2tb&quot; 가 tableLayout (group.isTableLayout 판정) → pluginName &quot;group&quot;
+//  - dynamicCreate 는 parseChild 설정(기본 미사용) 없이는 자식 태그를 생성하지 않음 → table 을 빈 상태로 먼저 생성 후 appendTableLayoutRows 로 colgroup/col/tr/th/td 를 각각 group 으로 dynamicCreate
+//  - 스타일 : 프로젝트 조회조건 테이블과 동일한 class=&quot;w2tb tbl&quot; (th=w2tb_th, td=w2tb_td) / 너비 600px, inline border 없음 (바깥 tblbox 래퍼는 target 이 table 이어야 하므로 미사용)
+//  - cList 의 class 는 기본 class(w2tb tbl) 뒤에 병합 (class 속성 중복 방지), cList 의 id 는 무시(id 는 cID), 그 외 속성·eHandler 는 table 에 그대로 적용
+//  - subList : 첫 번째 tr/th/td 에 넣을 속성 문자열 { tr:'', th:'', td:'' } (appendTableLayoutRows 설명 참고)
+//  - 하위 요소 객체 조회 : $p.getComponentById(cID + '_th1') 등 (pluginName group) / scwin[하위 id] 에도 보관 (id 가 빈값인 요소는 미보관)
+//  - subList 적용 대상(첫 tr·th·td) 객체는 id 와 관계없이 반환 table 객체의 _sub = { tr, th, td } 로 조회 (appendTableLayoutRows 가 생성 시마다 새로 설정 → 재생성 후 이전 참조 미잔존)
+//      · 공통 모듈 scwin 은 샘플에서 접근 불가하므로 반환 객체에 보관 / subList id 처리 : id=&quot;xxx&quot; → xxx, id=&quot;&quot; → 빈 id(엔진 자동 id, mf_wq_uuid_N 형태), id 미지정 → 기본 규칙 id(cID+'_tr1' / '_th1' / '_td1')
+//  - td/th/tr 샘플 사용 예 (table 은 scwin.tbl1 로 보관·remove, 검증 대상은 scwin.target1, cID = scwin.gVar[&quot;cID&quot;] 빈값이면 자동 id 케이스)
+//      · td : scwin.tbl1 = await $c.gcm.createBasicTableLayout('', '', 'tbl1', '', { td: 'id=&quot;' + cID + '&quot;' });  scwin.target1 = scwin.tbl1._sub.td;  → scwin.target1.getID()
+//      · th : scwin.tbl1 = await $c.gcm.createBasicTableLayout('', '', 'tbl1', '', { th: 'id=&quot;' + cID + '&quot;' });  scwin.target1 = scwin.tbl1._sub.th;  → scwin.target1.getID()
+//      · tr : scwin.tbl1 = await $c.gcm.createBasicTableLayout('', '', 'tbl1', '', { tr: 'id=&quot;' + cID + '&quot;' });  scwin.target1 = scwin.tbl1._sub.tr;  → scwin.target1.getID()
+scwin.createBasicTableLayout = async function (cList='', eHandler='', cID='target1', cParent='', subList={}) {
+    if (cID === '')
+        cID = 'target1';
+
+    let grp_comp = scwin.getTestGroup(cParent);
+
+    // cList : id 제거, class 는 기본 class 뒤에 병합
+    let strAttr = cList || '';
+    let strClass = 'w2tb tbl';
+
+    let arrID = strAttr.match(/(^|\s)id\s*=\s*\x22([^\x22]*)\x22/);
+    if (arrID)
+        strAttr = strAttr.replace(arrID[0], ' ');
+
+    let arrClass = strAttr.match(/(^|\s)class\s*=\s*\x22([^\x22]*)\x22/);
+    if (arrClass) {
+        strClass = (strClass + ' ' + arrClass[2]).trim();
+        strAttr = strAttr.replace(arrClass[0], ' ');
+    }
+
+    // 1) table 생성 (자식 없이 빈 상태, id 는 cID)
+    let strTarget = '';
+    strTarget += '&lt;xf:group ' + scwin.strNameSpace + ' class=&quot;' + strClass + '&quot; ' + strAttr + ' ' + eHandler + ' tagname=&quot;table&quot; style=&quot;width:600px;&quot;&gt;';
+    strTarget += '&lt;/xf:group&gt;';
+
+    scwin[cID] = await $p.dynamicCreate(
+        cID,
+        &quot;group&quot;,
+        strTarget,
+        grp_comp
+    );
+
+    // 2) colgroup + 3행 생성 (subList 적용 대상 객체는 scwin[cID]._sub 에 설정됨)
+    await scwin.appendTableLayoutRows(scwin[cID], cID, subList);
+
+    return scwin[cID];
+}
+
+
+
+// tableLayout(table group) 아래에 업무 화면 입력 테이블 형태의 colgroup 4열 + tr 3행을 동적 생성 (샘플에서 직접 만든 table 에도 사용)
+//  - objTable : 행을 붙일 table group 객체 (xf:group tagname=&quot;table&quot; class=&quot;w2tb ...&quot;)
+//  - 구성 : colgroup = col 120px / col / col 120px / col
+//      · 1행 : th &quot;이름&quot; | td (input, 값 &quot;홍길동&quot;) | th &quot;부서&quot; | td &quot;개발팀&quot;
+//      · 2행 : th &quot;연락처&quot; | td &quot;010-1234-5678&quot; | th &quot;이메일&quot; | td &quot;hong@inswave.com&quot;
+//      · 3행 : th &quot;주소&quot; | td colspan=3 &quot;서울특별시 강남구 테헤란로 1&quot;
+//  - colspan : dynamicCreate 마크업의 colspan=&quot;3&quot; 속성은 렌더 시 누락됨(실측) → tagname 그룹의 HTML 속성 정의 방식인
+//              &lt;w2:attributes&gt;&lt;w2:colspan&gt;3&lt;/w2:colspan&gt;&lt;/w2:attributes&gt; 자식으로 전달 (렌더 td 에 colspan=&quot;3&quot; 반영 실측 확인)
+//  - 하위 요소 id (cPrefix 기준, 행/칸 순서대로 번호) : colgroup = cPrefix+'_colgroup', col = '_col1'~'_col4', tr = '_tr1'~'_tr3',
+//      th/td 는 종류별로 1행 왼쪽부터 행 순서대로 이어서 번호 : 1행 th1·td1·th2·td2 / 2행 th3·td3·th4·td4 / 3행 th5·td5,
+//      1행 이름 td 안 input = cPrefix+'_input1' (자동 id 미사용 → 실행마다 동일)
+//      · cPrefix 가 빈값이면 하위 요소 id 를 모두 빈값으로 생성 (엔진 자동 id), scwin 보관 안 함
+//  - subList : 첫 번째 tr(1행) / 첫 번째 th(&quot;이름&quot;) / 첫 번째 td(이름 td) 에 넣을 속성 문자열 { tr:'', th:'', td:'' }
+//      · class 는 기본 class(th=w2tb_th, td=w2tb_td) 뒤에 병합, id 를 지정하면 기본 id 대체 (id=&quot;&quot; 지정 시 빈 id 로 dynamicCreate)
+//  - objTable._sub = { tr, th, td } : subList 적용 대상(첫 tr / 첫 th / 첫 td) 객체 (id 가 빈값이어도 객체 참조 가능, 호출 시마다 새 객체로 덮어씀)
+//      · 예) await $c.gcm.appendTableLayoutRows(scwin.target1, '', {});  scwin.target1._sub.td.getID() → 자동 id
+//  - 반환 : objTable
+scwin.appendTableLayoutRows = async function (objTable, cPrefix='', subList={}) {
+    if (!subList)
+        subList = {};
+
+    let fnID = function (strSuffix) {
+        return cPrefix ? cPrefix + strSuffix : '';
+    };
+
+    // 속성 문자열에서 id/class 를 분리하여 기본값과 병합 → { id, attr }
+    let fnAttr = function (strAttr, defID, defClass) {
+        strAttr = strAttr || '';
+        let strID = defID;
+        let strClass = defClass;
+
+        let arrID = strAttr.match(/(^|\s)id\s*=\s*\x22([^\x22]*)\x22/);
+        if (arrID) {
+            strID = arrID[2];
+            strAttr = strAttr.replace(arrID[0], ' ');
+        }
+
+        let arrClass = strAttr.match(/(^|\s)class\s*=\s*\x22([^\x22]*)\x22/);
+        if (arrClass) {
+            strClass = (defClass + ' ' + arrClass[2]).trim();
+            strAttr = strAttr.replace(arrClass[0], ' ');
+        }
+
+        let strRet = '';
+        if (strClass !== '')
+            strRet += ' class=&quot;' + strClass + '&quot;';
+
+        return { id: strID, attr: strRet + ' ' + strAttr };
+    };
+
+    // 하위 요소(group) 생성 : tagname / 속성 / style / text / 자식 마크업(w2:attributes 등)
+    let fnCreate = async function (tagname, objAttr, strStyle, strText, objParent, strInner) {
+        let strGroup = '&lt;xf:group ' + scwin.strNameSpace + ' tagname=&quot;' + tagname + '&quot;' + objAttr.attr + ' style=&quot;' + strStyle + '&quot;' + (strText ? ' text=&quot;' + strText + '&quot;' : '') + '&gt;' + (strInner || '') + '&lt;/xf:group&gt;';
+        let objComp = await $p.dynamicCreate(
+            objAttr.id,
+            'group',
+            strGroup,
+            objParent
+        );
+        if (objAttr.id)
+            scwin[objAttr.id] = objComp;
+        return objComp;
+    };
+
+    // 1) colgroup (4열 : th 120px / td / th 120px / td)
+    let objColgroup = await fnCreate('colgroup', fnAttr('', fnID('_colgroup'), ''), '', '', objTable);
+    let arrColWidth = ['width:120px;', '', 'width:120px;', ''];
+    for (let i = 0; i &lt; arrColWidth.length; i++)
+        await fnCreate('col', fnAttr('', fnID('_col' + (i + 1)), ''), arrColWidth[i], '', objColgroup);
+
+    // 2) 행 정의 : 칸 = [tagname, text, colspan]
+    let arrRow = [
+        [['th', '이름'], ['td', ''], ['th', '부서'], ['td', '개발팀']],
+        [['th', '연락처'], ['td', '010-1234-5678'], ['th', '이메일'], ['td', 'hong@inswave.com']],
+        [['th', '주소'], ['td', '서울특별시 강남구 테헤란로 1', 3]]
+    ];
+    let nTh = 0;
+    let nTd = 0;
+    let objNameTd = null;
+    let objSub = { tr: null, th: null, td: null };
+    objTable._sub = objSub;
+
+    for (let r = 0; r &lt; arrRow.length; r++) {
+        // 첫 번째 tr 에 subList.tr 적용
+        let objTr = await fnCreate('tr', fnAttr(r === 0 ? subList.tr : '', fnID('_tr' + (r + 1)), ''), '', '', objTable);
+        if (r === 0)
+            objSub.tr = objTr;
+
+        for (let c = 0; c &lt; arrRow[r].length; c++) {
+            let strTag = arrRow[r][c][0];
+            let strText = arrRow[r][c][1];
+            let nColspan = arrRow[r][c][2];
+            let nNo = (strTag === 'th') ? ++nTh : ++nTd;
+            // 첫 번째 th / td 에 subList.th / subList.td 적용
+            let strSub = (nNo === 1) ? subList[strTag] : '';
+            let strInner = nColspan ? '&lt;w2:attributes&gt;&lt;w2:colspan&gt;' + nColspan + '&lt;/w2:colspan&gt;&lt;/w2:attributes&gt;' : '';
+
+            let objCell = await fnCreate(strTag, fnAttr(strSub, fnID('_' + strTag + nNo), 'w2tb_' + strTag), '', strText, objTr, strInner);
+            if (nNo === 1)
+                objSub[strTag] = objCell;
+            if (strTag === 'td' &amp;&amp; nNo === 1)
+                objNameTd = objCell;
+        }
+    }
+
+    // 3) 1행 이름 td 안 input (값 &quot;홍길동&quot;)
+    let strInputID = fnID('_input1');
+    let objInput = await $p.dynamicCreate(
+        strInputID,
+        'input',
+        '&lt;xf:input ' + scwin.strNameSpace + ' style=&quot;width:150px;&quot;&gt;&lt;/xf:input&gt;',
+        objNameTd
+    );
+    objInput.setValue('홍길동');
+    if (strInputID)
+        scwin[strInputID] = objInput;
+
+    return objTable;
 }
 
 

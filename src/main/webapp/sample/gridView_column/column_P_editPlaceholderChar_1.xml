@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] editPlaceholderChar" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261027" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : inputType=text + editFormat 조합
+//  - inputType=calendar + useEditFormat 조합(displayFormat 자동 적용 포함)은 _2 담당
+scwin.tData = {
+    "description" : "[column > P > editPlaceholderChar]<br/>편집 마스크가 적용된 Column 에서 마스크 문자 위치에 미리 표시할 문자를 설정합니다.",
+    "validation" : [
+        "inputType='text' 인 Column 에 editFormat 속성이 설정된 경우에 동작합니다.",
+        "문자열 설정 시, 마스크 문자 위치에 표시할 문자를 설정합니다.",
+        "속성값을 설정하지 않으면 왼쪽부터 마스크 문자와 입력값이 차례로 매칭됩니다.",
+        "바인딩된 DataList 에는 포맷이 제거된 원본값이 반영됩니다.",
+        "inputType='text' 인 Column 에서 editFormat 속성에 '||' 기호로 다중 포맷이 설정되어 있으면 마스크 문자의 갯수가 제일 많은 포맷이 표시되고, 마스크 문자의 갯수가 동일한 포맷이 있는 경우 마지막에 정의한 포맷이 표시됩니다.",
+        "editPlaceholderChar 속성을 설정하면 Column 의 placeholder 속성으로 설정한 안내 문구는 화면에 나타나지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Row 수 (모든 Row 는 빈 값에서 시작)
+    "rowCount" : 2,
+    // Row 별 편집 기록 (해당 Row 셀 더블클릭 시 초기화)
+    //  - editValue : 편집 진입 직후 / 키 입력마다의 입력창 값
+    //  - placeholderShown : 편집 진입 직후 입력창의 placeholder 안내 문구 표시 여부
+    "editValue" : {},
+    "placeholderShown" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_editFormat.setValue("##-##");
+    con_editPlaceholderChar.setValue("_");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - val : 검증 대상 Column (inputType=text, editFormat / editPlaceholderChar 를 옵션값으로 설정, placeholder 안내 문구 고정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = {};
+    scwin.gVar.placeholderShown = {};
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] val Column 에 placeholder=코드 입력 고정, 모든 Row 는 빈 값에서 시작\n[절차] 조건 선택 -> Target 재생성 -> 결과창 clear\n[절차] Row 0 : val 셀 더블클릭 -> 숫자를 한 자씩 끝까지 입력 (예: 1234) -> 셀 밖 클릭으로 포커스 해제\n[절차] Row 1 : val 셀 더블클릭 -> Home 키 -> 오른쪽 방향키 1회로 커서를 두 번째 자리로 이동 -> 1 입력 -> 셀 밖 클릭으로 포커스 해제\n[확인] 셀 표시값 확인 버튼 -> 편집 진입 시 입력창 값과 안내 문구 표시 여부, 키 입력마다의 입력창 값, 셀 표시값, DataList 값"', '', 'label1');
+
+    let cEditFormat = con_editFormat.getValue();
+    let cEditPlaceholderChar = con_editPlaceholderChar.getValue();
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrData = [];
+    for (let i = 0; i < scwin.gVar.rowCount; i++) {
+        arrData.push({ "val" : "" });
+    }
+    dlt_bind.setJSON(arrData, false);
+
+    // val Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrVal = ' inputType="text" dataType="text" placeholder="코드 입력"';
+    if (cEditFormat !== '') {
+        attrVal += ' editFormat="' + cEditFormat + '"';
+    }
+    if (cEditPlaceholderChar !== '') {
+        attrVal += ' editPlaceholderChar="' + cEditPlaceholderChar + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:420px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="400" style="" inputType="text" id="column1" value="val (' + (cEditFormat === '' ? 'editFormat 미설정' : cEditFormat) + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="400" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록
+    //  - 셀 더블클릭(편집 진입) 시 해당 Row 기록을 초기화하고 편집 진입 직후 입력창 값과 안내 문구 표시 여부를 기록
+    //  - 키를 뗄 때 / 입력이 반영될 때마다 입력창 값 기록
+    target1.render.addEventListener("dblclick", function () {
+        setTimeout(function () {
+            let row = target1.getFocusedRowIndex();
+            scwin.gVar.editValue[row] = [];
+            let elem = document.activeElement;
+            if (elem && elem.tagName === "INPUT" && target1.render.contains(elem)) {
+                scwin.gVar.editValue[row].push(elem.value);
+                scwin.gVar.placeholderShown[row] = elem.matches(":placeholder-shown");
+            }
+        }, 0);
+    }, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+    target1.render.addEventListener("input", scwin.recordEditValue, true);
+}
+
+
+
+// 편집 중 입력창 값을 기록 (입력창의 포맷 처리가 끝난 뒤의 값을 읽는다, 직전 기록과 같으면 생략)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    if (!elem || elem.tagName !== "INPUT") {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue[target1.getFocusedRowIndex()];
+        if (!arr) {
+            return;
+        }
+        if (arr.length === 0 || arr[arr.length - 1] !== elem.value) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// val 셀의 화면 표시값
+scwin.getCellText = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_0']");
+    return td ? td.textContent : "";
+}
+
+
+
+// 설정 조건, Row 별 편집 진입 시 입력창 값(안내 문구 표시 여부) -> 키 입력마다의 입력창 값 -> 셀 표시값 -> DataList 값 출력
+//  - validation 1 : editFormat 미설정 시 편집 진입 입력창 값 / 셀 표시값에 마스크 문자 미표시
+//  - validation 2 : editPlaceholderChar 설정 시 편집 진입 입력창 값, Row 1 두 번째 자리 입력 결과
+//  - validation 3 : editPlaceholderChar 미설정 시 Row 1 입력값이 첫 번째 마스크 문자부터 매칭
+//  - validation 4 : 셀 표시값과 DataList 값 대비
+//  - validation 5 : 다중 포맷(갯수 최다 / 갯수 동일)에서 편집 진입 입력창 값 / 셀 표시값에 나타나는 포맷
+//  - validation 6 : 편집 진입 시 안내 문구 표시 여부
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cEditFormat = con_editFormat.getValue();
+    let cEditPlaceholderChar = con_editPlaceholderChar.getValue();
+    bottom.setReturnValue("editFormat : " + (cEditFormat === '' ? "(미설정)" : cEditFormat) + " / editPlaceholderChar : " + (cEditPlaceholderChar === '' ? "(미설정)" : cEditPlaceholderChar));
+
+    for (let i = 0; i < scwin.gVar.rowCount; i++) {
+        let arrText = [];
+        let arrEdit = scwin.gVar.editValue[i];
+        if (arrEdit && arrEdit.length > 0) {
+            arrText.push("편집 진입 시 입력창 값 : " + arrEdit[0] + " (안내 문구 표시 : " + scwin.gVar.placeholderShown[i] + ")");
+            if (arrEdit.length > 1) {
+                arrText.push("입력 중 : " + arrEdit.slice(1).join(" > "));
+            }
+        }
+        arrText.push("셀 표시값 : " + scwin.getCellText(i));
+        arrText.push("DataList 값 : " + dlt_bind.getCellData(i, "val"));
+        bottom.setReturnValue("Row " + i + " " + arrText.join(" -> "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editPlaceholderChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editPlaceholderChar" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>_</xf:label>
+												<xf:value>_</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>*</xf:label>
+												<xf:value>*</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>##-##</xf:label>
+												<xf:value>##-##</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>##-###-####||###-####-####||###-###-####</xf:label>
+												<xf:value>##-###-####||###-####-####||###-###-####</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>###-####||####-###</xf:label>
+												<xf:value>###-####||####-###</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

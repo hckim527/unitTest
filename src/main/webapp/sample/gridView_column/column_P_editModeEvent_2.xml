@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView column] editModeEvent" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261027" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : 조건 4건 (embeddedInput 무시 / checkbox·radio·button 편집 미진입 / viewType=icon 시 editModeEventIcon 적용 / viewTypeIconImage=true 시 editModeEvent 적용)
+//  - 설정값별 기본 동작(미설정·onclick·ondblclick·onsecondclick) 은 _1 담당
+scwin.tData = {
+    "description" : "[column > P > editModeEvent]<br/>Column 을 편집 모드로 변경하기 위한 마우스 이벤트 종류를 설정합니다.",
+    "validation" : [
+        "Column 의 embeddedInput=true 이면 editModeEvent 속성은 무시됩니다.",
+        "Column 의 inputType='checkbox','radio','button' 이면 편집 모드로 변경되지 않습니다.",
+        "Column 의 viewType='icon' 이면 inputType='select','calendar','autoComplete','checkcombobox','spinner' 일때 editModeEventIcon 속성이 적용됩니다.",
+        "단, Column 의 viewType='icon', viewTypeIconImage='true' 이면 inputType='calendar','autoComplete' 일때 editModeEvent 속성이 적용됩니다."
+    ]
+}
+
+
+
+scwin.gVar = { "evt" : "", "icon" : "" }
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  Column editModeEvent 와 Column editModeEventIcon 을 서로 다른 값으로 두어야 어느 속성을 따르는지 구분된다.
+    con_editModeEvent.setValue("onclick");
+    con_editModeEventIcon.setValue("ondblclick");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  target1 : 편집 방식 비교용 (col_txt 일반 text / col_emb embeddedInput=true / col_chk checkbox / col_rad radio / col_btn button)
+//  target2 : viewType=icon 비교용 (select·calendar·autoComplete·checkcombobox·spinner 아이콘 셀 + calendar·autoComplete 의 viewTypeIconImage=true 셀)
+//  모든 Body Column 에 Column editModeEvent / editModeEventIcon 을 con 선택값으로 설정한다 (GridView 속성은 미설정).
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof target2 !== 'undefined' && target2) {
+        target2.remove();
+    }
+    if (typeof dlt_bind1 !== 'undefined' && dlt_bind1) {
+        $p.data.remove("dlt_bind1");
+    }
+    if (typeof dlt_bind2 !== 'undefined' && dlt_bind2) {
+        $p.data.remove("dlt_bind2");
+    }
+    if (typeof dlt_code !== 'undefined' && dlt_code) {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cEvt = con_editModeEvent.getValue();
+    let cIcon = con_editModeEventIcon.getValue();
+    scwin.gVar.evt = cEvt;
+    scwin.gVar.icon = cIcon;
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 모든 Body Column 에 Column editModeEvent=' + cEvt + ', Column editModeEventIcon=' + cIcon + ' 설정 (두 값을 다르게 선택)\n[절차] 각 셀을 단일 클릭 / 더블 클릭 / 첫 클릭 후 잠시 뒤 재클릭으로 조작 (target2 아이콘 셀은 아이콘이 아닌 텍스트 영역을 조작)\n[확인] 편집 모드 진입 시 결과창에 셀과 적용된 이벤트가 자동 출력됨. col_emb 는 첫 클릭에 입력창 포커스가 출력되고 바로 입력됨 (편집 모드 진입 출력 없음)"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 코드/라벨 DataList (select·autoComplete·checkcombobox itemset)
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_code" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_code.setJSON([
+        { "code" : "A", "label" : "서울" },
+        { "code" : "B", "label" : "부산" },
+        { "code" : "C", "label" : "대구" }
+    ], false);
+
+    // target1 DataList
+    let strDl1 = '';
+    strDl1 += '<w2:dataList ' + strNameSpace + ' id="dlt_bind1" baseNode="list" repeatNode="map">';
+    strDl1 += '<w2:columnInfo>';
+    strDl1 += '<w2:column id="col_txt" name="col_txt" dataType="text"></w2:column>';
+    strDl1 += '<w2:column id="col_emb" name="col_emb" dataType="text"></w2:column>';
+    strDl1 += '<w2:column id="col_chk" name="col_chk" dataType="text"></w2:column>';
+    strDl1 += '<w2:column id="col_rad" name="col_rad" dataType="text"></w2:column>';
+    strDl1 += '<w2:column id="col_btn" name="col_btn" dataType="text"></w2:column>';
+    strDl1 += '</w2:columnInfo>';
+    strDl1 += '<w2:data use="true"></w2:data>';
+    strDl1 += '</w2:dataList>';
+    $p.data.create(strDl1);
+    dlt_bind1.setJSON([
+        { "col_txt" : "김철수", "col_emb" : "서울시 강남구", "col_chk" : "1", "col_rad" : "1", "col_btn" : "상세" },
+        { "col_txt" : "이영희", "col_emb" : "부산시 해운대구", "col_chk" : "0", "col_rad" : "0", "col_btn" : "상세" },
+        { "col_txt" : "박민준", "col_emb" : "대구시 수성구", "col_chk" : "1", "col_rad" : "0", "col_btn" : "상세" }
+    ], false);
+
+    // target2 DataList
+    let strDl2 = '';
+    strDl2 += '<w2:dataList ' + strNameSpace + ' id="dlt_bind2" baseNode="list" repeatNode="map">';
+    strDl2 += '<w2:columnInfo>';
+    strDl2 += '<w2:column id="col_sel" name="col_sel" dataType="text"></w2:column>';
+    strDl2 += '<w2:column id="col_cal" name="col_cal" dataType="date"></w2:column>';
+    strDl2 += '<w2:column id="col_ac" name="col_ac" dataType="text"></w2:column>';
+    strDl2 += '<w2:column id="col_ccb" name="col_ccb" dataType="text"></w2:column>';
+    strDl2 += '<w2:column id="col_spn" name="col_spn" dataType="text"></w2:column>';
+    strDl2 += '<w2:column id="col_cal_img" name="col_cal_img" dataType="date"></w2:column>';
+    strDl2 += '<w2:column id="col_ac_img" name="col_ac_img" dataType="text"></w2:column>';
+    strDl2 += '</w2:columnInfo>';
+    strDl2 += '<w2:data use="true"></w2:data>';
+    strDl2 += '</w2:dataList>';
+    $p.data.create(strDl2);
+    dlt_bind2.setJSON([
+        { "col_sel" : "A", "col_cal" : "20260115", "col_ac" : "A", "col_ccb" : "A B", "col_spn" : "5", "col_cal_img" : "20260115", "col_ac_img" : "A" },
+        { "col_sel" : "B", "col_cal" : "20260220", "col_ac" : "B", "col_ccb" : "B C", "col_spn" : "10", "col_cal_img" : "20260220", "col_ac_img" : "B" },
+        { "col_sel" : "C", "col_cal" : "20260312", "col_ac" : "C", "col_ccb" : "A C", "col_spn" : "15", "col_cal_img" : "20260312", "col_ac_img" : "C" }
+    ], false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let evtAttr = ' editModeEvent="' + cEvt + '" editModeEventIcon="' + cIcon + '"';
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_code"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+
+    // target1 : embeddedInput / checkbox·radio·button
+    let strTarget1 = '';
+    strTarget1 += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind1" checkAllType="false" ev:onbeforeedit="scwin.target1_onbeforeedit" id="" style="width:700px;height:150px;">';
+    strTarget1 += '<w2:header style="" id="header1">';
+    strTarget1 += '<w2:row style="" id="hrow1">';
+    strTarget1 += '<w2:column width="130" inputType="text" id="hcol_txt" value="col_txt (text)"></w2:column>';
+    strTarget1 += '<w2:column width="170" inputType="text" id="hcol_emb" value="col_emb (embeddedInput)"></w2:column>';
+    strTarget1 += '<w2:column width="130" inputType="text" id="hcol_chk" value="col_chk (checkbox)"></w2:column>';
+    strTarget1 += '<w2:column width="130" inputType="text" id="hcol_rad" value="col_rad (radio)"></w2:column>';
+    strTarget1 += '<w2:column width="120" inputType="text" id="hcol_btn" value="col_btn (button)"></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:header>';
+    strTarget1 += '<w2:gBody style="" id="gBody1">';
+    strTarget1 += '<w2:row style="" id="brow1">';
+    strTarget1 += '<w2:column width="130" inputType="text" dataType="text" id="col_txt"' + evtAttr + '></w2:column>';
+    strTarget1 += '<w2:column width="170" inputType="text" dataType="text" embeddedInput="true" id="col_emb"' + evtAttr + '></w2:column>';
+    strTarget1 += '<w2:column width="130" inputType="checkbox" dataType="text" trueValue="1" falseValue="0" valueType="other" id="col_chk"' + evtAttr + '></w2:column>';
+    strTarget1 += '<w2:column width="130" inputType="radio" dataType="text" trueValue="1" falseValue="0" valueType="other" id="col_rad"' + evtAttr + '></w2:column>';
+    strTarget1 += '<w2:column width="120" inputType="button" dataType="text" id="col_btn"' + evtAttr + '></w2:column>';
+    strTarget1 += '</w2:row>';
+    strTarget1 += '</w2:gBody>';
+    strTarget1 += '</w2:gridView>';
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget1, grp_comp);
+
+    // target2 : viewType=icon (viewTypeIconImage 미설정 5종 + viewTypeIconImage=true 2종)
+    let strTarget2 = '';
+    strTarget2 += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind2" checkAllType="false" ev:onbeforeedit="scwin.target2_onbeforeedit" id="" style="width:1010px;height:150px;margin-top:10px;">';
+    strTarget2 += '<w2:header style="" id="header2">';
+    strTarget2 += '<w2:row style="" id="hrow2">';
+    strTarget2 += '<w2:column width="120" inputType="text" id="hcol_sel" value="col_sel (select icon)"></w2:column>';
+    strTarget2 += '<w2:column width="140" inputType="text" id="hcol_cal" value="col_cal (calendar icon)"></w2:column>';
+    strTarget2 += '<w2:column width="140" inputType="text" id="hcol_ac" value="col_ac (autoComplete icon)"></w2:column>';
+    strTarget2 += '<w2:column width="150" inputType="text" id="hcol_ccb" value="col_ccb (checkcombobox icon)"></w2:column>';
+    strTarget2 += '<w2:column width="110" inputType="text" id="hcol_spn" value="col_spn (spinner icon)"></w2:column>';
+    strTarget2 += '<w2:column width="150" inputType="text" id="hcol_cal_img" value="col_cal_img (icon+iconImage)"></w2:column>';
+    strTarget2 += '<w2:column width="150" inputType="text" id="hcol_ac_img" value="col_ac_img (icon+iconImage)"></w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:header>';
+    strTarget2 += '<w2:gBody style="" id="gBody2">';
+    strTarget2 += '<w2:row style="" id="brow2">';
+    strTarget2 += '<w2:column width="120" inputType="select" viewType="icon" dataType="text" id="col_sel"' + evtAttr + '>' + itemset + '</w2:column>';
+    strTarget2 += '<w2:column width="140" inputType="calendar" viewType="icon" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col_cal"' + evtAttr + '></w2:column>';
+    strTarget2 += '<w2:column width="140" inputType="autoComplete" viewType="icon" dataType="text" id="col_ac"' + evtAttr + '>' + itemset + '</w2:column>';
+    strTarget2 += '<w2:column width="150" inputType="checkcombobox" viewType="icon" dataType="text" id="col_ccb"' + evtAttr + '>' + itemset + '</w2:column>';
+    strTarget2 += '<w2:column width="110" inputType="spinner" viewType="icon" dataType="text" id="col_spn"' + evtAttr + '></w2:column>';
+    strTarget2 += '<w2:column width="150" inputType="calendar" viewType="icon" viewTypeIconImage="true" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col_cal_img"' + evtAttr + '></w2:column>';
+    strTarget2 += '<w2:column width="150" inputType="autoComplete" viewType="icon" viewTypeIconImage="true" dataType="text" id="col_ac_img"' + evtAttr + '>' + itemset + '</w2:column>';
+    strTarget2 += '</w2:row>';
+    strTarget2 += '</w2:gBody>';
+    strTarget2 += '</w2:gridView>';
+    scwin.target2 = await $p.dynamicCreate("target2", "gridView", strTarget2, grp_comp);
+
+    // embeddedInput 셀은 편집 모드 전환 없이 입력창이 상시 표시되므로 입력창 포커스 시점을 출력한다.
+    // validation 1 판정 출력
+    let embInputs = target1.render.querySelectorAll("td[col_id='col_emb'] input, td[data-col_id='col_emb'] input");
+    for (let i = 0; i < embInputs.length; i++) {
+        embInputs[i].addEventListener("focus", scwin.embInput_onfocus);
+    }
+}
+
+
+
+// 셀에 기록된 편집 트리거 이벤트가 어느 Column 속성값인지 표기
+scwin.getEvtSource = function (evt) {
+    if (evt === scwin.gVar.icon && evt !== scwin.gVar.evt) {
+        return evt + " (editModeEventIcon)";
+    }
+    if (evt === scwin.gVar.evt && evt !== scwin.gVar.icon) {
+        return evt + " (editModeEvent)";
+    }
+    return evt;
+}
+
+
+
+// 편집 모드 진입 시 셀과 그 셀에 적용된 편집 트리거 이벤트 출력
+//  onbeforeedit 는 편집 모드로 바뀌지 않는 셀(button, embeddedInput)에서도 발생하므로,
+//  이벤트 처리 후 isEditing() 이 true 인 경우에만 편집 모드 진입으로 출력한다.
+scwin.printEdit = function (grid, rowIndex, columnIndex) {
+    let colId = grid.getColumnID(columnIndex);
+    setTimeout(function () {
+        if (!grid.isEditing()) {
+            return;
+        }
+        let td = grid.render.querySelector("td[id$='_cell_" + rowIndex + "_" + columnIndex + "']");
+        let evt = td ? (td.getAttribute("data-editModeEvent") || "") : "";
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            "편집 모드 진입 : " + grid.getID().replace("mf_", "") + " " + colId + " Row " + rowIndex + " | 적용 이벤트 = " + scwin.getEvtSource(evt));
+    }, 0);
+}
+
+
+
+// validation 2 판정 출력 (checkbox/radio/button 은 출력되지 않아야 함)
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    scwin.printEdit(scwin.target1, rowIndex, columnIndex);
+}
+
+
+
+// validation 3, 4 판정 출력
+scwin.target2_onbeforeedit = function (rowIndex, columnIndex, value) {
+    scwin.printEdit(scwin.target2, rowIndex, columnIndex);
+}
+
+
+
+// validation 1 판정 출력 : embeddedInput 셀은 editModeEvent 설정값과 관계없이 클릭 즉시 입력창에 포커스되어 바로 입력 가능
+scwin.embInput_onfocus = function (e) {
+    let td = e.target.closest("td[id*='_cell_']");
+    let rowIndex = td ? td.id.split("_cell_")[1].split("_")[0] : "";
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "col_emb Row " + rowIndex + " 입력창 포커스 (editModeEvent=" + scwin.gVar.evt + " 설정) -> 바로 입력 가능");
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editModeEvent" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editModeEvent" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[onclick]]></xf:label>
+												<xf:value><![CDATA[onclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[ondblclick]]></xf:label>
+												<xf:value><![CDATA[ondblclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[onsecondclick]]></xf:label>
+												<xf:value><![CDATA[onsecondclick]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editModeEventIcon" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editModeEventIcon" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[onclick]]></xf:label>
+												<xf:value><![CDATA[onclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[ondblclick]]></xf:label>
+												<xf:value><![CDATA[ondblclick]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

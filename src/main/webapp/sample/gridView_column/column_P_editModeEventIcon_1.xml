@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] editModeEventIcon" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261027" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : 기본 동작 (적용 inputType 5종 / 미설정 시 GridView 값 적용 / onclick / ondblclick)
+//  - embeddedInput 무시, viewType=default 시 editModeEvent 적용, checkbox·radio·button 미진입 은 _2 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례)
+//  - hammerEnabled=true 터치 동작 문장은 제외
+scwin.tData = {
+    "description" : "[column > P > editModeEventIcon]<br/>viewType='icon' 인 Column 을 편집 모드로 변경하기 위한 마우스 이벤트 종류를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='select','autoComplete','checkcombobox','calendar','spinner' 인 경우에 동작합니다.",
+        "미설정 시, GridView 의 editModeEventIcon 속성값이 적용됩니다.",
+        "onclick 설정 시, Body Cell 을 클릭하면 편집 모드로 변경됩니다.",
+        "ondblclick 설정 시, Body Cell 을 더블 클릭하면 편집 모드로 변경됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 현재 적용 설정값
+    "gridIcon" : "",
+    "colIcon" : "",
+    // 직전 mousedown 시점 정보 (클릭 횟수 / 조작 전 포커스 셀)
+    "detail" : 0,
+    "prevFocus" : ""
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  (GridView editModeEventIcon=onclick, Column editModeEventIcon 미설정)
+    con_gridEditModeEventIcon.setValue("onclick");
+    con_editModeEventIcon.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - GridView editModeEventIcon = con_gridEditModeEventIcon, GridView editModeEvent = onsecondclick 고정 (editModeEventIcon 선택값과 항상 다름)
+//  - 모든 Body Column 에 viewType="icon", Column editModeEventIcon = con_editModeEventIcon (미설정이면 속성 미기재)
+//  - col_sel / col_ac / col_ccb / col_cal / col_spn : 적용 대상 5종, col_txt : inputType=text (대조군 -> editModeEvent 적용)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_code !== 'undefined' && dlt_code) {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cGridIcon = con_gridEditModeEventIcon.getValue();
+    let cColIcon = con_editModeEventIcon.getValue();
+    scwin.gVar.gridIcon = cGridIcon;
+    scwin.gVar.colIcon = cColIcon;
+    scwin.gVar.detail = 0;
+    scwin.gVar.prevFocus = "";
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 모든 Body Column 이 viewType=icon, GridView editModeEvent=onsecondclick 고정. col_txt 만 inputType=text\n[절차] 포커스가 없는 셀의 텍스트 영역(아이콘 제외)을 클릭 또는 더블 클릭. onclick 적용 셀은 한 번만 클릭 (select, checkcombobox 는 더블 클릭 시 열린 목록이 닫힘)\n[확인] 편집 모드로 진입한 순간 결과창에 셀, 진입 조작, 적용 이벤트가 자동 출력됨"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 코드/라벨 DataList (select / autoComplete / checkcombobox itemset)
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_code" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_code.setJSON([
+        { "code" : "A", "label" : "서울" },
+        { "code" : "B", "label" : "부산" },
+        { "code" : "C", "label" : "대구" }
+    ], false);
+
+    // 바인딩 DataList
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col_sel" name="col_sel" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_ac" name="col_ac" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_ccb" name="col_ccb" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_cal" name="col_cal" dataType="date"></w2:column>';
+    strDl += '<w2:column id="col_spn" name="col_spn" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_txt" name="col_txt" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col_sel" : "A", "col_ac" : "A", "col_ccb" : "A B", "col_cal" : "20260115", "col_spn" : "5", "col_txt" : "김철수" },
+        { "col_sel" : "B", "col_ac" : "B", "col_ccb" : "B C", "col_cal" : "20260220", "col_spn" : "10", "col_txt" : "이영희" },
+        { "col_sel" : "C", "col_ac" : "C", "col_ccb" : "A C", "col_cal" : "20260312", "col_spn" : "15", "col_txt" : "박민준" }
+    ], false);
+
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_code"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    let iconAttr = ' viewType="icon"' + ((cColIcon === '') ? '' : ' editModeEventIcon="' + cColIcon + '"');
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" editModeEvent="onsecondclick" editModeEventIcon="' + cGridIcon + '" id="" style="width:860px;height:180px;"';
+    strTarget += ' ev:onbeforeedit="scwin.target1_onbeforeedit">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="130" inputType="text" id="hcol_sel" value="col_sel (select)"></w2:column>';
+    strTarget += '<w2:column width="150" inputType="text" id="hcol_ac" value="col_ac (autoComplete)"></w2:column>';
+    strTarget += '<w2:column width="160" inputType="text" id="hcol_ccb" value="col_ccb (checkcombobox)"></w2:column>';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol_cal" value="col_cal (calendar)"></w2:column>';
+    strTarget += '<w2:column width="130" inputType="text" id="hcol_spn" value="col_spn (spinner)"></w2:column>';
+    strTarget += '<w2:column width="130" inputType="text" id="hcol_txt" value="col_txt (text)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="130" inputType="select" dataType="text" id="col_sel"' + iconAttr + '>' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="150" inputType="autoComplete" dataType="text" id="col_ac"' + iconAttr + '>' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="160" inputType="checkcombobox" dataType="text" id="col_ccb"' + iconAttr + '>' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="140" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="col_cal"' + iconAttr + '></w2:column>';
+    strTarget += '<w2:column width="130" inputType="spinner" dataType="text" id="col_spn"' + iconAttr + '></w2:column>';
+    strTarget += '<w2:column width="130" inputType="text" dataType="text" id="col_txt"' + iconAttr + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 조작 감시 (capture 단계 : 엔진 처리 전 클릭 횟수와 조작 전 포커스 셀 기록)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("mousedown", scwin.target1_mousedownCapture, true);
+    }
+}
+
+
+
+// 조작 전 상태 기록
+scwin.target1_mousedownCapture = function (e) {
+    scwin.gVar.detail = e.detail;
+    scwin.gVar.prevFocus = target1.getFocusedRowIndex() + ":" + target1.getFocusedColumnID();
+}
+
+
+
+// 셀에 적용된 편집 이벤트가 어느 속성값인지 표기
+scwin.getEvtSource = function (colId) {
+    if (colId === "col_txt") {
+        return "GridView editModeEvent";
+    }
+    if (scwin.gVar.colIcon === "") {
+        return "Column 미설정 -> GridView editModeEventIcon";
+    }
+    return "Column editModeEventIcon";
+}
+
+
+
+// 편집 모드 진입 시 셀 / 진입 조작 / 적용 이벤트 출력
+//  onbeforeedit 는 편집 모드로 바뀌지 않는 경우에도 발생할 수 있으므로 처리 후 isEditing() 이 true 인 경우에만 출력한다.
+//  validation 1 : col_txt 는 editModeEventIcon 이 아닌 editModeEvent(onsecondclick) 로만 진입
+//  validation 2 : Column 미설정 시 GridView editModeEventIcon 에 맞는 조작으로 진입
+//  validation 3, 4 : 클릭 / 더블 클릭 진입
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    let colId = target1.getColumnID(columnIndex);
+    let detail = scwin.gVar.detail;
+    let again = (scwin.gVar.prevFocus === rowIndex + ":" + colId);
+    setTimeout(function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        let action = "클릭";
+        if (detail >= 2) {
+            action = "더블 클릭";
+        } else if (again) {
+            action = "포커스된 셀 다시 클릭";
+        }
+        let td = target1.render.querySelector("td[id$='_cell_" + rowIndex + "_" + columnIndex + "']");
+        //  셀에 기록된 편집 이벤트, 없으면(col_txt) GridView editModeEvent
+        let evt = (td && td.getAttribute("data-editModeEvent")) || target1.options.editModeEvent;
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            "편집 모드 진입 : " + colId + " Row " + rowIndex + " (" + action + ") | 적용 이벤트 = " + evt + " (" + scwin.getEvtSource(colId) + ")");
+    }, 0);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="GridView editModeEventIcon" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_gridEditModeEventIcon" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>onclick</xf:label>
+												<xf:value>onclick</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>ondblclick</xf:label>
+												<xf:value>ondblclick</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Column editModeEventIcon" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editModeEventIcon" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>onclick</xf:label>
+												<xf:value>onclick</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>ondblclick</xf:label>
+												<xf:value>ondblclick</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
