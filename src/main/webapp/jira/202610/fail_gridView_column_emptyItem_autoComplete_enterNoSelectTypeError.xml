@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView autoComplete Column emptyItem=true 목록 버튼으로 연 목록에서 Enter/Tab 시 값 미선택 및 TypeError" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_a">
+					<w2:columnInfo>
+						<w2:column id="name" name="name" dataType="text"></w2:column>
+						<w2:column id="col" name="col" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_b">
+					<w2:columnInfo>
+						<w2:column id="name" name="name" dataType="text"></w2:column>
+						<w2:column id="col" name="col" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script type="text/javascript" lazy="false"><![CDATA[
+scwin.timer = null;
+
+scwin.onpageload = function () {
+    let arr = [
+        { "name" : "홍길동", "col" : "S" },
+        { "name" : "김철수", "col" : "J" },
+        { "name" : "이영희", "col" : "" }
+    ];
+    dlt_a.setJSON(arr);
+    dlt_b.setJSON(arr);
+
+    // 클릭(더블클릭 포함) 400ms 후 목록 상태 출력 (capture 단계)
+    document.addEventListener("click", function () {
+        if (scwin.timer) {
+            clearTimeout(scwin.timer);
+        }
+        scwin.timer = setTimeout(scwin.reportList, 400);
+    }, true);
+
+    // Enter / Tab 으로 편집 종료 300ms 후 Cell 값 출력 (capture 단계)
+    document.addEventListener("keydown", scwin.document_keydownCapture, true);
+};
+
+// 비교 대상 그리드 목록
+scwin.getGrdList = function () {
+    return [ { "grd" : grd_a, "dlt" : dlt_a, "name" : "A" }, { "grd" : grd_b, "dlt" : dlt_b, "name" : "B" } ];
+};
+
+// 편집 중인 col Cell 에서 Enter / Tab 입력 시 편집 종료 후 Cell 값과 표시값 출력
+scwin.document_keydownCapture = function (e) {
+    if (e.key !== "Enter" && e.key !== "Tab") {
+        return;
+    }
+    let arrGrd = scwin.getGrdList();
+    for (let i = 0; i < arrGrd.length; i++) {
+        let item = arrGrd[i];
+        if (!item.grd.isEditing() || item.grd.getFocusedColumnID() !== "col") {
+            continue;
+        }
+        let rowIndex = item.grd.getFocusedRowIndex();
+        let colIndex = item.grd.getFocusedColumnIndex();
+        let key = e.key;
+        setTimeout(function () {
+            let td = document.getElementById(item.grd.id + "_cell_" + rowIndex + "_" + colIndex);
+            scwin.setReturnValue("[" + item.name + "] " + key + " 후 Cell 값 : '" + item.dlt.getCellData(rowIndex, "col") + "' / 표시값 : '" + (td ? td.textContent.trim() : "") + "'");
+        }, 300);
+    }
+};
+
+// 편집 중인 col Cell 의 목록이 열려 있으면 표시 항목 수 / 선택 대상 출력
+scwin.reportList = function () {
+    scwin.timer = null;
+    let arrGrd = scwin.getGrdList();
+    for (let i = 0; i < arrGrd.length; i++) {
+        let grd = arrGrd[i].grd;
+        if (!grd.isEditing() || grd.getFocusedColumnID() !== "col") {
+            continue;
+        }
+        let rowIndex = grd.getFocusedRowIndex();
+        let td = document.getElementById(grd.id + "_cell_" + rowIndex + "_" + grd.getFocusedColumnIndex());
+        let editorEl = td ? td.querySelector("[role='combobox']") : null;
+        if (!editorEl) {
+            continue;
+        }
+        let arrCell = Array.prototype.filter.call(document.querySelectorAll("[id^='" + editorEl.id + "_itemTable_']"), function (cell) {
+            return /_itemTable_\d+$/.test(cell.id) && cell.getClientRects().length > 0;
+        });
+        if (arrCell.length === 0) {
+            continue;
+        }
+        let marked = "없음";
+        for (let j = 0; j < arrCell.length; j++) {
+            if (/_col_over/.test(arrCell[j].className)) {
+                marked = "index " + j + " '" + arrCell[j].textContent + "'";
+                break;
+            }
+        }
+        scwin.setReturnValue("[" + arrGrd[i].name + "] " + arrGrd[i].dlt.getCellData(rowIndex, "name") + " 행 목록 표시 (항목 " + arrCell.length + "개) / 선택 대상 : " + marked);
+    }
+};
+
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_root" style="padding:16px;">
+			<w2:textbox escape="false" id="lbl_title" style="font-size:16px;margin-top:16px;margin-bottom:16px;"
+				label="■ &lt;b&gt;[FAIL] emptyItem=true 인 autoComplete Column 에서 목록 버튼으로 목록을 연 뒤 Enter(또는 Tab) 를 누르면 값이 선택되지 않고 TypeError 발생&lt;/b&gt;&lt;br/&gt;[확인 방법] 각 그리드에서 name 이 '김철수' 인 행의 col Cell(빈 값으로 표시) 더블클릭 후, A 는 Cell 오른쪽 목록 버튼 클릭 (B 는 목록이 바로 열림) 후 Enter 키, console 확인&lt;br/&gt;[기대] A 도 B 와 같이 첫번째 항목 '서울' 이 선택되고 오류 없음&lt;br/&gt;[실제] A 는 Cell 값 '' 로 저장되고 TypeError (reading 'label') 발생 (편집 종료 후 다시 편집하면 정상)"></w2:textbox>
+
+			<w2:textbox id="" label="A : col Column inputType=autoComplete emptyItem=true" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_a" dataList="data:dlt_a" style="width:400px;height:170px;margin-bottom:16px;">
+				<w2:header id="hd_a" style="">
+					<w2:row id="hr_a" style="">
+						<w2:column id="h_a_name" inputType="text" value="name" width="120"></w2:column>
+						<w2:column id="h_a_col" inputType="text" value="col (autoComplete)" width="220"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_a" style="">
+					<w2:row id="br_a" style="">
+						<w2:column id="name" inputType="text" width="120"></w2:column>
+						<w2:column id="col" inputType="autoComplete" width="220" emptyItem="true">
+							<w2:choices>
+								<w2:item><w2:label>서울</w2:label><w2:value>S</w2:value></w2:item>
+								<w2:item><w2:label>부산</w2:label><w2:value>B</w2:value></w2:item>
+								<w2:item><w2:label>대구</w2:label><w2:value>D</w2:value></w2:item>
+							</w2:choices>
+						</w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<w2:textbox id="" label="B : col Column inputType=select emptyItem=true (대조)" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_b" dataList="data:dlt_b" style="width:400px;height:170px;margin-bottom:16px;">
+				<w2:header id="hd_b" style="">
+					<w2:row id="hr_b" style="">
+						<w2:column id="h_b_name" inputType="text" value="name" width="120"></w2:column>
+						<w2:column id="h_b_col" inputType="text" value="col (select)" width="220"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_b" style="">
+					<w2:row id="br_b" style="">
+						<w2:column id="name" inputType="text" width="120"></w2:column>
+						<w2:column id="col" inputType="select" width="220" emptyItem="true">
+							<w2:choices>
+								<w2:item><w2:label>서울</w2:label><w2:value>S</w2:value></w2:item>
+								<w2:item><w2:label>부산</w2:label><w2:value>B</w2:value></w2:item>
+								<w2:item><w2:label>대구</w2:label><w2:value>D</w2:value></w2:item>
+							</w2:choices>
+						</w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group id="grp_bottom" style="">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 120px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

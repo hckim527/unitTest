@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] escape" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 'Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다.' 는 Body 전용 방침에 따라 제외 (escape 는 Body Column 에만 적용)
+scwin.tData = {
+    "description" : "[column > P > escape]<br/>Column 의 표시값에 포함된 특수문자를 이스케이프 처리할지 설정합니다.",
+    "validation" : [
+        "미설정 시, GridView 의 escape 속성값이 적용됩니다.",
+        "true 설정 시, 표시값의 '<', '>', '&', ''', ''' 문자를 이스케이프 처리합니다.",
+        "true 설정 시, HTML 태그가 해석되지 않고 문자 그대로 Cell 에 표시됩니다.",
+        "false 설정 시, 표시값에 이스케이프 처리를 하지 않습니다.",
+        "false 설정 시, 표시값에 포함된 HTML 태그가 해석되어 Cell 에 표시되므로 보안 취약점이 발생할 수 있으니 주의가 필요합니다.",
+        "데이터 바인딩 시 escape='true' 이면 DataList 의 데이터를 인코딩한 후 사용하고, 입력값은 디코딩하여 저장합니다.",
+        "Body Cell 이 편집 모드인 경우엔 항상 이스케이프 처리된 데이터가 표시됩니다.",
+        "inputType='checkbox','radio' 인 Column 은 checkboxLabel, radioLabel 로 표시되는 라벨 텍스트에 적용됩니다.",
+        "customFormatter 가 설정된 경우 escape 속성이 적용된 표시값이 두번째 파라미터로 전달되며, 사용자 함수의 반환값에는 이스케이프 처리를 하지 않습니다.",
+        "단, inputType='textarea' 인 Column 은 사용자 함수의 반환값에도 이스케이프 처리를 합니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // customFormatter 사용자 함수의 Row 인덱스별 두 번째 파라미터 (Target 생성 시 초기화)
+    "customParams" : {},
+    // 생성된 Target 의 customFormatter 적용 여부
+    "useCustom" : false
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  gdl_boolean 코드값 : 미설정='1' / true='2' / false='3'
+    con_escape.setValue("2");
+    con_gridEscape.setValue("1");
+    con_inputType.setValue("text");
+    con_customFormatter.setValue("");
+    scwin.con_inputType_onviewchange();
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// customFormatter 로 지정하는 사용자 함수 : 두 번째 파라미터를 기록하고 빨간색 span 태그로 감싸 반환
+scwin.fmtRed = function (data, formattedData, rowIndex, columnIndex) {
+    scwin.gVar.customParams[rowIndex] = formattedData;
+    return "<span style='color:#d0021b'>" + formattedData + "</span>";
+}
+
+
+
+// customFormatter 는 inputType=text, textarea 일 때만 선택
+scwin.con_inputType_onviewchange = function () {
+    let cInputType = con_inputType.getValue();
+    con_customFormatter.setDisabled(cInputType === "checkbox" || cInputType === "radio");
+}
+
+
+
+// comp 생성
+//  escape 는 렌더 시 결정되므로 con 변경 후 Target 재생성(btn_createTarget -> comp_init) 으로만 반영한다.
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.customParams = {};
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Row 0 은 HTML 태그, Row 1 은 < > & 문자, Row 2 는 엔티티(&amp;)와 따옴표 포함. checkbox, radio 는 라벨에 HTML 태그 포함\n[절차] 조건 선택 -> Target 재생성 -> 셀 표시값 확인\n[절차] Cell 더블클릭 -> 편집창 값 확인 -> 다른 값 입력 후 Enter -> 셀 표시값 확인\n[확인] DataList 값 -> (customFormatter 두번째 파라미터) -> 셀 표시값, 해석된 태그"', '', 'label1');
+
+    // 조건 (gdl_boolean 은 getText 로 라벨('' / 'true' / 'false') 을 읽는다)
+    let cEscape = con_escape.getText();
+    let cGridEscape = con_gridEscape.getText();
+    let cInputType = con_inputType.getValue();
+    let isCheck = (cInputType === "checkbox" || cInputType === "radio");
+    let cCustomFormatter = isCheck ? "" : con_customFormatter.getValue();
+    scwin.gVar.useCustom = (cCustomFormatter !== '');
+
+    // dataList 생성 (특수문자 포함 값은 setJSON 으로 주입)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    if (isCheck) {
+        dlt_bind.setJSON([{ "val" : "1" }, { "val" : "0" }, { "val" : "1" }], false);
+    } else {
+        dlt_bind.setJSON([
+            { "val" : "<b>긴급</b> 반품 요청" },
+            { "val" : "재고 5 < 10 & 단가 > 0" },
+            { "val" : "AT&amp;T 'Pro' \"5G\" 요금제" }
+        ], false);
+    }
+
+    // val Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let attrVal = ' inputType="' + cInputType + '"';
+    if (cEscape !== '') {
+        attrVal += ' escape="' + cEscape + '"';
+    }
+    if (cCustomFormatter !== '') {
+        attrVal += ' customFormatter="' + cCustomFormatter + '"';
+    }
+    // 라벨 : <b>약관</b> & 개인정보 동의 (XML 속성이므로 엔티티로 기술)
+    if (cInputType === "checkbox") {
+        attrVal += ' checkboxLabel="&lt;b&gt;약관&lt;/b&gt; &amp; 개인정보 동의"';
+    }
+    if (cInputType === "radio") {
+        attrVal += ' radioLabel="&lt;b&gt;약관&lt;/b&gt; &amp; 개인정보 동의"';
+    }
+
+    // GridView escape 속성 (미설정이면 속성 자체를 부여하지 않는다)
+    let cList = $c.gcm.createCList({ escape : cGridEscape });
+
+    let headerText = "val (" + cInputType + " / escape " + (cEscape === '' ? "미설정" : cEscape) + " / GridView escape " + (cGridEscape === '' ? "미설정" : cGridEscape) + ")";
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:700px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="680" style="" inputType="text" id="column1" value="' + headerText + '"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="680" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// val 셀의 화면 표시값과 해석된 태그
+//  - checkbox, radio : 라벨 텍스트 / 그 외 : 셀 텍스트
+//  - 표시 영역 안에 HTML 요소가 생성되어 있으면 (태그 해석 : 태그명) 표기
+scwin.getCellStr = function (rowIndex) {
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_0']");
+    if (!td) {
+        return "Cell 없음";
+    }
+    let wrap = td.querySelector("label") || td.querySelector("nobr, div.w2grid_textarea") || td;
+    let str = "'" + wrap.textContent + "'";
+    let tags = [];
+    let elems = wrap.querySelectorAll("*");
+    for (let i = 0; i < elems.length; i++) {
+        let tagName = elems[i].tagName.toLowerCase();
+        if (tags.indexOf(tagName) < 0) {
+            tags.push(tagName);
+        }
+    }
+    if (tags.length > 0) {
+        str += "(태그 해석 : " + tags.join(", ") + ")";
+    }
+    return str;
+}
+
+
+
+// 전체 Row 의 DataList 값 -> (customFormatter 두 번째 파라미터) -> 셀 표시값 출력
+//  - validation 1~5 : escape / GridView escape 조건별 셀 표시값과 해석된 태그
+//  - validation 6 : DataList 값(원본) 과 셀 표시값 비교, 편집 후 DataList 에 입력값 그대로 저장되는지
+//  - validation 8 : checkbox, radio 라벨 텍스트
+//  - validation 9, 10 : customFormatter 두 번째 파라미터와 반환값(span 태그) 의 해석 여부
+//  - validation 7 은 Cell 편집창에서 직접 확인
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        let arrText = ["Row " + i + " '" + dlt_bind.getCellData(i, "val") + "'"];
+        if (scwin.gVar.useCustom) {
+            let param = scwin.gVar.customParams[i];
+            arrText.push("두번째 파라미터 " + (typeof param === "undefined" ? "호출 안 됨" : "'" + param + "'"));
+        }
+        arrText.push(scwin.getCellStr(i));
+        bottom.setReturnValue(arrText.join(" -> "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="escape" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_escape" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="GridView escape" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_gridEscape" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" ev:onviewchange="scwin.con_inputType_onviewchange" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textarea</xf:label>
+												<xf:value>textarea</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>checkbox</xf:label>
+												<xf:value>checkbox</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>radio</xf:label>
+												<xf:value>radio</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="customFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_customFormatter" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.fmtRed</xf:label>
+												<xf:value>scwin.fmtRed</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 표시값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

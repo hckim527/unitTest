@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] expression" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_1)은 Body Column 의 계산식(내장 함수 / JavaScript 표현식 / rowIndex / 다시 계산 / 저장되지 않음)을 검증한다.
+//  - 'Body/SubTotal/Footer 영역의 Column 에서 동작 ...' 과 SubTotal/Footer 내장 함수, sumif 조건, Footer 다시 계산,
+//    excludeDeletedRows / excludeModifiedRows 관련 항목은 _3(column_P_expression_3.xml) 담당(SubTotal/Footer 계산식 항목은 _2)이므로 제외.
+scwin.tData = {
+    "description" : "[column > P > expression]<br/>inputType='expression' 인 Column 의 Cell 에 표시할 값을 산출하는 계산식을 설정합니다.",
+    "validation" : [
+        "문자열 설정 시, 값을 반환하는 하나의 JavaScript 표현식으로 계산식을 설정하며, return 문은 사용하지 않습니다.",
+        "문자열 설정 시, 계산식에는 아래의 함수와 함께 JavaScript 연산자, 내장 함수, 화면에 정의한 전역 함수(scwin 함수 등)를 사용할 수 있습니다.",
+        "문자열 설정 시, 함수 이름은 대소문자를 구분하지 않으며 Column ID 는 따옴표를 사용합니다.",
+        "문자열 설정 시, Body Column 에서 사용할 수 있는 내장 함수이며 산출 중인 Row 하나를 대상으로 계산됩니다.",
+        "문자열 설정 시, Body Column 의 sum('Column ID', ...) : 지정한 Column 들의 값을 모두 더한 값을 반환합니다.",
+        "문자열 설정 시, Body Column 의 avg('Column ID', ...) : 지정한 Column 들의 평균값을 반환합니다.",
+        "문자열 설정 시, Body Column 의 max('Column ID', ...) : 지정한 Column 들의 값 중 가장 큰 값을 반환합니다.",
+        "문자열 설정 시, Body Column 의 min('Column ID', ...) : 지정한 Column 들의 값 중 가장 작은 값을 반환합니다.",
+        "문자열 설정 시, Body Column 의 calc('수식') : Column ID 와 숫자를 +, -, *, /, %, ^ 연산자와 괄호로 조합한 수식을 계산한 값을 반환합니다. 수식 내의 Column ID 는 따옴표 없이 사용합니다.",
+        "문자열 설정 시, Body Column 의 display('Column ID') : DataList 의 Column 값을 반환합니다. Column 의 표시 포맷은 적용되지 않습니다.",
+        "문자열 설정 시, Body Column 의 datalist('Column ID') : DataList 의 Column 값을 반환합니다. GridView 에 매핑되지 않은 DataList 의 Column 값도 가져올 수 있습니다.",
+        "문자열 설정 시, Body Column 의 rowindex() : GridView 에 표시되는 Row 의 인덱스를 0 부터 시작하는 숫자로 반환합니다.",
+        "문자열 설정 시, Body Column 의 rowstatus() : 대상 Row 의 상태값을 'R', 'U', 'C', 'D', 'V' 로 반환합니다.",
+        "미설정 시, 계산되는 값이 없어 Cell 에 결과가 표시되지 않습니다.",
+        "Cell 의 계산 결과는 표시에만 사용되며 바인딩된 DataList 의 데이터로 저장되지 않습니다.",
+        "Body Column 의 계산식에는 'rowIndex' 로 계산 중인 Row 의 인덱스를 참조할 수 있습니다.",
+        "Body Column 의 계산식은 sum(), avg(), max(), min(), calc(), display(), datalist() 함수로 참조한 Column 의 값이 변경되면 다시 계산됩니다.",
+        "단, calc() 함수에 다른 내장 함수를 사용한 경우, 내장 함수의 인자에 괄호를 중첩해 사용한 경우, 내장 함수를 거치지 않고 Column 값을 참조한 경우에는 다시 계산되지 않습니다.",
+        "sum(), avg(), max(), min(), display() 함수는 GridView 에 정의된 Column 만 참조할 수 있습니다.",
+        "GridView 에 매핑되지 않은 DataList Column 을 지정하면 처리되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_expression.setValue("sum('price','tax')");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 계산식에서 호출하는 화면 전역 함수 : 금액이 1,000,000 이상이면 '고가', 아니면 '일반' 을 반환한다.
+scwin.getGrade = function (nAmount) {
+    return (Number(nAmount) >= 1000000) ? "고가" : "일반";
+}
+
+
+
+// XML 속성값으로 넣기 위해 특수문자를 escape 한다.
+scwin.escapeAttr = function (sValue) {
+    return sValue.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+
+
+// comp 생성
+//  - Column 인덱스 0:품목 1:단가 2:세액 3:수량 4:결과. expression 은 결과(인덱스 4) Column 에만 설정한다.
+//  - 단가 Column 은 displayFormat(#,###) 을 설정해 display() 의 반환값(표시 포맷 미적용)과 비교한다.
+//  - discount 는 GridView 에 매핑하지 않은 DataList Column 이다. (datalist() / 매핑되지 않은 Column 참조 확인용)
+//  - result 는 결과 Column 과 같은 ID 의 DataList Column 이며, 계산 결과가 저장되지 않는지 확인한다.
+//  - sortable=true 는 Header 더블클릭 정렬로 rowindex() 와 rowIndex 의 값을 비교하기 위한 고정 설정이다.
+//  - expression 은 dynamic N 이므로 렌더 시점에만 설정 -> 옵션 변경 후 "Target 재생성" 으로 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] expression 은 결과 Column 에만 설정됨. 단가 Column 은 displayFormat #,### 적용\nGridView 에 매핑되지 않은 DataList Column discount 값 : Row 0 = 50000, Row 1 = 10000, Row 2 = 0, Row 3 = 3000\nscwin.getGrade 함수는 1000000 이상이면 고가, 아니면 일반을 반환함\n[절차] expression 선택 -> Target 재생성 -> 결과 확인\n다시 계산 : 단가 / 세액 / 수량 Cell 편집 또는 setCellData(Row 0 의 discount 를 80000 으로 변경) 후 결과 확인\nrowstatus : Cell 편집 / insertRow(마지막에 Row 추가) / deleteRow(포커스된 Row 삭제) 후 결과 확인\nrowindex / rowIndex : 단가 Header 더블클릭으로 정렬 후 결과 확인\n[확인] Row 별 결과 Cell 표시값과 같은 ID 의 DataList 저장값"', '', 'label1');
+
+    // 조건 설정
+    let cExpression = con_expression.getValue();
+    let attrResult = (cExpression !== '') ? ' expression="' + scwin.escapeAttr(cExpression) + '"' : '';
+
+    // dataList 생성
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="item" name="item" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="tax" name="tax" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="discount" name="discount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="result" name="result" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "item" : "노트북", "price" : "1450000", "tax" : "145000", "qty" : "2", "discount" : "50000", "result" : "" },
+        { "item" : "모니터", "price" : "320000", "tax" : "32000", "qty" : "3", "discount" : "10000", "result" : "" },
+        { "item" : "키보드", "price" : "45000", "tax" : "4500", "qty" : "10", "discount" : "0", "result" : "" },
+        { "item" : "마우스", "price" : "28000", "tax" : "2800", "qty" : "15", "discount" : "3000", "result" : "" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" sortable="true" style="width:620px;height:250px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hItem" value="품목"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hPrice" value="단가"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hTax" value="세액"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hQty" value="수량"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="hResult" value="결과"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="item" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="price" value="" displayFormat="#,###"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="tax" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="qty" value=""></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="expression" id="result" value=""' + attrResult + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 결과 확인 : 화면에 표시된 Row 순서대로 결과 Cell 표시값과 같은 ID(result) 의 DataList 저장값 출력
+//  - validation 1 ~ 14, 16, 19, 20 : 선택한 계산식의 결과 Cell 표시값
+//  - validation 15 : DataList 저장값이 계산 결과와 무관하게 빈값인지
+//  - validation 17, 18 : Cell 편집 / setCellData 후 결과 Cell 표시값이 다시 계산되는지
+//  - 다시 계산 여부는 화면에 그려진 값으로 판정해야 하므로 API 재계산 대신 Cell 의 표시 텍스트를 읽는다. (Row 번호는 화면 표시 순서)
+scwin.btn_result_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        let tdItem = document.querySelector("td[id='" + target1.id + "_cell_" + i + "_0']");
+        let tdResult = document.querySelector("td[id='" + target1.id + "_cell_" + i + "_4']");
+        let nRealRow = target1.getRealRowIndex(i);
+        bottom.setReturnValue("Row " + i + " '" + tdItem.textContent + "' -> '" + tdResult.textContent + "' / DataList '" + dlt_bind.getCellData(nRealRow, "result") + "'");
+    }
+}
+
+
+
+// setCellData : GridView 에 매핑되지 않은 DataList Column(discount) 값 변경 (datalist() 다시 계산 확인용)
+scwin.btn_setCellData_onclick = function () {
+    dlt_bind.setCellData(0, "discount", "80000");
+}
+
+
+
+// insertRow : 마지막에 Row 추가 (rowstatus() 'C' 확인용)
+scwin.btn_insertRow_onclick = function () {
+    let nRow = dlt_bind.insertRow();
+    dlt_bind.setCellData(nRow, "item", "신규 품목");
+}
+
+
+
+// deleteRow : 포커스된 Row 를 삭제 상태로 변경 (rowstatus() 'D', 추가 후 삭제한 Row 는 'V' 확인용)
+scwin.btn_deleteRow_onclick = function () {
+    let nRow = target1.getFocusedRowIndex();
+    if (nRow < 0) return;
+    dlt_bind.deleteRow(target1.getRealRowIndex(nRow));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="expression" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_expression" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sum('price','tax')]]></xf:label>
+												<xf:value><![CDATA[sum('price','tax')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[AVG('price','tax')]]></xf:label>
+												<xf:value><![CDATA[AVG('price','tax')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[MAX('price','tax')]]></xf:label>
+												<xf:value><![CDATA[MAX('price','tax')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[min('price','tax')]]></xf:label>
+												<xf:value><![CDATA[min('price','tax')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[calc('(price-tax)*qty')]]></xf:label>
+												<xf:value><![CDATA[calc('(price-tax)*qty')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[calc('qty^2%7+price/1000')]]></xf:label>
+												<xf:value><![CDATA[calc('qty^2%7+price/1000')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[display('price')]]></xf:label>
+												<xf:value><![CDATA[display('price')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[datalist('discount')]]></xf:label>
+												<xf:value><![CDATA[datalist('discount')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[rowindex()]]></xf:label>
+												<xf:value><![CDATA[rowindex()]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[rowstatus()]]></xf:label>
+												<xf:value><![CDATA[rowstatus()]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[rowIndex]]></xf:label>
+												<xf:value><![CDATA[rowIndex]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Math.round(avg('price','tax') * 1.1)]]></xf:label>
+												<xf:value><![CDATA[Math.round(avg('price','tax') * 1.1)]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.getGrade(sum('price','tax'))]]></xf:label>
+												<xf:value><![CDATA[scwin.getGrade(sum('price','tax'))]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[calc('price*qty') + sum('tax')]]></xf:label>
+												<xf:value><![CDATA[calc('price*qty') + sum('tax')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sum('price', ('tax'))]]></xf:label>
+												<xf:value><![CDATA[sum('price', ('tax'))]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Number(dlt_bind.getCellData(rowIndex, 'price')) + 1]]></xf:label>
+												<xf:value><![CDATA[Number(dlt_bind.getCellData(rowIndex, 'price')) + 1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sum('price','discount')]]></xf:label>
+												<xf:value><![CDATA[sum('price','discount')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[display('discount')]]></xf:label>
+												<xf:value><![CDATA[display('discount')]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_result_onclick" id="btn_result" label="결과 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellData_onclick" id="btn_setCellData" label="setCellData" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_insertRow_onclick" id="btn_insertRow" label="insertRow" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteRow_onclick" id="btn_deleteRow" label="deleteRow" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

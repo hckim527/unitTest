@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView column] embeddedInput" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : 첫 번째 @spec (embeddedInput 미설정 Column 의 senseReader / accessibility 연동) 2건
+//  - true/false 기본 동작, spinner 증감 버튼, 미지원 inputType, editModeEvent 미적용 은 _1 담당
+scwin.tData = {
+    "description" : "[column > P > embeddedInput]<br/>Body Cell 내부에 입력 컴포넌트를 내장할지 설정합니다.",
+    "validation" : [
+        "embeddedInput 속성을 설정하지 않았을때 senseReader=true 이면 embeddedInput 속성은 true 로 설정됩니다.",
+        "accessibility=true 이면 senseReader=true 로 동작하므로 embeddedInput 속성을 설정하지 않은 Column 은 true 로 동작합니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    "emb" : "",
+    "cols" : [
+        { "id" : "col_txt", "type" : "text" },
+        { "id" : "col_sec", "type" : "secret" },
+        { "id" : "col_img", "type" : "textImage" },
+        { "id" : "col_area", "type" : "textarea" },
+        { "id" : "col_spn", "type" : "spinner" }
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출 (gdl_boolean)
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  gdl_boolean 코드값 : 미설정="1" / true="2" / false="3"
+    con_senseReader.setValue("2");      // 기본 시나리오 : senseReader=true
+    con_accessibility.setValue("1");    // accessibility 미설정
+    con_embeddedInput.setSelectedIndex(0);  // Column embeddedInput 미설정
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  senseReader / accessibility / Column embeddedInput 은 렌더 시 결정되는 속성이므로 con 변경 후 Target 재생성으로만 반영한다.
+//  - con_senseReader / con_accessibility : 공통 gdl_boolean -> getText() ('' 미설정 / 'true' / 'false')
+//  - con_embeddedInput : 자체 값 select -> getValue() ('' 미설정 / 'true' / 'false'), 5개 Body Column 모두에 동일 적용
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let vSense = con_senseReader.getText();
+    let vAcc = con_accessibility.getText();
+    let vEmb = con_embeddedInput.getValue();
+    scwin.gVar.emb = vEmb;
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Body Column 5개(text/secret/textImage/textarea/spinner) 모두에 con 의 Column embeddedInput 값을 적용\n[절차] con 선택 -> Target 재생성 -> [embeddedInput 동작 확인] 클릭 (accessibility 검증은 senseReader 를 비우고 accessibility=true 선택)\n[확인] 셀을 한 번 클릭하면 편집 모드 전환 없이 셀 안 입력창에 바로 입력되는지 함께 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 본문 DataList (5컬럼 -> 인라인 생성)
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col_txt" name="col_txt" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_sec" name="col_sec" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_img" name="col_img" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_area" name="col_area" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_spn" name="col_spn" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col_txt" : "김철수", "col_sec" : "1234", "col_img" : "서울시 강남구", "col_area" : "정기 배송 요청", "col_spn" : "5" },
+        { "col_txt" : "이영희", "col_sec" : "5678", "col_img" : "부산시 해운대구", "col_area" : "부재 시 경비실", "col_spn" : "10" },
+        { "col_txt" : "박민준", "col_sec" : "9012", "col_img" : "대구시 수성구", "col_area" : "문 앞에 놓아주세요", "col_spn" : "15" }
+    ], false);
+
+    // GridView 속성 : 빈값(미설정) 은 createCList 가 자동 제외
+    let properties = { senseReader : vSense, accessibility : vAcc };
+    let cList = $c.gcm.createCList(properties);
+
+    // Column embeddedInput : 미설정이면 속성 자체를 넣지 않는다
+    let embAttr = (vEmb === "" ? "" : ' embeddedInput="' + vEmb + '"');
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:800px;height:200px;">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol_txt" value="col_txt (text)"></w2:column>';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol_sec" value="col_sec (secret)"></w2:column>';
+    strTarget += '<w2:column width="180" inputType="text" id="hcol_img" value="col_img (textImage)"></w2:column>';
+    strTarget += '<w2:column width="180" inputType="text" id="hcol_area" value="col_area (textarea)"></w2:column>';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol_spn" value="col_spn (spinner)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="140" inputType="text" dataType="text" id="col_txt"' + embAttr + '></w2:column>';
+    strTarget += '<w2:column width="140" inputType="secret" dataType="text" id="col_sec"' + embAttr + '></w2:column>';
+    strTarget += '<w2:column width="180" inputType="textImage" dataType="text" id="col_img" viewType="icon" imageSrc="/cm/images/contents/btn_folder.png"' + embAttr + '></w2:column>';
+    strTarget += '<w2:column width="180" inputType="textarea" dataType="text" id="col_area"' + embAttr + '></w2:column>';
+    strTarget += '<w2:column width="140" inputType="spinner" dataType="text" id="col_spn"' + embAttr + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 셀 입력창 포커스 감지 (내장 입력창 / 편집 모드 입력창 공통)
+    if (scwin.target1) {
+        scwin.target1.render.addEventListener("focusin", scwin.target1_focusin);
+    }
+}
+
+
+
+// Body Cell td 목록 (Row 순서)
+scwin.getBodyTDs = function (colIndex) {
+    let tds = [];
+    let rowCount = dlt_bind.getRowCount();
+    for (let r = 0; r < rowCount; r++) {
+        let td = target1.render.querySelector("td[id$='_cell_" + r + "_" + colIndex + "']");
+        if (td) {
+            tds.push(td);
+        }
+    }
+    return tds;
+}
+
+
+
+// 화면에 표시되는 요소인지
+scwin.isShown = function (el) {
+    if (!el) {
+        return false;
+    }
+    let rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== "hidden";
+}
+
+
+
+// validation 1, 2 판정 출력
+//  첫 줄 : GridView 의 실제 senseReader / accessibility 적용값과 Column embeddedInput 설정값 (validation 2 근거)
+//  이후 Column 마다 1줄 : 편집 모드 전환 전 Body Cell 마다 화면에 표시되는 입력 컴포넌트가 내장되어 있는지 / spinner 증감 버튼 표시 여부
+scwin.btn_checkEmbedded_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("GridView senseReader=" + target1.options.senseReader + ", accessibility=" + target1.options.accessibility
+        + " | Column embeddedInput 설정=" + (scwin.gVar.emb === "" ? "(미설정)" : scwin.gVar.emb));
+    let rowCount = dlt_bind.getRowCount();
+    for (let i = 0; i < scwin.gVar.cols.length; i++) {
+        let c = scwin.gVar.cols[i];
+        let tds = scwin.getBodyTDs(i);
+        let embCnt = 0;
+        let btnCnt = 0;
+        for (let k = 0; k < tds.length; k++) {
+            let inputEl = tds[k].querySelector("input:not([type='hidden']), textarea, select");
+            if (scwin.isShown(inputEl)) {
+                embCnt++;
+            }
+            if (c.type === "spinner") {
+                if (scwin.isShown(tds[k].querySelector(".w2spinner_up")) && scwin.isShown(tds[k].querySelector(".w2spinner_down"))) {
+                    btnCnt++;
+                }
+            }
+        }
+        let line = c.id + " (" + c.type + ") : 내장 입력 컴포넌트 " + embCnt + "/" + rowCount + " Cell";
+        if (c.type === "spinner") {
+            line += " / 증감 버튼 표시 " + btnCnt + "/" + rowCount + " Cell";
+        }
+        bottom.setReturnValue(line);
+    }
+}
+
+
+
+// validation 1, 2 판정 보조 출력 : 셀 입력창 포커스 시 입력창 id 와 편집 모드 여부
+//  - 내장 입력 컴포넌트 : Cell 마다 입력창 id 가 다르고 편집 모드가 아님
+//  - 편집 모드 입력 컴포넌트 : 어느 Cell 에서든 같은 입력창 id
+scwin.target1_focusin = function (e) {
+    let el = e.target;
+    let tag = el.tagName;
+    if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
+        return;
+    }
+    setTimeout(function () {
+        let td = el.closest("td[id*='_cell_']");
+        let rowIndex;
+        let colIndex;
+        if (td) {
+            let pos = td.id.split("_cell_")[1].split("_");
+            rowIndex = pos[0];
+            colIndex = pos[1];
+        } else {
+            rowIndex = target1.getFocusedRowIndex();
+            colIndex = target1.getFocusedColumnIndex();
+        }
+        let colId = target1.getColumnID(Number(colIndex));
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            colId + " Row " + rowIndex + " 입력창 포커스 : id = " + (el.id || "(없음)") + " / 편집 모드 = " + target1.isEditing());
+    }, 0);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="senseReader" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_accessibility" label="label" nodeSet="data:gdl_boolean"
+										ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkEmbedded_onclick" id="btn_checkEmbedded"
+							label="embeddedInput 동작 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

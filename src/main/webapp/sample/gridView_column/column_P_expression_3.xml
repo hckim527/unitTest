@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] expression" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_3)은 제외 옵션 축 : Footer 다시 계산(Cell 편집)과 GridView excludeDeletedRows / excludeModifiedRows 에 따른 계산 대상 Row 제외를 검증한다.
+//  - 계산식은 이 축 검증에 필요한 최소인 sum('amount') 로 고정하고 SubTotal / Footer 결과 Column 에 함께 설정한다.
+//  - Body 계산식 항목은 _1(column_P_expression_1.xml), 영역별 동작 / SubTotal·Footer 내장 함수 / sumif 조건 항목은 _2(column_P_expression_2.xml) 담당.
+//  - description 은 @description 첫 문장 -> _1 과 동일하게 유지.
+scwin.tData = {
+    "description" : "[column > P > expression]<br/>inputType='expression' 인 Column 의 Cell 에 표시할 값을 산출하는 계산식을 설정합니다.",
+    "validation" : [
+        "Footer Column 의 계산식은 Body 의 데이터가 변경되면 다시 계산됩니다.",
+        "Footer 와 SubTotal Column 의 계산 대상 Row 는 GridView 의 excludeDeletedRows, excludeModifiedRows 속성에 따라 제외될 수 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  gdl_boolean 코드값 : 미설정='1' / true='2' / false='3'
+    con_excludeDeletedRows.setValue("1");
+    con_excludeModifiedRows.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Column 인덱스 0:분류 1:품목 2:수량 3:금액 4:결과. SubTotal / Footer 의 결과(인덱스 4) Column 에 sum('amount') 를 설정한다.
+//  - SubTotal 은 분류(category) 기준이며, 분류 A 는 Row 0 ~ 2, B 는 Row 3 ~ 5 에 연속 배치한다.
+//  - excludeDeletedRows / excludeModifiedRows 는 dynamic N 이므로 렌더 시점에만 설정 -> 옵션 변경 후 "Target 재생성" 으로 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] SubTotal (분류 기준 A : Row 0 ~ 2, B : Row 3 ~ 5) 과 Footer 의 결과 Column 에 sum(amount) 설정\n[절차] 옵션 선택 -> Target 재생성 -> 결과 확인 -> 금액 Cell 편집(수정 Row) 또는 Row 선택 후 deleteRow(삭제 Row) -> 결과 확인\n[확인] 조작 전후 SubTotal / Footer 결과값에 수정 Row, 삭제 Row 의 금액이 포함되는지"', '', 'label1');
+
+    // 조건 설정 (gdl_boolean 은 getText 로 라벨('' / 'true' / 'false') 을 읽는다)
+    let cExcludeDeletedRows = con_excludeDeletedRows.getText();
+    let cExcludeModifiedRows = con_excludeModifiedRows.getText();
+
+    // SubTotal / Footer 결과 Column 의 계산식 (고정)
+    let cExpression = "sum('amount')";
+
+    let attrGrid = '';
+    if (cExcludeDeletedRows !== '') attrGrid += ' excludeDeletedRows="' + cExcludeDeletedRows + '"';
+    if (cExcludeModifiedRows !== '') attrGrid += ' excludeModifiedRows="' + cExcludeModifiedRows + '"';
+
+    // dataList 생성 (SubTotal 기준 Column 인 category 값이 같은 Row 를 연속 배치)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="category" name="category" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="item" name="item" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="result" name="result" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "category" : "A", "item" : "복사용지 A4", "qty" : "50", "amount" : "1250000", "result" : "" },
+        { "category" : "A", "item" : "레이저 토너", "qty" : "30", "amount" : "2670000", "result" : "" },
+        { "category" : "A", "item" : "볼펜", "qty" : "200", "amount" : "160000", "result" : "" },
+        { "category" : "B", "item" : "노트북", "qty" : "10", "amount" : "14500000", "result" : "" },
+        { "category" : "B", "item" : "모니터", "qty" : "20", "amount" : "6400000", "result" : "" },
+        { "category" : "B", "item" : "키보드", "qty" : "40", "amount" : "1800000", "result" : "" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id=""' + attrGrid + ' style="width:560px;height:400px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hCategory" value="분류"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="hItem" value="품목"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="hQty" value="수량"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hAmount" value="금액"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hResult" value="결과"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="category" value=""></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="item" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="qty" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="amount" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="result" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="category">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="scol1" value="소계"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="scol3" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="scol4" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="expression" id="scol5" value="" expression="' + cExpression + '"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="fcol1" value="합계"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="fcol2" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="fcol3" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="fcol4" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="expression" id="fcol5" value="" expression="' + cExpression + '"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 결과 확인 : SubTotal 그룹별 / Footer 결과 Cell 표시값을 한 줄로 출력
+//  - validation 1 : Cell 편집 전후 Footer 값 비교
+//  - validation 2 : excludeDeletedRows / excludeModifiedRows 조합별 편집·deleteRow 후 SubTotal / Footer 값 비교
+//  - 다시 계산 여부는 화면에 그려진 값으로 판정하므로 Cell 의 표시 텍스트를 읽는다.
+//  - SubTotal 표시 Row 외에 숨겨진 예비 Row 가 함께 렌더되므로 data-subtotalrowindex 속성이 있는 표시 Row 만 읽는다.
+scwin.btn_result_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let arrOut = [];
+    let arrTd = target1.render.querySelectorAll("td[id='scol5']");
+    let nSub = 0;
+    for (let i = 0; i < arrTd.length; i++) {
+        let tr = arrTd[i].parentNode;
+        if (tr.getAttribute("data-subtotalrowindex") === null || tr.style.display === "none") continue;
+        arrOut.push("SubTotal " + nSub + " '" + arrTd[i].textContent + "'");
+        nSub++;
+    }
+    let td = document.querySelector("td[id='" + target1.id + "_fcol5']");
+    arrOut.push("Footer '" + td.textContent + "'");
+    bottom.setReturnValue(arrOut.join(" / "));
+}
+
+
+
+// deleteRow : 포커스된 Row 를 삭제 상태로 변경 (excludeDeletedRows / excludeModifiedRows 확인용)
+scwin.btn_deleteRow_onclick = function () {
+    let nRow = target1.getFocusedRowIndex();
+    if (nRow < 0) return;
+    dlt_bind.deleteRow(target1.getRealRowIndex(nRow));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="excludeDeletedRows" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_excludeDeletedRows" label="label" nodeSet="data:gdl_boolean" ref="" style=""
+										submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="excludeModifiedRows" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_excludeModifiedRows" label="label" nodeSet="data:gdl_boolean" ref="" style=""
+										submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_result_onclick" id="btn_result" label="결과 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_deleteRow_onclick" id="btn_deleteRow" label="deleteRow" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

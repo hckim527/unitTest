@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] excelExpression" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1487
+// 테스트 설명, 유효성 값 설정
+//  - "Header/Body Column 에서만 동작" 검증을 위해 설정 영역 옵션(con_area : Header / Body)을 둔다. (column_P_excelCellType_1 사용자 결정 준용)
+//  - "다른 영역의 Column 에 설정 시 무시" 는 column 샘플 관례대로 validation 에서 제외한다. (Footer / SubTotal 옵션 미생성)
+scwin.tData = {
+    "description" : "[column > P > excelExpression]<br/>advancedExcelDownload() 메소드로 Excel 파일을 다운로드할 때 Column 에 적용할 Excel 수식을 설정합니다.",
+    "validation" : [
+        "문자열 설정 시, 다운로드되는 Excel 파일의 Cell 에 적용할 Excel 수식을 설정합니다.",
+        "문자열 설정 시, Excel 수식을 동일하게 사용할 수 있으며, Column ID 를 설정하면 Excel 좌표값으로 변경하여 적용됩니다.",
+        "Header/Body Column 에서 동작합니다.",
+        "GridView 화면의 표시와 동작에는 영향을 주지 않습니다.",
+        "advancedExcelDownload() 메소드의 infoArray 파라미터로 출력하는 별도 정보 Cell 의 Excel 수식은 이 속성이 아니라 infoArray 의 excelExpression 값으로 설정합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_excelExpression.setValue("sum('col1','col2','col3')");
+    con_area.setValue("body");
+    par_infoArray.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Column 인덱스 0:품목 1:1월 2:2월 3:3월 4:합계. excelExpression 은 con_area 로 고른 영역의 합계(인덱스 4) Column 에만 설정한다.
+//  - Header 는 2 Row 로 구성하고 2번째 Row 에 월별 목표값을 두어 Header Column 에도 수식이 드러나게 한다.
+//    Header 2번째 Row 의 월별 Column ID 는 hGoal1 / hGoal2 / hGoal3 이므로, Header 영역 선택 시 수식의 Column ID 'col1' 'col2' 'col3' 을
+//    같은 위치의 Header Column ID 'hGoal1' 'hGoal2' 'hGoal3' 으로 바꿔 설정한다. (좌표 직접 지정 수식은 그대로 설정)
+//  - 합계 Column 은 DataList 의 total 값(월별 합)을 표시하며, excelExpression 설정 여부와 무관하게 화면에는 이 값이 표시되어야 한다.
+//  - excelExpression 은 dynamic N 이므로 렌더 시점에만 설정 -> 옵션 변경 후 "Target 재생성" 으로 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] excelExpression 은 선택한 영역의 합계 Column 에만 설정됨 (Header 는 2번째 Row 의 목표 합계 Column)\nHeader 영역 선택 시 수식의 Column ID col1 / col2 / col3 은 Header 2번째 Row 의 같은 위치 Column ID hGoal1 / hGoal2 / hGoal3 으로 바꿔 설정함\nExcel 파일에서 Header 는 1~2행, Body 는 3~6행, 열은 A(품목) ~ E(합계) 이며 infoArray 설정 시 7행 E열(합계 아래)에 별도 정보 Cell 이 출력됨\n[절차] excelExpression / 설정 영역 선택 -> Target 재생성 -> infoArray 선택 -> advancedExcelDownload 버튼 클릭\n[확인] 다운로드된 Excel 파일에서 합계 Cell 의 수식(수식 입력줄)과 Row 별 좌표, 별도 정보 Cell 의 수식을 확인\n화면의 합계 Column 표시값은 결과창 출력과 그리드 화면으로 확인"', '', 'label1');
+
+    // 조건 설정
+    let cExpression = con_excelExpression.getValue();
+    let cArea = con_area.getValue();
+    let sHeaderExp = cExpression.replace(/'col/g, "'hGoal");
+    let attrHeader = (cExpression !== '' && cArea === 'header') ? ' excelExpression="' + sHeaderExp + '"' : '';
+    let attrBody = (cExpression !== '' && cArea === 'body') ? ' excelExpression="' + cExpression + '"' : '';
+
+    // dataList 생성
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="item" name="item" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="col1" name="col1" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="col2" name="col2" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="col3" name="col3" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="total" name="total" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "item" : "노트북", "col1" : "12", "col2" : "15", "col3" : "18", "total" : "45" },
+        { "item" : "모니터", "col1" : "30", "col2" : "25", "col3" : "28", "total" : "83" },
+        { "item" : "키보드", "col1" : "40", "col2" : "42", "col3" : "37", "total" : "119" },
+        { "item" : "마우스", "col1" : "55", "col2" : "60", "col3" : "52", "total" : "167" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:560px;height:250px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hItem" value="품목"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hMonth1" value="1월"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hMonth2" value="2월"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hMonth3" value="3월"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hTotal" value="합계"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hGoal" value="목표"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hGoal1" value="100"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hGoal2" value="120"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="hGoal3" value="150"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hGoalSum" value="370"' + attrHeader + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="item" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col1" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col2" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="col3" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="total" value=""' + attrBody + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 다운로드 요청 캡처 : 서버로 전송되는 값을 확인하기 위해 메소드 호출 구간에서만
+//  form submit 과 XHR send 를 감싸고 호출 직후 원복한다. (실제 요청은 그대로 통과시킨다.)
+scwin.hookRequest = function () {
+    let objReq = { "kind" : "", "body" : "" };
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    let fnSend = XMLHttpRequest.prototype.send;
+
+    HTMLFormElement.prototype.submit = function () {
+        if (objReq.kind === "") {
+            objReq.kind = "Form Submit";
+            let objInput = this.querySelector("input[name=xmlValue]");
+            objReq.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function (vData) {
+        if (objReq.kind === "") {
+            objReq.kind = "XHR";
+            objReq.body = vData + "";
+        }
+        return fnSend.apply(this, arguments);
+    };
+
+    objReq.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+        XMLHttpRequest.prototype.send = fnSend;
+    };
+    return objReq;
+}
+
+
+
+// 전송 XML 에서 id 로 Column 여는 태그를 찾아 excelExpression 속성값을 읽는다. (속성이 없으면 미설정)
+scwin.getSentExpression = function (sBody, sColId) {
+    let nId = sBody.indexOf('id="' + sColId + '"');
+    if (nId < 0) return "(미전달)";
+
+    let nStart = sBody.lastIndexOf("<w2:column", nId);
+    let sTag = sBody.substring(nStart, sBody.indexOf(">", nId));
+    let nKey = sTag.indexOf(' excelExpression="');
+    if (nKey < 0) return "(미설정)";
+
+    let sRest = sTag.substring(nKey + 18);
+    return sRest.substring(0, sRest.indexOf('"')).replace(/&apos;/g, "'");
+}
+
+
+
+// advancedExcelDownload 실행 : 전달한 infoArray, 서버로 전송된 합계 Column 의 excelExpression, 화면의 합계 Column 표시값 출력
+//  - validation 1, 2 : 다운로드 파일에서 합계 Cell 의 수식과 Row 별 좌표 확인 (전송 XML 의 excelExpression 값으로 설정값 전달 확인)
+//  - validation 3 : con_area 로 고른 영역(Header / Body)별 동작
+//  - validation 4 : 화면의 합계 Column 표시값(DataList total / Header 목표 합계 값)이 excelExpression 과 무관하게 유지되는지
+//  - validation 5 : infoArray 설정 시 별도 정보 Cell(E7) 의 수식이 infoArray.excelExpression 값으로 적용되는지
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let cArea = con_area.getValue();
+    let objColId = { "header" : "hGoalSum", "body" : "total" };
+
+    //  - fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값이다.
+    //  - infoArray 는 합계 Column 아래(행 인덱스 6 / 열 인덱스 4 = E7) 1개 Cell 에 Body 합계 범위 수식을 출력한다.
+    //    rowIndex / colIndex / rowSpan / colSpan 은 하나라도 빠지면 다운로드가 일어나지 않으므로 모두 전달한다.
+    let options = { "fileName" : "column_excelExpression", "extension" : "xlsx" };
+    let arrInfo = [ { "rowIndex" : 6, "colIndex" : 4, "rowSpan" : 1, "colSpan" : 1, "text" : "전체 합계", "excelExpression" : "SUM(E3:E6)" } ];
+    let bInfo = (par_infoArray.getValue() !== "");
+
+    let objReq = scwin.hookRequest();
+    try {
+        if (bInfo) {
+            target1.advancedExcelDownload(options, arrInfo);
+        } else {
+            target1.advancedExcelDownload(options);
+        }
+    } finally {
+        objReq.unhook();
+    }
+
+    let arrDisp = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arrDisp.push(target1.getCellDisplayData(i, "total"));
+    }
+
+    let sInfo = bInfo ? "[{ rowIndex : 6, colIndex : 4, rowSpan : 1, colSpan : 1, text : 전체 합계, excelExpression : SUM(E3:E6) }]" : "(생략)";
+    bottom.setReturnValue("infoArray : " + sInfo);
+    bottom.setReturnValue(con_area.getText() + " 합계 Column excelExpression -> 전송 XML : " + scwin.getSentExpression(objReq.body, objColId[cArea]));
+    bottom.setReturnValue("화면 표시값 : Header 목표 합계 = " + target1.getHeaderValue("hGoalSum") + " / Body 합계 = " + arrDisp.join(", "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="excelExpression" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_excelExpression" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sum('col1','col2','col3')]]></xf:label>
+												<xf:value><![CDATA[sum('col1','col2','col3')]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[SUM(B3:D3)]]></xf:label>
+												<xf:value><![CDATA[SUM(B3:D3)]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="설정 영역" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_area" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[Header]]></xf:label>
+												<xf:value><![CDATA[header]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Body]]></xf:label>
+												<xf:value><![CDATA[body]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="infoArray" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_infoArray" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[설정 (excelExpression : SUM(E3:E6))]]></xf:label>
+												<xf:value><![CDATA[set]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

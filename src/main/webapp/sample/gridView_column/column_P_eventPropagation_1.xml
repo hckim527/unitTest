@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[gridView column] eventPropagation" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : 설정값별 전파 여부(true / false / 미설정), Cell 영역 클릭, embeddedInput=true
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//  - "preventMultipleClick 값이 true 인 경우에만 동작 / true 가 아니면 항상 전파" 는 프로젝트 config.xml 이 preventMultipleClick=true 고정이라 재현 불가 → validation 에서 제외 (라벨 [전제] 에 config 값만 명시)
+//  - 전파 관측 : GridView onclick 이벤트(GridView render 의 click 리스너에서 발생) 와 GridView 를 감싼 상위 group(grp_comp) 의 DOM click 리스너 수신 여부
+//    (oncellclick 은 CheckBox/Radio 클릭 처리부에서 전파와 무관하게 직접 발생하므로 관측 수단으로 쓰지 않음)
+scwin.tData = {
+    "description" : "[column > P > eventPropagation]<br/>inputType='checkbox','radio' 인 Column 에서 클릭 이벤트를 상위 요소로 전파할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, CheckBox/Radio 영역의 클릭 이벤트가 GridView 를 포함한 상위 요소로 전파됩니다.",
+        "false (default) 설정 시, CheckBox/Radio 영역의 클릭 이벤트가 상위 요소로 전파되지 않습니다.",
+        "CheckBox/Radio 영역이 아닌 Cell 영역을 클릭한 경우에는 eventPropagation 속성값에 관계없이 상위 요소로 클릭 이벤트가 전파됩니다.",
+        "embeddedInput='true' 이면 eventPropagation 속성값에 관계없이 상위 요소로 클릭 이벤트가 전파됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 클릭 1회 관측 상태
+    "click" : null,
+    // 상위 group click 리스너 등록 여부 (grp_comp 는 재생성되지 않으므로 1회만 등록)
+    "grpBound" : false
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (eventPropagation=true, embeddedInput 미설정)
+    con_eventPropagation.setValue("true");
+    con_embeddedInput.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - col_chk(checkbox) / col_rad(radio) Column 에 eventPropagation / embeddedInput 을 con 선택값으로 설정 (빈값이면 속성 미부여)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cProp = con_eventPropagation.getValue();
+    let cEmb = con_embeddedInput.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 프로젝트 config.xml 의 gridView preventMultipleClick = true\n[절차] col_chk / col_rad 의 CheckBox(Radio) 를 클릭하거나, 같은 셀의 CheckBox(Radio) 가 없는 여백(Cell 영역)을 클릭\n[확인] 클릭마다 결과창에 클릭 영역과 GridView onclick 발생 여부, GridView 를 감싼 상위 group 의 click 수신 여부가 자동 출력됨"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // target1 DataList
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col_name" name="col_name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_chk" name="col_chk" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_rad" name="col_rad" dataType="text"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col_name" : "김철수", "col_chk" : "1", "col_rad" : "0" },
+        { "col_name" : "이영희", "col_chk" : "0", "col_rad" : "1" },
+        { "col_name" : "박민준", "col_chk" : "0", "col_rad" : "0" }
+    ], false);
+
+    let grp_comp = $c.gcm.getTestGroup();
+    let colAttr = (cProp === '' ? '' : ' eventPropagation="' + cProp + '"') + (cEmb === '' ? '' : ' embeddedInput="' + cEmb + '"');
+
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:150px;" ev:onclick="scwin.target1_onclick">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="140" inputType="text" id="hcol_name" value="col_name (text)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol_chk" value="col_chk (checkbox)"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="text" id="hcol_rad" value="col_rad (radio)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="140" inputType="text" dataType="text" id="col_name" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="170" inputType="checkbox" dataType="text" id="col_chk"' + colAttr + '></w2:column>';
+    strTarget += '<w2:column width="170" inputType="radio" dataType="text" id="col_rad"' + colAttr + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+    scwin.target1 = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 클릭 시작 감지 : capture 단계는 대상 요소의 stopPropagation 과 무관하게 먼저 실행됨
+    if (scwin.target1) {
+        scwin.target1.render.addEventListener("click", scwin.target1_clickCapture, true);
+    }
+
+    // 상위 group(grp_comp, getTestGroup 반환값은 DOM 요소) 의 DOM click 수신 (bubble 단계)
+    if (!scwin.gVar.grpBound) {
+        grp_comp.addEventListener("click", scwin.grp_comp_click);
+        scwin.gVar.grpBound = true;
+    }
+}
+
+
+
+// 클릭 1회 관측 시작 : col_chk / col_rad Body Cell 클릭만 대상
+scwin.target1_clickCapture = function (e) {
+    let el = e.target;
+    let td = el.closest ? el.closest("td[id*='_cell_']") : null;
+    if (!td) {
+        return;
+    }
+    let pos = td.id.split("_cell_")[1].split("_");
+    let colId = target1.getColumnID(Number(pos[1]));
+    if (colId !== "col_chk" && colId !== "col_rad") {
+        return;
+    }
+    let isInput = (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio"));
+    let area = isInput ? (el.type === "checkbox" ? "CheckBox 영역" : "Radio 영역") : "Cell 영역";
+    scwin.gVar.click = { "row" : pos[0], "colId" : colId, "area" : area, "grid" : false, "grp" : false };
+    setTimeout(scwin.flushClick, 0);
+}
+
+
+
+// GridView onclick 이벤트 (GridView 까지 전파된 경우 발생)
+scwin.target1_onclick = function (e) {
+    if (scwin.gVar.click) {
+        scwin.gVar.click.grid = true;
+    }
+}
+
+
+
+// GridView 를 감싼 상위 group 의 click 수신
+scwin.grp_comp_click = function (e) {
+    if (scwin.gVar.click) {
+        scwin.gVar.click.grp = true;
+    }
+}
+
+
+
+// validation 1, 2, 3, 4 판정 출력 : 클릭 영역별 GridView onclick 발생 / 상위 group click 수신 여부
+scwin.flushClick = function () {
+    let c = scwin.gVar.click;
+    if (!c) {
+        return;
+    }
+    scwin.gVar.click = null;
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        c.colId + " Row " + c.row + " " + c.area + " 클릭 : GridView onclick 발생 = " + c.grid + " / 상위 group click 수신 = " + c.grp);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="eventPropagation" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_eventPropagation" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

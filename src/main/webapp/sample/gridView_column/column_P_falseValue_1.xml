@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] falseValue" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+scwin.tData = {
+    "description" : "[column > P > falseValue]<br/>inputType='checkbox','radio' 인 Column 에서 valueType='other' 일때 선택 해제된 Cell 의 값으로 적용될 값을 설정합니다.",
+    "validation" : [
+        "valueType='binary','boolean' 인 경우 falseValue 속성은 무시되며 '0', 'false' 가 적용됩니다.",
+        "Cell 을 선택 해제했을때 Cell 값으로 적용될 값을 설정합니다.",
+        "설정한 속성값이 Cell 의 값으로 DataList 에 저장됩니다.",
+        "Cell 의 선택 상태는 Cell 값이 trueValue 속성값과 같은지로만 판단합니다.",
+        "따라서, Cell 값이 falseValue 속성값과 다르더라도 trueValue 속성값과 같지 않으면 선택 해제 상태로 표시됩니다.",
+        "inputType='checkbox' 인 Column 에서 falseValue 속성을 '$blank' 로 설정하면 ''(Empty String)으로 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_inputType.setValue("checkbox");
+    con_valueType.setValue("other");
+    con_falseValue.setValue("N");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - falseValue 는 렌더 시 결정되므로 con 변경 후 Target 재생성(btn_createTarget -> comp_init) 으로만 반영한다.
+//  - trueValue 는 'Y' 고정 (valueType='other' 일 때만 적용)
+//  - Row 0 : 선택 값(trueValue), Row 1 : 'N', Row 2 : 'X' (trueValue, falseValue 어느 쪽과도 다른 값)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건
+    let cInputType = con_inputType.getValue();
+    let cValueType = con_valueType.getValue();
+    let cFalseValue = con_falseValue.getValue();
+
+    // valueType 별 선택 값 : binary = '1', boolean = 'true', other = trueValue('Y')
+    let checkedValue = { "binary" : "1", "boolean" : "true", "other" : "Y" }[cValueType];
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] trueValue=Y 고정. Row 0 = ' + checkedValue + ' (선택 값), Row 1 = N, Row 2 = X\n[절차] checkbox 는 Row 0 클릭으로 선택 해제, radio 는 Row 2 클릭 (Row 0 이 선택 해제됨)\n[확인] getCellData 확인 버튼으로 전체 Row 의 DataList 값과 체크 상태 확인"', '', 'label1');
+
+    // dataList 생성
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "홍길동", "chk" : checkedValue },
+        { "name" : "김철수", "chk" : "N" },
+        { "name" : "이영희", "chk" : "X" }
+    ], false);
+
+    // chk Column 속성
+    let attrChk = ' inputType="' + cInputType + '" valueType="' + cValueType + '" trueValue="Y" falseValue="' + cFalseValue + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="330" style="" inputType="text" id="column2" value="chk (' + cInputType + ' / ' + cValueType + ' / falseValue ' + cFalseValue + ')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="330" style="" id="chk" value=""' + attrChk + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 전체 Row 의 chk DataList 값과 체크 상태
+//  - validation 1 : binary / boolean 에서 선택 해제 후 저장값 '0' / 'false'
+//  - validation 2, 3 : other 에서 선택 해제 후 DataList 저장값 = falseValue
+//  - validation 4, 5 : Row 1('N'), Row 2('X') 는 trueValue 와 다르므로 체크 false
+//  - validation 6 : checkbox + '$blank' 선택 해제 후 저장값 ''
+scwin.btn_getCellData_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        let td = document.querySelector("td[id='" + target1.id + "_cell_" + i + "_1']");
+        let input = td ? td.querySelector("input") : null;
+        bottom.setReturnValue("Row " + i + " '" + dlt_bind.getCellData(i, "chk") + "' / 체크 " + (input ? input.checked : "없음"));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="falseValue" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_falseValue" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>N</xf:label>
+												<xf:value>N</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>$blank</xf:label>
+												<xf:value>$blank</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="valueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_valueType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>binary</xf:label>
+												<xf:value>binary</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>boolean</xf:label>
+												<xf:value>boolean</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>other</xf:label>
+												<xf:value>other</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>checkbox</xf:label>
+												<xf:value>checkbox</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>radio</xf:label>
+												<xf:value>radio</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCellData_onclick" id="btn_getCellData"
+							label="getCellData 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

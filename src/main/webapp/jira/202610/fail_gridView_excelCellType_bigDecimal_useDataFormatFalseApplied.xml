@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView Column excelCellType=bigDecimal 이 useDataFormat=false 에서도 적용" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_a">
+					<w2:columnInfo>
+						<w2:column id="item" name="item" dataType="text"></w2:column>
+						<w2:column id="amount" name="amount" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_b">
+					<w2:columnInfo>
+						<w2:column id="item" name="item" dataType="text"></w2:column>
+						<w2:column id="amount" name="amount" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script type="text/javascript" lazy="false"><![CDATA[
+scwin.onpageload = function () {
+    let arr = [
+        { "item" : "노트북", "amount" : "1250000" },
+        { "item" : "모니터", "amount" : "380000" }
+    ];
+    dlt_a.setJSON(arr);
+    dlt_b.setJSON(arr);
+};
+
+// advancedExcelDownload(useDataFormat=false) 실행 + 서버로 전송된 useDataFormat, amount Column excelCellType 출력
+scwin.download = function (grd, name) {
+    let sBody = "";
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        let objInput = this.querySelector("input[name=xmlValue]");
+        if (sBody === "" && objInput) {
+            sBody = objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    try {
+        grd.advancedExcelDownload({ "fileName" : "grid_" + name, "extension" : "xlsx", "useDataFormat" : "false" });
+    } finally {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    }
+    let objFlag = sBody.match(/hashkey='useDataFormat' value='([^']*)'/);
+    scwin.setReturnValue("[" + name + "] 전송 useDataFormat : " + (objFlag ? objFlag[1] : "(미전달)") + " / 전송 amount Column excelCellType : " + scwin.getSentCellType(sBody, "amount"));
+};
+
+// 전송 XML 의 Body 영역에서 Column 의 excelCellType 을 읽는다
+scwin.getSentCellType = function (sBody, sColId) {
+    let nStart = sBody.indexOf("<w2:gBody");
+    let sBodyXml = (nStart < 0) ? "" : sBody.substring(nStart, sBody.indexOf("</w2:gBody>", nStart));
+    let arrTag = sBodyXml.split("<w2:column");
+    for (let i = 1; i < arrTag.length; i++) {
+        let sTag = arrTag[i].substring(0, arrTag[i].indexOf(">"));
+        if (sTag.indexOf(' id="' + sColId + '"') < 0) {
+            continue;
+        }
+        let objType = sTag.match(/ excelCellType="([^"]*)"/);
+        return (objType && objType[1] !== "") ? objType[1] : "(없음)";
+    }
+    return "(미전달)";
+};
+
+scwin.btn_a_onclick = function () { scwin.download(grd_a, "A"); };
+scwin.btn_b_onclick = function () { scwin.download(grd_b, "B"); };
+
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_root" style="padding:16px;">
+			<w2:textbox escape="false" id="lbl_title" style="font-size:16px;margin-top:16px;margin-bottom:16px;"
+				label="■ &lt;b&gt;[FAIL] advancedExcelDownload 의 options.useDataFormat=false 인데 Column 의 excelCellType=bigDecimal 이 적용됨&lt;/b&gt;&lt;br/&gt;[확인 방법] 각 그리드의 advancedExcelDownload 버튼을 눌러 받은 xlsx 를 Excel 로 열어 amount Column(B열) 셀 서식 확인&lt;br/&gt;[기대] A 도 B 와 같이 excelCellType 이 적용되지 않아 표시 형식 '일반' 으로 저장됨&lt;br/&gt;[실제] B 는 '일반', A 는 숫자 서식(0_ )으로 저장됨"></w2:textbox>
+
+			<w2:textbox id="" label="A : amount Column excelCellType=bigDecimal, useDataFormat=false" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_a" dataList="data:dlt_a" style="width:400px;height:100px;margin-bottom:8px;">
+				<w2:header id="hd_a" style="">
+					<w2:row id="hr_a" style="">
+						<w2:column id="h_a_item" inputType="text" value="item" width="150"></w2:column>
+						<w2:column id="h_a_amount" inputType="text" value="amount" width="200"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_a" style="">
+					<w2:row id="br_a" style="">
+						<w2:column id="item" inputType="text" width="150"></w2:column>
+						<w2:column id="amount" inputType="text" width="200" excelCellType="bigDecimal"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<w2:button ev:onclick="scwin.btn_a_onclick" id="btn_a" label="A advancedExcelDownload" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-bottom:16px;"></w2:button>
+
+			<w2:textbox id="" label="B : A 와 같고 excelCellType=number (대조)" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_b" dataList="data:dlt_b" style="width:400px;height:100px;margin-bottom:8px;">
+				<w2:header id="hd_b" style="">
+					<w2:row id="hr_b" style="">
+						<w2:column id="h_b_item" inputType="text" value="item" width="150"></w2:column>
+						<w2:column id="h_b_amount" inputType="text" value="amount" width="200"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_b" style="">
+					<w2:row id="br_b" style="">
+						<w2:column id="item" inputType="text" width="150"></w2:column>
+						<w2:column id="amount" inputType="text" width="200" excelCellType="number"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<w2:button ev:onclick="scwin.btn_b_onclick" id="btn_b" label="B advancedExcelDownload" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-bottom:16px;"></w2:button>
+
+			<xf:group id="grp_bottom" style="">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 120px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] excelCellType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1485
+// 테스트 설명, 유효성 값 설정
+// excelCellType 분할 _2 : 미설정(default) 시 dataType 매핑 축 (Body Column 기준)
+//  · text / number / bigDecimal / date 설정값, 전체 영역 동작, useDataFormat 조건은 _1 담당
+scwin.tData = {
+    "description" : "[column > P > excelCellType]<br/>advancedExcelDownload() 메소드로 Excel 파일을 다운로드할 때 Column 의 Excel 표시 형식을 설정합니다.",
+    "validation" : [
+        "미설정 시, Column 의 dataType 속성값에 맞게 Excel 표시 형식이 설정됩니다.",
+        "미설정 시, Body Column 은 바인딩된 DataList Column 의 dataType 속성값이 우선 적용되며, DataList 에 없는 Column 은 Column 의 dataType 속성값이 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (두 dataType 이 다른 상태로 시작)
+    con_dataListDataType.setValue("number");
+    con_columnDataType.setValue("text");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// dataType 별 Excel 표시 형식 (가이드 기준)
+scwin.cellFormat = {
+    "text" : "텍스트",
+    "number" : "숫자",
+    "bigDecimal" : "숫자",
+    "date" : "날짜"
+};
+
+
+
+// comp 생성
+//  - src       : 원본값 Column (DataList 바인딩, dataType=text 고정)
+//  - orderDate : DataList 바인딩 Column (DataList dataType=con_dataListDataType, Column dataType=con_columnDataType)
+//  - calcDate  : DataList 에 없는 Column (expression 으로 src 값을 표시, Column dataType=con_columnDataType)
+//  - 세 Column 모두 excelCellType 미설정
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined') {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (excelCellType, dataType 은 렌더 시점 속성이므로 Target 재생성으로만 반영)
+    let cDataListDataType = con_dataListDataType.getValue();
+    let cColumnDataType = con_columnDataType.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 모든 Column 의 excelCellType 미설정, advancedExcelDownload 의 options.useDataFormat 은 true 고정\n[전제] orderDate 는 DataList 에 바인딩된 Column, calcDate 는 DataList 에 없는 Column(expression 으로 원본값 표시), 두 Column 의 dataType 은 Column dataType 옵션값\n[절차] 옵션 선택 -> Target 재생성 -> advancedExcelDownload 클릭\n[확인] 결과창의 Column 별 적용 dataType 과, 다운로드한 xlsx 에서 orderDate / calcDate 셀의 표시 형식(텍스트 / 숫자 / 날짜)"', '', 'label1');
+
+    // dataList 생성 (orderDate 의 dataType 은 옵션값, calcDate 는 정의하지 않음)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="src" name="원본값" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="orderDate" name="주문일자" dataType="' + cDataListDataType + '"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrValue = ["20261028", "20261101", "20251231", "20260115"];
+    let jsonData = [];
+    for (let i = 0; i < arrValue.length; i++) {
+        jsonData.push({ "src" : arrValue[i], "orderDate" : arrValue[i] });
+    }
+    dlt_bind.setJSON(jsonData, false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:600px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column1" value="원본값 (src)"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column2" value="주문일자 (orderDate)"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column3" value="계산일자 (calcDate)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="text" id="src" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" dataType="' + cColumnDataType + '" id="orderDate" value=""></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="expression" dataType="' + cColumnDataType + '" id="calcDate" expression="display(\'src\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 다운로드 요청 캡처 : 다운로드는 숨겨진 iframe 으로 form 전송되며 form 은 전송 직후 제거되므로,
+//  메소드 호출 구간에서만 form submit 을 감싸 서버로 실제 전달되는 값을 읽고 곧바로 원복한다. (실제 요청은 그대로 통과)
+scwin.hookRequest = function () {
+    scwin.gVar = { "body" : "" };
+
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        if (scwin.gVar.body === "") {
+            let objInput = this.querySelector("input[name=xmlValue]");
+            scwin.gVar.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+
+    scwin.gVar.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    };
+}
+
+
+
+// 전송 XML 의 Body(w2:gBody) 영역에서 지정 Column 의 dataType 을 읽는다. (Excel 표시 형식 결정에 쓰이는 값)
+scwin.getSentBodyDataType = function (sColId) {
+    let sBody = scwin.gVar.body || "";
+    let nStart = sBody.indexOf("<w2:gBody");
+    if (nStart < 0) return "(미전달)";
+    let nEnd = sBody.indexOf("</w2:gBody>", nStart);
+    let sBodyXml = (nEnd < 0) ? sBody.substring(nStart) : sBody.substring(nStart, nEnd);
+
+    let arrTag = sBodyXml.split("<w2:column");
+    for (let i = 1; i < arrTag.length; i++) {
+        let sTag = arrTag[i].substring(0, arrTag[i].indexOf(">"));
+        if (sTag.indexOf(' id="' + sColId + '"') < 0 && sTag.indexOf(" id='" + sColId + "'") < 0) {
+            continue;
+        }
+        let objMatch = sTag.match(/ dataType=["']([^"']*)["']/);
+        return (objMatch === null) ? "(미전달)" : objMatch[1];
+    }
+    return "(미전달)";
+}
+
+
+
+// advancedExcelDownload 실행 후 Column 별 적용 dataType 출력
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let cDataListDataType = con_dataListDataType.getValue();
+    let cColumnDataType = con_columnDataType.getValue();
+
+    // useDataFormat 은 excelCellType 적용 전제이므로 true 고정
+    let options = { "fileName" : "column_excelCellType", "extension" : "xlsx", "useDataFormat" : "true" };
+
+    scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(options);
+    } finally {
+        scwin.gVar.unhook();
+    }
+
+    if (scwin.gVar.body === "") {
+        bottom.setReturnValue("요청 발생 : 없음 (다운로드 미실행)");
+        return;
+    }
+
+    // validation 1, 2 판정 출력 : DataList 바인딩 Column / DataList 에 없는 Column
+    let sOrder = scwin.getSentBodyDataType("orderDate");
+    let sCalc = scwin.getSentBodyDataType("calcDate");
+    bottom.setReturnValue("orderDate (DataList 바인딩) : DataList dataType = " + cDataListDataType + " / Column dataType = " + cColumnDataType + " -> 적용 dataType : " + sOrder + " (Excel 표시 형식 : " + (scwin.cellFormat[sOrder] || sOrder) + ")");
+    bottom.setReturnValue("calcDate (DataList 에 없음) : Column dataType = " + cColumnDataType + " -> 적용 dataType : " + sCalc + " (Excel 표시 형식 : " + (scwin.cellFormat[sCalc] || sCalc) + ")");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:250px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="DataList Column dataType (orderDate)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dataListDataType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Column dataType (orderDate, calcDate)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_columnDataType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

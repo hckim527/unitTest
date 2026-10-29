@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] hideThreshold" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - column 샘플 관례 : hideThreshold 는 Body Column(상품명 name) 에만 설정 (설정 영역 con 옵션 미생성, Body Column 전용 validation 제외)
+//  - 본 샘플(_1) : 기준 너비 이하 숨김 / 초과 표시, adaptive·adaptiveThreshold 무관, setColumnVisible() 후 브라우저 크기 변경 시 재적용 축
+//    비교 대상(GridView·상위 Frame 너비 아님), groupbyZone, Header/Body/SubTotal MultiRow 미동작 조건은 column_P_hideThreshold_2 소유
+scwin.tData = {
+    "description" : "[column > P > hideThreshold]<br/>웹브라우저의 너비에 따라 Column 을 자동으로 숨기거나 표시하는 기준 너비를 설정합니다.",
+    "validation" : [
+        "숫자 값 설정 시, 기준 너비를 픽셀(px) 단위의 숫자로 설정합니다.",
+        "웹브라우저 너비가 설정값 이하이면 Column 을 숨기고, 설정값보다 크면 Column 을 표시합니다.",
+        "GridView 의 adaptive, adaptiveThreshold 속성과 관계없이 별도로 동작합니다.",
+        "setColumnVisible() 메소드로 변경된 Column 의 표시 상태도 웹브라우저의 크기가 변경되면 hideThreshold 속성값 기준으로 다시 바뀝니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  - hideThreshold=1280 : 1600 너비에서는 표시, 창 너비를 1280 이하로 줄이면 숨김
+    con_hideThreshold.setValue("1280");
+    con_adaptive.setValue("");
+    con_adaptiveThreshold.setValue("");
+    par_columnVisible.setValue("false");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행, hideThreshold 는 dynamic N 이므로 con 변경은 재생성으로만 반영)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cHideThreshold = con_hideThreshold.getValue();
+    let cAdaptive = con_adaptive.getValue();
+    let cAdaptiveThreshold = con_adaptiveThreshold.getValue();
+    // 생성 시 적용한 hideThreshold 값 (상태 출력용)
+    scwin.cHideThreshold = cHideThreshold;
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] hideThreshold 는 상품명(name) Body Column 에만 설정\n[절차] 브라우저 창 너비를 조절한 뒤 Column 표시 상태 확인 버튼 클릭\n[확인] 결과창의 브라우저 너비, hideThreshold 값과 상품명 Column 표시(O/X) 대비"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "code" : "P-1001", "name" : "무선 마우스",       "price" : 25000,  "qty" : 12 },
+        { "code" : "P-1002", "name" : "기계식 키보드",     "price" : 89000,  "qty" : 5 },
+        { "code" : "P-1003", "name" : "27인치 모니터",     "price" : 329000, "qty" : 3 },
+        { "code" : "P-1004", "name" : "USB-C 멀티 허브",   "price" : 45000,  "qty" : 20 }
+    ], false);
+
+    // GridView 속성 (adaptive / adaptiveThreshold)
+    let properties = {
+        adaptive          : cAdaptive,
+        adaptiveThreshold : cAdaptiveThreshold
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // 검증 대상 Body Column 속성
+    let strHide = (cHideThreshold !== '') ? ' hideThreshold="' + cHideThreshold + '"' : '';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" id="" style="width:700px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="h_code" value="상품코드"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="h_name" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="h_price" value="단가"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_qty" value="수량"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="code" value=""></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="name" value=""' + strHide + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="price" value="" dataType="number" displayFormat="#,##0"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="qty" value="" dataType="number"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Cell 표시 여부 (O : 표시 / X : 미표시)
+//  - 일반 레이아웃은 숨긴 Column 의 너비가 0, 적응형(crosstab) 레이아웃은 숨긴 Column 의 높이가 0 이 되므로 너비와 높이를 함께 확인
+scwin.getShowMark = function (el) {
+    if (!el) {
+        return "-";
+    }
+    return (el.offsetWidth > 0 && el.offsetHeight > 0 && window.getComputedStyle(el).display !== "none") ? "O" : "X";
+}
+
+
+
+// 현재 상태 출력
+//  - 브라우저 너비는 엔진이 hideThreshold 와 비교하는 값(WebSquare.util._getBrowserWidth : 최상위 창이면 window.innerWidth)
+scwin.printStatus = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let browserWidth = WebSquare.util._getBrowserWidth();
+    let strThreshold = (scwin.cHideThreshold === "") ? "미설정" : scwin.cHideThreshold;
+    let headerTd = document.querySelector("[id='" + target1.id + "_h_name']");
+    let bodyTd = document.querySelector("[id='" + target1.id + "_cell_0_1']");
+
+    // validation 1, 2, 4 판정 출력 : 브라우저 너비와 기준 너비 대비 상품명 Column 표시 상태
+    bottom.setReturnValue("브라우저 너비 : " + browserWidth + "px, hideThreshold : " + strThreshold
+        + " -> 상품명 Column 표시 : Header " + scwin.getShowMark(headerTd) + " / Body " + scwin.getShowMark(bodyTd));
+
+    // validation 3 판정 출력 : adaptive 설정 시 적응형 레이아웃 적용 여부 (hideThreshold 와 별도 동작)
+    if (target1.options.adaptive === "crosstab") {
+        let strAdaptiveThreshold = (target1.options.adaptiveThreshold === "" || typeof target1.options.adaptiveThreshold === "undefined") ? "미설정(480)" : target1.options.adaptiveThreshold;
+        let isAdaptive = (target1.render.className.split(/\s+/).indexOf("w2grid_adaptive_crosstab") > -1);
+        bottom.setReturnValue("adaptive : crosstab, adaptiveThreshold : " + strAdaptiveThreshold + " -> 적응형 레이아웃 적용 : " + isAdaptive);
+    }
+}
+
+
+
+// validation 1 ~ 4 판정 출력 : 현재 브라우저 너비 기준 Column 표시 상태
+scwin.btn_checkStatus_onclick = function () {
+    scwin.printStatus();
+}
+
+
+
+// validation 4 : setColumnVisible(columnId, columnVisible) 로 상품명 Column 표시 상태 변경 (이후 브라우저 크기 변경 -> 상태 확인)
+scwin.btn_setColumnVisible_onclick = function () {
+    let columnVisible = (par_columnVisible.getValue() === "true");
+    target1.setColumnVisible("name", columnVisible);
+    wf_body_bottom.getObj("scwin").setReturnValue("setColumnVisible(name, " + columnVisible + ") 실행");
+    // 화면 갱신(Column 너비 반영)이 실행 직후 비동기로 처리되므로 갱신 후 상태를 출력
+    setTimeout(function () {
+        scwin.printStatus();
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideThreshold" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_hideThreshold" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1000]]></xf:label>
+												<xf:value><![CDATA[1000]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1280]]></xf:label>
+												<xf:value><![CDATA[1280]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1600]]></xf:label>
+												<xf:value><![CDATA[1600]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="adaptive" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_adaptive" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[crosstab]]></xf:label>
+												<xf:value><![CDATA[crosstab]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="adaptiveThreshold" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_adaptiveThreshold" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2000]]></xf:label>
+												<xf:value><![CDATA[2000]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnVisible" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnVisible" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkStatus_onclick" id="btn_checkStatus"
+							label="Column 표시 상태 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnVisible_onclick" id="btn_setColumnVisible"
+							label="setColumnVisible" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] imageAlign" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Header/Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//    동작 영역인 Header Column 과 Body Column 에 같은 imageAlign / inputType / viewType 을 고정 구성으로 함께 설정 (embeddedInput 은 Body Column 전용)
+scwin.tData = {
+    "description" : "[column > P > imageAlign]<br/>Column 에서 텍스트를 기준으로 이미지가 표시되는 위치를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='textImage', viewType='icon' 인 경우에 동작합니다.",
+        "left 설정 시, 이미지를 텍스트의 왼쪽에 표시합니다.",
+        "right 설정 시, 이미지를 텍스트의 오른쪽에 표시합니다.",
+        "미설정 시, 이미지를 텍스트의 오른쪽에 표시합니다.",
+        "Body Column 이면 viewType='default' 여도 Column 이 편집 모드로 들어간 경우엔 imageAlign 속성이 동작합니다.",
+        "Body Column 이면 viewType='default' 여도 Column 의 embeddedInput='true' 인 경우엔 imageAlign 속성이 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    con_imageAlign.setValue("left");
+    con_inputType.setValue("textImage");
+    con_viewType.setValue("icon");
+    con_embeddedInput.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 검증 대상 : 첨부파일 Header Column(column2) + Body Column(file)
+//    imageAlign / inputType / viewType 은 Header·Body 에 같은 값, embeddedInput 은 Body 에만 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+//  - 문서번호, 등록자 Column 은 일반 text Column
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cImageAlign = con_imageAlign.getValue();
+    let cInputType = con_inputType.getValue();
+    let cViewType = con_viewType.getValue();
+    let cEmbeddedInput = con_embeddedInput.getText();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 옵션값은 첨부파일 Header Column 과 Body Column 에 함께 설정 (embeddedInput 은 Body Column 만)\n[절차] Row 0 첨부파일 Cell 더블클릭으로 편집 모드 진입 -> 편집 중 이미지 위치가 자동 출력\n[확인] 이미지 위치 확인 버튼 -> Header Column, Row 0 Body Cell 의 이미지 위치"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="docNo" name="docNo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="file" name="file" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="writer" name="writer" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "docNo" : "D-2026-001", "file" : "견적서.pdf", "writer" : "김민수" },
+        { "docNo" : "D-2026-002", "file" : "계약서.docx", "writer" : "이영희" },
+        { "docNo" : "D-2026-003", "file" : "회의록.hwp", "writer" : "박지훈" }
+    ], false);
+
+    // 검증 대상 Column 공통 속성 (Header / Body)
+    let attrCommon = ' inputType="' + cInputType + '" viewType="' + cViewType + '" imageSrc="/cm/images/base/ico_file.svg"';
+    if (cImageAlign !== '') {
+        attrCommon += ' imageAlign="' + cImageAlign + '"';
+    }
+    let attrBody = attrCommon;
+    if (cEmbeddedInput !== '') {
+        attrBody += ' embeddedInput="' + cEmbeddedInput + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:150px;" ev:onbeforeedit="scwin.target1_onbeforeedit">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="문서번호"></w2:column>';
+    strTarget += '<w2:column width="220" style="" id="column2" value="첨부파일"' + attrCommon + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="등록자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="docNo" value=""></w2:column>';
+    strTarget += '<w2:column width="220" style="" id="file" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="writer" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 영역 안 텍스트(이미지 제외)의 왼쪽 x 좌표 (텍스트가 input 값이면 input 의 x 좌표)
+scwin.getTextLeft = function (area, imgEl) {
+    let input = area.querySelector("input");
+    if (input) {
+        return input.getBoundingClientRect().left;
+    }
+    let walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT);
+    let left = null;
+    while (walker.nextNode()) {
+        let node = walker.currentNode;
+        if (node.nodeValue.trim() === "" || (imgEl && imgEl.contains(node))) {
+            continue;
+        }
+        let range = document.createRange();
+        range.selectNodeContents(node);
+        let rect = range.getBoundingClientRect();
+        if (rect.width > 0 && (left === null || rect.left < left)) {
+            left = rect.left;
+        }
+    }
+    return left;
+}
+
+
+
+// 이미지 위치 판정 문자열 (textEl 을 주면 그 요소를 텍스트 기준으로 사용)
+scwin.getImagePosText = function (area, textEl) {
+    if (!area) {
+        return "Column 없음";
+    }
+    let img = area.querySelector("img, button");
+    if (!img || img.offsetWidth === 0) {
+        return "이미지 없음";
+    }
+    let textLeft = textEl ? textEl.getBoundingClientRect().left : scwin.getTextLeft(area, img);
+    if (textLeft === null) {
+        return "텍스트 없음";
+    }
+    return (img.getBoundingClientRect().left < textLeft) ? "이미지가 텍스트의 왼쪽" : "이미지가 텍스트의 오른쪽";
+}
+
+
+
+// validation 1 ~ 4, 6 판정 출력 : Header Column / Row 0 Body Cell 의 이미지 위치
+scwin.btn_checkImageAlign_onclick = function () {
+    let th = document.querySelector("[id='" + target1.id + "_column2']");
+    let td = document.querySelector("[id='" + target1.id + "_cell_0_1']");
+    wf_body_bottom.getObj("scwin").setReturnValue("Header Column : " + scwin.getImagePosText(th) + " / Body Cell : " + scwin.getImagePosText(td));
+}
+
+
+
+// validation 5 판정 출력 : 편집 모드 진입 직후 편집 Cell 의 이미지 위치 (편집 입력창 기준)
+//  - 이미지 위치 확인 버튼을 누르면 편집이 끝나므로 편집 모드 진입 시점에 자동 출력
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex) {
+    setTimeout(function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_" + columnIndex + "']");
+        let input = document.activeElement && document.activeElement.tagName === "INPUT" ? document.activeElement : null;
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 모드 Body Cell : " + scwin.getImagePosText(td, input));
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="imageAlign" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_imageAlign" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[left]]></xf:label>
+												<xf:value><![CDATA[left]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[right]]></xf:label>
+												<xf:value><![CDATA[right]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[textImage]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="viewType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_viewType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[icon]]></xf:label>
+												<xf:value><![CDATA[icon]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[default]]></xf:label>
+												<xf:value><![CDATA[default]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput (Body)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkImageAlign_onclick" id="btn_checkImageAlign" label="이미지 위치 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

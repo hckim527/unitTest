@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] fixPickerStatus" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//  - pickerType="dynamic" 전제는 description 문장에 포함되어 있어 별도 validation 없이 con_pickerType 대조군으로만 둔다
+scwin.tData = {
+    "description" : "[column > P > fixPickerStatus]<br/>inputType='calendar' 인 Column 에서 pickerType='dynamic' 일때 팝업 달력의 연도/월 선택 방식을 설정합니다.",
+    "validation" : [
+        "'default' 설정 시, 연도/월 선택 화면의 이동을 제한하지 않습니다.",
+        "미설정 시, 연도/월 선택 화면의 이동을 제한하지 않습니다.",
+        "'default' 설정 시, 팝업 달력의 연도/월 영역 클릭 시 10년 단위 선택 화면까지 전환할 수 있습니다.",
+        "'month' 설정 시, 월 선택 화면에서 연도 선택 화면으로 올라가지 않도록 고정합니다.",
+        "'month' 설정 시, 연도는 월 선택 화면의 이전/다음 버튼으로 1년씩 이동합니다.",
+        "calendarValueType='year' 인 Column 은 연도 선택 화면에서 시작하므로 fixPickerStatus 속성이 무시됩니다.",
+        "embeddedInput='true' 인 Column 은 fixPickerStatus 속성이 무시됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    con_fixPickerStatus.setValue("month");
+    con_pickerType.setValue("dynamic");
+    con_calendarValueType.setValue("yearMonthDate");
+    con_embeddedInput.setValue("1");
+
+    // 팝업 달력 안을 클릭하면 결과 출력 (페이지 로딩 시 1회만 등록)
+    document.addEventListener("click", scwin.onDocumentClick, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - fixPickerStatus / pickerType / calendarValueType / embeddedInput 은 Body Column(cdate) 에만 설정
+//  - Body Column 은 inputType="calendar" + dataType="date" + viewType="icon"
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cFixPickerStatus = con_fixPickerStatus.getValue();
+    let cPickerType = con_pickerType.getValue();
+    let cCalendarValueType = con_calendarValueType.getValue();
+    let cEmbeddedInput = con_embeddedInput.getText();
+
+    // calendarValueType 별 ioFormat / displayFormat
+    let fmt = scwin.formatInfo[cCalendarValueType];
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] date 셀 클릭 -> 달력 아이콘 클릭 (embeddedInput=true 는 셀 안 달력 아이콘 바로 클릭) ->팝업 달력 위쪽 연도/월 영역 또는 이전/다음 버튼 클릭\n[확인] 팝업 달력 안을 클릭할 때마다 결과창에 현재 선택 화면과 위쪽 영역 텍스트가 출력됩니다."', '', 'label1');
+
+    // dataList 생성 (calendar Column 바인딩 컬럼은 dataType="date")
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cdate" name="cdate" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([{ "cdate" : fmt.data }], false);
+
+    // cdate Column 속성
+    let attrCol = ' calendarValueType="' + cCalendarValueType + '" ioFormat="' + fmt.ioFormat + '" displayFormat="' + fmt.displayFormat + '"';
+    attrCol += (cPickerType === '') ? '' : ' pickerType="' + cPickerType + '"';
+    attrCol += (cFixPickerStatus === '') ? '' : ' fixPickerStatus="' + cFixPickerStatus + '"';
+    attrCol += (cEmbeddedInput === '') ? '' : ' embeddedInput="' + cEmbeddedInput + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:300px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="date"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" id="cdate" inputType="calendar" dataType="date" viewType="icon"' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// calendarValueType 별 데이터 / 포맷
+scwin.formatInfo = {
+    "yearMonthDate" : { "data" : "20261015", "ioFormat" : "yyyyMMdd", "displayFormat" : "yyyy-MM-dd" },
+    "yearMonth" : { "data" : "202610", "ioFormat" : "yyyyMM", "displayFormat" : "yyyy-MM" },
+    "year" : { "data" : "2026", "ioFormat" : "yyyy", "displayFormat" : "yyyy" }
+};
+
+
+
+// 화면에 열려 있는 target1 의 팝업 달력 render 반환 (없으면 null)
+scwin.getOpenedCalendar = function () {
+    if (typeof target1 === 'undefined' || !target1) {
+        return null;
+    }
+    // 편집 입력창 팝업 : G_{grid id}__{Column id} / embeddedInput 팝업 : {grid id}_cell_{row}_{col}
+    let cals = document.querySelectorAll("div.w2calendar[id*='G_" + target1.id + "__'], div.w2calendar[id*='" + target1.id + "_cell_']");
+    for (let i = 0; i < cals.length; i++) {
+        if (cals[i].offsetWidth > 0 && cals[i].offsetHeight > 0) {
+            return cals[i];
+        }
+    }
+    return null;
+}
+
+
+
+// 달력 아이콘 / 팝업 달력 안 클릭 시 결과 출력
+scwin.onDocumentClick = function (e) {
+    let elem = e.target;
+    if (!elem || typeof target1 === 'undefined' || !target1 || !elem.closest) {
+        return;
+    }
+    let btn = elem.closest("button.w2inputCalendar_button");
+    let cal = elem.closest("div.w2calendar");
+    if ((btn && btn.id.indexOf(target1.id) >= 0) || (cal && cal.id.indexOf(target1.id) >= 0)) {
+        setTimeout(scwin.printCalendarStatus, 200);
+    }
+}
+
+
+
+// validation 1 ~ 7 : 팝업 달력의 현재 선택 화면 / 위쪽 영역 텍스트
+//  - 날짜 선택 화면 : 날짜 표가 보이는 상태
+//  - 월 / 연도 / 10년 단위 선택 화면 : 선택 표의 항목 텍스트로 구분 (1월~12월 / 연도 / 'YYYY - YYYY')
+scwin.printCalendarStatus = function () {
+    let cal = scwin.getOpenedCalendar();
+    if (!cal) {
+        return;
+    }
+    let bottom = wf_body_bottom.getObj("scwin");
+    let header = cal.querySelector(".w2calendar_picker_header_dynamic_entity");
+    if (!header) {
+        // pickerType 이 dynamic 이 아니면 위쪽 영역이 연도/월 SelectBox 로 표시됨
+        let labels = [];
+        //  - embeddedInput 팝업은 native select 로 표시됨
+        cal.querySelectorAll(".w2calendar_header .w2selectbox_label, .w2calendar_header select").forEach(function (lbl) {
+            labels.push(lbl.tagName === "SELECT" ? (lbl.selectedIndex >= 0 ? lbl.options[lbl.selectedIndex].text : "") : lbl.textContent);
+        });
+        bottom.setReturnValue("위쪽 영역 : 연도/월 SelectBox (" + labels.join(" ") + ")");
+        return;
+    }
+    let picker = cal.querySelector(".w2calendar_picker_content");
+    let screen = "날짜 선택";
+    if (picker && getComputedStyle(picker).display !== "none") {
+        let first = picker.querySelector(".w2calendar_picker_cell");
+        let text = first ? first.textContent.trim() : "";
+        if (/^\d{4}\s*-\s*\d{4}$/.test(text)) {
+            screen = "10년 단위 선택";
+        } else if (/^\d{4}$/.test(text)) {
+            screen = "연도 선택";
+        } else {
+            screen = "월 선택";
+        }
+    }
+    let spans = header.querySelectorAll("span");
+    let headerText = spans.length ? Array.prototype.map.call(spans, function (sp) { return sp.textContent; }).join(" ") : header.textContent;
+    bottom.setReturnValue("화면 : " + screen + " / 위쪽 영역 : " + headerText);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="fixPickerStatus" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_fixPickerStatus" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[default]]></xf:label>
+												<xf:value><![CDATA[default]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[month]]></xf:label>
+												<xf:value><![CDATA[month]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="pickerType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_pickerType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[selectbox]]></xf:label>
+												<xf:value><![CDATA[selectbox]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[dynamic]]></xf:label>
+												<xf:value><![CDATA[dynamic]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_calendarValueType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[yearMonthDate]]></xf:label>
+												<xf:value><![CDATA[yearMonthDate]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[yearMonth]]></xf:label>
+												<xf:value><![CDATA[yearMonth]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[year]]></xf:label>
+												<xf:value><![CDATA[year]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

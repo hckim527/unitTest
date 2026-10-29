@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] excelCellType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1485
+// https://inswave01.atlassian.net/browse/WAEA-1486
+// 테스트 설명, 유효성 값 설정
+//  - 미설정('' default) 시 dataType 에 따른 표시 형식(DataList dataType 우선 등)은 column_P_excelCellType_2.xml 에서 다룬다.
+//  - "전체 영역의 Column 에서 동작합니다." 검증을 위해 예외적으로 설정 영역 옵션(con_area)을 둔다. (2026-10-28 사용자 결정)
+scwin.tData = {
+    "description" : "[column > P > excelCellType]<br/>advancedExcelDownload() 메소드로 Excel 파일을 다운로드할 때 Column 의 Excel 표시 형식을 설정합니다.",
+    "validation" : [
+        "text 설정 시, Column 의 Excel 표시 형식을 '텍스트' 로 설정합니다.",
+        "number 설정 시, Column 의 Excel 표시 형식을 '숫자' 로 설정합니다.",
+        "bigDecimal 설정 시, Column 의 Excel 표시 형식을 '숫자' 로 설정합니다.",
+        "date 설정 시, Column 의 Excel 표시 형식을 '날짜' 로 설정합니다.",
+        "전체 영역의 Column 에서 동작합니다.",
+        "Column 의 excelCellType 속성값은 advancedExcelDownload() 메소드의 options.useDataFormat 파라미터값이 'true' 일때 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_excelCellType.setValue("date");
+    con_area.setValue("body");
+    par_useDataFormat.setValue("true");
+    par_useHeaderDataFormat.setValue("false");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - Column 인덱스 0:부서 1:문서명 2:기안일 3:결재일. excelCellType 은 con_area 로 고른 영역의 결재일(인덱스 3) Column 에만 설정한다.
+//  - 기안일(인덱스 2) Column 은 같은 형태의 값(yyyyMMdd)을 갖고 excelCellType 을 설정하지 않는 대비용 Column 이다.
+//  - Header 는 2 Row 로 구성하고 2번째 Row 에 기준일(yyyyMMdd) 값을 두어 Header Column 에도 표시 형식 차이가 드러나게 한다.
+//  - excelCellType 은 dynamic N 이므로 렌더 시점에만 설정 -> 옵션 변경 후 "Target 재생성" 으로 반영
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] excelCellType 은 선택한 영역의 결재일 Column 에만 설정되고, 기안일 Column 은 같은 형태의 값(yyyyMMdd)을 가진 대비용 Column 임 (DataList dataType 은 모두 text)\nHeader 는 2번째 Row 의 기준일(Header 영역은 options.useHeaderDataFormat=true 로 확인), SubTotal 은 부서 기준 마감 Row, Footer 는 최종 일자 Row 에 값이 있음\nSubTotal Row 를 파일에 포함하기 위해 options.useSubTotal=true 를 항상 함께 전달함\n[절차] excelCellType / 설정 영역 선택 -> Target 재생성 -> options.useDataFormat / useHeaderDataFormat 선택 -> advancedExcelDownload 버튼 클릭\n[확인] 다운로드된 Excel 파일에서 해당 영역의 결재일 Cell 과 기안일 Cell 의 표시 형식(셀 서식)을 비교"', '', 'label1');
+
+    // 조건 설정
+    let cExcelCellType = con_excelCellType.getValue();
+    let cArea = con_area.getValue();
+    let attr = (cExcelCellType === '') ? '' : ' excelCellType="' + cExcelCellType + '"';
+    let attrHeader = (cArea === 'header') ? attr : '';
+    let attrBody = (cArea === 'body') ? attr : '';
+    let attrSubTotal = (cArea === 'subTotal') ? attr : '';
+    let attrFooter = (cArea === 'footer') ? attr : '';
+
+    // dataList 생성 (SubTotal 기준 Column 인 dept 값이 같은 Row 를 연속 배치)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="title" name="title" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="draftDate" name="draftDate" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="approveDate" name="approveDate" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "dept" : "영업팀", "title" : "10월 판촉비 집행", "draftDate" : "20261005", "approveDate" : "20261007" },
+        { "dept" : "영업팀", "title" : "거래처 계약 갱신", "draftDate" : "20261012", "approveDate" : "20261014" },
+        { "dept" : "개발팀", "title" : "서버 증설 구매", "draftDate" : "20261008", "approveDate" : "20261013" },
+        { "dept" : "개발팀", "title" : "외부 교육 참가", "draftDate" : "20261019", "approveDate" : "20261021" }
+    ], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:620px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="hcol1" value="부서"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="hcol2" value="문서명"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol3" value="기안일"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol4" value="결재일"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="hrow2">';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="hcol5" value="기준일" colSpan="2"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol6" value="20261001"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="hcol7" value="20261001"' + attrHeader + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="dept" value=""></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="title" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="draftDate" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="approveDate" value=""' + attrBody + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="dept">';
+    strTarget += '<w2:row style="" id="srow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="scol1" value="부서 마감"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="scol2" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="scol3" value="20261015"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="scol4" value="20261015"' + attrSubTotal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="frow1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="fcol1" value="최종 일자"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="fcol2" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="fcol3" value="20261031"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="fcol4" value="20261031"' + attrFooter + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 다운로드 요청 캡처 : 서버로 전송되는 값을 확인하기 위해 메소드 호출 구간에서만
+//  form submit 과 XHR send 를 감싸고 호출 직후 원복한다. (실제 요청은 그대로 통과시킨다.)
+scwin.hookRequest = function () {
+    let objReq = { "kind" : "", "body" : "" };
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    let fnSend = XMLHttpRequest.prototype.send;
+
+    HTMLFormElement.prototype.submit = function () {
+        if (objReq.kind === "") {
+            objReq.kind = "Form Submit";
+            let objInput = this.querySelector("input[name=xmlValue]");
+            objReq.body = (objInput === null) ? "" : objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function (vData) {
+        if (objReq.kind === "") {
+            objReq.kind = "XHR";
+            objReq.body = vData + "";
+        }
+        return fnSend.apply(this, arguments);
+    };
+
+    objReq.unhook = function () {
+        HTMLFormElement.prototype.submit = fnSubmit;
+        XMLHttpRequest.prototype.send = fnSend;
+    };
+    return objReq;
+}
+
+
+
+// 캡처한 요청 본문에서 hashkey 로 전송된 옵션값을 읽는다.
+scwin.getSentValue = function (sBody, sKey) {
+    let nKey = sBody.indexOf("hashkey='" + sKey + "'");
+    if (nKey < 0) return "(미전달)";
+
+    let sRest = sBody.substring(nKey);
+    let nVal = sRest.indexOf("value='");
+    if (nVal < 0) return "(미전달)";
+
+    sRest = sRest.substring(nVal + 7);
+    return sRest.substring(0, sRest.indexOf("'"));
+}
+
+
+
+// 전송 XML 에서 id 로 Column 여는 태그를 찾아 excelCellType 속성값을 읽는다. (속성이 없으면 미설정)
+scwin.getSentCellType = function (sBody, sColId) {
+    let nId = sBody.indexOf('id="' + sColId + '"');
+    if (nId < 0) return "(미전달)";
+
+    let nStart = sBody.lastIndexOf("<w2:column", nId);
+    let sTag = sBody.substring(nStart, sBody.indexOf(">", nId));
+    let nKey = sTag.indexOf(' excelCellType="');
+    if (nKey < 0) return "(미설정)";
+
+    let sRest = sTag.substring(nKey + 16);
+    return sRest.substring(0, sRest.indexOf('"'));
+}
+
+
+
+// advancedExcelDownload 실행 : 사용한 옵션과 서버로 전송된 결재일 Column 의 excelCellType 출력
+//  - validation 1~4 : 다운로드 파일에서 결재일 Cell 표시 형식 확인 (전송 XML 의 excelCellType 값으로 설정값 전달 확인)
+//  - validation 5 : con_area 로 고른 영역(Header / Body / SubTotal / Footer)별 동작
+//  - validation 6 : options.useDataFormat true / false 대비
+//  - options.useHeaderDataFormat : Header 영역 Column 의 표시 형식 적용 조건 (Header 영역 확인용)
+scwin.btn_advancedExcelDownload_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+
+    let cExcelCellType = con_excelCellType.getValue();
+    let cArea = con_area.getValue();
+    let objColId = { "header" : "hcol7", "body" : "approveDate", "subTotal" : "scol4", "footer" : "fcol4" };
+
+    //  - fileName / extension 은 다운로드 파일 확인 편의를 위한 고정값이다.
+    //  - useSubTotal 은 SubTotal Row 를 Excel 파일에 포함하기 위한 고정값이다. (기본값 false 이면 SubTotal Row 가 다운로드되지 않음)
+    let options = { "fileName" : "column_excelCellType", "extension" : "xlsx", "useSubTotal" : "true", "useDataFormat" : par_useDataFormat.getValue(), "useHeaderDataFormat" : par_useHeaderDataFormat.getValue() };
+
+    let objReq = scwin.hookRequest();
+    try {
+        target1.advancedExcelDownload(options);
+    } finally {
+        objReq.unhook();
+    }
+
+    bottom.setReturnValue("options : { fileName : " + options.fileName + ", extension : " + options.extension + ", useSubTotal : " + options.useSubTotal + ", useDataFormat : " + options.useDataFormat + ", useHeaderDataFormat : " + options.useHeaderDataFormat + " } -> 전송 useDataFormat : " + scwin.getSentValue(objReq.body, "useDataFormat") + " / useHeaderDataFormat : " + scwin.getSentValue(objReq.body, "useHeaderDataFormat"));
+    bottom.setReturnValue(con_area.getText() + " 결재일 Column excelCellType = " + ((cExcelCellType === '') ? '(미설정)' : cExcelCellType) + " -> 전송 XML : " + scwin.getSentCellType(objReq.body, objColId[cArea]));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="excelCellType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_excelCellType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[number]]></xf:label>
+												<xf:value><![CDATA[number]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[bigDecimal]]></xf:label>
+												<xf:value><![CDATA[bigDecimal]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[date]]></xf:label>
+												<xf:value><![CDATA[date]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="설정 영역" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_area" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[Header]]></xf:label>
+												<xf:value><![CDATA[header]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Body]]></xf:label>
+												<xf:value><![CDATA[body]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[SubTotal]]></xf:label>
+												<xf:value><![CDATA[subTotal]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Footer]]></xf:label>
+												<xf:value><![CDATA[footer]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:190px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useDataFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useDataFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="options.useHeaderDataFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_useHeaderDataFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_advancedExcelDownload_onclick" id="btn_advancedExcelDownload"
+							label="advancedExcelDownload" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

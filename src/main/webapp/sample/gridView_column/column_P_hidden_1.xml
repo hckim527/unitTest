@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] hidden" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - column 샘플 관례 : hidden 은 Body Column 에만 설정 (설정 영역 con 옵션 미생성)
+//    "전체 영역의 Column 에서 동작합니다." 는 inputType 이 다른 Body Column(text, select, checkbox, calendar) 을 대상으로 골라 확인
+//  - 본 샘플(_1) : true/false/미설정 표시, 같은 위치 Header/Footer/SubTotal Cell, Column 구성, 병합된 Column, setColumnVisible()/getColumnVisible() 축
+//    autoFit, 복사/잘라내기, contextMenu(ColumnShowAll) 항목은 column_P_hidden_2 소유
+scwin.tData = {
+    "description" : "[column > P > hidden]<br/>Column 을 GridView 에 표시하지 않고 숨길지 설정합니다.",
+    "validation" : [
+        "전체 영역의 Column 에서 동작합니다.",
+        "true 설정 시, Column 을 숨김 처리하며 같은 위치에 있는 Header, Body, Footer, SubTotal 의 Cell 이 모두 표시되지 않습니다.",
+        "true 설정 시, 숨겨진 Column 은 화면에 표시되지 않지만 GridView 의 Column 구성에는 그대로 포함됩니다.",
+        "false 설정 시, Column 을 GridView 에 표시합니다.",
+        "미설정 시, Column 을 GridView 에 표시합니다.",
+        "병합된 Column 에 hidden='true' 를 설정하면 병합된 범위의 Column 이 모두 숨겨집니다.",
+        "실행 중에 Column 을 숨기거나 다시 표시하려면 setColumnVisible() 메소드를 사용하고, 현재 숨김 상태는 getColumnVisible() 메소드로 확인합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    con_hidden.setValue("2");
+    con_targetColumn.setValue("status");
+    par_columnVisible.setValue("true");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 영역별 Cell 정보 (Column 위치 순, id 는 Cell id 의 접미사)
+//  - Header : 금액(colSpan=2) 아래에 공급가 / 건수 Cell, SubTotal / Footer : 금액 위치 2개에 각각 공급가 합계 / 건수 Cell
+scwin.headerInfo = [
+    { "id" : "cat", "label" : "분류" }, { "id" : "status", "label" : "상태" }, { "id" : "chk", "label" : "확인" },
+    { "id" : "inDate", "label" : "입고일" }, { "id" : "amount", "label" : "금액" }, { "id" : "amountSum", "label" : "공급가" }, { "id" : "amountCnt", "label" : "건수" }
+];
+scwin.sumInfo = [
+    { "id" : "cat", "label" : "분류" }, { "id" : "status", "label" : "상태" }, { "id" : "chk", "label" : "확인" },
+    { "id" : "inDate", "label" : "입고일" }, { "id" : "amountSum", "label" : "공급가" }, { "id" : "amountCnt", "label" : "건수" }
+];
+
+// Body Column 정보 (Body Column 인덱스 순)
+//  - amount 는 Body Column 이 colSpan=2 로 병합되어 Column 위치 2개를 차지
+scwin.bodyInfo = [
+    { "id" : "cat",    "label" : "분류(text)" },
+    { "id" : "status", "label" : "상태(select)" },
+    { "id" : "chk",    "label" : "확인(checkbox)" },
+    { "id" : "inDate", "label" : "입고일(calendar)" },
+    { "id" : "amount", "label" : "금액(병합)" }
+];
+
+
+
+// comp 생성
+//  - hidden(con 값) 은 con_targetColumn 에서 고른 Body Column 1개에만 설정
+//  - Header / SubTotal(분류 기준) / Footer 는 Body Column 과 같은 위치에 Cell 을 둔다
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cHidden = con_hidden.getText();
+    let cTarget = con_targetColumn.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 금액(amount) Body Column 은 colSpan=2 로 병합되어 Column 위치 2개(Header 공급가 / 건수, SubTotal / Footer 공급가 / 건수 Cell)를 차지, SubTotal 은 분류(cat) 기준\n[확인] Cell 표시 상태 확인 버튼으로 영역별 Cell 표시(O/X) 확인, setColumnVisible 은 설정 Body Column 에 실행"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cat" name="cat" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="status" name="status" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="inDate" name="inDate" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "cat" : "문구", "status" : "IN",   "chk" : 1, "inDate" : "20261001", "amount" : 12000 },
+        { "cat" : "문구", "status" : "OUT",  "chk" : 0, "inDate" : "20261003", "amount" : 8500 },
+        { "cat" : "전자", "status" : "HOLD", "chk" : 1, "inDate" : "20261005", "amount" : 45000 },
+        { "cat" : "전자", "status" : "IN",   "chk" : 1, "inDate" : "20261007", "amount" : 129000 }
+    ], false);
+
+    // 검증 대상 Body Column 속성
+    let attr = function (id) {
+        return (cTarget === id && cHidden !== '') ? ' hidden="' + cHidden + '"' : '';
+    };
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:700px;height:340px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_cat" value="분류" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_status" value="상태" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_chk" value="확인" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="h_inDate" value="입고일" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="h_amount" value="금액" colSpan="2"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="row1_2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="h_amountSum" value="공급가"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="h_amountCnt" value="건수"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="cat" value=""' + attr("cat") + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="select" id="status" value=""' + attr("status") + '>';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:item><w2:label>입고</w2:label><w2:value>IN</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>출고</w2:label><w2:value>OUT</w2:value></w2:item>';
+    strTarget += '<w2:item><w2:label>보류</w2:label><w2:value>HOLD</w2:value></w2:item>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="checkbox" id="chk" value=""' + attr("chk") + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="calendar" dataType="date" id="inDate" value=""' + attr("inDate") + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="amount" value="" colSpan="2" dataType="number" displayFormat="#,##0"' + attr("amount") + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="cat">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="s_cat" value="소계"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="expression" id="s_status" expression="count(\'status\')"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="expression" id="s_chk" expression="sum(\'chk\')"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="expression" id="s_inDate" expression="count(\'inDate\')"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="expression" id="s_amountSum" expression="sum(\'amount\')" displayFormat="#,##0"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="expression" id="s_amountCnt" expression="count(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="row4">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="f_cat" value="합계"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="expression" id="f_status" expression="count(\'status\')"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="expression" id="f_chk" expression="sum(\'chk\')"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="expression" id="f_inDate" expression="count(\'inDate\')"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="expression" id="f_amountSum" expression="sum(\'amount\')" displayFormat="#,##0"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="expression" id="f_amountCnt" expression="count(\'amount\')"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Cell 표시 여부 (O : 표시 / X : 미표시)
+scwin.getShowMark = function (el) {
+    if (!el) {
+        return "-";
+    }
+    return (el.offsetWidth > 0 && window.getComputedStyle(el).display !== "none") ? "O" : "X";
+}
+
+
+
+// 영역별 Cell 표시 상태 + Column 구성 출력
+scwin.printCellStatus = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let prefix = target1.id + "_";
+
+    // 표시 중인 첫번째 SubTotal Row (숨김 예비 Row 제외)
+    let subTr = null;
+    let subTrs = target1.render.querySelectorAll("tr[data-subtotalrowindex]");
+    for (let i = 0; i < subTrs.length; i++) {
+        if (subTrs[i].style.display !== "none") {
+            subTr = subTrs[i];
+            break;
+        }
+    }
+    let arrHeader = [];
+    let arrBody = [];
+    let arrSub = [];
+    let arrFooter = [];
+    for (let i = 0; i < scwin.headerInfo.length; i++) {
+        arrHeader.push(scwin.headerInfo[i].label + " " + scwin.getShowMark(document.querySelector("[id='" + prefix + "h_" + scwin.headerInfo[i].id + "']")));
+    }
+    for (let i = 0; i < scwin.bodyInfo.length; i++) {
+        arrBody.push(scwin.bodyInfo[i].label + " " + scwin.getShowMark(document.querySelector("[id='" + prefix + "cell_0_" + i + "']")));
+    }
+    for (let i = 0; i < scwin.sumInfo.length; i++) {
+        let id = scwin.sumInfo[i].id;
+        arrSub.push(scwin.sumInfo[i].label + " " + scwin.getShowMark(subTr ? subTr.querySelector("td[id='s_" + id + "']") : null));
+        arrFooter.push(scwin.sumInfo[i].label + " " + scwin.getShowMark(document.querySelector("[id='" + prefix + "f_" + id + "']")));
+    }
+    // validation 1, 2, 4, 5, 6 판정 출력 : 같은 위치의 Header / Body / SubTotal / Footer Cell 표시 상태
+    bottom.setReturnValue("Header : " + arrHeader.join(" / "));
+    bottom.setReturnValue("Body : " + arrBody.join(" / "));
+    bottom.setReturnValue("SubTotal : " + arrSub.join(" / "));
+    bottom.setReturnValue("Footer : " + arrFooter.join(" / "));
+
+    // validation 3 판정 출력 : 숨겨진 Column 도 Column 구성(전체 Column 수, Column ID)에 포함
+    let arrId = [];
+    for (let i = 0; i < target1.getTotalCol(); i++) {
+        arrId.push(target1.getColumnID(i));
+    }
+    bottom.setReturnValue("getTotalCol() : " + target1.getTotalCol() + " / Column ID : " + arrId.join(", "));
+
+    // validation 7 판정 출력 : getColumnVisible() 숨김 상태
+    let arrVisible = [];
+    for (let i = 0; i < scwin.bodyInfo.length; i++) {
+        arrVisible.push(scwin.bodyInfo[i].id + "=" + target1.getColumnVisible(scwin.bodyInfo[i].id));
+    }
+    bottom.setReturnValue("getColumnVisible() : " + arrVisible.join(", "));
+}
+
+
+
+// validation 1 ~ 7 판정 출력 : 현재 Cell 표시 상태
+scwin.btn_checkCellStatus_onclick = function () {
+    scwin.printCellStatus();
+}
+
+
+
+// validation 7 판정 출력 : 대상 Column(con_targetColumn) 에 setColumnVisible(columnInfo, columnVisible) 실행 후 Cell 표시 상태
+scwin.btn_setColumnVisible_onclick = function () {
+    let columnInfo = con_targetColumn.getValue();
+    let columnVisible = (par_columnVisible.getValue() === "true");
+    target1.setColumnVisible(columnInfo, columnVisible);
+    wf_body_bottom.getObj("scwin").setReturnValue("setColumnVisible(" + columnInfo + ", " + columnVisible + ") 실행");
+    // 화면 갱신(Column 너비 반영)이 실행 직후 비동기로 처리되므로 갱신 후 표시 상태를 출력
+    setTimeout(function () {
+        scwin.printCellStatus();
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hidden" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_hidden" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="설정 Body Column" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_targetColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[cat (text)]]></xf:label>
+												<xf:value><![CDATA[cat]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[status (select)]]></xf:label>
+												<xf:value><![CDATA[status]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[chk (checkbox)]]></xf:label>
+												<xf:value><![CDATA[chk]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[inDate (calendar)]]></xf:label>
+												<xf:value><![CDATA[inDate]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[amount (병합된 Column)]]></xf:label>
+												<xf:value><![CDATA[amount]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="columnVisible" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_columnVisible" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCellStatus_onclick" id="btn_checkCellStatus"
+							label="Cell 표시 상태 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnVisible_onclick" id="btn_setColumnVisible"
+							label="setColumnVisible" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

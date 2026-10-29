@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView advancedExcelDownload 날짜 Column 이 displayFormat 없으면 빈 셀로 저장" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20261028" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_a">
+					<w2:columnInfo>
+						<w2:column id="item" name="item" dataType="text"></w2:column>
+						<w2:column id="orderDate" name="orderDate" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_b">
+					<w2:columnInfo>
+						<w2:column id="item" name="item" dataType="text"></w2:column>
+						<w2:column id="orderDate" name="orderDate" dataType="date"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_c">
+					<w2:columnInfo>
+						<w2:column id="item" name="item" dataType="text"></w2:column>
+						<w2:column id="orderDate" name="orderDate" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script type="text/javascript" lazy="false"><![CDATA[
+scwin.onpageload = function () {
+    let arr = [
+        { "item" : "노트북", "orderDate" : "20261028" },
+        { "item" : "모니터", "orderDate" : "20251231" }
+    ];
+    dlt_a.setJSON(arr);
+    dlt_b.setJSON(arr);
+    dlt_c.setJSON(arr);
+};
+
+// advancedExcelDownload 실행 + 서버로 전송된 orderDate Column 정보 출력
+scwin.download = function (grd, name) {
+    let sBody = "";
+    let fnSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+        let objInput = this.querySelector("input[name=xmlValue]");
+        if (sBody === "" && objInput) {
+            sBody = objInput.value;
+        }
+        return fnSubmit.apply(this, arguments);
+    };
+    try {
+        grd.advancedExcelDownload({ "fileName" : "grid_" + name, "extension" : "xlsx", "useDataFormat" : "true" });
+    } finally {
+        HTMLFormElement.prototype.submit = fnSubmit;
+    }
+    scwin.setReturnValue("[" + name + "] 전송 orderDate Column : " + scwin.getSentColumn(sBody, "orderDate") + " / 값 : " + scwin.getSentData(sBody, 1));
+};
+
+// 전송 XML 의 Body 영역에서 Column 의 dataType, displayFormat 을 읽는다
+scwin.getSentColumn = function (sBody, sColId) {
+    let nStart = sBody.indexOf("<w2:gBody");
+    let sBodyXml = (nStart < 0) ? "" : sBody.substring(nStart, sBody.indexOf("</w2:gBody>", nStart));
+    let arrTag = sBodyXml.split("<w2:column");
+    for (let i = 1; i < arrTag.length; i++) {
+        let sTag = arrTag[i].substring(0, arrTag[i].indexOf(">"));
+        if (sTag.indexOf(' id="' + sColId + '"') < 0) {
+            continue;
+        }
+        let objType = sTag.match(/ dataType="([^"]*)"/);
+        let objFormat = sTag.match(/ displayFormat="([^"]*)"/);
+        return "dataType=" + (objType ? objType[1] : "(없음)") + ", displayFormat=" + (objFormat && objFormat[1] !== "" ? objFormat[1] : "(없음)");
+    }
+    return "(미전달)";
+};
+
+// 전송 XML 의 data 배열에서 지정 Column 인덱스의 값만 모은다
+scwin.getSentData = function (sBody, nColIndex) {
+    let objMatch = sBody.match(/hashkey='data'><array><!\[CDATA\[(.*?)\]\]><\/array>/);
+    if (objMatch === null) {
+        return "(미전달)";
+    }
+    let arrData = JSON.parse(objMatch[1]);
+    let arrValue = [];
+    for (let i = nColIndex; i < arrData.length; i += 2) {
+        arrValue.push(arrData[i]);
+    }
+    return arrValue.join(", ");
+};
+
+scwin.btn_a_onclick = function () { scwin.download(grd_a, "A"); };
+scwin.btn_b_onclick = function () { scwin.download(grd_b, "B"); };
+scwin.btn_c_onclick = function () { scwin.download(grd_c, "C"); };
+
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_root" style="padding:16px;">
+			<w2:textbox escape="false" id="lbl_title" style="font-size:16px;margin-top:16px;margin-bottom:16px;"
+				label="■ &lt;b&gt;[FAIL] advancedExcelDownload 시 날짜 셀로 내보내는 Column 의 dataType 이 date 가 아니면 Excel 셀 값이 빈 셀로 저장&lt;/b&gt;&lt;br/&gt;[확인 방법] 각 그리드의 advancedExcelDownload 버튼을 눌러 받은 xlsx 를 Excel 로 열어 orderDate Column(B열) 셀 확인&lt;br/&gt;[기대] A, B 의 orderDate 셀이 빈 셀이 아니라 원래 값(20261028, 20251231)에 해당하는 날짜 값으로 저장됨&lt;br/&gt;[실제] A, B 는 날짜 서식만 적용되고 셀 값이 비어 있음"></w2:textbox>
+
+			<w2:textbox id="" label="A : orderDate Column excelCellType=date, Column dataType=text" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_a" dataList="data:dlt_a" style="width:400px;height:100px;margin-bottom:8px;">
+				<w2:header id="hd_a" style="">
+					<w2:row id="hr_a" style="">
+						<w2:column id="h_a_item" inputType="text" value="item" width="150"></w2:column>
+						<w2:column id="h_a_orderDate" inputType="text" value="orderDate" width="200"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_a" style="">
+					<w2:row id="br_a" style="">
+						<w2:column id="item" inputType="text" width="150"></w2:column>
+						<w2:column id="orderDate" inputType="text" width="200" dataType="text" excelCellType="date"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<w2:button ev:onclick="scwin.btn_a_onclick" id="btn_a" label="A advancedExcelDownload" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-bottom:16px;"></w2:button>
+
+			<w2:textbox id="" label="B : orderDate Column excelCellType 미설정, DataList dataType=date, Column dataType=text" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_b" dataList="data:dlt_b" style="width:400px;height:100px;margin-bottom:8px;">
+				<w2:header id="hd_b" style="">
+					<w2:row id="hr_b" style="">
+						<w2:column id="h_b_item" inputType="text" value="item" width="150"></w2:column>
+						<w2:column id="h_b_orderDate" inputType="text" value="orderDate" width="200"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_b" style="">
+					<w2:row id="br_b" style="">
+						<w2:column id="item" inputType="text" width="150"></w2:column>
+						<w2:column id="orderDate" inputType="text" width="200" dataType="text"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<w2:button ev:onclick="scwin.btn_b_onclick" id="btn_b" label="B advancedExcelDownload" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-bottom:16px;"></w2:button>
+
+			<w2:textbox id="" label="C : A 와 같고 Column dataType=date (대조)" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_c" dataList="data:dlt_c" style="width:400px;height:100px;margin-bottom:8px;">
+				<w2:header id="hd_c" style="">
+					<w2:row id="hr_c" style="">
+						<w2:column id="h_c_item" inputType="text" value="item" width="150"></w2:column>
+						<w2:column id="h_c_orderDate" inputType="text" value="orderDate" width="200"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gb_c" style="">
+					<w2:row id="br_c" style="">
+						<w2:column id="item" inputType="text" width="150"></w2:column>
+						<w2:column id="orderDate" inputType="text" width="200" dataType="date" excelCellType="date"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+			<w2:button ev:onclick="scwin.btn_c_onclick" id="btn_c" label="C advancedExcelDownload" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;margin-bottom:16px;"></w2:button>
+
+			<xf:group id="grp_bottom" style="">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 120px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

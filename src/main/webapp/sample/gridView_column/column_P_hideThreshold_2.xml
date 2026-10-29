@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] hideThreshold" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261029" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - column 샘플 관례 : hideThreshold 는 Body Column(상품명 name) 에만 설정 (설정 영역 con 옵션 미생성, Body Column 전용 validation 제외)
+//  - 본 샘플(_2) : 비교 대상(GridView·상위 Frame 너비가 아닌 브라우저 창 너비), groupbyZone, Header/Body/SubTotal MultiRow 미동작 조건 축
+//    기준 너비 이하 숨김 / 초과 표시, adaptive·adaptiveThreshold 무관, setColumnVisible() 재적용은 column_P_hideThreshold_1 소유
+//  - 상위 Frame : adaptiveFrame="true" 인 tabControl Content(페어 파일 /sample/common_link/column_P_hideThreshold_frame_1.xml) 의 scope 에서 GridView 생성
+scwin.tData = {
+    "description" : "[column > P > hideThreshold]<br/>웹브라우저의 너비에 따라 Column 을 자동으로 숨기거나 표시하는 기준 너비를 설정합니다.",
+    "validation" : [
+        "속성값의 비교 대상은 GridView 나 상위 Frame 의 너비가 아니라 웹브라우저 창의 너비입니다.",
+        "GridView 의 groupbyZone='true' 인 경우 hideThreshold 속성은 동작하지 않습니다.",
+        "Header 의 MultiRow > 3, Body 의 MultiRow > 2, SubTotal 의 MultiRow > 3 중 하나에 해당하는 경우 hideThreshold 속성은 동작하지 않습니다.",
+        "Header 의 MultiRow + max(Body 의 MultiRow, SubTotal 의 MultiRow) 값이 4 를 초과하는 경우 hideThreshold 속성은 동작하지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    //  - hideThreshold=1600 : 1600 이하 너비(1280 / 1600) 에서 동작하면 숨김, 동작하지 않으면 표시
+    con_hideThreshold.setValue("1600");
+    con_frame.setValue("");
+    con_groupbyZone.setValue("1");
+    con_multiRow.setValue("1_1_0");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 영역별 행(Row) 정의 : Column 4개 (상품명 name 은 Body 첫번째 행의 두번째 Column)
+scwin.headerRows = [
+    [ "분류", "상품명", "단가", "수량" ],
+    [ "거래처", "담당자", "입고일", "비고" ],
+    [ "창고", "위치", "재고", "상태" ],
+    [ "등록자", "등록일", "수정자", "수정일" ]
+];
+scwin.bodyRows = [
+    [ "category", "name", "price", "qty" ],
+    [ "vendor", "manager", "inDate", "memo" ],
+    [ "warehouse", "location", "stock", "status" ]
+];
+scwin.subTotalRows = [
+    [ "소계", "count('name')", "sum('price')", "sum('qty')" ],
+    [ "평균", "", "avg('price')", "avg('qty')" ],
+    [ "최대", "", "max('price')", "max('qty')" ],
+    [ "최소", "", "min('price')", "min('qty')" ]
+];
+
+
+
+// 현재 생성된 GridView (상위 Frame 사용 시 Content Frame 안의 target1)
+scwin.getTarget = function () {
+    if (scwin.cFrame === "adaptiveFrame") {
+        return tab_frame.getWindow(0).scwin.target1;
+    }
+    return target1;
+}
+
+
+
+// comp 생성 (Target 재생성 버튼 클릭 시 재실행, hideThreshold 는 dynamic N 이므로 con 변경은 재생성으로만 반영)
+scwin.comp_init = async function () {
+    // 기존 target / Frame / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof tab_frame !== 'undefined' && tab_frame) {
+        tab_frame.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cHideThreshold = con_hideThreshold.getValue();
+    let cGroupbyZone = con_groupbyZone.getText();
+    let arrRow = con_multiRow.getValue().split("_");
+    let nHeader = Number(arrRow[0]);
+    let nBody = Number(arrRow[1]);
+    let nSubTotal = Number(arrRow[2]);
+    scwin.cFrame = con_frame.getValue();
+    scwin.cHideThreshold = cHideThreshold;
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] hideThreshold 는 상품명(name) Body Column(Body 첫번째 행) 에만 설정, GridView 너비 700px, SubTotal 은 분류(category) 기준\n[전제] 상위 Frame 선택 시 adaptiveFrame=true 인 tabControl Content(너비 800px) 안에 GridView 생성\n[확인] Column 표시 상태 확인 버튼으로 브라우저 너비 대비 상품명 Column 표시(O/X) 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let arrColumn = [ "category", "name", "price", "qty", "vendor", "manager", "inDate", "memo", "warehouse", "location", "stock", "status" ];
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    for (let i = 0; i < arrColumn.length; i++) {
+        let strType = (arrColumn[i] === "price" || arrColumn[i] === "qty" || arrColumn[i] === "stock") ? "number" : "text";
+        strDlt += '<w2:column id="' + arrColumn[i] + '" name="' + arrColumn[i] + '" dataType="' + strType + '"></w2:column>';
+    }
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    let arrData = [
+        { "category" : "주변기기",   "name" : "무선 마우스",   "price" : 25000,  "qty" : 12, "vendor" : "한빛상사", "manager" : "김민준", "inDate" : "20261001", "memo" : "정기 입고", "warehouse" : "1창고", "location" : "A-01", "stock" : 40, "status" : "정상" },
+        { "category" : "주변기기",   "name" : "기계식 키보드", "price" : 89000,  "qty" : 5,  "vendor" : "대성유통", "manager" : "이서연", "inDate" : "20261003", "memo" : "추가 발주", "warehouse" : "1창고", "location" : "A-02", "stock" : 15, "status" : "정상" },
+        { "category" : "디스플레이", "name" : "27인치 모니터", "price" : 329000, "qty" : 3,  "vendor" : "한빛상사", "manager" : "박지호", "inDate" : "20261005", "memo" : "파손 1건", "warehouse" : "2창고", "location" : "B-01", "stock" : 8,  "status" : "점검" },
+        { "category" : "디스플레이", "name" : "휴대용 모니터", "price" : 189000, "qty" : 7,  "vendor" : "미래전자", "manager" : "최유진", "inDate" : "20261007", "memo" : "신규 품목", "warehouse" : "2창고", "location" : "B-03", "stock" : 21, "status" : "정상" }
+    ];
+
+    // GridView 속성 (groupbyZone)
+    let properties = {
+        groupbyZone : cGroupbyZone
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    // target 생성 문자열 (Header / Body / SubTotal 행 수는 con_multiRow 기준)
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + cList + ' dataList="data:dlt_bind" id="" style="width:700px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    for (let r = 0; r < nHeader; r++) {
+        strTarget += '<w2:row style="" id="hRow' + r + '">';
+        for (let c = 0; c < 4; c++) {
+            strTarget += '<w2:column width="150" style="" inputType="text" id="h' + r + '_' + scwin.bodyRows[0][c] + '" value="' + scwin.headerRows[r][c] + '"></w2:column>';
+        }
+        strTarget += '</w2:row>';
+    }
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    for (let r = 0; r < nBody; r++) {
+        strTarget += '<w2:row style="" id="bRow' + r + '">';
+        for (let c = 0; c < 4; c++) {
+            let colId = scwin.bodyRows[r][c];
+            // 검증 대상 Body Column 속성
+            let strHide = (colId === "name" && cHideThreshold !== '') ? ' hideThreshold="' + cHideThreshold + '"' : '';
+            let strFormat = (colId === "price" || colId === "stock") ? ' dataType="number" displayFormat="#,##0"' : '';
+            strTarget += '<w2:column width="150" style="" inputType="text" id="' + colId + '" value=""' + strFormat + strHide + '></w2:column>';
+        }
+        strTarget += '</w2:row>';
+    }
+    strTarget += '</w2:gBody>';
+    if (nSubTotal > 0) {
+        strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="category">';
+        for (let r = 0; r < nSubTotal; r++) {
+            strTarget += '<w2:row style="" id="sRow' + r + '">';
+            for (let c = 0; c < 4; c++) {
+                let strCell = scwin.subTotalRows[r][c];
+                if (c === 0 || strCell === "") {
+                    strTarget += '<w2:column width="150" style="" inputType="text" id="s' + r + '_' + c + '" value="' + strCell + '"></w2:column>';
+                } else {
+                    strTarget += '<w2:column width="150" style="" inputType="expression" id="s' + r + '_' + c + '" expression="' + strCell + '" displayFormat="#,##0"></w2:column>';
+                }
+            }
+            strTarget += '</w2:row>';
+        }
+        strTarget += '</w2:subTotal>';
+    }
+    strTarget += '</w2:gridView>';
+
+    let grp_comp = $c.gcm.getTestGroup();
+    if (scwin.cFrame === "adaptiveFrame") {
+        // 상위 Frame : adaptiveFrame=true 인 tabControl Content 안(Content Frame scope)에 GridView 생성
+        let strFrame = '';
+        strFrame += '<w2:tabControl ' + strNameSpace + ' id="tab_frame" alwaysDraw="false" style="width:800px;height:380px;">';
+        strFrame += '<w2:tabs disabled="false" style="height:40px;" id="tabs1" label="상위 Frame"></w2:tabs>';
+        strFrame += '<w2:content alwaysDraw="false" adaptiveFrame="true" style="height:340px;" id="content1" src="/sample/common_link/column_P_hideThreshold_frame_1.xml"></w2:content>';
+        strFrame += '</w2:tabControl>';
+        scwin["tab_frame"] = await $p.dynamicCreate("tab_frame", "tabControl", strFrame, grp_comp);
+        // Content 화면 로딩 완료 대기
+        let tabWin = null;
+        for (let i = 0; i < 50; i++) {
+            tabWin = tab_frame.getWindow(0);
+            if (tabWin && tabWin.scwin && tabWin.scwin.createTarget) {
+                break;
+            }
+            await new Promise(function (resolve) { setTimeout(resolve, 100); });
+        }
+        await tabWin.scwin.createTarget(strDlt, arrData, strTarget);
+    } else {
+        $p.data.create(strDlt);
+        dlt_bind.setJSON(arrData, false);
+        scwin["target1"] = await $p.dynamicCreate(
+            "target1",
+            "gridView",
+            strTarget,
+            grp_comp
+        );
+    }
+}
+
+
+
+// Cell 표시 여부 (O : 표시 / X : 미표시)
+//  - 일반 레이아웃은 숨긴 Column 의 너비가 0 이 되므로 너비와 높이를 함께 확인
+scwin.getShowMark = function (el) {
+    if (!el) {
+        return "-";
+    }
+    return (el.offsetWidth > 0 && el.offsetHeight > 0 && window.getComputedStyle(el).display !== "none") ? "O" : "X";
+}
+
+
+
+// validation 1 ~ 4 판정 출력 : 브라우저 너비(엔진 비교값) / GridView 너비 / 상위 Frame 너비와 상품명 Column 표시 상태
+//  - 브라우저 너비는 엔진이 hideThreshold 와 비교하는 값(WebSquare.util._getBrowserWidth : 최상위 창이면 window.innerWidth)
+scwin.btn_checkStatus_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let target = scwin.getTarget();
+    let strThreshold = (scwin.cHideThreshold === "") ? "미설정" : scwin.cHideThreshold;
+    let headerTd = document.querySelector("[id='" + target.id + "_h0_name']");
+    let bodyTd = document.querySelector("[id='" + target.id + "_cell_0_1']");
+    let strWidth = "브라우저 너비 : " + WebSquare.util._getBrowserWidth() + "px, GridView 너비 : " + target.render.offsetWidth + "px";
+    if (scwin.cFrame === "adaptiveFrame") {
+        strWidth += ", 상위 Frame(adaptiveFrame) 너비 : " + tab_frame.render.offsetWidth + "px";
+    }
+    bottom.setReturnValue(strWidth + ", hideThreshold : " + strThreshold
+        + " -> 상품명 Column 표시 : Header " + scwin.getShowMark(headerTd) + " / Body " + scwin.getShowMark(bodyTd));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="hideThreshold" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_hideThreshold" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[1000]]></xf:label>
+												<xf:value><![CDATA[1000]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1600]]></xf:label>
+												<xf:value><![CDATA[1600]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="상위 Frame" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_frame" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[tabControl Content (adaptiveFrame=true, 800px)]]></xf:label>
+												<xf:value><![CDATA[adaptiveFrame]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="groupbyZone" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_groupbyZone" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="MultiRow 구성" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_multiRow" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[Header 1 / Body 1]]></xf:label>
+												<xf:value><![CDATA[1_1_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 3 / Body 1]]></xf:label>
+												<xf:value><![CDATA[3_1_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 4 / Body 1]]></xf:label>
+												<xf:value><![CDATA[4_1_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 1 / Body 2]]></xf:label>
+												<xf:value><![CDATA[1_2_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 1 / Body 3]]></xf:label>
+												<xf:value><![CDATA[1_3_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 1 / Body 1 / SubTotal 3]]></xf:label>
+												<xf:value><![CDATA[1_1_3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 1 / Body 1 / SubTotal 4]]></xf:label>
+												<xf:value><![CDATA[1_1_4]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 2 / Body 2 (합 4)]]></xf:label>
+												<xf:value><![CDATA[2_2_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 3 / Body 2 (합 5)]]></xf:label>
+												<xf:value><![CDATA[3_2_0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header 2 / Body 1 / SubTotal 3 (합 5)]]></xf:label>
+												<xf:value><![CDATA[2_1_3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkStatus_onclick" id="btn_checkStatus"
+							label="Column 표시 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
