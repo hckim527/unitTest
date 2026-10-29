@@ -14,8 +14,8 @@
 - **API 유형**: P (Property), M (Method), E (Event)
 - **출력 경로**: `unitTest/src/main/webapp/sample/{폴더명}/`
 - **참조 샘플 경로**: 메인이 `UT_01_생성.md` §0 순서(공통 샘플 → 같은 API 타 컴포넌트 판 → 같은/유사 컴포넌트 판)로 골라 직접 적어준다. 해당 판이 없으면 "없음"으로 명시한다.
-- **엔진 소스 경로** (선택): `C:\ai_engine_bak\websquare_engine` 내 관련 파일
-- **도구**: 스펙 조회·XML 검증은 websquare-mcp(`get_component`, `validate_xml`), 런타임 검증은 MCP Playwright (미연결 시 `UT_02_검증.md` §1-4 대체 수단)
+- **엔진 소스 경로** (선택): `C:\ai_engine_bak\websquare` 내 관련 파일
+- **도구**: 스펙 조회는 엔진 소스 API 주석, XML 검증은 XML 파싱 + 페이지 정상 로드(websquare-mcp 는 사용 보류), 런타임 검증은 Playwright(MCP 세션 또는 scratchpad Node Playwright — `UT_02_검증.md` §1-4)
 
 ---
 
@@ -149,10 +149,9 @@ scwin.btn_{API명}_onclick = function (e) {
 unitTest 배치 생성 시 **최대 3개 에이전트를 병렬로 실행**하여 처리 속도를 극대화한다.
 
 - **1 에이전트 = 1 샘플**: 여러 샘플을 하나의 에이전트에 묶지 않는다. (예외: §4-1)
-- 메인은 대상 샘플을 3개씩 에이전트에 배정하고, 완료되면 다음 3개를 진행하는 라운드 방식으로 운영한다.
 - 각 에이전트는 독립적으로 생성 → 검증 → 보강을 완료한다.
 - **즉시 시작**: API 가이드 주석이 들어오면 이전 워커 완료를 기다리지 말고 바로 백그라운드(`run_in_background: true`)로 워커를 띄운다. 3개 모두 점유 중이면 빈 슬롯이 생길 때 배정한다.
-- **MCP 세션 분리**: 동시에 도는 워커마다 서로 다른 Playwright 세션(`playwright` / `playwright2` / `playwright3`)을 배정하고 프롬프트에 세션명을 적는다. MCP 전용 Chrome 정리는 메인이 라운드 시작 전 1회만 하고, 워커는 정리하지 않는다. 워커가 도는 동안 메인은 자기 MCP 검증을 하지 않는다.
+- **브라우저 분리**: 동시에 도는 워커마다 서로 다른 브라우저를 쓴다. 연결된 MCP Playwright 세션이 있으면 워커마다 다른 세션명을 프롬프트에 적고, 연결된 세션이 없거나 부족하면 워커별 scratchpad Node Playwright(독립 브라우저)를 쓴다. MCP 전용 Chrome 정리는 메인이 라운드 시작 전 1회만 하고, 워커는 정리하지 않는다. 워커가 도는 동안 메인은 자기 MCP 검증을 하지 않는다.
 - **모델**: 워커는 `general-purpose` 로 띄우고 `model` 파라미터는 지정하지 않는다(기본 Opus).
 - **수정 작업도 위임**: 기존 샘플 수정·보강도 메인이 직접 Edit 하지 말고 변경안을 담아 워커에 위임한다. 작업 중 들어온 독립 지시도 별도 워커로 병렬 처리한다.
 
@@ -234,7 +233,7 @@ unitTest 샘플을 생성하세요.
 - 절차: 형제 컴포넌트 판 복사 → 컴포넌트명·`createBasic*`·플러그인명·마크업 치환 → 원본 잔재 grep 0건 확인 → 한 세션에서 전 샘플을 순회하며 직렬 실측(컴포넌트 생성·validation 렌더·console error).
 - 주의: `$p.dynamicCreate` 를 직접 쓰는 샘플(getID/getOriginalID/getPosition/setPosition/getGenerator)과 `scwin.gVar` 를 쓰는 샘플(focus/getUserData/setUserData/trigger 등)은 개별 확인한다(gVar 블록을 지우면 동작하지 않는다). helper 컴포넌트 타입 유지 등은 `UT_01_생성.md` §8 을 따른다.
 - 원본 판의 Jira 링크 주석이 딸려오지 않았는지 변환 후 `grep atlassian` 으로 확인한다.
-- 실측이 공통 샘플·가이드와 어긋나면 억지로 맞추지 말고 결함 후보로 보고한다.
+- 실측이 공통 샘플·가이드와 어긋나면 억지로 맞추지 말고 보고한다. 결함 후보로 올리는 것은 `UT_03_보강.md` §2-3 판단 순서로 결함에 해당하고 §2-4 보고 기준을 충족한 것만이고, 나머지는 "관찰(미확인)" 으로 짧게 적는다.
 
 ---
 
@@ -262,7 +261,7 @@ unitTest 샘플을 생성하세요.
   ```
   ---
   ## 🎉 ✅ 완료 — `{파일명}`
-  **worker**: N | **validation**: N건 | **validate_xml**: isValid=true
+  **worker**: N | **validation**: N건 | **XML 파싱/로드**: OK
   ---
   ```
   이어서 bullet 로 validation 요약 한 줄 / 가이드 대조 결과 / 특이사항, 별도 줄로 `**점유 상태**: worker1=..., worker2=..., worker3=...`.
