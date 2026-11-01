@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] localeRef" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 가이드가 영역별 동작(Header/SubTotal/Footer 동작, Body 무시)을 명시하므로 영역 문구를 validation 에 포함하고,
+//    영역 con 옵션 대신 모든 영역의 Column 에 localeRef / useLocale 을 함께 설정해 한 화면에서 비교한다.
+scwin.tData = {
+    "description" : "[column > P > localeRef]<br/>클라이언트 다국어가 적용되었을 때 Column 에 표시할 텍스트의 Key 값을 설정합니다.",
+    "validation" : [
+        "Header Column 의 inputType='select','checkcombobox','textImage' 이면 localeRef 속성은 동작하지 않습니다.",
+        "Header/SubTotal/Footer Column 에서만 동작하며 Body Column 에 설정 시 무시됩니다.",
+        "Key 설정 시, 다국어 파일에 정의된 텍스트의 Key 를 설정합니다.",
+        "Key 설정 시, Key 에 해당하는 텍스트가 Column 의 value 속성값 대신 표시됩니다.",
+        "다국어 파일에 Key 에 해당하는 텍스트가 없으면 'global_undefined' 가 표시됩니다.",
+        "Column 의 useLocale='true' 이거나, GridView 의 useLocale='true' 이고 Column 에 useLocale 속성을 설정하지 않은 경우에 localeRef 속성이 동작합니다.",
+        "Column 의 useLocale='false' 이면 GridView 의 useLocale='true' 여도 localeRef 속성은 무시됩니다.",
+        "Header Column 의 inputType='checkbox' 이면 Key 에 해당하는 텍스트가 체크박스의 라벨로 표시되며 checkboxLabel 속성값보다 우선 적용됩니다.",
+        "이 경우 Column 의 useLocale 속성값과 관계없이 GridView 의 useLocale='true' 인 경우에만 동작합니다.",
+        "SubTotal/Footer Column 의 inputType='expression' 이면 localeRef 속성은 무시됩니다.",
+        "다국어 기능을 사용하려면 config.xml 파일에서 languagePack 항목을 설정하여야 합니다.",
+        "다국어 기능은 Key:Value 형식으로 데이터가 정의된 JS 파일에서 Key 값에 해당하는 Value 값을 찾아 특정 속성에 반영합니다.",
+        "이때 클라이언트(웹브라우저)에 설정된 언어에 해당하는 JS 파일이 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "1" = 미설정, "2" = true)
+    con_localeRef.setValue("websquare_name");
+    con_useLocale.setValue("2");
+    con_columnUseLocale.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 표시 텍스트 확인 대상 (영역 / Column ID / 출력 라벨)
+scwin.headerInfo = [
+    { "id" : "h_cat",   "label" : "분류(text)" },
+    { "id" : "h_chk",   "label" : "선택(checkbox) 라벨" },
+    { "id" : "h_grade", "label" : "등급(select)" },
+    { "id" : "h_skill", "label" : "보유기술(checkcombobox)" },
+    { "id" : "h_amt",   "label" : "금액(textImage)" }
+];
+scwin.subTotalInfo = [
+    { "id" : "s_cat", "label" : "소계(text)" },
+    { "id" : "s_amt", "label" : "금액(expression)" }
+];
+scwin.footerInfo = [
+    { "id" : "f_cat", "label" : "합계(text)" },
+    { "id" : "f_amt", "label" : "금액(expression)" }
+];
+
+
+
+// comp 생성
+//  - localeRef / useLocale(Column) 은 Header / Body / SubTotal / Footer 의 모든 Column 에 같은 값으로 설정한다 (미설정은 속성 자체를 넣지 않는다)
+//  - Header : 분류 text / 선택 checkbox(checkboxLabel=전체선택) / 등급 select / 보유기술 checkcombobox / 금액 textImage
+//  - SubTotal / Footer : 분류 위치 text(소계/합계) / 금액 위치 expression(sum)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] config.xml languagePack 설정(/lang/ko.js, /lang/en.js), 다국어 Key : websquare_name 은 있는 Key, invalid_key 는 없는 Key\n[전제] localeRef 와 Column useLocale 은 Header / Body / SubTotal / Footer 의 모든 Column 에 같은 값으로 설정\n[절차] 옵션 변경 -> Target 재생성 -> 표시 텍스트 확인 버튼 클릭\n[확인] 영역별 Column 표시 텍스트와 적용된 다국어 JS 정보 확인 (브라우저 언어를 en 으로 바꿔 다시 열면 en.js 의 Value 로 표시)"', '', 'label1');
+
+    // 조건 설정 (gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단, 미설정은 속성 자체를 넣지 않는다)
+    let cLocaleRef = con_localeRef.getValue();
+    let cUseLocale = con_useLocale.getText();
+    let cColumnUseLocale = con_columnUseLocale.getText();
+
+    let attrGrid = (cUseLocale === '') ? '' : ' useLocale="' + cUseLocale + '"';
+    let attrCol = '';
+    if (cLocaleRef !== '') {
+        attrCol += ' localeRef="' + cLocaleRef + '"';
+    }
+    if (cColumnUseLocale !== '') {
+        attrCol += ' useLocale="' + cColumnUseLocale + '"';
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용, SubTotal 그룹 기준 cat 으로 정렬된 데이터)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cat" name="cat" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="grade" name="grade" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="skill" name="skill" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amt" name="amt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "cat" : "가전", "chk" : "0", "grade" : "A", "skill" : "JAVA",       "amt" : "120000" },
+        { "cat" : "가전", "chk" : "0", "grade" : "B", "skill" : "SQL",        "amt" : "80000" },
+        { "cat" : "가구", "chk" : "0", "grade" : "A", "skill" : "SQL",        "amt" : "350000" },
+        { "cat" : "가구", "chk" : "0", "grade" : "B", "skill" : "JAVASCRIPT", "amt" : "45000" }
+    ], false);
+
+    // Header select / checkcombobox / Body select / checkcombobox 공통 선택 항목
+    let strGrade = '<w2:choices><w2:item><w2:label>A 등급</w2:label><w2:value>A</w2:value></w2:item><w2:item><w2:label>B 등급</w2:label><w2:value>B</w2:value></w2:item></w2:choices>';
+    let strSkill = '<w2:choices><w2:item><w2:label>JAVA</w2:label><w2:value>JAVA</w2:value></w2:item><w2:item><w2:label>SQL</w2:label><w2:value>SQL</w2:value></w2:item><w2:item><w2:label>JAVASCRIPT</w2:label><w2:value>JAVASCRIPT</w2:value></w2:item></w2:choices>';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" defaultCellHeight="30"' + attrGrid + ' id="" style="width:760px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="h_cat" value="분류"' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="checkbox" id="h_chk" value="선택" checkboxLabel="전체선택"' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="select" id="h_grade" value="등급"' + attrCol + '>' + strGrade + '</w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="checkcombobox" id="h_skill" value="보유기술"' + attrCol + '>' + strSkill + '</w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="textImage" imageSrc="/cm/images/base/ico_file.svg" viewType="icon" id="h_amt" value="금액"' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="cat" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="checkbox" id="chk" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="select" id="grade" value=""' + attrCol + '>' + strGrade + '</w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="checkcombobox" id="skill" value=""' + attrCol + '>' + strSkill + '</w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" dataType="number" displayFormat="#,##0" id="amt" value=""' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '<w2:subTotal style="" id="subTotal1" targetColumnID="cat">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="s_cat" value="소계"' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="s_chk" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="s_grade" value=""></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="s_skill" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="expression" expression="sum(\'amt\')" displayFormat="#,##0" id="s_amt"' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:subTotal>';
+    strTarget += '<w2:footer style="" id="footer1">';
+    strTarget += '<w2:row style="" id="row4">';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f_cat" value="합계"' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="130" style="" inputType="text" id="f_chk" value=""></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="f_grade" value=""></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="f_skill" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="expression" expression="sum(\'amt\')" displayFormat="#,##0" id="f_amt"' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:footer>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Header Cell 표시 텍스트 (checkbox 는 체크박스 라벨, 라벨이 없으면 빈값)
+scwin.getHeaderText = function (id) {
+    let th = target1.render.querySelector("[id='" + target1.id + "_" + id + "']");
+    if (!th) {
+        return "(없음)";
+    }
+    if (id === "h_chk") {
+        let lbl = th.querySelector("label");
+        return lbl ? lbl.textContent : "(라벨 없음)";
+    }
+    return th.textContent.trim();
+}
+
+
+
+// SubTotal / Footer Cell 표시 텍스트 (Footer 는 GridView id 접두 id, SubTotal 은 Column id 그대로 렌더되므로 첫번째 소계 Row 기준)
+scwin.getAreaText = function (id) {
+    let tds = target1.render.querySelectorAll("td[id='" + target1.id + "_" + id + "'], td[id='" + id + "']");
+    for (let i = 0; i < tds.length; i++) {
+        // 화면에 표시된 Cell 만 대상 (렌더용 숨김 Row 제외)
+        if (tds[i].offsetParent !== null) {
+            return tds[i].textContent.trim();
+        }
+    }
+    return "(없음)";
+}
+
+
+
+// 영역별 Column 표시 텍스트 / 적용된 다국어 정보 출력
+scwin.btn_checkText_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+
+    // validation 1, 3, 4, 5, 6, 7, 8, 9 판정 출력 (Header)
+    bottom.setReturnValue("Header : " + scwin.headerInfo.map(function (o) { return o.label + " = " + scwin.getHeaderText(o.id); }).join(" / "));
+
+    // validation 2 판정 출력 (Body)
+    bottom.setReturnValue("Body 분류 Column Row 0 : " + target1.getCellDisplayData(0, "cat") + " / Body 금액 Column Row 0 : " + target1.getCellDisplayData(0, "amt"));
+
+    // validation 2, 4, 10 판정 출력 (SubTotal / Footer)
+    bottom.setReturnValue("SubTotal : " + scwin.subTotalInfo.map(function (o) { return o.label + " = " + scwin.getAreaText(o.id); }).join(" / "));
+    bottom.setReturnValue("Footer : " + scwin.footerInfo.map(function (o) { return o.label + " = " + scwin.getAreaText(o.id); }).join(" / "));
+
+    // validation 11, 12, 13 판정 출력 (config languagePack / 적용된 다국어 JS)
+    let cLocaleRef = con_localeRef.getValue();
+    let objLang = WebSquare.WebSquareLang || {};
+    let strKey = (cLocaleRef === '') ? "" : " / Key " + cLocaleRef + " 의 Value = " + ((objLang[cLocaleRef] === undefined) ? "다국어 파일에 없음" : objLang[cLocaleRef]);
+
+    bottom.setReturnValue("config languagePack useLanguagePack = " + WebSquare.core.getConfiguration("/WebSquare/languagePack/@useLanguagePack")
+        + " / 브라우저 언어 = " + navigator.language
+        + " / 적용된 다국어 JS lang_type = " + objLang["lang_type"] + strKey);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="localeRef" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_localeRef" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>websquare_name</xf:label>
+												<xf:value>websquare_name</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>invalid_key</xf:label>
+												<xf:value>invalid_key</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useLocale (GridView)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useLocale" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useLocale (Column)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_columnUseLocale" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkText_onclick" id="btn_checkText"
+							label="표시 텍스트 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

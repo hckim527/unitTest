@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] imageWidth" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - inputType='image','textImage' 전제는 description 첫 문장에 포함되어 있어 별도 validation 미생성 (con_inputType 으로 image / textImage 전환)
+scwin.tData = {
+    "description" : "[column > P > imageWidth]<br/>inputType='image','textImage' 인 Column 에 표시되는 이미지의 너비를 설정합니다.",
+    "validation" : [
+        "숫자 설정 시, 이미지의 너비를 px 단위의 숫자로 설정합니다.",
+        "'0' 으로 설정하면 이미지의 너비가 0 이 되어 이미지가 보이지 않습니다.",
+        "속성값을 설정하지 않으면 이미지의 원본 너비가 적용됩니다.",
+        "inputType='textImage' 이고 textImageRenderType='div' 인 경우 이미지의 크기에 맞게 button 요소의 크기가 조정됩니다.",
+        "단, CSS 에 '.w2grid .gridBodyDefault button' 선택자가 정의되어 있다면 button 요소가 자동 조정되지 않을 수 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_imageWidth.setValue("28");
+    con_inputType.setValue("image");
+    con_textImageRenderType.setValue("");
+    con_buttonSelector.setValue("Y");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 공통 CSS(base.css) 의 '.w2grid .gridBodyDefault button' 규칙 정의/미정의 전환 (validation 5 대조)
+//  - 미정의 : 규칙의 선언을 비워 두고 원래 선언은 보관 / 정의 : 보관한 선언을 되돌림
+scwin.setButtonSelector = function (isDefined) {
+    for (let i = 0; i < document.styleSheets.length; i++) {
+        let rules = null;
+        try {
+            rules = document.styleSheets[i].cssRules;
+        } catch (e) {
+            continue;
+        }
+        if (!rules) {
+            continue;
+        }
+        for (let j = 0; j < rules.length; j++) {
+            let rule = rules[j];
+            if (rule.selectorText !== ".w2grid .gridBodyDefault button") {
+                continue;
+            }
+            if (!isDefined && typeof rule.wqBackupCss === "undefined") {
+                rule.wqBackupCss = rule.style.cssText;
+                rule.style.cssText = "";
+            } else if (isDefined && typeof rule.wqBackupCss !== "undefined") {
+                rule.style.cssText = rule.wqBackupCss;
+                delete rule.wqBackupCss;
+            }
+        }
+    }
+}
+
+
+
+// comp 생성
+//  - 검증 대상 : 첨부 Body Column(file, Column 인덱스 1) — imageWidth / inputType / textImageRenderType 을 옵션값으로 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+//    image 이면 Cell 값이 이미지 경로 / textImage 이면 Cell 값이 파일명 + viewType='icon' + imageSrc 고정
+//  - 이미지 원본 크기는 16 x 16 (svg)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cImageWidth = con_imageWidth.getValue();
+    let cInputType = con_inputType.getValue();
+    let cRenderType = con_textImageRenderType.getValue();
+    let cButtonSelector = con_buttonSelector.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 옵션값은 첨부 Body Column 에 설정, 이미지 원본 크기는 16 x 16\n[전제] .w2grid .gridBodyDefault button 선택자는 공통 CSS 에 정의되어 있으며 미정의 선택 시 이 페이지에서만 해제\n[확인] 이미지 너비 확인 버튼 -> 전체 Row 첨부 Cell 의 이미지 (button) 너비"', '', 'label1');
+
+    scwin.setButtonSelector(cButtonSelector !== "N");
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="docName" name="docName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="file" name="file" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="writer" name="writer" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // image 이면 Cell 값을 이미지 경로로, textImage 이면 파일명으로 구성
+    let isImage = (cInputType === "image");
+    dlt_bind.setJSON([
+        { "docName" : "2026년 견적서", "file" : isImage ? "/cm/images/base/ico_file.svg" : "견적서.pdf", "writer" : "김민수" },
+        { "docName" : "공급 계약서", "file" : isImage ? "/cm/images/base/ico_link.svg" : "계약서.docx", "writer" : "이영희" },
+        { "docName" : "주간 회의록", "file" : isImage ? "/cm/images/base/ico_copy.svg" : "회의록.hwp", "writer" : "박지훈" }
+    ], false);
+
+    // 검증 대상 Body Column 속성
+    let attrFile = ' inputType="' + cInputType + '"';
+    if (cInputType === "textImage") {
+        attrFile += ' viewType="icon" imageSrc="/cm/images/base/ico_file.svg"';
+    }
+    if (cRenderType !== '') {
+        attrFile += ' textImageRenderType="' + cRenderType + '"';
+    }
+    if (cImageWidth !== '') {
+        attrFile += ' imageWidth="' + cImageWidth + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:280px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column1" value="문서명"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column2" value="첨부"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="등록자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="docName" value=""></w2:column>';
+    strTarget += '<w2:column width="180" style="" id="file" value=""' + attrFile + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="writer" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 이미지 URL 의 원본 크기 (로드 완료 후 판정)
+scwin.getNaturalSize = function (url) {
+    return new Promise(function (resolve) {
+        let img = new Image();
+        img.onload = function () { resolve({ width : img.naturalWidth, height : img.naturalHeight }); };
+        img.onerror = function () { resolve({ width : 0, height : 0 }); };
+        img.src = url;
+    });
+}
+
+
+
+// validation 1 ~ 5 판정 출력 : 전체 Row 첨부 Cell 의 이미지 표시 너비 / 원본 너비 (button 이면 button 너비 / 이미지 너비)
+scwin.btn_checkImageWidth_onclick = async function () {
+    let rowCount = dlt_bind.getRowCount();
+    let lines = [];
+    for (let i = 0; i < rowCount; i++) {
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + i + "_1']");
+        let btn = td ? td.querySelector("button") : null;
+        let img = td ? td.querySelector("img") : null;
+        if (btn) {
+            // button 요소 : 이미지는 배경 이미지, 이미지 너비 = background-size 너비 (auto 면 높이 비율 또는 원본 너비)
+            let cs = window.getComputedStyle(btn);
+            let bgUrl = cs.backgroundImage.replace(/^url\(["']?/, "").replace(/["']?\)$/, "");
+            let bgSize = cs.backgroundSize.split(" ");
+            let natural = await scwin.getNaturalSize(bgUrl);
+            let imageWidth = natural.width;
+            if (bgSize[0] !== "auto") {
+                imageWidth = parseFloat(bgSize[0]);
+            } else if (bgSize.length > 1 && bgSize[1] !== "auto" && natural.height > 0) {
+                imageWidth = Math.round(parseFloat(bgSize[1]) * natural.width / natural.height);
+            }
+            lines.push("Row " + i + " button 너비 " + Math.round(btn.getBoundingClientRect().width) + "px / 이미지 너비 " + imageWidth + "px");
+        } else if (img) {
+            let natural = await scwin.getNaturalSize(img.src);
+            lines.push("Row " + i + " 이미지 너비 " + Math.round(img.getBoundingClientRect().width) + "px / 원본 너비 " + natural.width + "px");
+        } else {
+            lines.push("Row " + i + " 이미지 없음");
+        }
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(lines.join("\n"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="imageWidth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_imageWidth" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[10]]></xf:label>
+												<xf:value><![CDATA[10]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[28]]></xf:label>
+												<xf:value><![CDATA[28]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[40]]></xf:label>
+												<xf:value><![CDATA[40]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[60]]></xf:label>
+												<xf:value><![CDATA[60]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[image]]></xf:label>
+												<xf:value><![CDATA[image]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[textImage]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="textImageRenderType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_textImageRenderType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[div]]></xf:label>
+												<xf:value><![CDATA[div]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label=".w2grid .gridBodyDefault button" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_buttonSelector" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[정의]]></xf:label>
+												<xf:value><![CDATA[Y]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[미정의]]></xf:label>
+												<xf:value><![CDATA[N]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkImageWidth_onclick" id="btn_checkImageWidth" label="이미지 너비 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

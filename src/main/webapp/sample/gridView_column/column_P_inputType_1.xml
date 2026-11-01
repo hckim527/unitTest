@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] inputType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - inputType 샘플 분리 (값 종류가 많아 성격별로 분리, 각 샘플의 validation 합집합 = 가이드 전 항목)
+//    _1 : 입력창 편집형 (미설정 / text / textarea / secret / spinner / calendar) + 편집 모드 전환·embeddedInput, textarea 읽기전용, calendar config dataType
+//    _2 : 아이템 선택형 (select / checkcombobox / autoComplete)
+//    _3 : 편집 모드 미변경형 (link / checkbox / button / image / radio / expression) + expression DataList 미저장
+//    _4 : 트리·텍스트이미지·Row 별 지정형 (drilldown / textImage / custom)
+//    _5 : 영역별 지원 속성값 (Header text·checkbox·textImage / SubTotal·Footer text·expression)
+//  - 본 샘플(_1) : 각 inputType 값이 해당 형태로 표시되고, 편집 모드에서 해당 입력창으로 편집되는지 확인 (다른 연관 속성의 세부 동작은 각 속성 샘플 소관)
+scwin.tData = {
+    "description" : "[column > P > inputType]<br/>Column 의 Cell 에 값을 표시하고 입력받는 방식을 설정합니다.",
+    "validation" : [
+        "text 설정 시, Cell 값을 텍스트로 표시합니다.",
+        "미설정 시, Cell 값을 텍스트로 표시합니다.",
+        "text 설정 시, 편집 모드로 변경되면 한 줄 입력창이 표시되어 값을 직접 입력합니다.",
+        "calendar 설정 시, Cell 값을 날짜 표시 포맷에 맞게 표시합니다.",
+        "calendar 설정 시, 편집 모드로 변경되면 날짜 입력창과 팝업 달력 버튼이 표시되어 날짜를 직접 입력하거나 팝업 달력에서 선택합니다.",
+        "textarea 설정 시, Cell 값을 displaytype 속성값에 맞게 줄바꿈이 적용된 텍스트로 표시합니다.",
+        "textarea 설정 시, 편집 모드로 변경되면 여러 줄 입력창이 표시되어 줄바꿈을 포함한 값을 입력합니다.",
+        "secret 설정 시, Cell 값의 각 글자를 '●' 로 바꿔 표시합니다.",
+        "secret 설정 시, 편집 모드로 변경되면 입력한 글자가 가려지는 비밀번호 입력창이 표시됩니다.",
+        "spinner 설정 시, Cell 값을 텍스트로 표시합니다.",
+        "spinner 설정 시, 편집 모드로 변경되면 증감 버튼이 있는 입력창이 표시되어 값을 직접 입력하거나 증감 버튼으로 값을 변경합니다.",
+        "편집 모드는 마우스/키보드 동작으로 변경되며, Column 의 embeddedInput='true' 이면 편집 모드로 변경하지 않고 Cell 안에 입력 컴포넌트가 항상 표시됩니다.",
+        "inputType='textarea' 인 Cell 이 읽기전용(readonly) 또는 비활성화(disabled) 상태이면, 편집 모드 전환 시 읽기전용의 입력창이 표시됩니다.",
+        "기본 제공 config.xml 에는 inputType='calendar' 인 Column 의 dataType 이 'date' 로 설정되어 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (미설정)
+    con_embeddedInput.setValue("");
+    con_textareaState.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// Body Column 정보 (Body Column 인덱스 순, label 은 결과 출력용 inputType 값)
+scwin.bodyInfo = [
+    { "id" : "name", "label" : "미설정" },
+    { "id" : "addr", "label" : "text" },
+    { "id" : "memo", "label" : "textarea" },
+    { "id" : "pw",   "label" : "secret" },
+    { "id" : "qty",  "label" : "spinner" },
+    { "id" : "dt",   "label" : "calendar" }
+];
+
+// 편집 입력창 출력 중복 방지용 (같은 편집 중 키 입력마다 다시 출력하지 않음)
+scwin.lastEditKey = "";
+
+
+
+// comp 생성
+//  - name : inputType 미설정 / addr : text / memo : textarea(displayType=all) / pw : secret / qty : spinner(dataType=number) / dt : calendar(dataType 미설정)
+//  - con_embeddedInput 은 6개 Column 모두에, con_textareaState 는 memo(textarea) Column 에만 설정 (미설정은 속성 자체를 넣지 않는다)
+//  - DataList 의 dt 컬럼은 dataType=text (calendar Column 의 dataType 은 config.xml 기본값 확인용)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.lastEditKey = "";
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] textarea Column 은 displayType=all, spinner Column 은 dataType=number, calendar Column 은 dataType 미설정\n[절차] Cell 더블클릭 또는 Cell 선택 후 문자 키 입력(첫 키는 편집 모드 진입에 사용)으로 편집 모드 진입 ->값 입력 (calendar 는 달력 버튼으로 선택 가능, spinner 는 입력창 클릭 후 입력 또는 증감 버튼) -> 다른 Cell 클릭으로 편집 종료\n[확인] 편집 모드 진입 시 입력창 형태, 편집 완료 시 DataList 저장값 자동 출력 / (Cell 표시 상태 확인) 버튼으로 표시값과 Cell 안 입력 컴포넌트 확인"', '', 'label1');
+
+    // 조건 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cEmbedded = con_embeddedInput.getValue();
+    let cState = con_textareaState.getValue();
+    let attrEmb = (cEmbedded === '') ? '' : ' embeddedInput="' + cEmbedded + '"';
+    let attrState = (cState === '') ? '' : ' ' + cState + '="true"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="addr" name="addr" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="pw" name="pw" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="dt" name="dt" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "김민준", "addr" : "서울특별시 강남구", "memo" : "1층 로비 보관\n도착 전 연락 바람", "pw" : "pass1234", "qty" : 10, "dt" : "20261001" },
+        { "name" : "이서연", "addr" : "부산광역시 해운대구", "memo" : "경비실 보관", "pw" : "qwer", "qty" : 3, "dt" : "20261115" },
+        { "name" : "박지호", "addr" : "대전광역시 유성구", "memo" : "문 앞 배송", "pw" : "a1", "qty" : 25, "dt" : "20261231" }
+    ], false);
+
+    // 이벤트 바인딩 (편집 완료 시 DataList 저장값 출력)
+    let eList = $c.gcm.createEList(["onafteredit"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" defaultCellHeight="30" id="" style="width:960px;height:220px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="h_name" value="이름 (미설정)"></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="h_addr" value="주소 (text)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="h_memo" value="배송메모 (textarea)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="h_pw" value="비밀번호 (secret)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h_qty" value="수량 (spinner)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="h_dt" value="배송일 (calendar)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="110" style="" id="name" value=""' + attrEmb + '></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="addr" value=""' + attrEmb + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="textarea" displayType="all" id="memo" value=""' + attrEmb + attrState + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="secret" id="pw" value=""' + attrEmb + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="spinner" dataType="number" id="qty" value=""' + attrEmb + '></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="calendar" id="dt" value=""' + attrEmb + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 모드 진입 감지 : 마우스(더블클릭) / 키보드(문자 키 입력) 동작 후 편집 입력창 형태 출력
+    if (scwin["target1"]) {
+        target1.render.addEventListener("dblclick", scwin.checkEditMode, true);
+        target1.render.addEventListener("keydown", scwin.checkEditMode, true);
+    }
+}
+
+
+
+// 표시 중인 요소인지 확인
+scwin.isShown = function (el) {
+    return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).visibility !== "hidden" && window.getComputedStyle(el).display !== "none";
+}
+
+
+
+// 편집 입력창(GridView 공용 입력 컴포넌트) 형태 문자열
+//  - colId 에 해당하는 표시 중인 입력 컴포넌트를 찾아 태그 / type / 버튼 구성을 반환
+scwin.getEditorDesc = function (colId) {
+    let els = document.querySelectorAll("[id^='G_" + target1.id + "_']");
+    let shown = [];
+    for (let i = 0; i < els.length; i++) {
+        let id = els[i].id;
+        if ((id.endsWith("_" + colId) || id.indexOf("_" + colId + "_") > -1) && scwin.isShown(els[i])) {
+            shown.push(els[i]);
+        }
+    }
+    for (let i = 0; i < shown.length; i++) {
+        let cls = " " + shown[i].className + " ";
+        if (cls.indexOf(" w2spinner ") > -1) {
+            return "INPUT(type=text) + 증가/감소 버튼 (" + (shown[i].querySelector(".w2spinner_up") ? "O" : "X") + "/" + (shown[i].querySelector(".w2spinner_down") ? "O" : "X") + ")";
+        }
+        if (cls.indexOf(" w2inputCalendar_div ") > -1) {
+            let calInput = shown[i].querySelector("input");
+            let calBtn = shown[i].querySelector(".w2inputCalendar_div_img");
+            return "INPUT(type=" + (calInput ? calInput.type : "-") + ") + 팝업 달력 버튼 (" + (scwin.isShown(calBtn) ? "O" : "X") + ")";
+        }
+    }
+    for (let i = 0; i < shown.length; i++) {
+        let tag = shown[i].tagName;
+        if (tag === "TEXTAREA") {
+            return "TEXTAREA (여러 줄) / readOnly : " + shown[i].readOnly + " / disabled : " + shown[i].disabled;
+        }
+        if (tag === "INPUT") {
+            return "INPUT(type=" + shown[i].type + ")";
+        }
+    }
+    return "-";
+}
+
+
+
+// Cell 안에 항상 표시되는 입력 컴포넌트 형태 문자열 (없으면 빈값)
+scwin.getEmbeddedDesc = function (td) {
+    let spinner = td.querySelector(".w2spinner");
+    if (spinner) {
+        return "INPUT(type=text) + 증가/감소 버튼";
+    }
+    let cal = td.querySelector(".w2inputCalendar_div");
+    if (cal) {
+        return "INPUT(type=text) + 팝업 달력 버튼";
+    }
+    let ta = td.querySelector("textarea");
+    if (ta) {
+        return "TEXTAREA";
+    }
+    let input = td.querySelector("input");
+    if (input) {
+        return "INPUT(type=" + input.type + ")";
+    }
+    return "";
+}
+
+
+
+// validation 3, 5, 7, 9, 11, 12, 13 판정 출력 : 편집 모드 진입 시 편집 입력창 형태
+//  - 마우스 더블클릭 / 문자 키 입력 직후 isEditing() 이 true 로 바뀐 경우에만 1회 출력
+scwin.checkEditMode = function () {
+    setTimeout(function () {
+        if (typeof target1 === 'undefined' || !target1 || !target1.isEditing()) {
+            scwin.lastEditKey = "";
+            return;
+        }
+        let rowIndex = target1.getFocusedRowIndex();
+        let colId = target1.getFocusedColumnID();
+        let key = rowIndex + "_" + colId;
+        if (scwin.lastEditKey === key) {
+            return;
+        }
+        scwin.lastEditKey = key;
+        let label = "";
+        for (let i = 0; i < scwin.bodyInfo.length; i++) {
+            if (scwin.bodyInfo[i].id === colId) {
+                label = scwin.bodyInfo[i].label;
+            }
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 모드 진입 : Row " + rowIndex + " / " + label + " -> 입력창 : " + scwin.getEditorDesc(colId));
+    }, 150);
+}
+
+
+
+// validation 3, 5, 7, 9, 11 판정 출력 : 편집 완료 후 DataList 저장값
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    scwin.lastEditKey = "";
+    let colId = target1.getColumnID(colIndex);
+    let label = scwin.bodyInfo[colIndex] ? scwin.bodyInfo[colIndex].label : colId;
+    wf_body_bottom.getObj("scwin").setReturnValue("편집 완료 : Row " + rowIndex + " / " + label + " -> DataList 저장값 : " + JSON.stringify(String(dlt_bind.getCellData(rowIndex, colId))));
+}
+
+
+
+// validation 1, 2, 4, 6, 8, 10, 12, 14 판정 출력 : Row 별 Cell 표시값(또는 Cell 안 입력 컴포넌트), DataList 원본값, Column inputType / calendar dataType
+scwin.btn_checkCellStatus_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let r = 0; r < dlt_bind.getRowCount(); r++) {
+        let arr = [];
+        for (let c = 0; c < scwin.bodyInfo.length; c++) {
+            let td = document.querySelector("[id='" + target1.id + "_cell_" + r + "_" + c + "']");
+            let emb = td ? scwin.getEmbeddedDesc(td) : "";
+            if (emb !== "") {
+                arr.push(scwin.bodyInfo[c].label + "=[입력 컴포넌트 " + emb + "]");
+            } else {
+                // 줄바꿈 문자는 ↵ 로 표기
+                let text = td ? td.textContent.replace(/\n/g, "↵") : "-";
+                let wrap = "";
+                if (scwin.bodyInfo[c].id === "memo" && td) {
+                    let div = td.querySelector("div");
+                    wrap = div ? " (white-space : " + window.getComputedStyle(div).whiteSpace + ", 높이 " + td.offsetHeight + "px)" : "";
+                }
+                arr.push(scwin.bodyInfo[c].label + "='" + text + "'" + wrap);
+            }
+        }
+        bottom.setReturnValue("Row " + r + " 표시 : " + arr.join(" / "));
+        bottom.setReturnValue("Row " + r + " DataList : pw=" + JSON.stringify(dlt_bind.getCellData(r, "pw")) + " / qty=" + dlt_bind.getCellData(r, "qty") + " / dt=" + dlt_bind.getCellData(r, "dt"));
+    }
+    let arrType = [];
+    for (let c = 0; c < scwin.bodyInfo.length; c++) {
+        arrType.push(scwin.bodyInfo[c].id + "=" + target1.getColumnType(scwin.bodyInfo[c].id));
+    }
+    bottom.setReturnValue("getColumnType() : " + arrType.join(", "));
+    bottom.setReturnValue("calendar Column dataType (속성 미설정, DataList text) : " + target1.getColumnOption("dt", "dataType"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="textarea Cell 상태" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_textareaState" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[readOnly]]></xf:label>
+												<xf:value><![CDATA[readOnly]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[disabled]]></xf:label>
+												<xf:value><![CDATA[disabled]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCellStatus_onclick" id="btn_checkCellStatus"
+							label="Cell 표시 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

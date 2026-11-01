@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] ioFormat" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : inputType='calendar' Column 의 ioFormat (calendarValueType 기본 포맷, 팝업 달력 선택 / 직접 입력 값, config.xml 의 dataType)
+//  - 마스크 문자, 미설정 기본값(yyyyMMdd / HHmmss), 길이 불일치는 column_P_ioFormat_1.xml 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > ioFormat]<br/>dataType='date','time' 인 Column 의 날짜/시간 데이터 포맷을 마스크 문자로 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='calendar' 일때 ioFormat 속성을 설정하지 않으면 calendarValueType 속성값에 맞는 포맷이 적용됩니다. ex: calendarValueType='yearMonth' 이면 'yyyyMM'",
+        "inputType='calendar' 인 Column 에서 팝업 달력에서 선택하거나 직접 입력한 값도 ioFormat 속성의 포맷이 적용됩니다.",
+        "기본 제공 config.xml 에는 inputType='calendar' 인 Column 의 dataType 이 'date' 로 설정되어 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (calendarValueType : yearMonth, ioFormat : 미설정)
+    con_calendarValueType.setValue("yearMonth");
+    con_ioFormat.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// ioFormat 형식으로 날짜/시간 값을 만든다 (2024-03-15 14:30)
+scwin.makeValue = function (format) {
+    return format.replace("yyyy", "2024").replace("MM", "03").replace("dd", "15")
+        .replace("HH", "14").replace("mm", "30").replace("SS", "00");
+}
+
+
+
+// comp 생성
+//  - cal       : inputType='calendar', dataType='date' 명시 (validation 1, 2)
+//  - calNoType : inputType='calendar', dataType 미설정 (DataList 컬럼도 dataType 미설정) (validation 3)
+//  - 두 Column 모두 calendarValueType = con_calendarValueType, ioFormat = con_ioFormat (미설정은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] cal 은 dataType=date 명시, calNoType 은 dataType 미설정 (DataList 컬럼도 미설정), 두 Column 의 calendarValueType / ioFormat 은 같은 조건\nioFormat 은 calendarValueType 과 같은 단위로 선택 (MMyyyy = yearMonth, ddMMyyyy = yearMonthDate, ddMMyyyyHHmm = yearMonthDateTime)\nRow 0 은 적용된 ioFormat 형식의 값 (2024-03-15 14:30)\n[절차] Cell 클릭 -> 달력 아이콘 클릭 -> 날짜 선택 (시간 포함이면 시간 확인 버튼, yearMonth 는 월 선택 후 헤더 확인 버튼), 또는 Cell 클릭 -> 값을 지우고 ioFormat 순서대로 숫자 입력 -> 결과창 클릭으로 편집 종료\n[확인] Target 생성 시와 값 변경 시 저장값과 표시값 자동 출력"', '', 'label1');
+
+    // 조건 설정 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let properties = {
+        calendarValueType : con_calendarValueType.getValue(),
+        ioFormat : con_ioFormat.getValue()
+    };
+    let cList = $c.gcm.createCList(properties);
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="calNoType" name="calNoType"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // 이벤트 바인딩 (값 변경 시 저장값 출력)
+    let eList = $c.gcm.createEList(["onviewchange"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" defaultCellHeight="30" id="" style="width:560px;height:90px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="280" style="" inputType="text" id="column1" value="cal (dataType=date)"></w2:column>';
+    strTarget += '<w2:column width="280" style="" inputType="text" id="column2" value="calNoType (dataType 미설정)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="280" style="" inputType="calendar" dataType="date" viewType="icon" id="cal" value="" ' + cList + '></w2:column>';
+    strTarget += '<w2:column width="280" style="" inputType="calendar" viewType="icon" id="calNoType" value="" ' + cList + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 적용된 ioFormat 형식으로 데이터 설정
+    dlt_bind.setJSON([
+        { "cal" : scwin.makeValue(target1.getColumnOption("cal", "ioFormat")), "calNoType" : scwin.makeValue(target1.getColumnOption("calNoType", "ioFormat")) }
+    ], false);
+
+    // validation 1 : 적용된 calendarValueType / ioFormat 과 저장값, 표시값
+    wf_body_bottom.getObj("scwin").setReturnValue("cal : calendarValueType '" + target1.getColumnOption("cal", "calendarValueType") + "'"
+        + " / ioFormat '" + target1.getColumnOption("cal", "ioFormat") + "'"
+        + " -> 저장값 '" + dlt_bind.getCellData(0, "cal") + "' 표시 '" + target1.getCellDisplayData(0, "cal") + "'");
+    // validation 3 : dataType 미설정 calendar Column 에 적용된 dataType 과 ioFormat
+    wf_body_bottom.getObj("scwin").setReturnValue("calNoType : dataType '" + target1.getColumnOption("calNoType", "dataType") + "'"
+        + " / ioFormat '" + target1.getColumnOption("calNoType", "ioFormat") + "'"
+        + " -> 저장값 '" + dlt_bind.getCellData(0, "calNoType") + "' 표시 '" + target1.getCellDisplayData(0, "calNoType") + "'");
+}
+
+
+
+// validation 2 판정 출력 : 팝업 달력 선택 / 직접 입력 후 저장값(DataList)과 표시값
+scwin.target1_onviewchange = function (info) {
+    let colId = target1.getColumnID(info.colIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("Row " + info.rowIndex + " / " + colId + " 변경 -> 저장값 '" + dlt_bind.getCellData(info.rowIndex, colId) + "'"
+        + " 표시 '" + target1.getCellDisplayData(info.rowIndex, colId) + "'");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="calendarValueType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_calendarValueType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label>yearMonth</xf:label>
+												<xf:value>yearMonth</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDate</xf:label>
+												<xf:value>yearMonthDate</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>yearMonthDateTime</xf:label>
+												<xf:value>yearMonthDateTime</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ioFormat" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_ioFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>MMyyyy</xf:label>
+												<xf:value>MMyyyy</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>ddMMyyyy</xf:label>
+												<xf:value>ddMMyyyy</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>ddMMyyyyHHmm</xf:label>
+												<xf:value>ddMMyyyyHHmm</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

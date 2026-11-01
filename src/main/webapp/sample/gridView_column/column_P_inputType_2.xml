@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] inputType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - inputType 샘플 분리 : _1 입력창 편집형 / _2 아이템 선택형 / _3 편집 모드 미변경형 / _4 트리·텍스트이미지·Row 별 지정형 / _5 영역별 지원 속성값
+//  - 본 샘플(_2) : select / checkcombobox / autoComplete 의 라벨 표시와 편집 모드의 아이템 리스트창 선택 확인
+//    (아이템 구성·표시 방식 등 연관 속성의 세부 동작은 각 속성 샘플 소관)
+scwin.tData = {
+    "description" : "[column > P > inputType]<br/>Column 의 Cell 에 값을 표시하고 입력받는 방식을 설정합니다.",
+    "validation" : [
+        "select 설정 시, Cell 값과 일치하는 아이템의 라벨을 표시합니다.",
+        "select 설정 시, 편집 모드로 변경되면 아이템 리스트창이 표시되어 아이템을 하나 선택합니다.",
+        "checkcombobox 설정 시, Cell 값에 포함된 여러 아이템의 라벨을 표시합니다.",
+        "checkcombobox 설정 시, 편집 모드로 변경되면 체크박스가 있는 아이템 리스트창이 표시되어 여러 아이템을 선택합니다.",
+        "autoComplete 설정 시, Cell 값과 일치하는 아이템의 라벨을 표시합니다.",
+        "autoComplete 설정 시, 편집 모드로 변경되면 입력창이 표시되며 입력한 값으로 검색된 아이템 리스트에서 아이템을 선택합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 편집 입력창(아이템 리스트창은 GridView 밖에 표시됨) 감지 : 문서 전체의 마우스 / 키보드 동작 후 확인
+    document.addEventListener("dblclick", scwin.checkEditMode, true);
+    document.addEventListener("keyup", scwin.checkEditMode, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// Body Column 정보 (Body Column 인덱스 순, label 은 결과 출력용 inputType 값)
+scwin.bodyInfo = [
+    { "id" : "region",   "label" : "select" },
+    { "id" : "interest", "label" : "checkcombobox" },
+    { "id" : "branch",   "label" : "autoComplete" }
+];
+
+// 편집 입력창 / 검색 결과 출력 중복 방지용
+scwin.lastEditKey = "";
+scwin.lastSearch = "";
+
+
+
+// comp 생성
+//  - region : select / interest : checkcombobox (값 구분자 = 공백, 기본값) / branch : autoComplete
+//  - 3개 Column 모두 같은 아이템 (라벨 / 값 = 서울특별시 SEL, 부산광역시 BSN, 대구광역시 DGU, 인천광역시 ICN, 부천시 BCN)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.lastEditKey = "";
+    scwin.lastSearch = "";
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 3개 Column 모두 같은 아이템 (서울특별시 SEL / 부산광역시 BSN / 대구광역시 DGU / 인천광역시 ICN / 부천시 BCN), DataList 에는 값(코드) 저장\n[절차] Cell 더블클릭으로 편집 모드 진입 -> 아이템 선택 (checkcombobox 는 체크박스 여러 개 선택 후 다른 Cell 클릭, autoComplete 는 입력창에 부 입력 후 검색된 아이템 클릭)\n[확인] 편집 모드 진입 시 리스트창 형태, autoComplete 검색 결과, 편집 완료 시 DataList 저장값 / 표시 라벨 자동 출력"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="region" name="region" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="interest" name="interest" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="branch" name="branch" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "region" : "SEL", "interest" : "SEL BSN", "branch" : "DGU" },
+        { "region" : "BSN", "interest" : "DGU", "branch" : "ICN" },
+        { "region" : "ICN", "interest" : "BSN ICN BCN", "branch" : "SEL" }
+    ], false);
+
+    // 아이템 (3개 Column 공통)
+    let strChoices = '';
+    strChoices += '<w2:choices>';
+    strChoices += '<w2:item><w2:label>서울특별시</w2:label><w2:value>SEL</w2:value></w2:item>';
+    strChoices += '<w2:item><w2:label>부산광역시</w2:label><w2:value>BSN</w2:value></w2:item>';
+    strChoices += '<w2:item><w2:label>대구광역시</w2:label><w2:value>DGU</w2:value></w2:item>';
+    strChoices += '<w2:item><w2:label>인천광역시</w2:label><w2:value>ICN</w2:value></w2:item>';
+    strChoices += '<w2:item><w2:label>부천시</w2:label><w2:value>BCN</w2:value></w2:item>';
+    strChoices += '</w2:choices>';
+
+    // 이벤트 바인딩 (편집 완료 시 DataList 저장값 출력)
+    let eList = $c.gcm.createEList(["onafteredit"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" defaultCellHeight="30" id="" style="width:700px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="h_region" value="거주지역 (select)"></w2:column>';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="h_interest" value="관심지역 (checkcombobox)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="h_branch" value="담당지점 (autoComplete)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="180" style="" inputType="select" id="region" value="">' + strChoices + '</w2:column>';
+    strTarget += '<w2:column width="300" style="" inputType="checkcombobox" id="interest" value="">' + strChoices + '</w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="autoComplete" id="branch" value="">' + strChoices + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 표시 중인 요소인지 확인
+scwin.isShown = function (el) {
+    return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).visibility !== "hidden" && window.getComputedStyle(el).display !== "none";
+}
+
+
+
+// colId 의 표시 중인 편집 입력 컴포넌트 목록
+scwin.getShownEditor = function (colId) {
+    let els = document.querySelectorAll("[id^='G_" + target1.id + "_']");
+    let shown = [];
+    for (let i = 0; i < els.length; i++) {
+        let id = els[i].id;
+        if ((id.endsWith("_" + colId) || id.indexOf("_" + colId + "_") > -1) && scwin.isShown(els[i])) {
+            shown.push(els[i]);
+        }
+    }
+    return shown;
+}
+
+
+
+// 표시 중인 아이템 리스트의 아이템 라벨 목록 (itemTable 의 아이템 Cell)
+scwin.getShownItems = function (shown) {
+    let arr = [];
+    for (let i = 0; i < shown.length; i++) {
+        if (shown[i].tagName === "TD" && /_itemTable_\d+$/.test(shown[i].id)) {
+            arr.push(shown[i].textContent);
+        }
+    }
+    return arr;
+}
+
+
+
+// 편집 입력창 형태 문자열
+scwin.getEditorDesc = function (colId) {
+    let shown = scwin.getShownEditor(colId);
+    let items = scwin.getShownItems(shown);
+    for (let i = 0; i < shown.length; i++) {
+        let cls = " " + shown[i].className + " ";
+        if (cls.indexOf(" w2checkcombobox ") > -1) {
+            let cnt = 0;
+            for (let j = 0; j < shown.length; j++) {
+                if (shown[j].tagName === "INPUT" && shown[j].type === "checkbox") {
+                    cnt++;
+                }
+            }
+            return "체크박스 아이템 리스트창 (체크박스 " + cnt + "개 : " + items.join(", ") + ")";
+        }
+        if (cls.indexOf(" w2selectbox ") > -1) {
+            return "아이템 리스트창 (" + items.join(", ") + ")";
+        }
+        if (cls.indexOf(" w2autoComplete ") > -1) {
+            let input = shown[i].querySelector("input");
+            return "INPUT(type=" + (input ? input.type : "-") + ") + 검색 아이템 리스트 (" + items.join(", ") + ")";
+        }
+    }
+    return "-";
+}
+
+
+
+// validation 2, 4, 6 판정 출력 : 편집 모드 진입 시 리스트창 형태 / autoComplete 입력값으로 검색된 아이템
+scwin.checkEditMode = function () {
+    setTimeout(function () {
+        if (typeof target1 === 'undefined' || !target1 || !target1.isEditing()) {
+            scwin.lastEditKey = "";
+            scwin.lastSearch = "";
+            return;
+        }
+        let rowIndex = target1.getFocusedRowIndex();
+        let colId = target1.getFocusedColumnID();
+        let colIndex = target1.getColumnIndex(colId);
+        let label = scwin.bodyInfo[colIndex] ? scwin.bodyInfo[colIndex].label : colId;
+        let bottom = wf_body_bottom.getObj("scwin");
+        let key = rowIndex + "_" + colId;
+        if (scwin.lastEditKey !== key) {
+            scwin.lastEditKey = key;
+            scwin.lastSearch = "";
+            bottom.setReturnValue("편집 모드 진입 : Row " + rowIndex + " / " + label + " -> " + scwin.getEditorDesc(colId));
+            return;
+        }
+        // autoComplete : 입력값이 바뀌면 검색된 아이템 출력
+        if (colId === "branch") {
+            let shown = scwin.getShownEditor(colId);
+            let input = null;
+            for (let i = 0; i < shown.length; i++) {
+                if (shown[i].tagName === "INPUT") {
+                    input = shown[i];
+                }
+            }
+            if (input && input.value !== scwin.lastSearch) {
+                scwin.lastSearch = input.value;
+                bottom.setReturnValue("검색어 '" + input.value + "' -> 검색된 아이템 : " + scwin.getShownItems(shown).join(", "));
+            }
+        }
+    }, 300);
+}
+
+
+
+// validation 1 ~ 6 판정 출력 : 편집 완료 후 DataList 저장값과 Cell 표시 라벨
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    scwin.lastEditKey = "";
+    scwin.lastSearch = "";
+    let colId = target1.getColumnID(colIndex);
+    let label = scwin.bodyInfo[colIndex] ? scwin.bodyInfo[colIndex].label : colId;
+    setTimeout(function () {
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_" + colIndex + "']");
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 완료 : Row " + rowIndex + " / " + label + " -> DataList 저장값 : '" + dlt_bind.getCellData(rowIndex, colId) + "' / Cell 표시 : '" + (td ? td.textContent : "-") + "'");
+    }, 0);
+}
+
+
+
+// validation 1, 3, 5 판정 출력 : Row 별 DataList 값(코드)과 Cell 표시 라벨
+scwin.btn_checkCellStatus_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let r = 0; r < dlt_bind.getRowCount(); r++) {
+        let arr = [];
+        for (let c = 0; c < scwin.bodyInfo.length; c++) {
+            let td = document.querySelector("[id='" + target1.id + "_cell_" + r + "_" + c + "']");
+            arr.push(scwin.bodyInfo[c].label + " '" + dlt_bind.getCellData(r, scwin.bodyInfo[c].id) + "' -> '" + (td ? td.textContent : "-") + "'");
+        }
+        bottom.setReturnValue("Row " + r + " (DataList 값 -> Cell 표시) : " + arr.join(" / "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCellStatus_onclick" id="btn_checkCellStatus"
+							label="Cell 표시 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] inputType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - inputType 샘플 분리 : _1 입력창 편집형 / _2 아이템 선택형 / _3 편집 모드 미변경형 / _4 트리·텍스트이미지·Row 별 지정형 / _5 영역별 지원 속성값
+//  - 본 샘플(_3) : link / checkbox / button / image / radio / expression 의 표시 형태, 편집 모드 미변경, 클릭 동작(이벤트·저장값) 확인
+//    (trueValue / falseValue / imageSrc / imageClickFunction / expression 등 연관 속성의 세부 동작은 각 속성 샘플 소관)
+scwin.tData = {
+    "description" : "[column > P > inputType]<br/>Column 의 Cell 에 값을 표시하고 입력받는 방식을 설정합니다.",
+    "validation" : [
+        "link 설정 시, Cell 값을 링크(<a>) 텍스트로 표시합니다.",
+        "link 설정 시, 편집 모드로 변경되지 않으며 링크 텍스트를 클릭하면 oncellclick 이벤트가 발생합니다.",
+        "checkbox 설정 시, Cell 값이 trueValue 속성값과 같으면 체크된 체크박스로, 다르면 체크 해제된 체크박스로 표시합니다.",
+        "checkbox 설정 시, 편집 모드로 변경되지 않으며 체크박스를 클릭하면 체크 상태에 따라 trueValue 또는 falseValue 속성값이 DataList 에 저장되고 onviewchange 이벤트가 발생합니다.",
+        "button 설정 시, Cell 값을 텍스트로 갖는 버튼을 Cell 크기에 맞게 표시합니다.",
+        "button 설정 시, 편집 모드로 변경되지 않으며 버튼을 클릭하면 oncellclick 이벤트, 더블 클릭하면 oncelldblclick 이벤트가 발생합니다.",
+        "image 설정 시, Cell 값을 이미지 경로로 사용하여 이미지를 표시합니다.",
+        "image 설정 시, Cell 값이 비어 있으면 imageSrc 속성의 이미지가 표시됩니다.",
+        "image 설정 시, 편집 모드로 변경되지 않으며 imageClickFunction 속성을 설정하면 이미지를 클릭할 때 사용자 정의 함수가 실행됩니다.",
+        "radio 설정 시, Cell 값이 trueValue 속성값과 같으면 선택된 라디오 버튼으로, 다르면 선택 해제된 라디오 버튼으로 표시합니다.",
+        "radio 설정 시, 편집 모드로 변경되지 않으며 라디오 버튼을 클릭하면 해당 Cell 에 trueValue 속성값이 저장되고 onviewchange 이벤트가 발생합니다.",
+        "radio 설정 시, 같은 Column 에서 기존에 선택되어 있던 다른 Row 의 Cell 에는 falseValue 속성값이 저장되어 Column 전체에서 하나의 Row 만 선택됩니다.",
+        "expression 설정 시, expression 속성의 계산식으로 산출한 값을 표시합니다.",
+        "expression 설정 시, 편집 모드로 변경되지 않으며 계산식이 참조하는 Column 의 값이 변경되면 다시 계산됩니다.",
+        "inputType='expression' 인 Cell 의 계산 결과는 표시에만 사용되며 바인딩된 DataList 의 데이터로 저장되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// Body Column 정보 (Body Column 인덱스 순, label 은 결과 출력용)
+scwin.bodyInfo = [
+    { "id" : "title",  "label" : "link" },
+    { "id" : "useYn",  "label" : "checkbox" },
+    { "id" : "action", "label" : "button" },
+    { "id" : "icon",   "label" : "image" },
+    { "id" : "mainYn", "label" : "radio" },
+    { "id" : "qty",    "label" : "수량(text)" },
+    { "id" : "price",  "label" : "단가(text)" },
+    { "id" : "amount", "label" : "expression" }
+];
+
+
+
+// imageClickFunction 사용자 정의 함수
+//  - validation 9 판정 출력 : 이미지 클릭 시 실행 여부와 전달값
+scwin.fn_imageClick = function (rowIndex, colId, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("imageClickFunction 실행 : Row " + rowIndex + " / " + colId + " / 값 '" + value + "'");
+}
+
+
+
+// comp 생성
+//  - title : link / useYn : checkbox / action : button / icon : image (imageSrc = ico_file.svg, imageClickFunction) / mainYn : radio
+//  - checkbox, radio 는 valueType=other, trueValue=Y, falseValue=N (저장값 구분용)
+//  - amount : expression 수량 x 단가 (calc() 는 bigDecimal 기지 결함으로 NaN 이 되어 display() 와 JS 연산자 사용), DataList 에도 amount 컬럼(빈값)을 두어 계산 결과 저장 여부 확인
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] checkbox / radio 는 valueType=other, trueValue=Y, falseValue=N / image 는 imageSrc=ico_file.svg (Row 1 Cell 값 빈값), imageClickFunction 설정 / expression 은 수량 x 단가, DataList amount 컬럼은 빈값\n[참고] button 은 Cell 크기(width/height 100%)로 그려지나 프로젝트 base.css 의 .w2grid .gridBodyDefault button 선택자(width auto, height 26px 고정)로 실제 크기가 조정됨\n[절차] 각 Cell 클릭 / 더블클릭 (링크 텍스트, 체크박스, 버튼, 이미지, 라디오 버튼), 수량 Cell 더블클릭 후 값 변경\n[확인] 이벤트 발생 / 더블클릭 후 편집 모드 여부 / 저장값 자동 출력, (Cell 표시 상태 확인) 버튼으로 표시 형태 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="title" name="title" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="useYn" name="useYn" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="action" name="action" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="icon" name="icon" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="mainYn" name="mainYn" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="amount" name="amount" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "title" : "공지사항", "useYn" : "Y", "action" : "상세", "icon" : "/cm/images/base/ico_link.svg", "mainYn" : "Y", "qty" : 2, "price" : 1500, "amount" : "" },
+        { "title" : "자료실",   "useYn" : "N", "action" : "수정", "icon" : "",                             "mainYn" : "N", "qty" : 3, "price" : 2000, "amount" : "" },
+        { "title" : "자주 묻는 질문", "useYn" : "N", "action" : "삭제", "icon" : "/cm/images/base/ico_copy.svg", "mainYn" : "N", "qty" : 1, "price" : 500, "amount" : "" }
+    ], false);
+
+    // 이벤트 바인딩
+    let eList = $c.gcm.createEList(["oncellclick", "oncelldblclick", "onviewchange"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" defaultCellHeight="34" id="" style="width:900px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="h_title" value="제목 (link)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_useYn" value="사용 (checkbox)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_action" value="작업 (button)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_icon" value="아이콘 (image)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_mainYn" value="대표 (radio)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_qty" value="수량 (text)"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="h_price" value="단가 (text)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="h_amount" value="금액 (expression)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="link" id="title" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="checkbox" valueType="other" trueValue="Y" falseValue="N" id="useYn" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="button" id="action" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="image" imageSrc="/cm/images/base/ico_file.svg" imageClickFunction="scwin.fn_imageClick" id="icon" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="radio" valueType="other" trueValue="Y" falseValue="N" id="mainYn" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" dataType="number" id="qty" value=""></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" dataType="number" id="price" value=""></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="expression" expression="Number(display(\'qty\')) * Number(display(\'price\'))" displayFormat="#,##0" id="amount" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Column 인덱스 -> 출력용 라벨
+scwin.getLabel = function (colIndex) {
+    return scwin.bodyInfo[colIndex] ? scwin.bodyInfo[colIndex].label : target1.getColumnID(colIndex);
+}
+
+
+
+// validation 2, 6 판정 출력 : 클릭 시 oncellclick 발생
+scwin.target1_oncellclick = function (rowIndex, colIndex, colId) {
+    wf_body_bottom.getObj("scwin").setReturnValue("oncellclick : Row " + rowIndex + " / " + scwin.getLabel(colIndex));
+}
+
+
+
+// validation 2, 4, 6, 9, 11, 14 판정 출력 : 더블클릭 시 oncelldblclick 발생과 편집 모드 변경 여부
+scwin.target1_oncelldblclick = function (rowIndex, colIndex, colId) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let label = scwin.getLabel(colIndex);
+    setTimeout(function () {
+        bottom.setReturnValue("oncelldblclick : Row " + rowIndex + " / " + label + " -> 편집 모드 isEditing() : " + target1.isEditing());
+    }, 100);
+}
+
+
+
+// validation 4, 11, 12, 14, 15 판정 출력 : 값 변경 시 onviewchange 와 저장값 / expression 재계산
+scwin.target1_onviewchange = function (info) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let label = scwin.getLabel(info.colIndex);
+    let colId = target1.getColumnID(info.colIndex);
+    bottom.setReturnValue("onviewchange : Row " + info.rowIndex + " / " + label + " '" + info.oldValue + "' -> '" + info.newValue + "'");
+    if (colId === "useYn" || colId === "mainYn") {
+        bottom.setReturnValue(label + " Column DataList 값 (Row 0 ~ " + (dlt_bind.getRowCount() - 1) + ") : " + dlt_bind.getColData(colId).join(", "));
+    } else if (colId === "qty" || colId === "price") {
+        let rowIndex = info.rowIndex;
+        setTimeout(function () {
+            let td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_7']");
+            bottom.setReturnValue("expression Cell 표시 (Row " + rowIndex + ") : '" + (td ? td.textContent : "-") + "' / DataList amount 값 : '" + dlt_bind.getCellData(rowIndex, "amount") + "'");
+        }, 0);
+    }
+}
+
+
+
+// 이미지 로드 완료 대기 (naturalWidth 판정용)
+scwin.waitImage = function (img) {
+    return new Promise(function (resolve) {
+        if (!img || img.complete) {
+            resolve();
+            return;
+        }
+        img.addEventListener("load", function () { resolve(); });
+        img.addEventListener("error", function () { resolve(); });
+    });
+}
+
+
+
+// validation 1, 3, 5, 7, 8, 10, 13, 15 판정 출력 : Row 별 Cell 표시 형태 / DataList 값
+scwin.btn_checkCellStatus_onclick = async function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let r = 0; r < dlt_bind.getRowCount(); r++) {
+        let td = function (c) {
+            return document.querySelector("[id='" + target1.id + "_cell_" + r + "_" + c + "']");
+        };
+        let arr = [];
+        // link
+        let a = td(0).querySelector("a");
+        arr.push("link=" + (a ? "<a> '" + a.textContent + "'" : "'" + td(0).textContent + "'"));
+        // checkbox
+        let chk = td(1).querySelector("input[type='checkbox']");
+        arr.push("checkbox(" + dlt_bind.getCellData(r, "useYn") + ")=" + (chk ? (chk.checked ? "체크" : "체크 해제") : "-"));
+        // button
+        let btn = td(2).querySelector("button");
+        arr.push("button=" + (btn ? "<button> '" + btn.textContent + "' style='" + btn.getAttribute("style") + "' 실제 " + btn.offsetWidth + "x" + btn.offsetHeight + " (Cell " + td(2).clientWidth + "x" + td(2).clientHeight + ")" : "-"));
+        // image
+        let img = td(3).querySelector("img");
+        await scwin.waitImage(img);
+        arr.push("image(값 '" + dlt_bind.getCellData(r, "icon") + "')=" + (img ? "<img> " + (img.getAttribute("src") || "").split("?")[0] + " (로드 " + (img.naturalWidth > 0 ? "O" : "X") + ")" : "-"));
+        // radio
+        let rdo = td(4).querySelector("input[type='radio']");
+        arr.push("radio(" + dlt_bind.getCellData(r, "mainYn") + ")=" + (rdo ? (rdo.checked ? "선택" : "선택 해제") : "-"));
+        // expression
+        arr.push("expression=" + dlt_bind.getCellData(r, "qty") + " x " + dlt_bind.getCellData(r, "price") + " -> '" + td(7).textContent + "' (DataList amount '" + dlt_bind.getCellData(r, "amount") + "')");
+        bottom.setReturnValue("Row " + r + " : " + arr.join(" / "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCellStatus_onclick" id="btn_checkCellStatus"
+							label="Cell 표시 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

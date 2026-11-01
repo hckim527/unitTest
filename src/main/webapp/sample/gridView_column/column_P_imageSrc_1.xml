@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] imageSrc" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Header/Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//    동작 영역인 Header Column 과 Body Column 에 같은 imageSrc / inputType / viewType 을 고정 구성으로 함께 설정 (embeddedInput 은 Body Column 전용)
+//  - propval 첫 문장("Column 에 표시할 이미지의 URL 을 설정")은 description 과 같은 의미라 통합
+//  - spec "setImageSrc() 메소드는 inputType='textImage' 인 Body Column 의 imageSrc 속성만 변경" 은 setImageSrc 자체 기능이라 제외
+scwin.tData = {
+    "description" : "[column > P > imageSrc]<br/>inputType='image','textImage' 인 Column 에 표시할 이미지의 경로를 설정합니다.",
+    "validation" : [
+        "Header Column 은 inputType='textImage' 인 경우에만 동작합니다.",
+        "이미지 URL 설정 시, 상대경로, 절대경로, 프로토콜 포함 경로를 설정할 수 있습니다.",
+        "이미지 URL 설정 시, 'data:' 로 시작하는 Data URL 형식을 설정할 수 있습니다.",
+        "이미지 URL 설정 시, PNG, JPG, JPEG, GIF, SVG 등 웹브라우저가 지원하는 모든 이미지 파일을 설정할 수 있습니다.",
+        "inputType='image' 인 Body Column 은 Cell 값을 이미지 경로로 사용하며, Cell 값이 비어 있을때만 imageSrc 속성이 적용됩니다.",
+        "inputType='textImage' 인 Column 은 viewType='icon' 인 경우에 Cell 값과 함께 이미지가 표시됩니다.",
+        "Body Column 이면 viewType='default' 여도 Column 이 편집 모드로 들어간 경우엔 이미지가 표시됩니다.",
+        "Body Column 이면 viewType='default' 여도 Column 의 embeddedInput='true' 인 경우엔 이미지가 표시됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    con_imageSrc.setValue("/cm/images/base/ico_file.svg");
+    con_inputType.setValue("textImage");
+    con_viewType.setValue("icon");
+    con_embeddedInput.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 검증 대상 : 첨부파일 Header Column(column2) + Body Column(file)
+//    imageSrc / inputType / viewType 은 Header·Body 에 같은 값, embeddedInput 은 Body 에만 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+//  - Cell 값 : image 이면 Row 0 = 이미지 경로(ico_link.svg), Row 1 = 빈 값 / textImage·text 이면 파일명
+//  - con_imageSrc 의 protocol: 값은 현재 서버 주소(location.origin)를 붙여 프로토콜 포함 경로로 만든다
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cImageSrc = con_imageSrc.getValue();
+    let cInputType = con_inputType.getValue();
+    let cViewType = con_viewType.getValue();
+    let cEmbeddedInput = con_embeddedInput.getText();
+
+    if (cImageSrc.indexOf("protocol:") === 0) {
+        cImageSrc = location.origin + cImageSrc.substring("protocol:".length);
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 옵션값은 첨부파일 Header Column 과 Body Column 에 함께 설정 (embeddedInput 은 Body Column 만)\n[전제] inputType=image 이면 Row 0 Cell 값 = 이미지 경로(ico_link.svg), Row 1 Cell 값 = 빈 값\n[절차] Row 0 첨부파일 Cell 더블클릭으로 편집 모드 진입 -> 편집 중 이미지 표시 여부가 자동 출력\n[확인] 이미지 표시 확인 버튼 -> Header Column, Row 0, Row 1 Body Cell 의 이미지 경로와 로드 결과"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="docNo" name="docNo" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="file" name="file" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="writer" name="writer" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // validation 5 : image 이면 Row 0 은 Cell 값 이미지, Row 1 은 빈 값(imageSrc 적용)
+    let isImage = (cInputType === "image");
+    dlt_bind.setJSON([
+        { "docNo" : "D-2026-001", "file" : isImage ? "/cm/images/base/ico_link.svg" : "견적서.pdf", "writer" : "김민수" },
+        { "docNo" : "D-2026-002", "file" : isImage ? "" : "계약서.docx", "writer" : "이영희" },
+        { "docNo" : "D-2026-003", "file" : isImage ? "/cm/images/base/ico_copy.svg" : "회의록.hwp", "writer" : "박지훈" }
+    ], false);
+
+    // 검증 대상 Column 공통 속성 (Header / Body)
+    let attrCommon = ' inputType="' + cInputType + '" viewType="' + cViewType + '"';
+    if (cImageSrc !== '') {
+        attrCommon += ' imageSrc="' + cImageSrc + '"';
+    }
+    let attrBody = attrCommon;
+    if (cEmbeddedInput !== '') {
+        attrBody += ' embeddedInput="' + cEmbeddedInput + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:150px;" ev:onbeforeedit="scwin.target1_onbeforeedit">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="문서번호"></w2:column>';
+    strTarget += '<w2:column width="220" style="" id="column2" value="첨부파일"' + attrCommon + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="등록자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="docNo" value=""></w2:column>';
+    strTarget += '<w2:column width="220" style="" id="file" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="writer" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 이미지 경로 표기 (Data URL 은 형식 부분만)
+scwin.getSrcText = function (src) {
+    if (src.indexOf("data:") === 0) {
+        return src.substring(0, src.indexOf(",") + 1) + "...";
+    }
+    return src;
+}
+
+
+
+// 영역 안 이미지(img 또는 textImage 버튼 배경 이미지)의 경로와 실제 로드 결과
+scwin.getImageInfo = async function (area) {
+    if (!area) {
+        return "Column 없음";
+    }
+    let src = "";
+    let img = area.querySelector("img");
+    if (img) {
+        src = img.getAttribute("src") || "";
+    } else {
+        let btn = area.querySelector("button");
+        if (btn) {
+            let match = /url\(["']?(.*?)["']?\)/.exec(getComputedStyle(btn).backgroundImage);
+            src = match ? match[1] : "";
+        }
+    }
+    if (src === "") {
+        return "이미지 없음";
+    }
+    let loaded = await new Promise(function (resolve) {
+        let tmp = new Image();
+        tmp.onload = function () { resolve(tmp.naturalWidth > 0); };
+        tmp.onerror = function () { resolve(false); };
+        tmp.src = img ? img.src : src;
+    });
+    return "이미지 표시 (" + scwin.getSrcText(src) + ", " + (loaded ? "로드 성공" : "로드 실패") + ")";
+}
+
+
+
+// validation 1 ~ 6, 8 판정 출력 : Header Column / Row 0, Row 1 Body Cell 의 이미지 경로와 로드 결과
+scwin.btn_checkImage_onclick = async function () {
+    let th = document.querySelector("[id='" + target1.id + "_column2']");
+    let td0 = document.querySelector("[id='" + target1.id + "_cell_0_1']");
+    let td1 = document.querySelector("[id='" + target1.id + "_cell_1_1']");
+    let thInfo = await scwin.getImageInfo(th);
+    let td0Info = await scwin.getImageInfo(td0);
+    let td1Info = await scwin.getImageInfo(td1);
+    wf_body_bottom.getObj("scwin").setReturnValue("Header Column : " + thInfo + " / Row 0 : " + td0Info + " / Row 1 : " + td1Info);
+}
+
+
+
+// validation 7 판정 출력 : 편집 모드 진입 직후 편집 Cell 의 이미지 표시 여부
+//  - 이미지 표시 확인 버튼을 누르면 편집이 끝나므로 편집 모드 진입 시점에 자동 출력
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex) {
+    setTimeout(async function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_" + columnIndex + "']");
+        let info = await scwin.getImageInfo(td);
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 모드 Row " + rowIndex + " : " + info);
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="imageSrc" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_imageSrc" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[../../img/png.png (상대경로, PNG)]]></xf:label>
+												<xf:value><![CDATA[../../img/png.png]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/img/jpg.jpg (절대경로, JPG)]]></xf:label>
+												<xf:value><![CDATA[/img/jpg.jpg]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/img/jpeg.jpeg (절대경로, JPEG)]]></xf:label>
+												<xf:value><![CDATA[/img/jpeg.jpeg]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[http://현재서버/websquare/_websquare_/uiplugin/autoComplete/images/select_arrow.gif (프로토콜 포함, GIF)]]></xf:label>
+												<xf:value><![CDATA[protocol:/websquare/_websquare_/uiplugin/autoComplete/images/select_arrow.gif]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[/cm/images/base/ico_file.svg (절대경로, SVG)]]></xf:label>
+												<xf:value><![CDATA[/cm/images/base/ico_file.svg]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[data:image/svg+xml;base64,... (Data URL)]]></xf:label>
+												<xf:value><![CDATA[data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNicgaGVpZ2h0PScxNic+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzE2JyByeD0nMycgZmlsbD0nIzJlN2QzMicvPjwvc3ZnPg==]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[image]]></xf:label>
+												<xf:value><![CDATA[image]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[textImage]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="viewType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_viewType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[icon]]></xf:label>
+												<xf:value><![CDATA[icon]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[default]]></xf:label>
+												<xf:value><![CDATA[default]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput (Body)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkImage_onclick" id="btn_checkImage" label="이미지 표시 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

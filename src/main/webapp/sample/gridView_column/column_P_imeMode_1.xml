@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] imeMode" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//  - 실제 IME 입력모드 전환은 ime-mode 를 지원하는 브라우저(IE)에서만 확인 가능하므로, 엔진이 편집 입력창에 부여한 ime-mode 값을 출력하여 확인한다
+scwin.tData = {
+    "description" : "[column > P > imeMode]<br/>Column 이 편집 상태일때 IME 모드를 설정합니다. (IE 만 지원)",
+    "validation" : [
+        "Column 의 inputType='text','textImage','drilldown','textarea' 인 경우에 동작합니다.",
+        "미설정 시, IME 모드를 설정하지 않습니다.",
+        "auto 설정 시, 웹브라우저나 OS 설정에 따릅니다.",
+        "active 설정 시, IME 를 한글 입력모드 등으로 활성화합니다.",
+        "inactive 설정 시, IME 를 영문 입력모드로 고정합니다.",
+        "disabled 설정 시, IME 를 영어/숫자만 입력가능하도록 비활성화합니다.",
+        "IE 에서만 일부 지원했으며 최신 웹브라우저는 지원하지 않습니다.",
+        "하위 호환을 위해 남겨진 속성이며 속성 설정 시 CSS 에 ime-mode 항목이 추가됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Column id -> inputType
+    "inputTypes" : {
+        "txt" : "text",
+        "timg" : "textImage",
+        "dd" : "drilldown",
+        "area" : "textarea",
+        "cal" : "calendar"
+    },
+    "timer" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (active)
+    con_imeMode.setValue("active");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 5종 Body Column (text / textImage / drilldown / textarea / calendar) 에 imeMode = con_imeMode 일괄 적용
+//  - calendar 는 동작 대상 inputType 이 아닌 대조 Column
+//  - 셀 더블클릭(편집 진입) 후 포커스된 편집 입력창의 ime-mode 값을 결과창에 자동 출력
+scwin.comp_init = async function () {
+    // 기존 타이머 / target / dataList / label 삭제
+    if (scwin.gVar.timer) {
+        clearTimeout(scwin.gVar.timer);
+    }
+    scwin.gVar.timer = null;
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 5개 Body Column 모두 같은 imeMode 설정, cal (calendar) 은 동작 대상이 아닌 대조 Column\n[절차] imeMode 선택 -> Target 재생성 -> 각 Column 의 셀 값을 더블클릭하여 편집 진입\n[확인] 진입마다 편집 입력창의 ime-mode 값(엔진 설정값)과 브라우저 CSS 반영값 자동 출력, 실제 IME 입력모드 전환은 ime-mode 지원 브라우저(IE)에서만 확인 가능"', '', 'label1');
+
+    // 조건 설정 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cImeMode = con_imeMode.getValue();
+    let attrCol = (cImeMode === '') ? '' : ' imeMode="' + cImeMode + '"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용, depth 는 drilldown 단계)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="txt" name="txt" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="timg" name="timg" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dd" name="dd" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="area" name="area" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "txt" : "홍길동", "timg" : "report_2026.pdf", "dd" : "영업본부 수도권", "area" : "서울시 강남구 테헤란로", "cal" : "20260105", "depth" : "1" },
+        { "txt" : "WebSquare", "timg" : "invoice_1027.xlsx", "dd" : "영업1팀 강남지점", "area" : "부산시 해운대구 센텀로", "cal" : "20260210", "depth" : "2" }
+    ], false);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:820px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column1" value="txt (text)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column2" value="timg (textImage)"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column3" value="dd (drilldown)"></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="text" id="column4" value="area (textarea)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column5" value="cal (calendar)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="txt" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="textImage" id="timg" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="drilldown" depthColumn="depth" showDepth="2" id="dd" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="textarea" id="area" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" id="cal" value=""' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 셀 더블클릭 감시 (capture 단계)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("dblclick", scwin.target1_dblclickCapture, true);
+    }
+}
+
+
+
+// 셀 더블클릭 -> 편집 입력창 표시 후 1회 출력
+scwin.target1_dblclickCapture = function (e) {
+    let td = e.target.closest ? e.target.closest("td[id*='" + target1.id + "_cell_']") : null;
+    let match = td ? td.id.match(/_cell_(\d+)_(\d+)$/) : null;
+    if (!match) {
+        return;
+    }
+    let info = {
+        "rowIndex" : Number(match[1]),
+        "colId" : target1.getColumnID(Number(match[2]))
+    };
+    if (scwin.gVar.timer) {
+        clearTimeout(scwin.gVar.timer);
+    }
+    scwin.gVar.timer = setTimeout(function () {
+        scwin.reportImeMode(info);
+    }, 300);
+}
+
+
+
+// 편집 입력창의 ime-mode 출력
+//  - style.imeMode : 엔진이 편집 입력창에 설정한 값 (validation 1 ~ 6 : inputType / 설정값별 적용 여부)
+//  - style 속성 : 브라우저가 CSS 로 반영한 ime-mode 항목 (validation 7, 8 : ime-mode 미지원 브라우저는 CSS 에 남지 않음)
+scwin.reportImeMode = function (info) {
+    scwin.gVar.timer = null;
+    let head = "Row " + info.rowIndex + " / " + info.colId + " (" + scwin.gVar.inputTypes[info.colId] + ") -> ";
+    let elem = document.activeElement;
+    let isInput = elem && (elem.tagName === "INPUT" || elem.tagName === "TEXTAREA") && elem.id.indexOf(target1.id) > -1;
+    if (!isInput) {
+        wf_body_bottom.getObj("scwin").setReturnValue(head + "편집 입력창 포커스 없음");
+        return;
+    }
+    let styleAttr = elem.getAttribute("style") || "";
+    let cssIme = styleAttr.match(/ime-mode\s*:\s*[^;]*/);
+    wf_body_bottom.getObj("scwin").setReturnValue(head + "style.imeMode : '" + (elem.style.imeMode || "") + "'"
+        + " / CSS ime-mode 항목 : " + (cssIme ? cssIme[0] : "없음"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="imeMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_imeMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>auto</xf:label>
+												<xf:value>auto</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>active</xf:label>
+												<xf:value>active</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>inactive</xf:label>
+												<xf:value>inactive</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>disabled</xf:label>
+												<xf:value>disabled</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

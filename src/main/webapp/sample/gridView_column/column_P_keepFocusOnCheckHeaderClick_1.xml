@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] keepFocusOnCheckHeaderClick" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+scwin.tData = {
+    "description" : "[column > P > keepFocusOnCheckHeaderClick]<br/>inputType='checkbox' 인 Header Column 의 CheckBox 를 클릭했을 때 Body 의 포커스를 유지할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, Header Columnn 의 CheckBox 를 클릭해도 Body Cell 의 포커스가 유지됩니다.",
+        "false 설정 시, Header Column 의 CheckBox 를 클릭하면 Body Cell 의 포커스가 해제 되어 포커스된 Cell 이 없는 상태가 됩니다.",
+        "미설정 시, Header Column 의 CheckBox 를 클릭하면 Body Cell 의 포커스가 해제 되어 포커스된 Cell 이 없는 상태가 됩니다.",
+        "Header Column 과 같은 위치에 있는 Body Column 에 설정합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_keepFocusOnCheckHeaderClick.setValue("2");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// Header 체크박스 정보 (Header Column ID -> 출력 라벨)
+scwin.headerInfo = [
+    { "id" : "h_chk",   "label" : "선택 (설정 Column 위)" },
+    { "id" : "h_agree", "label" : "동의 (미설정 Column 위)" }
+];
+
+// Header 체크박스 클릭 직전 Body 포커스 Cell
+scwin.beforeFocus = "";
+
+
+
+// comp 생성
+//  - Header : h_name text / h_chk checkbox / h_agree checkbox / h_memo text
+//  - Body   : name text / chk checkbox(keepFocusOnCheckHeaderClick = con) / agree checkbox(속성 없음, 대조) / memo text
+//  - keepFocusOnCheckHeaderClick 은 Header h_chk 와 같은 위치의 Body chk Column 에만 설정 (미설정은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] keepFocusOnCheckHeaderClick 은 선택 Column(Body) 에만 설정, 동의 Column 은 미설정(대조)\n[절차] Body 의 상품명 또는 비고 Cell 클릭 -> 선택 또는 동의 Header 체크박스 클릭\n[확인] 체크박스 클릭 시 클릭 전 포커스 Cell 과 클릭 후 포커스 Cell 인덱스 자동 출력"', '', 'label1');
+
+    // 조건 설정 (gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단, 미설정은 속성 자체를 넣지 않는다)
+    let cKeepFocus = con_keepFocusOnCheckHeaderClick.getText();
+    let attrKeepFocus = (cKeepFocus === '') ? '' : ' keepFocusOnCheckHeaderClick="' + cKeepFocus + '"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="agree" name="agree" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "무선 키보드", "chk" : "0", "agree" : "0", "memo" : "재고 부족" },
+        { "name" : "USB 허브",    "chk" : "0", "agree" : "0", "memo" : "정상" },
+        { "name" : "모니터 암",   "chk" : "0", "agree" : "0", "memo" : "입고 예정" }
+    ], false);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" defaultCellHeight="30" id="" style="width:560px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h_name" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="checkbox" id="h_chk" value="선택"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="checkbox" id="h_agree" value="동의"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="h_memo" value="비고"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="checkbox" id="chk" value=""' + attrKeepFocus + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="checkbox" id="agree" value=""></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="memo" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // Header 체크박스 클릭 감지 (mousedown : 클릭 전 포커스 Cell 기록 / click : 클릭 후 결과 출력)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("mousedown", scwin.onHeaderCheckMouseDown, true);
+        target1.render.addEventListener("click", scwin.onHeaderCheckClick, false);
+    }
+}
+
+
+
+// 이벤트 대상이 Header 체크박스면 headerInfo 반환
+scwin.getHeaderCheckInfo = function (el) {
+    if (!el || el.tagName !== "INPUT" || el.type !== "checkbox") {
+        return null;
+    }
+    for (let i = 0; i < scwin.headerInfo.length; i++) {
+        let td = document.querySelector("[id='" + target1.id + "_" + scwin.headerInfo[i].id + "']");
+        if (td && td.contains(el)) {
+            return scwin.headerInfo[i];
+        }
+    }
+    return null;
+}
+
+
+
+// 포커스 Cell 문자열 (getFocusedRowIndex, getFocusedColumnIndex)
+scwin.getFocusDesc = function () {
+    return "(" + target1.getFocusedRowIndex() + ", " + target1.getFocusedColumnIndex() + ")";
+}
+
+
+
+// Header 체크박스 mousedown : 클릭 전 Body 포커스 Cell 기록
+scwin.onHeaderCheckMouseDown = function (e) {
+    if (scwin.getHeaderCheckInfo(e.target)) {
+        scwin.beforeFocus = scwin.getFocusDesc();
+    }
+}
+
+
+
+// validation 1 ~ 4 판정 출력 : Header 체크박스 클릭 전 -> 후 포커스 Cell 인덱스
+scwin.onHeaderCheckClick = function (e) {
+    let info = scwin.getHeaderCheckInfo(e.target);
+    if (!info) {
+        return;
+    }
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("Header " + info.label + " 클릭 -> 포커스 Cell (Row, Column) : " + scwin.beforeFocus + " -> " + scwin.getFocusDesc());
+    }, 100);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="keepFocusOnCheckHeaderClick" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_keepFocusOnCheckHeaderClick" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

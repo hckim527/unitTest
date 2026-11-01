@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] inputType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - inputType 샘플 분리 : _1 입력창 편집형 / _2 아이템 선택형 / _3 편집 모드 미변경형 / _4 트리·텍스트이미지·Row 별 지정형 / _5 영역별 지원 속성값
+//  - 본 샘플(_4) : drilldown / textImage / custom 의 표시 형태와 편집·클릭 동작 확인
+//    (depthColumn / viewType / imageSrc / typeGetter 등 연관 속성의 세부 동작은 각 속성 샘플 소관)
+//  - custom Column 은 GridView 의 마지막 Column 에 둔다 (custom 뒤의 Column 은 편집 상태가 달라질 수 있음)
+scwin.tData = {
+    "description" : "[column > P > inputType]<br/>Column 의 Cell 에 값을 표시하고 입력받는 방식을 설정합니다.",
+    "validation" : [
+        "drilldown 설정 시, depthColumn 속성에 설정한 Column 의 계층 깊이 값에 따라 Cell 값을 들여쓰기하여 트리 형태로 표시합니다.",
+        "drilldown 설정 시, 하위 Row 가 있는 Row 에는 펼치기/접기 아이콘이 표시되며, 아이콘을 클릭하면 하위 Row 를 펼치거나 접습니다.",
+        "drilldown 설정 시, 편집 모드로 변경되면 한 줄 입력창이 표시되어 값을 직접 입력합니다.",
+        "textImage 설정 시, Cell 값을 텍스트로 표시하고 viewType='icon' 이면 imageSrc 속성의 이미지를 함께 표시합니다.",
+        "textImage 설정 시, 이미지를 클릭하면 ontextimageclick 이벤트가 발생합니다.",
+        "textImage 설정 시, 편집 모드로 변경되면 한 줄 입력창과 이미지가 표시되어 Cell 값을 직접 입력합니다.",
+        "custom 설정 시, Row 마다 Cell 의 inputType 을 다르게 설정합니다.",
+        "custom 설정 시, 각 Cell 의 inputType 은 typeGetter 속성의 사용자 정의 함수가 반환한 값으로 정해지며, Cell 은 정해진 inputType 에 따라 표시되고 동작합니다.",
+        "custom 설정 시, typeGetter 속성을 설정하지 않으면 모든 Cell 이 inputType='text' 로 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (viewType=icon, typeGetter 설정)
+    con_viewType.setValue("icon");
+    con_typeGetter.setValue("scwin.fn_typeGetter");
+
+    // 편집 입력창 감지 : 문서 전체의 마우스 / 키보드 동작 후 확인
+    document.addEventListener("dblclick", scwin.checkEditMode, true);
+    document.addEventListener("keyup", scwin.checkEditMode, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// Body Column 정보 (Body Column 인덱스 순, label 은 결과 출력용)
+scwin.bodyInfo = [
+    { "id" : "org",   "label" : "drilldown" },
+    { "id" : "depth", "label" : "depth(text)" },
+    { "id" : "site",  "label" : "textImage" },
+    { "id" : "cus",   "label" : "custom" }
+];
+
+// typeGetter 가 Row(실제 Row 인덱스) 별로 반환하는 inputType
+scwin.customTypes = ["text", "checkbox", "button", "calendar", "text", "checkbox"];
+
+// 편집 입력창 출력 중복 방지용
+scwin.lastEditKey = "";
+
+
+
+// typeGetter 사용자 정의 함수 : 실제 Row 인덱스에 따라 inputType 반환
+scwin.fn_typeGetter = function (info) {
+    let inputType = scwin.customTypes[info.realRowIndex % scwin.customTypes.length];
+    let options = {};
+    if (inputType === "calendar") {
+        options = { "dataType" : "date" };
+    }
+    return { "id" : "cus_" + info.realRowIndex + "_" + info.colIndex, "inputType" : inputType, "options" : options };
+}
+
+
+
+// comp 생성
+//  - org : drilldown (depthColumn=depth) / depth : text / site : textImage (imageSrc=ico_link.svg, viewType=con) / cus : custom (typeGetter=con)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.lastEditKey = "";
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] drilldown 은 depthColumn=depth, textImage 는 imageSrc=ico_link.svg, custom 의 typeGetter 는 Row 0 ~ 5 에 text / checkbox / button / calendar / text / checkbox 반환\n[절차] 펼치기/접기 아이콘 클릭, textImage 이미지 클릭, 각 Column Cell 더블클릭으로 편집 모드 진입 후 값 입력, custom 의 체크박스 / 버튼 클릭\n[확인] 이벤트 / 편집 입력창 / 저장값 자동 출력, (Cell 표시 상태 확인) 버튼으로 들여쓰기 / 아이콘 / 표시 Row / 이미지 / custom Cell 형태 확인"', '', 'label1');
+
+    // 조건 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cViewType = con_viewType.getValue();
+    let cTypeGetter = con_typeGetter.getValue();
+    let attrViewType = (cViewType === '') ? '' : ' viewType="' + cViewType + '"';
+    let attrTypeGetter = (cTypeGetter === '') ? '' : ' typeGetter="' + cTypeGetter + '"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="org" name="org" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="site" name="site" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cus" name="cus" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "org" : "경영지원본부", "depth" : "1", "site" : "사내 포털", "cus" : "서울특별시" },
+        { "org" : "인사팀",       "depth" : "2", "site" : "인사 시스템", "cus" : "1" },
+        { "org" : "재무팀",       "depth" : "2", "site" : "전자 결재", "cus" : "확인" },
+        { "org" : "개발센터",     "depth" : "1", "site" : "개발 위키", "cus" : "20261001" },
+        { "org" : "플랫폼팀",     "depth" : "2", "site" : "이슈 관리", "cus" : "부산광역시" },
+        { "org" : "UI파트",       "depth" : "3", "site" : "디자인 가이드", "cus" : "0" }
+    ], false);
+
+    // 이벤트 바인딩
+    let eList = $c.gcm.createEList(["ontextimageclick", "oncellclick", "onviewchange", "onafteredit"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" defaultCellHeight="30" id="" style="width:820px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="h_org" value="조직 (drilldown)"></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="h_depth" value="depth"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="h_site" value="바로가기 (textImage)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="h_cus" value="Row 별 입력 (custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="220" style="text-align:left;" inputType="drilldown" depthColumn="depth" id="org" value=""></w2:column>';
+    strTarget += '<w2:column width="80" style="" inputType="text" id="depth" value=""></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="textImage" imageSrc="/cm/images/base/ico_link.svg" id="site" value=""' + attrViewType + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="custom" id="cus" value=""' + attrTypeGetter + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 표시 중인 요소인지 확인
+scwin.isShown = function (el) {
+    return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).visibility !== "hidden" && window.getComputedStyle(el).display !== "none";
+}
+
+
+
+// Column 인덱스 -> 출력용 라벨
+scwin.getLabel = function (colIndex) {
+    return scwin.bodyInfo[colIndex] ? scwin.bodyInfo[colIndex].label : target1.getColumnID(colIndex);
+}
+
+
+
+// 편집 입력창 형태 문자열 (textImage 는 Cell 의 이미지가 화면 맨 위에 보이는지 함께 확인)
+scwin.getEditorDesc = function (rowIndex, colId) {
+    let els = document.querySelectorAll("[id^='G_" + target1.id + "_']");
+    let shown = [];
+    for (let i = 0; i < els.length; i++) {
+        let id = els[i].id;
+        if ((id.endsWith("_" + colId) || id.indexOf("_" + colId + "_") > -1) && scwin.isShown(els[i])) {
+            shown.push(els[i]);
+        }
+    }
+    let desc = "-";
+    for (let i = 0; i < shown.length; i++) {
+        if ((" " + shown[i].className + " ").indexOf(" w2inputCalendar_div ") > -1) {
+            return "INPUT(type=text) + 팝업 달력 버튼";
+        }
+    }
+    for (let i = 0; i < shown.length; i++) {
+        if (shown[i].tagName === "INPUT") {
+            desc = "INPUT(type=" + shown[i].type + ")";
+            break;
+        }
+    }
+    if (colId === "site") {
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_" + target1.getColumnIndex(colId) + "']");
+        let img = td ? td.querySelector("img") : null;
+        let shownImg = false;
+        if (img && scwin.isShown(img)) {
+            let rect = img.getBoundingClientRect();
+            shownImg = (document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === img);
+        }
+        desc += " + 이미지 표시 " + (shownImg ? "O" : "X");
+    }
+    return desc;
+}
+
+
+
+// validation 3, 6, 8, 9 판정 출력 : 편집 모드 진입 시 편집 입력창 형태
+scwin.checkEditMode = function () {
+    setTimeout(function () {
+        if (typeof target1 === 'undefined' || !target1 || !target1.isEditing()) {
+            scwin.lastEditKey = "";
+            return;
+        }
+        let rowIndex = target1.getFocusedRowIndex();
+        let colId = target1.getFocusedColumnID();
+        let key = rowIndex + "_" + colId;
+        if (scwin.lastEditKey === key) {
+            return;
+        }
+        scwin.lastEditKey = key;
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 모드 진입 : Row " + rowIndex + " / " + scwin.getLabel(target1.getColumnIndex(colId)) + " -> 입력창 : " + scwin.getEditorDesc(rowIndex, colId));
+    }, 200);
+}
+
+
+
+// validation 5 판정 출력 : 이미지 클릭 시 ontextimageclick 발생
+scwin.target1_ontextimageclick = function (rowIndex, colIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("ontextimageclick : Row " + rowIndex + " / " + scwin.getLabel(colIndex));
+}
+
+
+
+// validation 8 판정 출력 : custom Cell 의 버튼 클릭 시 oncellclick 발생
+scwin.target1_oncellclick = function (rowIndex, colIndex, colId) {
+    if (target1.getColumnID(colIndex) === "cus") {
+        wf_body_bottom.getObj("scwin").setReturnValue("oncellclick : Row " + rowIndex + " / " + scwin.getLabel(colIndex));
+    }
+}
+
+
+
+// validation 8 판정 출력 : custom Cell 의 체크박스 클릭 시 저장값
+scwin.target1_onviewchange = function (info) {
+    if (target1.getColumnID(info.colIndex) === "cus") {
+        wf_body_bottom.getObj("scwin").setReturnValue("onviewchange : Row " + info.rowIndex + " / " + scwin.getLabel(info.colIndex) + " '" + info.oldValue + "' -> '" + info.newValue + "'");
+    }
+}
+
+
+
+// validation 3, 6, 8, 9 판정 출력 : 편집 완료 후 DataList 저장값
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    scwin.lastEditKey = "";
+    let colId = target1.getColumnID(colIndex);
+    wf_body_bottom.getObj("scwin").setReturnValue("편집 완료 : Row " + rowIndex + " / " + scwin.getLabel(colIndex) + " -> DataList 저장값 : '" + dlt_bind.getCellData(target1.getRealRowIndex(rowIndex), colId) + "'");
+}
+
+
+
+// custom Cell 의 표시 형태 문자열
+scwin.getCustomDesc = function (td) {
+    let input = td.querySelector("input");
+    if (input) {
+        return "<input type=" + input.type + "> " + (input.checked ? "체크" : "체크 해제");
+    }
+    let btn = td.querySelector("button");
+    if (btn) {
+        return "<button> '" + btn.textContent + "'";
+    }
+    return "텍스트 '" + td.textContent + "'";
+}
+
+
+
+// validation 1, 2, 4, 7, 8, 9 판정 출력 : 표시 중인 Row 별 drilldown 들여쓰기 / 아이콘, textImage 텍스트 / 이미지, custom Cell 형태
+scwin.btn_checkCellStatus_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let d = 0; d < target1.getDataLength(); d++) {
+        let realRow = target1.getRealRowIndex(d);
+        let tdOrg = document.querySelector("[id='" + target1.id + "_cell_" + d + "_0']");
+        let tdSite = document.querySelector("[id='" + target1.id + "_cell_" + d + "_2']");
+        let tdCus = document.querySelector("[id='" + target1.id + "_cell_" + d + "_3']");
+        if (!tdOrg || !scwin.isShown(tdOrg)) {
+            continue;
+        }
+        // drilldown : 들여쓰기(아이콘 왼쪽 위치) / 아이콘 종류
+        let icon = tdOrg.querySelector("span");
+        let iconText = "-";
+        let indent = "-";
+        if (icon) {
+            let cls = " " + icon.className + " ";
+            iconText = (cls.indexOf(" w2grid_minus ") > -1) ? "접기(-)" : ((cls.indexOf(" w2grid_plus ") > -1) ? "펼치기(+)" : "아이콘 없음(하위 Row 없음)");
+            indent = Math.round(icon.getBoundingClientRect().left - tdOrg.getBoundingClientRect().left) + "px";
+        }
+        // textImage : 텍스트 / 이미지
+        let img = tdSite ? tdSite.querySelector("img") : null;
+        let siteText = tdSite ? tdSite.textContent : "-";
+        let imgText = (img && scwin.isShown(img)) ? (img.getAttribute("src") || "").split("?")[0] : "없음";
+        // custom
+        let cusText = tdCus ? scwin.getCustomDesc(tdCus) : "-";
+        bottom.setReturnValue("Row " + d + " : drilldown '" + tdOrg.textContent.replace(/ /g, "") + "' (depth " + dlt_bind.getCellData(realRow, "depth") + ", 들여쓰기 " + indent + ", " + iconText + ") / textImage '" + siteText + "' + 이미지 " + imgText + " / custom " + cusText);
+    }
+    bottom.setReturnValue("표시 Row 수 : " + target1.getDataLength() + " / 전체 Row 수 : " + target1.getTotalRow());
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="viewType (textImage)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_viewType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[icon]]></xf:label>
+												<xf:value><![CDATA[icon]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="typeGetter (custom)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_typeGetter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.fn_typeGetter]]></xf:label>
+												<xf:value><![CDATA[scwin.fn_typeGetter]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCellStatus_onclick" id="btn_checkCellStatus"
+							label="Cell 표시 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

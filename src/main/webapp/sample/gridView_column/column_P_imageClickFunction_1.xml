@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] imageClickFunction" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - propval 첫 문장("이미지를 클릭하면 실행할 사용자 정의 함수의 이름을 설정")은 description 과 같은 의미라 통합
+scwin.tData = {
+    "description" : "[column > P > imageClickFunction]<br/>Column 의 이미지를 클릭하면 실행할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='image','textImage' 인 경우에 동작합니다.",
+        "함수 이름 설정 시, 사용자 정의 함수의 파라미터로 클릭된 Cell 의 Row 인덱스, Column ID, Cell 값이 전달됩니다.",
+        "inputType='textImage' 인 경우 ontextimageclick 이벤트가 발생한 후 사용자 정의 함수가 실행됩니다.",
+        "Cell 이 비활성화(disabled) 상태이면 사용자 정의 함수가 실행되지 않습니다.",
+        "GridView 의 senseReader='true', focusImage='true' 인 경우 inputType='image' 인 Column 의 이미지에 포커스가 있는 상태에서 Enter 키를 누르면 사용자 정의 함수가 실행됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean : 1=미설정 / 2=true / 3=false)
+    con_inputType.setValue("image");
+    con_senseReader.setValue("2");
+    con_focusImage.setValue("2");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 검증 대상 : 첨부파일 Body Column(file, Column 인덱스 1) — imageClickFunction="scwin.fn_imageClick" 고정 설정
+//    inputType 은 con 값, image 이면 Cell 값이 이미지 경로 / textImage·text 이면 Cell 값이 파일명 (textImage 는 viewType='icon')
+//  - Row 1 의 첨부파일 Cell 은 setCellDisabled 로 비활성화 (validation 4)
+//  - senseReader / focusImage 는 GridView 속성 (validation 5, 미설정 옵션은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cInputType = con_inputType.getValue();
+    let cSenseReader = con_senseReader.getText();
+    let cFocusImage = con_focusImage.getText();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 첨부파일 Column 에 imageClickFunction 설정, Row 1 첨부파일 Cell 은 비활성화(disabled)\n[절차] 첨부파일 Column 의 이미지를 Row 0, Row 1 에서 각각 클릭\n[절차] Enter 확인 : 문서명 Cell 클릭 -> Tab 키로 첨부파일 Cell, 이미지 순서로 포커스 이동 -> Enter 키\n[확인] 결과창에 사용자 정의 함수 실행 여부와 파라미터, ontextimageclick 발생 순서 출력"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="docName" name="docName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="file" name="file" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="writer" name="writer" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // image 이면 Cell 값을 이미지 경로로, 그 외에는 파일명으로 구성
+    let isImage = (cInputType === "image");
+    dlt_bind.setJSON([
+        { "docName" : "2026년 견적서", "file" : isImage ? "/cm/images/base/ico_file.svg" : "견적서.pdf", "writer" : "김민수" },
+        { "docName" : "공급 계약서", "file" : isImage ? "/cm/images/base/ico_link.svg" : "계약서.docx", "writer" : "이영희" },
+        { "docName" : "주간 회의록", "file" : isImage ? "/cm/images/base/ico_copy.svg" : "회의록.hwp", "writer" : "박지훈" }
+    ], false);
+
+    // 검증 대상 Body Column 속성
+    let attrFile = ' inputType="' + cInputType + '" imageClickFunction="scwin.fn_imageClick"';
+    if (cInputType === "textImage") {
+        attrFile += ' viewType="icon" imageSrc="/cm/images/base/ico_file.svg"';
+    }
+
+    // GridView 속성 (senseReader / focusImage)
+    let attrGrid = '';
+    if (cSenseReader !== '') {
+        attrGrid += ' senseReader="' + cSenseReader + '"';
+    }
+    if (cFocusImage !== '') {
+        attrGrid += ' focusImage="' + cFocusImage + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:180px;"' + attrGrid + ' ev:ontextimageclick="scwin.target1_ontextimageclick">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column1" value="문서명"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column2" value="첨부파일"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="등록자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="docName" value=""></w2:column>';
+    strTarget += '<w2:column width="180" style="" id="file" value=""' + attrFile + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="writer" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // validation 4 : Row 1 첨부파일 Cell 비활성화
+    target1.setCellDisabled(1, "file", true);
+}
+
+
+
+// imageClickFunction 사용자 정의 함수
+// validation 1, 2, 4, 5 판정 출력 : 실행 여부(출력 유무)와 파라미터 (Row 인덱스, Column ID, Cell 값)
+scwin.fn_imageClick = function (rowIndex, colId, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ imageClickFunction rowIndex : " + rowIndex + " / colId : " + colId + " / value : " + value);
+}
+
+
+
+// validation 3 판정 출력 : 사용자 정의 함수보다 먼저 출력되는지 (출력 순서 = 발생 순서)
+scwin.target1_ontextimageclick = function (rowIndex, columnIndex) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ontextimageclick");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[image]]></xf:label>
+												<xf:value><![CDATA[image]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[textImage]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="senseReader (GridView)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_senseReader" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="focusImage (GridView)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_focusImage" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

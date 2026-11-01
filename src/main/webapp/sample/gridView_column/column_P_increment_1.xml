@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] increment" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261030" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+scwin.tData = {
+    "description" : "[column > P > increment]<br/>inputType='spinner' 인 Column 에서 증감 버튼을 클릭할 때 Cell 값에 더하거나 빼는 값을 설정합니다.",
+    "validation" : [
+        "숫자 설정 시, 증감 버튼 클릭 시 더하거나 뺄 값을 설정합니다.",
+        "숫자 설정 시, 정수와 소수를 모두 설정할 수 있습니다.",
+        "속성값을 설정하지 않으면 1 로 적용됩니다.",
+        "증감 버튼 외에 키보드의 상/하 화살표키와 마우스 휠로 입력할때도 increment 속성값이 적용됩니다.",
+        "dataType='number' 인 Column 은 Cell 값이 비어 있는 상태에서 증감하면 increment 속성값과 관계없이 Column 의 min 속성값 또는 1 이 입력됩니다.",
+        "dataType='date' 인 Column 은 increment 속성값이 일 단위로 적용되며 소수점 이하는 버려집니다.",
+        "customFormatter 속성의 사용자 정의 함수가 반환한 객체의 increment 값이 increment 속성에 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (10)
+    con_increment.setValue("10");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// customFormatter 사용자 함수 (spinner Column 은 증감 버튼 클릭 시 호출)
+//  - 모든 Row 에 같은 객체를 반환한다 (increment 100)
+scwin.fmt_increment = function (rowIndex, colIndex) {
+    return { "increment" : 100 };
+}
+
+
+
+// comp 생성
+//  - num    : spinner, dataType=number                       (validation 1 ~ 5)
+//  - numMin : spinner, dataType=number, min=100              (validation 5 대조 : 빈 Cell 증감 시 min)
+//  - date   : spinner, dataType=date                         (validation 6)
+//  - fmt    : spinner, dataType=number, customFormatter 반환 increment=100 (validation 7)
+//  - 4개 Column 모두 increment = con_increment (미설정은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 4개 Column 모두 같은 increment 설정, numMin 은 min=100, fmt 는 customFormatter 가 increment 100 반환, Row 1 의 num / numMin 은 빈 Cell\n[절차] Cell 더블클릭으로 편집 진입 -> 증감 버튼 1회 클릭, 또는 입력창 클릭 후 상/하 화살표키 1회, 또는 입력창 위에서 마우스 휠 1회 -> 결과창 클릭으로 편집 종료 (fmt 는 증감 버튼으로 확인)\n[확인] 편집 종료마다 변경 전 -> 변경 후 값과 변화량 자동 출력 (값이 바뀌지 않으면 출력 없음)"', '', 'label1');
+
+    // 조건 설정 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cIncrement = con_increment.getValue();
+    let attrInc = (cIncrement === '') ? '' : ' increment="' + cIncrement + '"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="num" name="num" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="numMin" name="numMin" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="date" name="date" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="fmt" name="fmt" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "num" : "10", "numMin" : "200", "date" : "20261001", "fmt" : "10" },
+        { "num" : "", "numMin" : "", "date" : "20261231", "fmt" : "50" }
+    ], false);
+
+    // 이벤트 바인딩 (편집 종료 시 값 변경 출력)
+    let eList = $c.gcm.createEList(["onviewchange"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" defaultCellHeight="30" id="" style="width:760px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="column1" value="num (number)"></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="text" id="column2" value="numMin (min=100)"></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="text" id="column3" value="date (date)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column4" value="fmt (customFormatter)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="170" style="" inputType="spinner" dataType="number" id="num" value=""' + attrInc + '></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="spinner" dataType="number" min="100" id="numMin" value=""' + attrInc + '></w2:column>';
+    strTarget += '<w2:column width="190" style="" inputType="spinner" dataType="date" id="date" value=""' + attrInc + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="spinner" dataType="number" customFormatter="scwin.fmt_increment" id="fmt" value=""' + attrInc + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 ~ 7 판정 출력 : 편집 종료 시 변경 전 -> 변경 후 값과 변화량
+//  - num / numMin / fmt : 숫자 변화량
+//  - date : 일 단위 변화량
+scwin.target1_onviewchange = function (info) {
+    let colId = target1.getColumnID(info.colIndex);
+    let oldValue = (info.oldValue === undefined || info.oldValue === null) ? "" : String(info.oldValue);
+    let newValue = (info.newValue === undefined || info.newValue === null) ? "" : String(info.newValue);
+    let delta = "";
+    if (colId === "date") {
+        if (oldValue.length === 8 && newValue.length === 8) {
+            let toTime = function (v) {
+                return Date.UTC(Number(v.substring(0, 4)), Number(v.substring(4, 6)) - 1, Number(v.substring(6, 8)));
+            };
+            let days = Math.round((toTime(newValue) - toTime(oldValue)) / 86400000);
+            delta = " (변화량 " + (days > 0 ? "+" : "") + days + "일)";
+        }
+    } else if (oldValue !== "" && newValue !== "") {
+        let diff = Math.round((Number(newValue) - Number(oldValue)) * 1000) / 1000;
+        delta = " (변화량 " + (diff > 0 ? "+" : "") + diff + ")";
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("Row " + info.rowIndex + " / " + colId + " : '" + oldValue + "' -> '" + newValue + "'" + delta);
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="increment" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_increment" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>10</xf:label>
+												<xf:value>10</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0.5</xf:label>
+												<xf:value>0.5</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>2.5</xf:label>
+												<xf:value>2.5</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
