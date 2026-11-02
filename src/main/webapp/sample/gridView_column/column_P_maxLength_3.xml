@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] maxLength" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : maxLength 가이드 중 스크립트 설정(setCellData + applyMaxLengthOnSetValue)과 붙여넣기 / 드래그 축
+//  - Cell 편집 입력 축(inputType 동작 조건 / 다국어 1문자 계산 / editFormat 무시 / maxByteLength 동시 설정)은 column_P_maxLength_1.xml 담당
+//  - dataType float / bigDecimal 정수부·소수부 설정 형식은 column_P_maxLength_2.xml 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 column 샘플 관례(Body Column 전용 속성, 영역 옵션 미생성)에 따라 validation 에서 제외
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > maxLength]<br/>Column 에 입력할 수 있는 최대 문자 수를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text' 이면 DataList 의 setCellData() 등 스크립트로 Cell 값 설정 시 applyMaxLengthOnSetValue 속성으로 maxLength 속성을 적용할 수 있습니다.",
+        "Cell 에 값을 붙여넣거나 GridView 의 dataDragDropCell='true' 로 Cell 값을 드래그해서 설정할때는 Column 의 editFormat 속성 설정 시 maxLength 속성은 무시됩니다.",
+        "Cell 에 값을 붙여넣거나 GridView 의 dataDragDropCell='true' 로 Cell 값을 드래그해서 설정할때는 Column 에 maxByteLength 속성이 설정되어 있어도 적용되지 않습니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // setCellData 버튼 실행 중 여부 (버튼에서 직접 출력하므로 oncelldatachange 출력 생략)
+    "bySetCellData" : false
+};
+
+// 붙여넣기 / 드래그 검증 Column 정보 (id / 출력 라벨)
+scwin.colInfo = {
+    "tel"     : "tel (text)",
+    "telEdit" : "telEdit (text, editFormat)",
+    "num"     : "num (number, maxByteLength=5)",
+    "numByte" : "numByte (number, maxByteLength=5, maxLength 없음)"
+};
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (maxLength 7, applyMaxLengthOnSetValue true)
+    con_maxLength.setValue("7");
+    con_applyMaxLengthOnSetValue.setValue("2");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - src : 복사 / 드래그 원본 Column (readOnly) - 드래그는 값이 이동하므로 검증 Column 마다 원본 Row 를 따로 둔다 (Row 0 -> tel, Row 1 -> telEdit, Row 2 -> num, Row 3 -> numByte)
+//  - tel / telEdit : dataType=text, maxLength = con_maxLength (telEdit 만 editFormat 설정) - validation 2
+//  - num / numByte : dataType=number, maxByteLength=5 (num 만 maxLength = con_maxLength) - validation 3
+//  - txt / area : maxLength = con_maxLength, applyMaxLengthOnSetValue = con_applyMaxLengthOnSetValue, inputType 만 다름 (text / textarea) - validation 1 (setCellData 버튼 대상)
+//    (applyMaxLengthOnSetValue 는 붙여넣기 / 드래그에도 적용되므로 validation 2, 3 Column 에는 설정하지 않는다)
+//  - GridView 는 dataDragDropCell=true (Cell 값을 드래그해서 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.bySetCellData = false;
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] GridView 는 dataDragDropCell=true, src 는 원본 Column (Row 0 ~ 1 은 11자리 전화번호, Row 2 ~ 3 은 12자리 숫자), 다른 Column 은 모두 빈 값으로 시작\n[절차] 각 Row 의 src 값을 같은 Row 의 검증 Column 에 설정 (Row 0 -> tel, Row 1 -> telEdit, Row 2 -> num, Row 3 -> numByte)\n[절차] 붙여넣기 : src Cell 클릭 -> Ctrl+C -> 검증 Column Cell 클릭 -> Ctrl+V / 드래그 : src Cell 을 검증 Column Cell 로 드래그 (src 값은 이동되어 빈 값이 됨)\n[확인] DataList 에 설정된 값과 글자 수 자동 출력, setCellData 버튼은 Row 0 의 txt (text) / area (textarea) 에 14글자 주소 설정"', '', 'label1');
+
+    // 조건 설정 (maxLength 는 자체 값 select -> getValue, applyMaxLengthOnSetValue 는 gdl_boolean -> getText, 미설정은 속성 자체를 넣지 않는다)
+    let cMaxLength = con_maxLength.getValue();
+    let cApply = con_applyMaxLengthOnSetValue.getText();
+    let attrLen = '';
+    if (cMaxLength !== '') {
+        attrLen += ' maxLength="' + cMaxLength + '"';
+    }
+    let attrApply = attrLen;
+    if (cApply !== '') {
+        attrApply += ' applyMaxLengthOnSetValue="' + cApply + '"';
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="src" name="src" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="tel" name="tel" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="telEdit" name="telEdit" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="num" name="num" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="numByte" name="numByte" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="txt" name="txt" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="area" name="area" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "src" : "01012345678", "tel" : "", "telEdit" : "", "num" : "", "numByte" : "", "txt" : "", "area" : "" },
+        { "src" : "01012345678", "tel" : "", "telEdit" : "", "num" : "", "numByte" : "", "txt" : "", "area" : "" },
+        { "src" : "123456789012", "tel" : "", "telEdit" : "", "num" : "", "numByte" : "", "txt" : "", "area" : "" },
+        { "src" : "123456789012", "tel" : "", "telEdit" : "", "num" : "", "numByte" : "", "txt" : "", "area" : "" }
+    ], false);
+    dlt_bind.bind("oncelldatachange", scwin.dlt_bind_oncelldatachange);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" dataDragDropCell="true" defaultCellHeight="30" id="" style="width:940px;height:180px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column1" value="src (원본)"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column2" value="tel (text)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column3" value="telEdit (editFormat)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column4" value="num (maxByteLength)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column5" value="numByte (Byte만)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column6" value="txt (text)"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column7" value="area (textarea)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="src" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="tel" value="" dataType="text"' + attrLen + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="telEdit" value="" dataType="text"' + attrLen + ' editFormat="###-####-####"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="num" value="" dataType="number"' + attrLen + ' maxByteLength="5"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="numByte" value="" dataType="number" maxByteLength="5"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="txt" value="" dataType="text"' + attrApply + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="textarea" id="area" value="" dataType="text"' + attrApply + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 적용 설정값 출력
+    wf_body_bottom.getObj("scwin").setReturnValue("maxLength : " + (cMaxLength === '' ? "(미설정)" : cMaxLength)
+        + " / applyMaxLengthOnSetValue : " + (cApply === '' ? "(미설정)" : cApply));
+}
+
+
+
+// DataList 에 설정된 값과 글자 수 / Byte 수 (Row / Column 라벨 포함 한 줄)
+scwin.getCellResult = function (rowIndex, colId, colLabel) {
+    let value = dlt_bind.getCellData(rowIndex, colId);
+    value = (value === undefined || value === null) ? "" : String(value);
+    return "Row " + rowIndex + " / " + colLabel + " : '" + value + "' (" + value.length + " 글자, " + WebSquare.util.getStringByteSize(value) + " Byte)";
+}
+
+
+
+// validation 2, 3 판정 출력 : 붙여넣기 / 드래그로 DataList 에 설정된 값
+scwin.dlt_bind_oncelldatachange = function (info) {
+    if (scwin.gVar.bySetCellData || !scwin.colInfo[info.colID]) {
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(scwin.getCellResult(info.rowIndex, info.colID, scwin.colInfo[info.colID]));
+}
+
+
+
+// validation 1 판정 출력 : setCellData 로 Row 0 의 txt (text) / area (textarea) 에 14글자 주소를 설정한 뒤 DataList 값
+scwin.btn_setCellData_onclick = function (e) {
+    let value = "Seoul 강남구 테헤란로";
+    scwin.gVar.bySetCellData = true;
+    dlt_bind.setCellData(0, "txt", value);
+    dlt_bind.setCellData(0, "area", value);
+    scwin.gVar.bySetCellData = false;
+    wf_body_bottom.getObj("scwin").setReturnValue("setCellData('" + value + "') -> " + scwin.getCellResult(0, "txt", "txt (inputType=text)")
+        + " / " + scwin.getCellResult(0, "area", "area (inputType=textarea)"));
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxLength" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maxLength" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>7</xf:label>
+												<xf:value>7</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>9</xf:label>
+												<xf:value>9</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="applyMaxLengthOnSetValue" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_applyMaxLengthOnSetValue" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_setCellData" label="setCellData" style="" ev:onclick="scwin.btn_setCellData_onclick"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] maxLength" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : maxLength 가이드 중 Cell 편집 입력 축 (inputType 동작 조건 / 다국어 포함 1문자=1 계산 / editFormat 설정 시 무시 / maxByteLength 동시 설정)
+//  - dataType="float" / "bigDecimal" 정수부·소수부 설정 형식은 column_P_maxLength_2.xml 담당
+//  - 스크립트 설정(setCellData + applyMaxLengthOnSetValue)과 붙여넣기 / 드래그 축은 column_P_maxLength_3.xml 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > maxLength]<br/>Column 에 입력할 수 있는 최대 문자 수를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text','textarea','drilldown','textImage','secret' 인 경우에 동작합니다.",
+        "숫자 설정 시, 한 문자의 길이를 1 로 계산(다국어 포함)하여 입력 가능한 최대 길이를 숫자로 설정합니다.",
+        "editFormat 속성 설정 시 maxLength 속성은 무시됩니다.",
+        "Column 에 maxByteLength 속성이 설정되어 있으면 Cell 편집 시 두 속성의 제한이 모두 적용됩니다."
+    ]
+}
+
+
+
+// 검증 Column 정보 (id / inputType)
+scwin.colInfo = [
+    { "id" : "txt",  "inputType" : "text" },
+    { "id" : "area", "inputType" : "textarea" },
+    { "id" : "dd",   "inputType" : "drilldown" },
+    { "id" : "timg", "inputType" : "textImage" },
+    { "id" : "sec",  "inputType" : "secret" }
+];
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (maxLength 10, maxByteLength / editFormat 미설정)
+    con_maxLength.setValue("10");
+    con_maxByteLength.setSelectedIndex(0);
+    con_editFormat.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 검증 Column 5개(text / textarea / drilldown / textImage / secret) 모두 maxLength = con_maxLength, maxByteLength = con_maxByteLength (미설정은 속성 자체를 넣지 않는다)
+//  - editFormat 은 inputType="text" 에만 적용되는 속성이므로 txt Column 에만 설정한다
+//  - 모든 Cell 은 빈 값으로 시작하고, 같은 문자열을 입력해 Column 별 저장값을 비교한다
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 5개 Column 모두 같은 maxLength / maxByteLength 설정, editFormat 은 txt Column 에만 설정, 모든 Cell 은 빈 값으로 시작\n[절차] Row 0 의 Cell 더블클릭으로 편집 진입 -> Seoul 강남구 테헤란로 입력 (editFormat 설정 시 txt 에는 01012345678 입력) -> 결과창 클릭으로 편집 종료\n[확인] 편집 종료마다 DataList 저장값과 글자 수 / Byte 수 자동 출력"', '', 'label1');
+
+    // 조건 설정 (자체 값 select -> getValue, 미설정은 속성 자체를 넣지 않는다)
+    let cMaxLength = con_maxLength.getValue();
+    let cMaxByteLength = con_maxByteLength.getValue();
+    let cEditFormat = con_editFormat.getValue();
+    let attrCol = '';
+    if (cMaxLength !== '') {
+        attrCol += ' maxLength="' + cMaxLength + '"';
+    }
+    if (cMaxByteLength !== '') {
+        attrCol += ' maxByteLength="' + cMaxByteLength + '"';
+    }
+    let attrEditFormat = '';
+    if (cEditFormat !== '') {
+        attrEditFormat = ' editFormat="' + cEditFormat + '"';
+    }
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList (body column id 와 동일한 컬럼 id 사용, depth 는 drilldown 단계)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    for (let i = 0; i < scwin.colInfo.length; i++) {
+        strDlt += '<w2:column id="' + scwin.colInfo[i].id + '" name="' + scwin.colInfo[i].id + '" dataType="text"></w2:column>';
+    }
+    strDlt += '<w2:column id="depth" name="depth" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "txt" : "", "area" : "", "dd" : "", "timg" : "", "sec" : "", "depth" : "1" },
+        { "txt" : "", "area" : "", "dd" : "", "timg" : "", "sec" : "", "depth" : "2" }
+    ], false);
+
+    // 이벤트 바인딩 (편집 종료 시 저장값 출력)
+    let eList = $c.gcm.createEList(["onviewchange"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" defaultCellHeight="30" id="" style="width:860px;height:120px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let i = 0; i < scwin.colInfo.length; i++) {
+        strTarget += '<w2:column width="170" style="" inputType="text" id="column' + (i + 1) + '" value="' + scwin.colInfo[i].id + ' (' + scwin.colInfo[i].inputType + ')"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="170" style="" inputType="text" id="txt" value=""' + attrCol + attrEditFormat + '></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="textarea" id="area" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="170" style="text-align:left;" inputType="drilldown" depthColumn="depth" showDepth="2" id="dd" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="textImage" viewType="icon" imageSrc="/cm/images/base/ico_file.svg" id="timg" value=""' + attrCol + '></w2:column>';
+    strTarget += '<w2:column width="170" style="" inputType="secret" id="sec" value=""' + attrCol + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // validation 2 ~ 4 판정 출력 : 적용 설정값과 다국어 문자 Byte 계산 기준 (config.xml 의 byteCheckEncoding)
+    wf_body_bottom.getObj("scwin").setReturnValue("byteCheckEncoding : " + WebSquare.core.getConfiguration("/WebSquare/byteCheckEncoding/@value")
+        + " / maxLength : " + (cMaxLength === '' ? "(미설정)" : cMaxLength)
+        + " / maxByteLength : " + (cMaxByteLength === '' ? "(미설정)" : cMaxByteLength)
+        + " / txt editFormat : " + (cEditFormat === '' ? "(미설정)" : cEditFormat));
+}
+
+
+
+// validation 1 ~ 4 판정 출력 : 편집 종료 시 DataList 저장값과 글자 수 / Byte 수
+scwin.target1_onviewchange = function (info) {
+    let colId = target1.getColumnID(info.colIndex);
+    let value = dlt_bind.getCellData(info.rowIndex, colId);
+    value = (value === undefined || value === null) ? "" : String(value);
+    wf_body_bottom.getObj("scwin").setReturnValue("Row " + info.rowIndex + " / " + colId + " (" + scwin.colInfo[info.colIndex].inputType + ") : '"
+        + value + "' (" + value.length + " 글자, " + WebSquare.util.getStringByteSize(value) + " Byte)");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxLength" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maxLength" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>10</xf:label>
+												<xf:value>10</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxByteLength" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maxByteLength" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>12</xf:label>
+												<xf:value>12</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>20</xf:label>
+												<xf:value>20</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editFormat (txt)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editFormat" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>###-####-####</xf:label>
+												<xf:value>###-####-####</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

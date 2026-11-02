@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] minWidth" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성)
+//    본 샘플은 Body Column 에 설정
+scwin.tData = {
+    "description" : "[column > P > minWidth]<br/>GridView 의 resize='true' 일때 마우스로 Column 의 너비(Width) 조정 시 적용되는 최소 너비를 설정합니다.",
+    "validation" : [
+        "값(px) 설정 시, 마우스로 Column 의 너비 조정 시 적용되는 최소 너비(Width)를 픽셀(px) 단위로 설정합니다.",
+        "속성값을 설정하지 않으면 GridView 의 minWidth 속성값이 적용되며, GridView 의 minWidth 속성도 설정하지 않으면 20 으로 적용됩니다.",
+        "Header Column 의 경계를 Drag 하여 너비를 줄이거나 경계를 더블클릭하여 데이터 길이에 맞게 자동 조정 시 속성값 미만으로 줄어들지 않습니다.",
+        "setColumnWidth() 메소드로 Column 너비 조정 시 minWidth 속성은 적용되지 않습니다.",
+        "autoFit 속성에 의해 Column 의 너비가 조정되는 경우 minWidth 속성은 적용되지 않습니다.",
+        "경계를 더블클릭하여 너비를 자동 조정할 때 Column 의 maxWidth 속성값이 minWidth 속성값보다 작으면 minWidth 속성값이 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_minWidth.setValue("150");
+    con_gridMinWidth.setValue("");
+    con_maxWidth.setValue("");
+    con_autoFit.setValue("");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (con 변경은 Target 재생성 버튼으로 반영)
+//  - resize="true" 고정 (전제)
+//  - con_minWidth  : code, name Body Column 의 minWidth  ('' / 80 / 150)
+//  - con_maxWidth  : name Body Column 의 maxWidth ('' / 100) -> validation 6 (maxWidth < minWidth)
+//  - con_gridMinWidth : GridView minWidth ('' / 60) -> validation 2 (Column minWidth 미설정 시 대체값)
+//  - con_autoFit   : GridView autoFit ('' / allColumn) -> validation 5
+//  - Column 너비 합계(60+200+260+100+400=1020) > GridView 너비(640) : autoFit='allColumn' 이면 각 Column 이 축소되어 code 가 150 미만이 됨
+//  - 첫번째 Column(no) 은 너비 출력 대상 아님 : 첫번째 Body Column 은 화면 너비가 설정값보다 1px 작게 그려지므로 검증 Column(code) 을 두번째에 둠
+//  - qty, memo 는 Column minWidth 미설정 (대조용)
+//  - code 는 짧은 데이터(더블클릭 시 데이터 길이 < minWidth), name 은 긴 데이터(더블클릭 시 데이터 길이 > maxWidth)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cMinWidth = con_minWidth.getValue();
+    let cGridMinWidth = con_gridMinWidth.getValue();
+    let cMaxWidth = con_maxWidth.getValue();
+    let cAutoFit = con_autoFit.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] resize=true, Column minWidth 는 code, name 에 설정 / maxWidth 는 name 에 설정 / qty, memo 는 미설정(대조)\n[절차] Header Column(code, name, qty) 오른쪽 경계를 왼쪽 끝까지 Drag 하거나 경계를 더블클릭\n[확인] Column 너비 확인 버튼으로 각 Column 너비 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="no" name="no" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "no" : "1", "code" : "P-1001", "name" : "무선 블루투스 기계식 키보드", "qty" : 12, "memo" : "입고 대기" },
+        { "no" : "2", "code" : "P-1002", "name" : "인체공학 버티컬 광마우스", "qty" : 30, "memo" : "정상" },
+        { "no" : "3", "code" : "P-1003", "name" : "높이 조절 모니터 받침대", "qty" : 7, "memo" : "재고 부족" }
+    ], false);
+
+    // GridView 속성
+    let attrGrid = ' resize="true"';
+    attrGrid += (cGridMinWidth === '') ? '' : ' minWidth="' + cGridMinWidth + '"';
+    attrGrid += (cAutoFit === '') ? '' : ' autoFit="' + cAutoFit + '"';
+
+    // 검증 대상 Body Column 속성
+    let attrMin = (cMinWidth === '') ? '' : ' minWidth="' + cMinWidth + '"';
+    let attrMax = (cMaxWidth === '') ? '' : ' maxWidth="' + cMaxWidth + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:640px;height:150px;"' + attrGrid + '>';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="60" style="" inputType="text" id="column0" value="no"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="code"></w2:column>';
+    strTarget += '<w2:column width="260" style="" inputType="text" id="column2" value="name"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column3" value="qty"></w2:column>';
+    strTarget += '<w2:column width="400" style="" inputType="text" id="column4" value="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="60" style="" inputType="text" id="no" value=""></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="code" value=""' + attrMin + '></w2:column>';
+    strTarget += '<w2:column width="260" style="" inputType="text" id="name" value=""' + attrMin + attrMax + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="qty" value=""></w2:column>';
+    strTarget += '<w2:column width="400" style="" inputType="text" id="memo" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 ~ 3, 5, 6 판정 출력 : 각 Column 의 화면 너비(Header Column 기준, px)
+scwin.btn_checkColumnWidth_onclick = function () {
+    let arrHeader = ["column1", "column2", "column3", "column4"];
+    let arrName = ["code", "name", "qty", "memo"];
+    let arr = [];
+    for (let i = 0; i < arrHeader.length; i++) {
+        let th = document.querySelector("[id='" + target1.id + "_" + arrHeader[i] + "']");
+        arr.push(arrName[i] + " : " + (th ? th.offsetWidth : "-"));
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("Column 너비 : " + arr.join(" / "));
+}
+
+
+
+// validation 4 판정 출력 : minWidth 미만 값(50)으로 setColumnWidth 실행 후 code Column 너비
+scwin.btn_setColumnWidth_onclick = function () {
+    target1.setColumnWidth("code", 50);
+    let th = document.querySelector("[id='" + target1.id + "_column1']");
+    wf_body_bottom.getObj("scwin").setReturnValue("setColumnWidth('code', 50) -> code 너비 : " + (th ? th.offsetWidth : "-"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="minWidth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_minWidth" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[80]]></xf:label>
+												<xf:value><![CDATA[80]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[150]]></xf:label>
+												<xf:value><![CDATA[150]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="maxWidth" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_maxWidth" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[100]]></xf:label>
+												<xf:value><![CDATA[100]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="minWidth (GridView)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_gridMinWidth" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[60]]></xf:label>
+												<xf:value><![CDATA[60]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="autoFit (GridView)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_autoFit" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[allColumn]]></xf:label>
+												<xf:value><![CDATA[allColumn]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkColumnWidth_onclick" id="btn_checkColumnWidth"
+							label="Column 너비 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnWidth_onclick" id="btn_setColumnWidth"
+							label="setColumnWidth" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
