@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] typeGetter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위
+//  _1 : 사용자 정의 함수 실행 시점 / 파라미터 객체 (colID, colIndex, rowIndex, realRowIndex, value) - 정렬 / 필터 후 rowIndex 와 realRowIndex 차이 포함 (본 샘플)
+//  _2 : 반환 객체 (지원 inputType 별 표시와 동작, id 중복, options readOnly / disabled / class, itemSet, value 저장)
+//  _3 : 미지원 / 잘못된 반환 -> text, 다시 그릴 때 inputType 변경, setCellInputType() 불가
+//  - Body 전용 속성이므로 Body Column 에만 설정 (설정 영역 옵션 / "Body Column 에서만 동작" 항목 제외)
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > typeGetter]<br/>inputType='custom' 인 Column 에서 Cell 마다 적용할 inputType 과 속성을 동적으로 생성하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "사용자 정의 함수 설정 시, 각 Cell 이 렌더링 될때마다 실행되어 Cell 의 inputType 과 속성을 동적으로 생성할 사용자 정의 함수의 이름을 설정합니다.",
+        "사용자 정의 함수 설정 시, 사용자 정의 함수의 파라미터로 Cell 의 위치정보와 값을 갖는 객체가 전달됩니다.",
+        "파라미터 객체의 colID : Column 의 ID 를 갖습니다.",
+        "파라미터 객체의 colIndex : Column 의 인덱스를 갖습니다.",
+        "파라미터 객체의 rowIndex : GridView 에 표시된 Row 를 기준으로 한 Row 인덱스를 갖습니다.",
+        "파라미터 객체의 realRowIndex : 정렬이나 필터와 관계없이 DataList 에 저장된 순서를 기준으로 한 Row 인덱스를 갖습니다.",
+        "파라미터 객체의 value : Cell 값을 갖습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 사원 데이터 (DataList 저장 순서 = realRowIndex)
+//  - 이름 오름차순 정렬 시 표시 순서 : 김민수(1), 박지훈(4), 이서연(3), 정하늘(0), 최유진(2)
+//  - 부서 = 개발팀 필터 시 표시 Row : 정하늘(0), 최유진(2)
+scwin.rowData = [
+    { "name" : "정하늘", "dept" : "개발팀", "status" : "재직" },
+    { "name" : "김민수", "dept" : "영업팀", "status" : "휴직" },
+    { "name" : "최유진", "dept" : "개발팀", "status" : "파견" },
+    { "name" : "이서연", "dept" : "회계팀", "status" : "퇴직" },
+    { "name" : "박지훈", "dept" : "영업팀", "status" : "수습" }
+];
+
+// typeGetter 가 받은 파라미터 기록 (출력 버튼 클릭 시 출력 후 비움)
+scwin.tgLog = [];
+
+
+
+// typeGetter 사용자 정의 함수 : 받은 파라미터를 기록하고 모든 Cell 에 text 반환
+scwin.fn_typeGetter = function (info) {
+    scwin.tgLog.push({
+        "colID" : info.colID,
+        "colIndex" : info.colIndex,
+        "rowIndex" : info.rowIndex,
+        "realRowIndex" : info.realRowIndex,
+        "value" : info.value
+    });
+    return { "id" : "status_" + info.realRowIndex + "_" + info.colIndex, "inputType" : "text", "options" : {} };
+}
+
+
+
+// comp 생성
+//  - GridView sortable="true", sortEvent="onclick" (Header 단일 클릭 정렬)
+//  - 상태 Body Column (3번째, colIndex 2) : inputType="custom", typeGetter="scwin.fn_typeGetter"
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 상태 Column(colIndex 2)은 inputType=custom, typeGetter 는 받은 파라미터를 기록하고 text 반환\nDataList 저장 순서 : 정하늘(0), 김민수(1), 최유진(2), 이서연(3), 박지훈(4)\n[절차] Target 재생성 -> (파라미터 기록 출력) -> 이름 Header 클릭(정렬) -> 출력 -> setColumnFilter(부서=개발팀) -> 출력 -> removeColumnFilterAll -> 출력, 상태 Cell 더블클릭(편집 진입) -> 출력\n[확인] 작업마다 호출된 Cell 의 파라미터와 표시 Row 의 이름 / getRealRowIndex / getCellData 비교"', '', 'label1');
+
+    scwin.tgLog = [];
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="이름" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="부서" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="status" name="상태" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // 검증 대상 Body Column 속성
+    let colCList = $c.gcm.createCList({ inputType : "custom", typeGetter : "scwin.fn_typeGetter" });
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' sortable="true" sortEvent="onclick" dataList="data:dlt_bind" checkAllType="false" id="" style="width:460px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column_dept" value="부서" sortable="false"></w2:column>';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column_status" value="상태 (custom)" sortable="false"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="dept" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="160" style="" ' + colCList + ' id="status" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 ~ 7 판정 출력 : 마지막 출력 이후 typeGetter 호출 횟수와 호출별 파라미터
+//  - 비교값 : 파라미터 rowIndex 위치에 표시된 Row 의 이름 / getRealRowIndex / getCellData
+scwin.btn_printLog_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let arrLog = scwin.tgLog;
+    scwin.tgLog = [];
+    bottom.setReturnValue("typeGetter 호출 횟수 : " + arrLog.length + " (표시 Row 수 : " + target1.getRowCount() + ")");
+    for (let i = 0; i < arrLog.length; i++) {
+        let o = arrLog[i];
+        bottom.setReturnValue("colID=" + o.colID + ", colIndex=" + o.colIndex + ", rowIndex=" + o.rowIndex + ", realRowIndex=" + o.realRowIndex + ", value='" + o.value + "'"
+            + " / 표시 Row " + o.rowIndex + " : " + target1.getCellData(o.rowIndex, "name") + ", getRealRowIndex=" + target1.getRealRowIndex(o.rowIndex) + ", getCellData='" + target1.getCellData(o.rowIndex, "status") + "'");
+    }
+}
+
+
+
+// 부서 = 개발팀 필터 적용
+scwin.btn_setColumnFilter_onclick = function (e) {
+    dlt_bind.setColumnFilter({ "type" : "row", "colIndex" : "dept", "key" : "개발팀", "condition" : "and", "exactMatch" : true });
+    wf_body_bottom.getObj("scwin").setReturnValue("setColumnFilter(부서=개발팀) -> 표시 Row 수 : " + target1.getRowCount());
+}
+
+
+
+// 필터 해제
+scwin.btn_removeColumnFilterAll_onclick = function (e) {
+    dlt_bind.removeColumnFilterAll();
+    wf_body_bottom.getObj("scwin").setReturnValue("removeColumnFilterAll -> 표시 Row 수 : " + target1.getRowCount());
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition"></xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_printLog_onclick" id="btn_printLog" label="파라미터 기록 출력" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setColumnFilter_onclick" id="btn_setColumnFilter" label="setColumnFilter" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_removeColumnFilterAll_onclick" id="btn_removeColumnFilterAll" label="removeColumnFilterAll" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

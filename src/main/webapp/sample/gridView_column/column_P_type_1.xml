@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] type" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// https://inswave01.atlassian.net/browse/WAEA-1512
+
+
+
+// 테스트 설명, 유효성 값 설정
+//  - column 샘플 관례 : type 은 Body Column 에만 설정 (설정 영역 con 옵션 미생성)
+//  - 본 샘플(_1) : 편집 모드 입력창의 type 축 (text / textImage / drilldown), calendar / select Column 은 가이드 전제 밖 대조용
+//  - embeddedInput="true" 일때 모든 입력창 적용은 column_P_type_2 담당
+//  - 모바일 가상 키보드 항목은 PC 에서 확인 불가 -> 입력창 type 속성값 반영까지만 확인, 실제 키보드는 라벨로 안내
+scwin.tData = {
+    "description" : "[column > P > type]<br/>Cell 이 편집 모드일때 표시되는 입력창의 type 속성값을 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text','textImage','drilldown' 인 경우에 동작합니다.",
+        "입력창('input') 요소의 type 속성에 적용할 값을 설정합니다.",
+        "'number', 'tel', 'email' 등으로 설정할 수 있으며 입력창의 동작은 웹브라우저의 type 속성 처리 방식을 따릅니다.",
+        "속성값을 설정하지 않으면 'text' 가 적용됩니다.",
+        "type 속성값에 따라 모바일 기기에서 표시되는 가상 키보드의 종류가 달라질 수 있습니다."
+    ]
+}
+
+
+
+// Body Column 정보 (Body Column 인덱스 순)
+scwin.bodyInfo = [
+    { "id" : "qty",    "label" : "수량(text)" },
+    { "id" : "tel",    "label" : "연락처(textImage)" },
+    { "id" : "org",    "label" : "조직(drilldown)" },
+    { "id" : "inDate", "label" : "입사일(calendar, 대조)" },
+    { "id" : "dept",   "label" : "부서(select, 대조)" }
+];
+
+// 편집 기록 [rowIndex + "_" + colId], cur : 현재 편집 중인 기록 key
+scwin.gVar = { "edit" : {}, "cur" : "" };
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_type.setValue("number");
+
+    // 편집 진입(더블클릭) 시 입력창 type 기록, 입력 중 입력창 값 기록 (페이지 로딩 시 1회만 등록)
+    document.addEventListener("dblclick", scwin.onEditEnter, true);
+    document.addEventListener("keyup", scwin.onEditKeyup, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - type(con 값) 은 모든 Body Column 에 같은 값으로 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.edit = {};
+    scwin.gVar.cur = "";
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] type 은 모든 Body Column 에 같은 값으로 설정 (입사일(calendar), 부서(select) 는 대조용)\n[절차] Cell 더블클릭 (조직 Column 은 아이콘이 아닌 글자 위) -> 값 입력 (예: 12ab) -> Enter\n[확인] 편집 입력창 확인 버튼\n[참고] 모바일 가상 키보드 종류는 모바일 기기 환경 필요"', '', 'label1');
+
+    let cType = con_type.getValue();
+    let attrType = (cType === '') ? '' : ' type="' + cType + '"';
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList (depth : drilldown 계층 깊이)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="tel" name="tel" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="org" name="org" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="inDate" name="inDate" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "qty" : "120", "tel" : "01012345678", "org" : "영업본부", "depth" : "1", "inDate" : "20261001", "dept" : "01" },
+        { "qty" : "35", "tel" : "0215881234", "org" : "영업1팀", "depth" : "2", "inDate" : "20261005", "dept" : "02" }
+    ], false);
+
+    let strItem = '<w2:choices>'
+                + '<w2:item><w2:label>영업</w2:label><w2:value>01</w2:value></w2:item>'
+                + '<w2:item><w2:label>개발</w2:label><w2:value>02</w2:value></w2:item>'
+                + '</w2:choices>';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:820px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let i = 0; i < scwin.bodyInfo.length; i++) {
+        strTarget += '<w2:column width="160" style="" inputType="text" id="h_' + scwin.bodyInfo[i].id + '" value="' + scwin.bodyInfo[i].label + '"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" id="qty" inputType="text"' + attrType + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" id="tel" inputType="textImage"' + attrType + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" id="org" inputType="drilldown" depthColumn="depth" showDepth="2"' + attrType + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" id="inDate" inputType="calendar" dataType="date" displayFormat="yyyy-MM-dd"' + attrType + '></w2:column>';
+    strTarget += '<w2:column width="160" style="" id="dept" inputType="select"' + attrType + '>' + strItem + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 셀 더블클릭(편집 진입) 시 편집 입력창의 type 속성값 기록
+scwin.onEditEnter = function (e) {
+    if (typeof target1 === 'undefined' || !target1 || !target1.render.contains(e.target)) {
+        return;
+    }
+    setTimeout(function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        let row = target1.getFocusedRowIndex();
+        let colId = target1.getFocusedColumnID();
+        let el = document.activeElement;
+        let isInput = !!el && el.tagName === "INPUT";
+        let key = row + "_" + colId;
+        scwin.gVar.cur = key;
+        scwin.gVar.edit[key] = {
+            "row" : row,
+            "colId" : colId,
+            "input" : isInput ? { "attr" : el.getAttribute("type"), "prop" : el.type, "value" : el.value } : null
+        };
+    }, 150);
+}
+
+
+
+// 편집 중 키 입력 시 입력창 값 기록 (Enter 로 편집 종료되기 직전 값 유지)
+scwin.onEditKeyup = function (e) {
+    let rec = scwin.gVar.edit[scwin.gVar.cur];
+    if (!rec || !rec.input || !e.target || e.target.tagName !== "INPUT" || e.key === "Enter") {
+        return;
+    }
+    rec.input.value = e.target.value;
+}
+
+
+
+// 편집 진입 기록 출력
+//  - validation 1 : text / textImage / drilldown 은 설정값, calendar / select 는 미적용 (대조)
+//  - validation 2, 4 : getAttribute('type') 과 .type (미설정 시 text)
+//  - validation 3, 5 : 입력창 값과 Cell 값 (number 에서 문자 입력이 막히는 브라우저 동작), 가상 키보드는 type 값으로 결정
+scwin.btn_checkEdit_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cType = con_type.getValue();
+    let label = {};
+    for (let i = 0; i < scwin.bodyInfo.length; i++) {
+        label[scwin.bodyInfo[i].id] = scwin.bodyInfo[i].label;
+    }
+    bottom.setReturnValue("type : " + (cType === '' ? "(미설정)" : cType));
+
+    for (let key in scwin.gVar.edit) {
+        let rec = scwin.gVar.edit[key];
+        let inText = rec.input ? "getAttribute('type') = " + rec.input.attr + ", .type = " + rec.input.prop + " / 입력창 값 = " + rec.input.value : "입력창(input) 없음";
+        bottom.setReturnValue("Row " + rec.row + " " + label[rec.colId] + " 편집 : " + inText + " / Cell 값 = " + dlt_bind.getCellData(rec.row, rec.colId));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="type" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_type" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>tel</xf:label>
+												<xf:value>tel</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>email</xf:label>
+												<xf:value>email</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>password</xf:label>
+												<xf:value>password</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>url</xf:label>
+												<xf:value>url</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkEdit_onclick" id="btn_checkEdit"
+							label="편집 입력창 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

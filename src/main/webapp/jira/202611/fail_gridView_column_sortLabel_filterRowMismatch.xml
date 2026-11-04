@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView select Column 에 sortLabel=true 설정 시 DataList 컬럼 필터 적용 중 Header 정렬이 Label 기준 순서로 되지 않음" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_dept">
+					<w2:columnInfo>
+						<w2:column id="label" name="label" dataType="text"></w2:column>
+						<w2:column id="code" name="code" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_bind">
+					<w2:columnInfo>
+						<w2:column id="name" name="name" dataType="text"></w2:column>
+						<w2:column id="dept" name="dept" dataType="text"></w2:column>
+						<w2:column id="use" name="use" dataType="text"></w2:column>
+					</w2:columnInfo>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script type="text/javascript" lazy="false"><![CDATA[
+// 부서 아이템 : D01=회계팀, D02=영업팀, D03=마케팅팀, D04=개발팀 (D99 는 목록에 없는 값)
+scwin.deptItems = [
+    { "label" : "회계팀", "code" : "D01" },
+    { "label" : "영업팀", "code" : "D02" },
+    { "label" : "마케팅팀", "code" : "D03" },
+    { "label" : "개발팀", "code" : "D04" }
+];
+
+// use="N" 인 김민수 행은 필터 적용 시 숨겨짐
+scwin.rowData = [
+    { "name" : "김민수", "dept" : "D02", "use" : "N" },
+    { "name" : "이서연", "dept" : "D04", "use" : "Y" },
+    { "name" : "박지훈", "dept" : "D99", "use" : "Y" },
+    { "name" : "최유진", "dept" : "D01", "use" : "Y" },
+    { "name" : "정하늘", "dept" : "D03", "use" : "Y" }
+];
+
+scwin.onpageload = async function () {
+    dlt_dept.setJSON(scwin.deptItems);
+    await scwin.createGrid();
+};
+
+// 데이터 설정 → 컬럼 필터 적용(김민수 행 숨김) → sortLabel="true" GridView 생성
+scwin.createGrid = async function () {
+    dlt_bind.setJSON(scwin.rowData);
+    dlt_bind.setColumnFilter({ type : "row", colIndex : "use", key : "Y", condition : "and", exactMatch : true });
+
+    let ns = 'xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms" xmlns:ev="http://www.w3.org/2001/xml-events"';
+    let str = '';
+    str += '<w2:gridView ' + ns + ' id="" dataList="data:dlt_bind" sortable="true" sortEvent="onclick" style="width:420px;height:180px;" ev:onsort="scwin.grd_target_onsort">';
+    str += '<w2:header id="hd_t" style=""><w2:row id="hr_t" style="">';
+    str += '<w2:column id="h_name" inputType="text" value="이름" width="150" sortable="false"></w2:column>';
+    str += '<w2:column id="h_dept" inputType="text" value="부서 (클릭하여 정렬)" width="250"></w2:column>';
+    str += '</w2:row></w2:header>';
+    str += '<w2:gBody id="gb_t" style=""><w2:row id="br_t" style="">';
+    str += '<w2:column id="name" inputType="text" width="150" readOnly="true"></w2:column>';
+    str += '<w2:column id="dept" inputType="select" width="250" sortLabel="true" selectedData="false">';
+    str += '<w2:choices><w2:itemset nodeset="data:dlt_dept"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    str += '</w2:column>';
+    str += '</w2:row></w2:gBody>';
+    str += '</w2:gridView>';
+    await $p.dynamicCreate("grd_target", "gridView", str, grp_grid);
+};
+
+// 값 → 표시 문자열 (목록에 없는 값은 Cell 값 그대로)
+scwin.toLabel = function (value) {
+    for (let i = 0; i < scwin.deptItems.length; i++) {
+        if (scwin.deptItems[i].code === value) {
+            return scwin.deptItems[i].label;
+        }
+    }
+    return value;
+};
+
+// 기대 순서 : 필터로 남은 Row 를 Label(목록 외는 Cell 값) 기준으로 정렬
+scwin.getExpected = function (sortOrder) {
+    let arr = [];
+    for (let i = 0; i < scwin.rowData.length; i++) {
+        if (scwin.rowData[i].use !== "Y") {
+            continue;
+        }
+        arr.push(scwin.rowData[i].dept);
+    }
+    arr.sort(function (a, b) {
+        let x = scwin.toLabel(a);
+        let y = scwin.toLabel(b);
+        return (x === y ? 0 : (x > y ? 1 : -1)) * sortOrder;
+    });
+    return arr.map(scwin.toLabel);
+};
+
+scwin.printResult = function (sortOrder) {
+    let actual = [];
+    for (let i = 0; i < grd_target.getRowCount(); i++) {
+        actual.push(scwin.toLabel(grd_target.getCellData(i, "dept")));
+    }
+    let expected = scwin.getExpected(sortOrder);
+    let strExp = expected.join(", ");
+    let strAct = actual.join(", ");
+    scwin.setReturnValue((sortOrder === 1 ? "오름차순" : "내림차순")
+        + "  기대 : " + strExp + "  /  실제 : " + strAct + "  → " + (strExp === strAct ? "PASS" : "FAIL"));
+};
+
+// Header 클릭 정렬 후 결과 출력
+scwin.grd_target_onsort = function (info) {
+    if (info.sortOrder === 0) {
+        return;
+    }
+    scwin.printResult(info.sortOrder);
+};
+
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_root" style="padding:16px;">
+			<w2:textbox escape="false" id="lbl_title" style="font-size:16px;margin-top:16px;margin-bottom:16px;"
+				label="■ &lt;b&gt;[FAIL] select Column 에 sortLabel=&quot;true&quot; 설정 시 DataList 컬럼 필터로 앞쪽 Row 가 숨겨진 상태에서 Header 를 클릭해 정렬하면 Label 기준 순서로 정렬되지 않음&lt;/b&gt;&lt;br/&gt;[확인 방법] 샘플 실행 시 sortLabel=true, 컬럼 필터 적용(김민수 행 숨김) 상태에서 '부서' Header 를 클릭하여 오름차순 정렬&lt;br/&gt;[기대] D99, 개발팀, 마케팅팀, 회계팀 순서(Label 기준, 목록에 없는 D99 는 Cell 값으로 비교)&lt;br/&gt;[실제] 마케팅팀, D99, 개발팀, 회계팀 순서로 정렬됨 (필터 해제 상태 또는 sortLabel=false 에서는 정상)"></w2:textbox>
+
+			<w2:textbox id="" label="부서 Column : inputType=select, 아이템(BindItemSet) D01=회계팀, D02=영업팀, D03=마케팅팀, D04=개발팀 / 박지훈의 D99 는 목록에 없는 값 / selectedData=false" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<xf:group id="grp_grid" style="margin-bottom:16px;"></xf:group>
+
+			<xf:group id="grp_bottom" style="">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 120px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] sortable" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : MultiLine (Header·Body MultiLine / Body 만 MultiLine / Header 만 MultiLine)
+//  - 기본 동작은 _1, 정렬 제외 조건은 _2
+//  - GridView sortable 미설정, sortEvent=onclick 고정 + 모든 Header Column 에 Column sortable=true 설정
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > sortable]<br/>Header Column 을 클릭 또는 더블 클릭하여 데이터를 정렬할지 설정합니다.",
+    "validation" : [
+        "Header 또는 Body 가 MultiLine 인 경우 같은 Column 위치의 모든 데이터가 함께 정렬됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (Header·Body MultiLine)
+    con_multiLine.setValue("headerBody");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 상품별 분류/가격/재고 (Column 마다 오름차순 정렬 결과가 모두 다르도록 구성)
+//  - 상품명 오름차순 : 마우스, 모니터, 웹캠, 키보드, 헤드셋
+//  - 가격 오름차순   : 마우스, 웹캠, 키보드, 헤드셋, 모니터
+//  - 분류 오름차순   : 모니터, 웹캠, 헤드셋, 키보드, 마우스
+//  - 재고 오름차순   : 모니터, 웹캠, 키보드, 헤드셋, 마우스
+scwin.rowData = [
+    { "name" : "키보드", "category" : "입력장치", "price" : "45000", "stock" : "12" },
+    { "name" : "마우스", "category" : "포인팅장치", "price" : "18000", "stock" : "30" },
+    { "name" : "모니터", "category" : "디스플레이", "price" : "210000", "stock" : "5" },
+    { "name" : "헤드셋", "category" : "음향기기", "price" : "67000", "stock" : "21" },
+    { "name" : "웹캠", "category" : "영상기기", "price" : "39000", "stock" : "8" }
+];
+
+
+
+// comp 생성
+//  - headerBody : Header 2 Line (상품명, 가격 / 분류, 재고) + Body 2 Line (name, price / category, stock)
+//  - body       : Header 1 Line (상품명, 가격) + Body 2 Line (name, price / category, stock)
+//  - header     : Header 2 Line (상품명, 가격 / 분류, 재고) + Body 1 Line (name, price)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] sortEvent=onclick, 모든 Header Column 에 sortable=true\n[절차] 조건 선택 -> Target 재생성 -> Header 1개 클릭 -> 정렬 상태 확인\n[확인] 정렬 기준 Column 과 Row 별 Line 데이터(상품명 / 분류 / 가격 / 재고)가 함께 이동했는지\n[참고] Header 만 MultiLine 이면 Body 는 상품명, 가격 2개 Column (분류, 재고 Header 는 같은 위치의 Body Column 에 대응)"', '', 'label1');
+
+    // 조건 설정
+    let cMultiLine = con_multiLine.getValue();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="category" name="category" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="stock" name="stock" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // Header
+    let strHeader = '';
+    strHeader += '<w2:header style="" id="header1">';
+    strHeader += '<w2:row style="" id="row1">';
+    strHeader += '<w2:column width="160" style="" inputType="text" id="column_name" value="상품명" sortable="true"></w2:column>';
+    strHeader += '<w2:column width="160" style="" inputType="text" id="column_price" value="가격" sortable="true"></w2:column>';
+    strHeader += '</w2:row>';
+    if (cMultiLine !== "body") {
+        strHeader += '<w2:row style="" id="row2">';
+        strHeader += '<w2:column width="160" style="" inputType="text" id="column_category" value="분류" sortable="true"></w2:column>';
+        strHeader += '<w2:column width="160" style="" inputType="text" id="column_stock" value="재고" sortable="true"></w2:column>';
+        strHeader += '</w2:row>';
+    }
+    strHeader += '</w2:header>';
+
+    // Body
+    let strBody = '';
+    strBody += '<w2:gBody style="" id="gBody1">';
+    strBody += '<w2:row style="" id="row3">';
+    strBody += '<w2:column width="160" style="" inputType="text" id="name" value=""></w2:column>';
+    strBody += '<w2:column width="160" style="" inputType="text" id="price" value="" dataType="number" displayFormat="#,###"></w2:column>';
+    strBody += '</w2:row>';
+    if (cMultiLine !== "header") {
+        strBody += '<w2:row style="" id="row4">';
+        strBody += '<w2:column width="160" style="" inputType="text" id="category" value=""></w2:column>';
+        strBody += '<w2:column width="160" style="" inputType="text" id="stock" value="" dataType="number"></w2:column>';
+        strBody += '</w2:row>';
+    }
+    strBody += '</w2:gBody>';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" sortEvent="onclick" style="width:340px;height:300px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += strHeader;
+    strTarget += strBody;
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 판정 출력 : 정렬 상태 + Row 별 Line 데이터 (상품명 / 분류 / 가격 / 재고)
+scwin.btn_checkSort_onclick = function (e) {
+    let arrStatus = target1.getSortableStatus() || [];
+    let strSort = (arrStatus.length === 0) ? "없음" : arrStatus.map(function (o) {
+        return o.colID + " (" + (o.sortOrder == 1 ? "오름차순" : "내림차순") + ")";
+    }).join(", ");
+
+    // Body 에 배치된 Column 만 출력 (Header 만 MultiLine 이면 Body 는 name, price 2개)
+    let arrCol = (con_multiLine.getValue() === "header") ? ["name", "price"] : ["name", "category", "price", "stock"];
+    let arrRow = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arrRow.push(arrCol.map(function (c) { return target1.getCellDisplayData(i, c); }).join("/"));
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("정렬 상태 : " + strSort + " / Row 표시 순서 : " + arrRow.join(", "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="MultiLine 영역" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_multiLine" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[Header, Body]]></xf:label>
+												<xf:value><![CDATA[headerBody]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Body]]></xf:label>
+												<xf:value><![CDATA[body]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Header]]></xf:label>
+												<xf:value><![CDATA[header]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSort_onclick" id="btn_checkSort" label="정렬 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

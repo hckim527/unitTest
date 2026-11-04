@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] placeholder" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : 동작 inputType 8종의 편집 모드 안내 문구, 포커스 시 표시, 값(바인딩 포함)/입력 시 사라짐, 선택/복사 불가, select 비편집 표시와 클래스
+//  - embeddedInput="true" 비편집 표시, editPlaceholderChar 설정 시 미표시는 _2 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - 대상 Column 은 가이드 전제대로 동작 inputType 8종만 구성
+//  - select / autoComplete 는 emptyItem="true" 고정 (emptyItem 기본값이면 빈 값 Cell 편집 시 첫 번째 아이템이 선택되어 Cell 값이 비어 있지 않게 됨 - emptyItem 가이드)
+scwin.tData = {
+    "description" : "[column > P > placeholder]<br/>Cell 값이 비어 있고 편집 모드일때 입력창에 표시할 PlaceHolder 텍스트를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text','select','calendar','textarea','textImage','autoComplete','secret','spinner' 인 경우에 동작합니다.",
+        "문자열 설정 시, Cell 값이 비어 있고 편집 모드일때 입력창에 PlaceHolder 로 표시될 텍스트를 설정합니다.",
+        "입력창이 포커스되면 웹브라우저에 따라 PlaceHolder 텍스트가 사라지거나 유지될 수 있습니다.",
+        "PlaceHolder 텍스트는 입력창에 값(바인딩 포함)이 있거나 값을 입력하는 순간 사라집니다.",
+        "PlaceHolder 텍스트는 선택 및 복사할 수 없습니다.",
+        "inputType='select' 인 Column 은 편집 모드가 아니어도 Cell 값이 비어 있으면 안내 문구가 표시되고, 이때 Cell 에 'w2grid_select_placeholder' 클래스가 적용되어 안내 문구가 회색으로 표시됩니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Body Column 구성 (id / inputType)
+    "columns" : [
+        { "id" : "ctext", "inputType" : "text" },
+        { "id" : "cselect", "inputType" : "select" },
+        { "id" : "ccal", "inputType" : "calendar" },
+        { "id" : "carea", "inputType" : "textarea" },
+        { "id" : "cimg", "inputType" : "textImage" },
+        { "id" : "cauto", "inputType" : "autoComplete" },
+        { "id" : "csecret", "inputType" : "secret" },
+        { "id" : "cspin", "inputType" : "spinner" }
+    ],
+    // Row 0 : 모든 Cell 빈 값 / Row 1 : 모든 Cell 값 바인딩
+    "data" : [
+        { "ctext" : "", "cselect" : "", "ccal" : "", "carea" : "", "cimg" : "", "cauto" : "", "csecret" : "", "cspin" : "" },
+        { "ctext" : "홍길동", "cselect" : "02", "ccal" : "20261015", "carea" : "배송 전 연락", "cimg" : "서울", "cauto" : "02", "csecret" : "1234", "cspin" : "5" }
+    ],
+    // 편집 기록 [rowIndex][colId] = { enter : 편집 진입(포커스) 시 상태, input : 값 입력 후 상태 }
+    "edit" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_placeholder.setValue("값을 입력하세요");
+
+    // 편집 진입 / 값 입력 시 입력창 상태 기록 (페이지 로딩 시 1회만 등록)
+    document.addEventListener("dblclick", scwin.onEditEnter, true);
+    document.addEventListener("focusin", scwin.onEditFocus, true);
+    document.addEventListener("input", scwin.onEditInput, true);
+    document.addEventListener("keyup", scwin.onEditInput, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - placeholder 는 Body Column 8개 모두에 같은 값으로 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.edit = {};
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Row 0 은 모든 Cell 이 빈 값, Row 1 은 값이 바인딩됨 / select, autoComplete Column 은 emptyItem=true\n[절차] 각 Cell 더블클릭으로 편집 진입 (spinner 는 이어서 입력창 클릭) -> Row 0 은 문자 입력 -> Escape\n[절차] 복사 : Row 0 Cell 더블클릭 -> Ctrl+A -> Ctrl+C -> Escape (select 는 Cell 클릭 -> Ctrl+C) -> 붙여넣기 확인 입력창 클릭 -> Ctrl+A -> Ctrl+V\n[확인] 셀 상태 확인 버튼"', '', 'label1');
+
+    let cPlaceholder = con_placeholder.getValue();
+    let attrPh = (cPlaceholder === '') ? '' : ' placeholder="' + cPlaceholder + '"';
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용, calendar 는 date / spinner 는 number)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="ctext" name="ctext" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cselect" name="cselect" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="ccal" name="ccal" dataType="date"></w2:column>';
+    strDlt += '<w2:column id="carea" name="carea" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cimg" name="cimg" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cauto" name="cauto" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="csecret" name="csecret" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cspin" name="cspin" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.gVar.data, false);
+
+    // select / autoComplete 아이템
+    let strItem = '<w2:choices>'
+                + '<w2:item><w2:label>서울</w2:label><w2:value>01</w2:value></w2:item>'
+                + '<w2:item><w2:label>부산</w2:label><w2:value>02</w2:value></w2:item>'
+                + '</w2:choices>';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:820px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let i = 0; i < scwin.gVar.columns.length; i++) {
+        strTarget += '<w2:column width="100" style="" inputType="text" id="h_' + scwin.gVar.columns[i].id + '" value="' + scwin.gVar.columns[i].inputType + '"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" id="ctext" inputType="text"' + attrPh + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" id="cselect" inputType="select" emptyItem="true"' + attrPh + '>' + strItem + '</w2:column>';
+    strTarget += '<w2:column width="100" style="" id="ccal" inputType="calendar" dataType="date" viewType="icon" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd"' + attrPh + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" id="carea" inputType="textarea"' + attrPh + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" id="cimg" inputType="textImage"' + attrPh + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" id="cauto" inputType="autoComplete" emptyItem="true"' + attrPh + '>' + strItem + '</w2:column>';
+    strTarget += '<w2:column width="100" style="" id="csecret" inputType="secret"' + attrPh + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" id="cspin" inputType="spinner" dataType="number"' + attrPh + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 편집 중인 Column 의 화면에 보이는 입력창 반환
+//  - select 는 SelectBox 라벨 영역(안내 문구는 data-placeholder 로 빈 라벨에 표시), 그 외는 input / textarea
+scwin.getEditElem = function (colId) {
+    let elems = document.querySelectorAll("[id^='G_" + target1.id + "_'][id*='_" + colId + "']");
+    for (let i = 0; i < elems.length; i++) {
+        let el = elems[i];
+        if (colId === "cselect") {
+            // 빈 라벨은 크기가 0 일 수 있으므로 SelectBox 본체가 보이는지로 판단
+            let box = el.parentNode ? el.closest(".w2selectbox") : null;
+            if (el.classList.contains("w2selectbox_label") && box && box.offsetWidth > 0) {
+                return el;
+            }
+            continue;
+        }
+        if (el.offsetWidth === 0 || el.offsetHeight === 0) {
+            continue;
+        }
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+            return el;
+        }
+    }
+    return null;
+}
+
+
+
+// 입력창에 안내 문구가 표시되는지 여부와 입력창 값
+scwin.getEditState = function (colId) {
+    let el = scwin.getEditElem(colId);
+    if (!el) {
+        return null;
+    }
+    if (colId === "cselect") {
+        let ph = el.getAttribute("data-placeholder") || "";
+        return { "shown" : (ph !== "" && el.textContent === ""), "placeholder" : ph, "value" : el.textContent };
+    }
+    let ph = el.getAttribute("placeholder") || "";
+    return { "shown" : (ph !== "" && el.matches(":placeholder-shown")), "placeholder" : ph, "value" : el.value };
+}
+
+
+
+// 현재 편집 중인 Cell 의 입력창 상태 기록 (kind : enter / input)
+scwin.recordEdit = function (kind) {
+    if (typeof target1 === 'undefined' || !target1 || !target1.isEditing()) {
+        return;
+    }
+    let row = target1.getFocusedRowIndex();
+    let colId = target1.getFocusedColumnID();
+    let state = scwin.getEditState(colId);
+    if (row < 0 || !colId || !state) {
+        return;
+    }
+    scwin.gVar.edit[row] = scwin.gVar.edit[row] || {};
+    if (kind === "enter") {
+        scwin.gVar.edit[row][colId] = { "enter" : state };
+    } else if (scwin.gVar.edit[row][colId]) {
+        scwin.gVar.edit[row][colId].input = state;
+    }
+}
+
+
+
+// 셀 더블클릭(편집 진입) 시 기록
+scwin.onEditEnter = function (e) {
+    if (typeof target1 === 'undefined' || !target1 || !target1.render.contains(e.target)) {
+        return;
+    }
+    setTimeout(function () { scwin.recordEdit("enter"); }, 100);
+}
+
+
+
+// 편집 입력창 포커스 시 기록 (spinner 처럼 편집 진입 후 입력창을 클릭해 포커스하는 경우)
+scwin.onEditFocus = function (e) {
+    let el = e.target;
+    if (!el || !el.id || typeof target1 === 'undefined' || !target1 || el.id.indexOf("G_" + target1.id + "_") !== 0) {
+        return;
+    }
+    setTimeout(function () {
+        let colId = target1.getFocusedColumnID();
+        let row = target1.getFocusedRowIndex();
+        let rec = scwin.gVar.edit[row] && scwin.gVar.edit[row][colId];
+        if (rec && !rec.input) {
+            scwin.recordEdit("enter");
+        }
+    }, 100);
+}
+
+
+
+// 편집 입력창에 값 입력 시 기록
+scwin.onEditInput = function (e) {
+    let el = e.target;
+    if (!el || !el.id || typeof target1 === 'undefined' || !target1 || el.id.indexOf("G_" + target1.id + "_") !== 0) {
+        return;
+    }
+    if (e.type === "keyup" && (e.key === "Escape" || e.key === "Control" || e.ctrlKey)) {
+        return;
+    }
+    setTimeout(function () { scwin.recordEdit("input"); }, 50);
+}
+
+
+
+// 안내 문구 상태 표기
+scwin.stateText = function (state) {
+    if (!state) {
+        return "기록 없음";
+    }
+    return state.shown ? "안내 문구 표시" : "안내 문구 없음(값 : " + state.value + ")";
+}
+
+
+
+// 설정 조건 -> Row 별 편집 전 셀 표시값 -> 편집 진입(포커스) 시 / 값 입력 후 입력창 상태 -> 붙여넣기 확인 입력창 값 출력
+//  - validation 1, 2 : Row 0 편집 진입 시 8종 Column 입력창의 안내 문구 표시
+//  - validation 3 : 편집 진입(입력창 포커스) 상태에서 안내 문구 유지 여부
+//  - validation 4 : Row 1(값 바인딩) 편집 진입 시 / Row 0 값 입력 후 안내 문구 없음
+//  - validation 5 : 붙여넣기 확인 입력창 값에 안내 문구 미포함
+//  - validation 6 : 편집 전 select Cell 표시값, w2grid_select_placeholder 클래스, 글자색
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cPlaceholder = con_placeholder.getValue();
+    bottom.setReturnValue("placeholder : " + (cPlaceholder === '' ? "(미설정)" : cPlaceholder));
+
+    let cols = scwin.gVar.columns;
+    for (let r = 0; r < scwin.gVar.data.length; r++) {
+        // 편집 전 셀 표시값 (select 는 클래스 / 글자색 포함)
+        let arrView = [];
+        for (let c = 0; c < cols.length; c++) {
+            let td = document.querySelector("td[id*='" + target1.id + "_cell_" + r + "_" + c + "']");
+            // 편집 후 Cell 안에 남는 입력창(spinner 등)은 입력창 값을 읽는다
+            let inner = td ? td.querySelector("input, textarea") : null;
+            let txt = inner ? inner.value : (td ? td.textContent : "");
+            if (cols[c].id === "cselect" && td) {
+                txt += " (w2grid_select_placeholder : " + td.classList.contains("w2grid_select_placeholder") + ", 글자색 : " + getComputedStyle(td).color + ")";
+            }
+            arrView.push(cols[c].inputType + "=" + txt);
+        }
+        bottom.setReturnValue("Row " + r + " 편집 전 셀 표시값 : " + arrView.join(", "));
+
+        // 편집 진입(포커스) 시 / 값 입력 후 입력창 상태
+        let rec = scwin.gVar.edit[r] || {};
+        let arrEnter = [];
+        let arrInput = [];
+        for (let c = 0; c < cols.length; c++) {
+            let item = rec[cols[c].id];
+            if (!item) {
+                continue;
+            }
+            arrEnter.push(cols[c].inputType + "=" + scwin.stateText(item.enter));
+            if (item.input) {
+                arrInput.push(cols[c].inputType + "=" + scwin.stateText(item.input));
+            }
+        }
+        if (arrEnter.length > 0) {
+            bottom.setReturnValue("Row " + r + " 편집 진입(포커스) 시 : " + arrEnter.join(", "));
+        }
+        if (arrInput.length > 0) {
+            bottom.setReturnValue("Row " + r + " 값 입력 후 : " + arrInput.join(", "));
+        }
+    }
+
+    // 복사 후 붙여넣은 값
+    let pasteValue = par_pasteValue.getValue();
+    bottom.setReturnValue("붙여넣기 확인 입력창 값 : " + pasteValue + " (안내 문구 포함 : " + (cPlaceholder !== '' && pasteValue.indexOf(cPlaceholder) > -1) + ")");
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="placeholder" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_placeholder" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>값을 입력하세요</xf:label>
+												<xf:value>값을 입력하세요</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="붙여넣기 확인" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_pasteValue" style="" initValue="붙여넣기 전"></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

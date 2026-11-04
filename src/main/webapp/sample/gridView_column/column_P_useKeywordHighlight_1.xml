@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] useKeywordHighlight" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261104" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : useKeywordHighlight 값별 강조 여부(true / false / 미설정) + 처음 일치하는 한 곳만 강조 + 기본 CSS(주황색 굵은 글씨)
+//  - 강조 클래스 재정의(style 블럭) 항목은 column_P_useKeywordHighlight_2.xml 에서 확인
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - 입력값이 Label 안에 두 번 나오는 아이템(Bora Bora, Baden-Baden)을 넣어 처음 일치하는 한 곳만 강조되는지 확인
+scwin.tData = {
+    "description" : "[column > P > useKeywordHighlight]<br/>inputType='autoComplete' 인 Column 에서 검색된 아이템에 사용자의 입력값과 일치하는 부분을 강조하여 표시할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, 사용자의 입력으로 검색된 아이템 목록에서 입력값과 일치하는 부분에 'w2autoComplete_keyword' 클래스를 적용하여 강조합니다.",
+        "false 설정 시, 아이템 목록을 강조 없이 표시합니다.",
+        "미설정 시, 아이템 목록을 강조 없이 표시합니다.",
+        "강조는 아이템의 Label 에서 사용자의 입력값과 처음 일치하는 한 곳에만 적용됩니다.",
+        "기본 제공 CSS 에는 'w2autoComplete_keyword' 클래스가 주황색(orange) 굵은 글씨로 정의되어 있습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (2 = true)
+    con_useKeywordHighlight.setValue("2");
+
+    // 버튼을 누르기 직전(mousedown) 열려 있는 목록을 읽어 둔다
+    btn_checkHighlight.render.addEventListener("mousedown", scwin.captureListRows, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name : 안내 Column (readOnly) / city : 검증 대상 autoComplete Column (useKeywordHighlight = con 값)
+//  - 아이템(Label / Value) : Bora Bora / BOR, Baden-Baden / BAD, Barcelona / BCN, Seoul / SEL
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (gdl_boolean 은 getText 로 읽고, 미설정은 속성 자체를 넣지 않는다)
+    let cUseKeywordHighlight = con_useKeywordHighlight.getText();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 아이템 Label : Bora Bora, Baden-Baden, Barcelona, Seoul (B 와 Ba 가 두 번 나오는 Label 포함)\n[절차] city 셀 더블클릭 -> 입력값을 모두 지우고 B 또는 Ba 입력 -> 목록이 열린 상태에서 목록 강조 확인 클릭\n[확인] 목록 Row 별 Label 과 강조 부분(개수, 텍스트, class, 글자색, 굵기)"', '', 'label1');
+
+    let attrCol = '';
+    if (cUseKeywordHighlight !== '') {
+        attrCol += ' useKeywordHighlight="' + cUseKeywordHighlight + '"';
+    }
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="city" name="city" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "홍길동", "city" : "BCN" },
+        { "name" : "김철수", "city" : "SEL" },
+        { "name" : "이영희", "city" : "BOR" }
+    ], false);
+
+    // 정적 아이템
+    let strItems = '';
+    strItems += '<w2:choices>';
+    strItems += '<w2:item><w2:label>Bora Bora</w2:label><w2:value>BOR</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>Baden-Baden</w2:label><w2:value>BAD</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>Barcelona</w2:label><w2:value>BCN</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>Seoul</w2:label><w2:value>SEL</w2:value></w2:item>';
+    strItems += '</w2:choices>';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:400px;height:250px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="text" id="column2" value="city (autoComplete)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="autoComplete" id="city" value=""' + attrCol + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// 목록 강조 확인
+//  - validation 1, 2, 3 : 강조 span 개수 / class
+//  - validation 4 : Label 안에 입력값이 두 번 나오는 아이템의 강조 개수 / 강조 텍스트
+//  - validation 5 : 강조 span 의 글자색 / 굵기
+//  - 버튼을 누르면 편집이 끝나 목록이 닫히므로, 버튼 mousedown(capture) 시점에 열려 있는 목록을 읽어 두고 onclick 에서 출력한다
+//  - city Column 편집 위젯의 목록(itemTable_main)으로 범위를 한정하고, 표시 중인 Row 만 대상으로 한다 (0건이면 이전 tr 이 숨김 상태로 남음)
+scwin.gVar = {
+    "listLines" : []
+}
+
+scwin.captureListRows = function () {
+    let selector = "[id*='" + target1.id + "___autoComplete_'][id$='_city_itemTable_main'] tr";
+    let rows = Array.prototype.filter.call(document.querySelectorAll(selector), function (tr) {
+        return tr.offsetParent !== null && tr.getBoundingClientRect().height > 0;
+    });
+    let lines = [];
+    for (let i = 0; i < rows.length; i++) {
+        let spans = rows[i].querySelectorAll("span.w2autoComplete_keyword");
+        let line = "Row " + i + " '" + rows[i].textContent.trim() + "' -> 강조 " + spans.length + "개";
+        for (let j = 0; j < spans.length; j++) {
+            let cs = window.getComputedStyle(spans[j]);
+            line += " / '" + spans[j].textContent + "' (class : " + spans[j].className + ", color : " + cs.color + ", font-weight : " + cs.fontWeight + ")";
+        }
+        lines.push(line);
+    }
+    scwin.gVar.listLines = lines;
+};
+
+scwin.btn_checkHighlight_onclick = function (e) {
+    let wfBottom = wf_body_bottom.getObj("scwin");
+    let lines = scwin.gVar.listLines;
+    if (lines.length === 0) {
+        wfBottom.setReturnValue("목록 Row 0개");
+        return;
+    }
+    for (let i = 0; i < lines.length; i++) {
+        wfBottom.setReturnValue(lines[i]);
+    }
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useKeywordHighlight" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useKeywordHighlight" label="label" nodeSet="data:gdl_boolean" ref="" style=""
+										submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkHighlight_onclick" id="btn_checkHighlight" label="목록 강조 확인"
+							style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

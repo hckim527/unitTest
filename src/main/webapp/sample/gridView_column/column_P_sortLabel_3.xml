@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] sortLabel" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위
+//  _1 : 기본 동작 - sortLabel(미설정/true/false) x inputType(select/autoComplete, 대조 text) x Column 정렬 가능 여부(sortable true/false), 아이템 없는 Cell 값 포함
+//  _2 : DataList sort() / multisort() 정렬, LinkedDataList 바인딩
+//  _3 : inputType="custom" (본 샘플) - typeGetter 가 반환하는 Cell 의 inputType / 아이템 구성별 동작
+//  - Body 전용 속성이므로 Body Column 에만 설정 (설정 영역 옵션 / "Body Column 에서만 동작" 항목 제외)
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > sortLabel]<br/>Header Column 을 클릭하여 정렬할 때 Cell 값 대신 아이템의 Label 을 기준으로 정렬할지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='custom' 이면 Cell 에 적용된 inputType 속성이 'select','autoComplete' 이고 아이템이 BindItemSet 으로 정의된 경우에만 sortLabel 속성이 동작합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  - sortLabel = true (gdl_boolean 코드 "2"), Cell inputType = select (BindItemSet)
+    con_sortLabel.setValue("2");
+    con_cellType.setValue("select_bind");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 부서 아이템 : value 오름차순(D01 -> D04)과 Label 오름차순(개발팀 -> 회계팀)이 서로 반대가 되도록 구성
+scwin.deptItems = [
+    { "label" : "회계팀", "code" : "D01" },
+    { "label" : "영업팀", "code" : "D02" },
+    { "label" : "마케팅팀", "code" : "D03" },
+    { "label" : "개발팀", "code" : "D04" }
+];
+
+// 사원별 부서 코드 (D99 는 아이템 목록에 없는 Cell 값)
+//  - Cell 값 오름차순  : D01, D02, D03, D04, D99
+//  - Label 오름차순    : D99(Cell 값 사용), 개발팀, 마케팅팀, 영업팀, 회계팀
+scwin.rowData = [
+    { "name" : "김민수", "dept" : "D02" },
+    { "name" : "이서연", "dept" : "D04" },
+    { "name" : "박지훈", "dept" : "D99" },
+    { "name" : "최유진", "dept" : "D01" },
+    { "name" : "정하늘", "dept" : "D03" }
+];
+
+// typeGetter 가 반환할 Cell 구성 (comp_init 에서 con 값으로 설정)
+scwin.cellType = "select_bind";
+
+
+
+// typeGetter 사용자 정의 함수 : 모든 Row 의 부서 Cell 에 같은 inputType / 아이템 구성을 반환
+//  - selectedData=false : 기본값(true)이면 BindItemSet 아이템 목록에 없는 값(D99)이 '' 로 바뀌므로 Cell 값을 그대로 유지한다.
+//  - 정적 아이템 : itemSet 을 반환하지 않고 custom Column 에 선언한 정적 아이템(w2:choices > w2:item)을 사용
+scwin.fn_typeGetter = function (info) {
+    let id = "dept_" + info.realRowIndex + "_" + info.colIndex;
+    let bindItemSet = { "nodeset" : "data:dlt_dept", "label" : "label", "value" : "code" };
+    switch (scwin.cellType) {
+        case "select_bind":
+            return { "id" : id, "inputType" : "select", "options" : { "selectedData" : false }, "itemSet" : bindItemSet };
+        case "autoComplete_bind":
+            return { "id" : id, "inputType" : "autoComplete", "options" : { "selectedData" : false }, "itemSet" : bindItemSet };
+        case "select_static":
+            return { "id" : id, "inputType" : "select", "options" : { "selectedData" : false } };
+        default:
+            return { "id" : id, "inputType" : "text", "options" : {} };
+    }
+}
+
+
+
+// comp 생성
+//  - GridView sortable="true", sortEvent="onclick" 고정 (Header 단일 클릭 정렬)
+//  - 부서 Body Column : inputType="custom", typeGetter="scwin.fn_typeGetter", sortLabel 은 con 값
+//  - Cell 구성이 정적 아이템이면 custom Column 에 정적 아이템을 선언
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_dept !== 'undefined' && dlt_dept) {
+        $p.data.remove("dlt_dept");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 부서 Column 은 inputType=custom, typeGetter 가 모든 Row 에 Cell 구성 옵션의 inputType / 아이템을 반환 (selectedData=false)\n아이템 D01=회계팀, D02=영업팀, D03=마케팅팀, D04=개발팀 / D99 는 목록에 없는 값\n[절차] 조건 선택 -> Target 재생성 -> 부서 Header 클릭(오름차순), 다시 클릭(내림차순) -> 정렬 상태 확인\n[확인] Cell 값 기준이면 D01 -> D99 순, Label 기준이면 D99 -> 개발팀 -> 회계팀 순"', '', 'label1');
+
+    // 조건 설정 (gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단, 미설정은 속성 자체를 넣지 않는다)
+    let cSortLabel = con_sortLabel.getText();
+    scwin.cellType = con_cellType.getValue();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 아이템 DataList (BindItemSet 용)
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_dept" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_dept.setJSON(scwin.deptItems, false);
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // 검증 대상 Body Column 속성
+    let colProps = { inputType : "custom", typeGetter : "scwin.fn_typeGetter" };
+    if (cSortLabel !== '') {
+        colProps.sortLabel = cSortLabel;
+    }
+    let colCList = $c.gcm.createCList(colProps);
+
+    // 정적 아이템 (Cell 구성 = 정적 아이템일 때만 선언)
+    let strItems = '';
+    if (scwin.cellType === 'select_static') {
+        strItems += '<w2:choices>';
+        for (let i = 0; i < scwin.deptItems.length; i++) {
+            strItems += '<w2:item><w2:label>' + scwin.deptItems[i].label + '</w2:label><w2:value>' + scwin.deptItems[i].code + '</w2:value></w2:item>';
+        }
+        strItems += '</w2:choices>';
+    }
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' sortable="true" sortEvent="onclick" dataList="data:dlt_bind" checkAllType="false" id="" style="width:420px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column_name" value="이름" sortable="false"></w2:column>';
+    strTarget += '<w2:column width="220" style="" inputType="text" id="column_dept" value="부서 (custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="220" style="" ' + colCList + ' id="dept" value="">' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 판정 출력 : 정렬 상태(getSortableStatus) + 부서 표시 순서(Label) + 부서 Cell 값 순서
+scwin.btn_checkSort_onclick = function (e) {
+    let arrStatus = target1.getSortableStatus() || [];
+    let strSort = (arrStatus.length === 0) ? "없음" : arrStatus.map(function (o) {
+        return o.colID + " (" + (o.sortOrder == 1 ? "오름차순" : "내림차순") + ")";
+    }).join(", ");
+
+    let arrDisplay = [];
+    let arrValue = [];
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        arrDisplay.push(target1.getCellDisplayData(i, "dept"));
+        arrValue.push(target1.getCellData(i, "dept"));
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("정렬 상태 : " + strSort + " / 표시 순서 : " + arrDisplay.join(", ") + " / Cell 값 순서 : " + arrValue.join(", "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortLabel" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_sortLabel" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Cell inputType (아이템)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_cellType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[select (BindItemSet)]]></xf:label>
+												<xf:value><![CDATA[select_bind]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[autoComplete (BindItemSet)]]></xf:label>
+												<xf:value><![CDATA[autoComplete_bind]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[select (정적 아이템)]]></xf:label>
+												<xf:value><![CDATA[select_static]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSort_onclick" id="btn_checkSort" label="정렬 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

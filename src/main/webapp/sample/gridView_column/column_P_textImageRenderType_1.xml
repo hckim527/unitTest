@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] textImageRenderType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : Cell 의 HTML 구조 / 클래스 (component, div, 미설정) 담당
+//  - _2 : div 일때 alt -> button title·aria-label, button 크기 조정과 CSS 선택자 단서 담당
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - inputType='textImage' 전제는 description 첫 문장에 포함되어 있어 별도 validation 미생성 (con_inputType 으로 textImage / image 전환)
+scwin.tData = {
+    "description" : "[column > P > textImageRenderType]<br/>inputType='textImage' 인 Column 에서 텍스트와 이미지를 표시하는 Cell 의 HTML 구조를 설정합니다.",
+    "validation" : [
+        "component 설정 시, Cell 안에 표('table')를 만들어 텍스트와 이미지를 각각 별도의 Cell('td') 요소에 표시합니다.",
+        "미설정 시, Cell 안에 표('table')를 만들어 텍스트와 이미지를 각각 별도의 Cell('td') 요소에 표시합니다.",
+        "component 설정 시, 이미지는 이미지('img') 요소로 표시되며, 이미지를 감싸는 Cell('td') 요소에 'w2grid_textImage_image' 클래스가 적용됩니다.",
+        "div 설정 시, 텍스트는 'div' 요소에, 이미지는 'button' 요소의 배경 이미지로 표시합니다.",
+        "div 설정 시, 'button' 요소에는 'w2grid_textImage_button' 클래스가 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_textImageRenderType.setValue("component");
+    con_inputType.setValue("textImage");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 검증 대상 : 첨부 Body Column(file, Column 인덱스 1) — textImageRenderType / inputType 을 옵션값으로 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+//    textImage 이면 Cell 값이 파일명 + viewType='icon' + imageSrc 고정 / image 이면 Cell 값이 이미지 경로
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cRenderType = con_textImageRenderType.getValue();
+    let cInputType = con_inputType.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 옵션값은 첨부 Body Column 에 설정 (textImage 이면 viewType=icon, imageSrc=ico_file.svg 고정)\n[확인] Cell 구조 확인 버튼 -> 전체 Row 첨부 Cell 의 HTML 구조와 클래스"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="docName" name="docName" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="file" name="file" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="writer" name="writer" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+
+    // image 이면 Cell 값을 이미지 경로로, textImage 이면 파일명으로 구성
+    let isImage = (cInputType === "image");
+    dlt_bind.setJSON([
+        { "docName" : "2026년 견적서", "file" : isImage ? "/cm/images/base/ico_file.svg" : "견적서.pdf", "writer" : "김민수" },
+        { "docName" : "공급 계약서", "file" : isImage ? "/cm/images/base/ico_file.svg" : "계약서.docx", "writer" : "이영희" },
+        { "docName" : "주간 회의록", "file" : isImage ? "/cm/images/base/ico_file.svg" : "회의록.hwp", "writer" : "박지훈" }
+    ], false);
+
+    // 검증 대상 Body Column 속성
+    let attrFile = ' inputType="' + cInputType + '"';
+    if (!isImage) {
+        attrFile += ' viewType="icon" imageSrc="/cm/images/base/ico_file.svg"';
+    }
+    if (cRenderType !== '') {
+        attrFile += ' textImageRenderType="' + cRenderType + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="column1" value="문서명"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column2" value="첨부"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="등록자"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="160" style="" inputType="text" id="docName" value=""></w2:column>';
+    strTarget += '<w2:column width="180" style="" id="file" value=""' + attrFile + '></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="writer" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 요소 1개의 구조 요약 문자열
+//  - 태그명 + 검증 대상 클래스(w2grid_textImage_image / w2grid_textImage_button) + 하위 구조
+//  - 텍스트만 가진 요소는 '텍스트', button 은 배경 이미지 파일명, img 는 src 파일명
+//  - tbody / tr 은 표 구조의 중간 단계라 건너뛰고, nobr / span 은 텍스트로 본다
+scwin.describeElement = function (el) {
+    let tag = el.tagName.toLowerCase();
+    let strClass = "";
+    ["w2grid_textImage_image", "w2grid_textImage_button"].forEach(function (cls) {
+        if (el.classList.contains(cls)) {
+            strClass += "." + cls;
+        }
+    });
+    let fileName = function (url) {
+        return url.replace(/^url\(["']?/, "").replace(/["']?\)$/, "").split("/").pop();
+    };
+
+    if (tag === "img") {
+        return "img (" + fileName(el.getAttribute("src") || "") + ")";
+    }
+    if (tag === "button") {
+        return "button" + strClass + " (배경 이미지 " + fileName(window.getComputedStyle(el).backgroundImage) + ")";
+    }
+
+    let children = Array.prototype.filter.call(el.children, function (child) {
+        return ["NOBR", "SPAN", "BR"].indexOf(child.tagName) < 0;
+    });
+    if (children.length === 0) {
+        return tag + strClass + " '" + el.textContent.trim() + "'";
+    }
+    let inner = [];
+    children.forEach(function (child) {
+        if (child.tagName === "TBODY" || child.tagName === "TR") {
+            Array.prototype.forEach.call(child.querySelectorAll(":scope > tr > td, :scope > td"), function (td) {
+                inner.push(scwin.describeElement(td));
+            });
+        } else {
+            inner.push(scwin.describeElement(child));
+        }
+    });
+    return tag + strClass + " > " + inner.join(" + ");
+}
+
+
+
+// validation 1 ~ 5 판정 출력 : 전체 Row 첨부 Cell 의 HTML 구조와 클래스
+scwin.btn_checkCellStructure_onclick = function () {
+    let rowCount = dlt_bind.getRowCount();
+    let lines = [];
+    for (let i = 0; i < rowCount; i++) {
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + i + "_1']");
+        if (!td) {
+            lines.push("Row " + i + " Cell 없음");
+            continue;
+        }
+        let children = Array.prototype.filter.call(td.children, function (child) {
+            return ["NOBR", "SPAN", "BR"].indexOf(child.tagName) < 0;
+        });
+        let parts = children.map(function (child) {
+            return scwin.describeElement(child);
+        });
+        lines.push("Row " + i + " " + (parts.length > 0 ? parts.join(" + ") : "'" + td.textContent.trim() + "'"));
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(lines.join("\n"));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="textImageRenderType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_textImageRenderType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[component]]></xf:label>
+												<xf:value><![CDATA[component]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[div]]></xf:label>
+												<xf:value><![CDATA[div]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[textImage]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[image]]></xf:label>
+												<xf:value><![CDATA[image]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCellStructure_onclick" id="btn_checkCellStructure" label="Cell 구조 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

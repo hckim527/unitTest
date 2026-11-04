@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] upperColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : Column 의 colMerge="true" 방식 (동작 전제 중 colMerge 부분 + ID 설정 + 여러 Column + 위 Row 와 다른 경우)
+//  - _2 : GridView 의 mergeCells="bycolupper" 방식 (동작 전제 중 bycolupper 부분 + 왼쪽/오른쪽 위치 Column)
+//  - _3 : Column 의 colMerge="true" 방식에서 상위 Column 의 upperColumn 연쇄
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (설정 영역 con 옵션 미생성)
+scwin.tData = {
+    "description" : "[column > P > upperColumn]<br/>Column 에서 연속된 Row 의 값이 같아 하나의 Cell 처럼 표시할때 함께 기준값으로 처리할 상위 Column 을 설정합니다.",
+    "validation" : [
+        "Column 의 colMerge='true' 이거나 GridView 의 mergeCells='bycolupper' 인 경우에 동작합니다.",
+        "Column ID 설정 시, 기준값으로 함께 처리할 Column 의 ID 를 설정합니다.",
+        "여러 Column 을 기준으로 하려면 Column ID 를 쉼표(,)로 구분하여 공백 없이 설정합니다.",
+        "upperColumn='col1,col2' 로 설정하면 현재 Cell 값과 함께 col1, col2 의 값이 모두 같아야 하나의 Cell 처럼 표시됩니다.",
+        "Column 의 colMerge='true' 일때 Cell 값이 위 Row 와 같더라도 upperColumn 속성에 설정한 Column 의 값이 위 Row 와 다르면 하나의 Cell 처럼 표시되지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (담당자 colMerge=true, upperColumn=team)
+    con_colMerge.setValue("2");
+    con_upperColumn.setSelectedIndex(1);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 행 데이터 (12건) : 사업부 -> 팀 -> 담당자 계층, 담당자 값이 상위 Column 경계를 넘어 연속되는 구간을 둔다
+//  - Row 2 -> 3  : 담당자 이서연 같음 / 팀 다름(영업1팀 -> 영업2팀) / 사업부 같음
+//  - Row 4 -> 5  : 담당자 박지훈 같음 / 팀 같음(영업2팀)            / 사업부 다름(가전 -> 모바일)
+//  - Row 8 -> 9  : 담당자 최유나 같음 / 팀 다름(영업3팀 -> 영업1팀) / 사업부 같음
+scwin.rowPattern = [
+    { "division" : "가전", "team" : "영업1팀", "manager" : "김민수", "amount" : "1200" },
+    { "division" : "가전", "team" : "영업1팀", "manager" : "김민수", "amount" : "800" },
+    { "division" : "가전", "team" : "영업1팀", "manager" : "이서연", "amount" : "950" },
+    { "division" : "가전", "team" : "영업2팀", "manager" : "이서연", "amount" : "600" },
+    { "division" : "가전", "team" : "영업2팀", "manager" : "박지훈", "amount" : "700" },
+    { "division" : "모바일", "team" : "영업2팀", "manager" : "박지훈", "amount" : "1100" },
+    { "division" : "모바일", "team" : "영업2팀", "manager" : "박지훈", "amount" : "450" },
+    { "division" : "모바일", "team" : "영업3팀", "manager" : "최유나", "amount" : "880" },
+    { "division" : "모바일", "team" : "영업3팀", "manager" : "최유나", "amount" : "520" },
+    { "division" : "모바일", "team" : "영업1팀", "manager" : "최유나", "amount" : "300" },
+    { "division" : "모바일", "team" : "영업1팀", "manager" : "정하늘", "amount" : "640" },
+    { "division" : "모바일", "team" : "영업1팀", "manager" : "정하늘", "amount" : "770" }
+];
+
+
+
+// comp 생성
+//  - division / team : colMerge="true" 고정 (upperColumn 미설정)
+//  - manager         : 검증 대상 Body Column (colMerge = con_colMerge, upperColumn = con_upperColumn)
+//  - amount          : 일반 Column
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cColMerge = con_colMerge.getText();
+    let cUpperColumn = con_upperColumn.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 사업부 / 팀 Column 은 colMerge=true 고정, colMerge 와 upperColumn 은 담당자 Column 에 적용\n[확인] (표시값 확인) 버튼으로 Column 별로 하나의 Cell 처럼 표시된 Row 범위 확인 (담당자 값이 이어지는 Row 2-3 / Row 4-5 / Row 8-9 의 분리 여부)"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="division" name="사업부" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="team" name="팀" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="manager" name="담당자" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="amount" name="실적" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowPattern, false);
+
+    // 검증 대상 Column 속성
+    let attrColMerge = (cColMerge === '') ? '' : ' colMerge="' + cColMerge + '"';
+    let attrUpper = (cUpperColumn === '') ? '' : ' upperColumn="' + cUpperColumn + '"';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" defaultCellHeight="24" style="width:460px;height:330px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column1" value="사업부"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column2" value="팀"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column3" value="담당자"></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column4" value="실적"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="division" value="" colMerge="true"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="team" value="" colMerge="true"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="manager" value=""' + attrColMerge + attrUpper + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="amount" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 화면에 렌더링된 Body Row 목록 (tr, Row 인덱스)
+scwin.getDisplayedRows = function () {
+    let arr = [];
+    let tbody = document.querySelector("#" + target1.id + "_body_tbody");
+    if (!tbody) {
+        return arr;
+    }
+    let topRowIndex = target1.getTopRowIndex();
+    let dataLength = target1.getDataLength();
+    let trList = Array.prototype.filter.call(tbody.children, function (tr) {
+        return tr.tagName === "TR" && tr.style.display !== "none" && tr.querySelector("td[data-col_id]");
+    });
+    for (let i = 0; i < trList.length; i++) {
+        let rowIndex = topRowIndex + i;
+        if (rowIndex >= dataLength) {
+            break;
+        }
+        arr.push({ "tr" : trList[i], "rowIndex" : rowIndex });
+    }
+    return arr;
+}
+
+
+
+// 전체 Row 실측 : 세로 가상 렌더링으로 화면에 보이는 Row 만 DOM 이 있을 수 있으므로
+//  - 현재 화면의 Row 를 먼저 측정하고, 화면 밖 Row 는 setTopRowIndex 로 이동해 측정한 뒤 원래 위치로 복귀
+//  - DOM 과 Row 인덱스 대응은 실적 Cell 표시값과 getCellData 값이 같은지로 확인 (다르면 측정 불가로 남김)
+scwin.measureAllRows = function (fnMeasure) {
+    let result = [];
+    let curTop = target1.getTopRowIndex();
+    let dataLength = target1.getDataLength();
+
+    let collect = function () {
+        let rows = scwin.getDisplayedRows();
+        for (let i = 0; i < rows.length; i++) {
+            let rowIndex = rows[i].rowIndex;
+            if (result[rowIndex]) {
+                continue;
+            }
+            let amountTd = rows[i].tr.querySelector("td[data-col_id='amount']");
+            if (!amountTd || amountTd.textContent !== String(target1.getCellData(rowIndex, "amount"))) {
+                continue;
+            }
+            result[rowIndex] = { "value" : fnMeasure(rows[i].tr) };
+        }
+    };
+
+    collect();
+    for (let r = 0; r < dataLength; r++) {
+        if (!result[r]) {
+            target1.setTopRowIndex(r, true);
+            collect();
+        }
+    }
+    if (curTop >= 0 && target1.getTopRowIndex() !== curTop) {
+        target1.setTopRowIndex(curTop, true);
+    }
+    return result;
+}
+
+
+
+// validation 1 ~ 5 판정 출력 : Column 별로 하나의 Cell 처럼 표시된 Row 범위
+//  - Cell 표시값이 빈값이면 윗 Cell 과 하나의 Cell 처럼 표시된 것으로 보고 앞 범위에 이어 붙인다
+//  - 출력 : Column명 : 값(Row a~b) / 값(Row c) ...
+scwin.btn_checkDisplay_onclick = function () {
+    let arrCol = [ { id : "division", name : "사업부" }, { id : "team", name : "팀" }, { id : "manager", name : "담당자" } ];
+    let m = scwin.measureAllRows(function (tr) {
+        return arrCol.map(function (col) {
+            let td = tr.querySelector("td[data-col_id='" + col.id + "']");
+            return td ? td.textContent : "";
+        });
+    });
+    let dataLength = target1.getDataLength();
+    for (let c = 0; c < arrCol.length; c++) {
+        let groups = [];
+        for (let r = 0; r < dataLength; r++) {
+            if (!m[r]) {
+                groups.push({ text : "측정 불가", start : r, end : r });
+                continue;
+            }
+            let text = m[r].value[c];
+            if (text === "" && groups.length > 0) {
+                groups[groups.length - 1].end = r;
+            } else {
+                groups.push({ text : text, start : r, end : r });
+            }
+        }
+        let arrText = groups.map(function (g) {
+            return g.text + "(Row " + g.start + (g.end > g.start ? "~" + g.end : "") + ")";
+        });
+        wf_body_bottom.getObj("scwin").setReturnValue(arrCol[c].name + " : " + arrText.join(" / "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="colMerge (담당자)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_colMerge" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="upperColumn (담당자)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_upperColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[team (팀)]]></xf:label>
+												<xf:value><![CDATA[team]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[division (사업부)]]></xf:label>
+												<xf:value><![CDATA[division]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[division,team (사업부,팀)]]></xf:label>
+												<xf:value><![CDATA[division,team]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkDisplay_onclick" id="btn_checkDisplay" label="표시값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

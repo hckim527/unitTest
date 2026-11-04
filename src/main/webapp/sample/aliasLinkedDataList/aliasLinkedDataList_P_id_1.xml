@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[aliasLinkedDataList] id" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[let curID = '';
+let oldID = '';
+
+// 생성 중 발생한 JS 오류 건수 (예약어 id 설정 시 오류 발생 여부 확인용)
+scwin.gErrCount = 0;
+window.addEventListener("error", function () { scwin.gErrCount++; });
+
+
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[aliasLinkedDataList > P > id]<br/>AliasLinkedDataList 모듈의 ID 를 설정합니다.",
+    "validation" : [
+        "동일 Scope 에서 AliasLinkedDataList 모듈을 구별할 수 있는 유일값을 설정합니다.",
+        "속성명이나 메소드명과 같은 예약어를 설정할 경우 오류가 발생할 수 있습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // comp 초기 생성
+    scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    curID = con_ID.getText();
+
+    // 기존 target(alias) 삭제 후 원본 삭제
+    if (oldID !== '' && $p.getComponentById(oldID)) {
+        $p.data.remove(oldID);
+    }
+
+    if (typeof ldl_org !== 'undefined') {
+        $p.data.remove("ldl_org");
+    }
+
+    if (typeof gdl_org !== 'undefined') {
+        $p.data.remove("gdl_org");
+    }
+
+    if (typeof gridView1 !== 'undefined') {
+        gridView1.remove();
+    }
+
+    if (typeof gridView2 !== 'undefined') {
+        gridView2.remove();
+    }
+
+    scwin.gErrCount = 0;
+
+    // alias 원본 linkedDataList 생성 (gdl_org 기반)
+    $c.gcm.createOrginalDataList();
+    $c.gcm.createBasicLinkedDataList('', '', 'ldl_org');
+
+    // target 생성 (aliasLinkedDataList : scope 속성에 원본 linkedDataList ID 지정)
+    let strTarget = '<w2:aliasLinkedDataList ' + $c.gcm.getNameSpace() + ' id="' + curID + '" scope="ldl_org"></w2:aliasLinkedDataList>';
+
+    try {
+        $p.data.create(strTarget);
+    } catch (ex) {
+        scwin.gErrCount++;
+    }
+
+    oldID = curID;
+
+    // gridView 생성 (gridView1 : gdl_org, gridView2 : 설정한 ID 로 alias 바인딩)
+    $c.gcm.createOriginalGridView();
+
+    let strGridView2 = '';
+    strGridView2 += '<w2:gridView ' + $c.gcm.getNameSpace() + ' autoFit="allColumn" checkAllType="false" dataList="data:' + curID + '" rowStatusVisible="true" sortable="true" style="width:500px; height:200px;" focusMode="row" syncRowPositionOption="style">';
+    strGridView2 += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strGridView2 += '<w2:header style="" id="header1">';
+    strGridView2 += '<w2:row style="" id="row1">';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="column4" value="cat1"></w2:column>';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="column3" value="cat2"></w2:column>';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="column2" value="label"></w2:column>';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="column1" value="value"></w2:column>';
+    strGridView2 += '</w2:row>';
+    strGridView2 += '</w2:header>';
+    strGridView2 += '<w2:gBody style="" id="gBody1">';
+    strGridView2 += '<w2:row style="" id="row2">';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="cat1" value=""></w2:column>';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="cat2" value=""></w2:column>';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="label" value=""></w2:column>';
+    strGridView2 += '<w2:column width="70" style="" inputType="text" id="value" value=""></w2:column>';
+    strGridView2 += '</w2:row>';
+    strGridView2 += '</w2:gBody>';
+    strGridView2 += '</w2:gridView>';
+
+    scwin["gridView2"] = await $p.dynamicCreate("gridView2", "gridView", strGridView2, $c.gcm.getTestGroup());
+
+    scwin.btn_getComponent_onclick();
+}
+
+
+
+// validation 1, 2 판정 출력 : 설정한 ID / 원본 ID 로 각각 조회한 모듈 구분 + 생성 중 오류 건수
+scwin.btn_getComponent_onclick = function (e) {
+    let objAlias = $p.getComponentById(curID);
+    let objOrg = $p.getComponentById("ldl_org");
+    let strAlias = objAlias ? objAlias.getOption("pluginName") + " (scope : " + objAlias.getOption("scope") + ")" : "조회 실패";
+    let strOrg = objOrg ? objOrg.getOption("pluginName") : "조회 실패";
+
+    wf_body_bottom.getObj("scwin").setReturnValue("ID(" + curID + ") 로 조회 : " + strAlias + " / 원본 ID(ldl_org) 로 조회 : " + strOrg + " / 생성 중 오류 : " + scwin.gErrCount + "건");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group meta_snippetCategory="05_입출력테이블" meta_snippetName="5_02 2단테이블" meta_snippetKeyComponent="true" style="" id=""
+						class="tblbox">
+						<xf:group adaptive="layout" adaptiveThreshold="600" tagname="table" style="" id="" class="w2tb tbl">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+								<xf:group tagname="col" style="width:150px;"></xf:group>
+								<xf:group tagname="col" style=""></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" style="" class="w2tb_th">
+									<w2:textbox ref="" style="" userData2="" id="" label="ID" class=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" style="" class="w2tb_td">
+									<xf:select1 id="con_ID" chooseOption="" style="" submenuSize="auto" allOption="" disabled="false"
+										direction="auto" appearance="minimal" disabledClass="w2selectbox_disabled" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[target1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[aliasLinkedDataList1]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scope]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[setScope]]></xf:label>
+												<xf:value><![CDATA[4]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th ">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td">
+									<w2:attributes></w2:attributes>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" id="btn_getComponent" label="ID 조회" style="" ev:onclick="scwin.btn_getComponent_onclick"></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

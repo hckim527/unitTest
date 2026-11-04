@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[FAIL] gridView Column 에 type=number/email 설정 시 Cell 편집 진입마다 콘솔 오류 발생" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성(결함 재현)" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+				<w2:dataList baseNode="list" repeatNode="map" id="dlt_bind">
+					<w2:columnInfo>
+						<w2:column id="num" name="num" dataType="text"></w2:column>
+						<w2:column id="mail" name="mail" dataType="text"></w2:column>
+					</w2:columnInfo>
+					<w2:data use="true">
+						<w2:row>
+							<num><![CDATA[120]]></num>
+							<mail><![CDATA[kim@test.com]]></mail>
+						</w2:row>
+						<w2:row>
+							<num><![CDATA[35]]></num>
+							<mail><![CDATA[lee@test.com]]></mail>
+						</w2:row>
+					</w2:data>
+				</w2:dataList>
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script type="text/javascript" lazy="false"><![CDATA[
+// 콘솔 오류 수집 (엔진이 내부에서 catch 한 오류는 window.onerror 로 잡히지 않으므로 console.error 를 감싸서 수집)
+scwin.errList = [];
+
+scwin.onpageload = function () {
+    let orgError = console.error;
+    console.error = function () {
+        let msg = [];
+        for (let i = 0; i < arguments.length; i++) {
+            let arg = arguments[i];
+            if (arg && arg.message) {
+                msg.push((arg.name ? arg.name + ": " : "") + arg.message.split("\n")[0]);
+            } else if (typeof arg === "string") {
+                msg.push(arg.split("\n")[0]);
+            }
+        }
+        scwin.errList.push(msg.join(" "));
+        return orgError.apply(console, arguments);
+    };
+};
+
+// Cell 더블클릭(편집 진입) 후 직전 출력 이후 발생한 콘솔 오류 건수 출력
+//  - 오류는 oncelldblclick 보다 먼저 출력되므로 직전 출력 시점부터 누적된 건수로 판정
+scwin.lastIdx = 0;
+scwin.grd_target_oncelldblclick = function (row, col) {
+    let colId = grd_target.getColumnID(col);
+    setTimeout(function () {
+        let list = scwin.errList.slice(scwin.lastIdx);
+        scwin.lastIdx = scwin.errList.length;
+        let cnt = list.length;
+        let str = "[" + colId + " Cell 더블클릭] 기대 : 오류 0건  /  실제 : 오류 " + cnt + "건  → " + (cnt === 0 ? "PASS" : "FAIL");
+        if (cnt > 0) {
+            str += "\n    " + list[0];
+        }
+        scwin.setReturnValue(str);
+    }, 300);
+};
+
+// 리턴 값 초기화
+scwin.btn_clear_onclick = function (e) {
+    tbx_return.setValue("");
+};
+
+// 리턴 값 설정
+scwin.setReturnValue = function (strValue) {
+    tbx_return.setValue(tbx_return.getValue() + strValue);
+    tbx_return.setValue(tbx_return.getValue() + "\n");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group id="grp_root" style="padding:16px;">
+			<w2:textbox escape="false" id="lbl_title" style="font-size:16px;margin-top:16px;margin-bottom:16px;"
+				label="■ &lt;b&gt;[FAIL] text Column 에 type=&quot;number&quot; 또는 type=&quot;email&quot; 설정 시 Cell 을 더블클릭하여 편집 모드로 진입할 때마다 콘솔 오류 발생&lt;/b&gt;&lt;br/&gt;[확인 방법] num(type=number) 또는 mail(type=email) Column 의 Cell 을 더블클릭&lt;br/&gt;[기대] 편집 진입 시 콘솔 오류 0건&lt;br/&gt;[실제] 편집 진입마다 InvalidStateError(selectionStart) 콘솔 오류 1건 발생 (editType=&quot;focus&quot; 또는 type=tel/password/url 에서는 0건)"></w2:textbox>
+
+			<w2:textbox id="" label="num Column : inputType=text, type=number / mail Column : inputType=text, type=email (editType 미설정 = select)" style="background-color:#EAEEF1;font-size:16px;font-weight:bold;padding-left:5px;margin-bottom:8px;"></w2:textbox>
+			<w2:gridView id="grd_target" dataList="data:dlt_bind" style="width:420px;height:120px;" ev:oncelldblclick="scwin.grd_target_oncelldblclick">
+				<w2:header id="header1" style="">
+					<w2:row id="row1" style="">
+						<w2:column id="h_num" inputType="text" value="num (type=number)" width="200"></w2:column>
+						<w2:column id="h_mail" inputType="text" value="mail (type=email)" width="200"></w2:column>
+					</w2:row>
+				</w2:header>
+				<w2:gBody id="gBody1" style="">
+					<w2:row id="row2" style="">
+						<w2:column id="num" inputType="text" type="number" width="200"></w2:column>
+						<w2:column id="mail" inputType="text" type="email" width="200"></w2:column>
+					</w2:row>
+				</w2:gBody>
+			</w2:gridView>
+
+			<xf:group id="grp_bottom" style="">
+				<w2:textbox escape="false" id="" label="■ 리턴 값 확인" style="font-size:16px;font-weight:bold;margin-top:16px;margin-bottom:16px;"></w2:textbox>
+				<xf:group id="" style="display: flex;justify-content: flex-end">
+					<w2:button ev:onclick="scwin.btn_clear_onclick" id="btn_clear" label="clear" style="background-color:#005AB5;color:#FFFFFF;border-radius:4px;padding:5px;height:35px;"></w2:button>
+				</xf:group>
+				<xf:textarea style="border: 1px solid #C4CDD5;border-radius: 8px;width: 100%;height: 120px;" id="tbx_return"></xf:textarea>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

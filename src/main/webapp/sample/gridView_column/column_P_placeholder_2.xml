@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] placeholder" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : embeddedInput="true" 일때 편집 모드 전환 없이 표시, editPlaceholderChar 설정 시 미표시
+//  - 동작 inputType 8종, 포커스/값/입력, 선택/복사, select 비편집 표시는 _1 담당
+//  - embeddedInput 은 가이드상 동작 inputType(text, secret, textImage, textarea, spinner) Column 에만 설정
+//  - editPlaceholderChar 는 가이드상 동작 조건(text + editFormat, calendar + useEditFormat=true) Column 에만 설정
+scwin.tData = {
+    "description" : "[column > P > placeholder]<br/>Cell 값이 비어 있고 편집 모드일때 입력창에 표시할 PlaceHolder 텍스트를 설정합니다.",
+    "validation" : [
+        "embeddedInput='true' 이면 편집 모드로 전환하지 않아도 Cell 값이 비어 있으면 안내 문구가 표시됩니다.",
+        "editPlaceholderChar 속성을 설정하면 placeholder 속성으로 설정한 안내 문구는 표시되지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // embeddedInput 적용 Column (id / 헤더명)
+    "embedColumns" : [
+        { "id" : "ctext", "name" : "text" },
+        { "id" : "csecret", "name" : "secret" },
+        { "id" : "cimg", "name" : "textImage" },
+        { "id" : "carea", "name" : "textarea" },
+        { "id" : "cspin", "name" : "spinner" }
+    ],
+    // editPlaceholderChar 적용 Column (id / 헤더명)
+    "maskColumns" : [
+        { "id" : "cmask", "name" : "text(editFormat)" },
+        { "id" : "cdate", "name" : "calendar(useEditFormat)" }
+    ],
+    // 편집 진입 시 입력창 상태 기록 [colId]
+    "edit" : {}
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean "2" = true)
+    con_embeddedInput.setValue("2");
+    con_editPlaceholderChar.setValue("_");
+
+    // 편집 진입 시 입력창 상태 기록 (페이지 로딩 시 1회만 등록)
+    document.addEventListener("dblclick", scwin.onEditEnter, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - 모든 Body Column 에 placeholder="값을 입력하세요" 고정, Row 0 은 모든 Cell 빈 값
+//  - 미설정 옵션은 속성 자체를 넣지 않는다
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.edit = {};
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 모든 Column 에 placeholder=값을 입력하세요 고정, 모든 Cell 은 빈 값\n[전제] embeddedInput 은 text ~ spinner Column, editPlaceholderChar 는 text(editFormat), calendar(useEditFormat) Column 에만 설정\n[절차] 조건 선택 -> Target 재생성 -> text(editFormat), calendar(useEditFormat) Cell 더블클릭 -> Escape\n[확인] 셀 상태 확인 버튼"', '', 'label1');
+
+    let cEmbeddedInput = con_embeddedInput.getText();
+    let cEditPlaceholderChar = con_editPlaceholderChar.getValue();
+    let attrPh = ' placeholder="값을 입력하세요"';
+    let attrEmbed = attrPh + (cEmbeddedInput === '' ? '' : ' embeddedInput="' + cEmbeddedInput + '"');
+    let attrMask = attrPh + (cEditPlaceholderChar === '' ? '' : ' editPlaceholderChar="' + cEditPlaceholderChar + '"');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용, calendar 는 date / spinner 는 number)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="ctext" name="ctext" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="csecret" name="csecret" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cimg" name="cimg" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="carea" name="carea" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cspin" name="cspin" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="cmask" name="cmask" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cdate" name="cdate" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([{ "ctext" : "", "csecret" : "", "cimg" : "", "carea" : "", "cspin" : "", "cmask" : "", "cdate" : "" }], false);
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let arrCols = scwin.gVar.embedColumns.concat(scwin.gVar.maskColumns);
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:760px;height:120px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    for (let i = 0; i < arrCols.length; i++) {
+        strTarget += '<w2:column width="' + (i < 5 ? 90 : 140) + '" style="" inputType="text" id="h_' + arrCols[i].id + '" value="' + arrCols[i].name + '"></w2:column>';
+    }
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="90" style="" id="ctext" inputType="text"' + attrEmbed + '></w2:column>';
+    strTarget += '<w2:column width="90" style="" id="csecret" inputType="secret"' + attrEmbed + '></w2:column>';
+    strTarget += '<w2:column width="90" style="" id="cimg" inputType="textImage"' + attrEmbed + '></w2:column>';
+    strTarget += '<w2:column width="90" style="" id="carea" inputType="textarea"' + attrEmbed + '></w2:column>';
+    strTarget += '<w2:column width="90" style="" id="cspin" inputType="spinner" dataType="number"' + attrEmbed + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" id="cmask" inputType="text" editFormat="###-####"' + attrMask + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" id="cdate" inputType="calendar" dataType="date" viewType="icon" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" useEditFormat="true"' + attrMask + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 입력창 상태 표기 (안내 문구 표시 여부, 아니면 입력창 값)
+scwin.stateText = function (el) {
+    let ph = el.getAttribute("placeholder") || "";
+    if (ph !== "" && el.matches(":placeholder-shown")) {
+        return "안내 문구 표시";
+    }
+    return "안내 문구 없음(입력창 값 : " + el.value + ")";
+}
+
+
+
+// 셀 더블클릭(편집 진입) 시 editPlaceholderChar 적용 Column 의 편집 입력창 상태 기록
+scwin.onEditEnter = function (e) {
+    if (typeof target1 === 'undefined' || !target1 || !target1.render.contains(e.target)) {
+        return;
+    }
+    setTimeout(function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        let colId = target1.getFocusedColumnID();
+        let elems = document.querySelectorAll("[id^='G_" + target1.id + "_'][id*='_" + colId + "']");
+        for (let i = 0; i < elems.length; i++) {
+            let el = elems[i];
+            if ((el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.offsetWidth > 0) {
+                scwin.gVar.edit[colId] = scwin.stateText(el);
+                return;
+            }
+        }
+    }, 100);
+}
+
+
+
+// 설정 조건 -> 편집 전 Cell 안내 문구(embeddedInput 적용 Column) -> 편집 진입 시 입력창 상태(editPlaceholderChar 적용 Column) 출력
+//  - validation 1 : embeddedInput 설정값별 편집 전 Cell 내장 입력창의 안내 문구 표시
+//  - validation 2 : editPlaceholderChar 설정값별 편집 진입 시 입력창의 안내 문구 표시
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cEmbeddedInput = con_embeddedInput.getText();
+    let cEditPlaceholderChar = con_editPlaceholderChar.getValue();
+    bottom.setReturnValue("embeddedInput : " + (cEmbeddedInput === '' ? "(미설정)" : cEmbeddedInput) + " / editPlaceholderChar : " + (cEditPlaceholderChar === '' ? "(미설정)" : cEditPlaceholderChar));
+
+    // 편집 전 Cell (embeddedInput 적용 Column)
+    let arrView = [];
+    let cols = scwin.gVar.embedColumns;
+    for (let i = 0; i < cols.length; i++) {
+        let td = document.querySelector("td[id*='" + target1.id + "_cell_0_" + i + "']");
+        let el = td ? td.querySelector("input, textarea") : null;
+        arrView.push(cols[i].name + "=" + (el ? scwin.stateText(el) : "내장 입력창 없음(셀 표시값 : " + (td ? td.textContent : "") + ")"));
+    }
+    bottom.setReturnValue("편집 전 Cell : " + arrView.join(", "));
+
+    // 편집 진입 시 입력창 (editPlaceholderChar 적용 Column)
+    let arrEdit = [];
+    let mcols = scwin.gVar.maskColumns;
+    for (let i = 0; i < mcols.length; i++) {
+        if (scwin.gVar.edit[mcols[i].id]) {
+            arrEdit.push(mcols[i].name + "=" + scwin.gVar.edit[mcols[i].id]);
+        }
+    }
+    if (arrEdit.length > 0) {
+        bottom.setReturnValue("편집 진입 시 : " + arrEdit.join(", "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" label="label" nodeSet="data:gdl_boolean" ref="" style=""
+										submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editPlaceholderChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editPlaceholderChar" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>_</xf:label>
+												<xf:value>_</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

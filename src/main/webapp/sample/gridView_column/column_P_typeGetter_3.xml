@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] typeGetter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위
+//  _1 : 사용자 정의 함수 실행 시점 / 파라미터 객체 (colID, colIndex, rowIndex, realRowIndex, value)
+//  _2 : 반환 객체 (지원 inputType 별 표시와 동작, id 중복, options readOnly / disabled / class, itemSet, value 저장)
+//  _3 : 미지원 / 잘못된 반환 -> text, 다시 그릴 때 inputType 변경, setCellInputType() 불가 (본 샘플)
+//  - Body 전용 속성이므로 Body Column 에만 설정 (설정 영역 옵션 / "Body Column 에서만 동작" 항목 제외)
+//  - typeGetter 미설정은 setCellInputType() 동작 대조용
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > typeGetter]<br/>inputType='custom' 인 Column 에서 Cell 마다 적용할 inputType 과 속성을 동적으로 생성하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "반환 객체의 inputType : 'drilldown' 은 지원하지 않으며, 'custom' 이나 지원하지 않는 값을 설정하면 'text' 로 동작합니다.",
+        "사용자 정의 함수 설정 시, 객체값을 반환하지 않거나 잘못된 값을 반환하면 해당 Cell 은 inputType='text' 로 동작합니다.",
+        "사용자 정의 함수는 Body Cell 을 다시 그릴 때마다 실행되며, 이전과 다른 inputType 을 반환하면 해당 Cell 이 새 inputType 으로 다시 만들어집니다.",
+        "typeGetter 속성을 설정하면 GridView 의 setCellInputTypeCustom 속성은 false 로 동작하므로 setCellInputType() 메소드로 Cell 의 inputType 을 변경할 수 없습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  - Row 0 유형 = text, setCellInputTypeCustom = true (gdl_boolean 코드 "2"), typeGetter 설정
+    con_row0Type.setValue("text");
+    con_setCellInputTypeCustom.setValue("2");
+    con_typeGetter.setValue("scwin.fn_typeGetter");
+    par_rowIndex.setValue("1");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 유형 아이템 (유형 Column 의 select 아이템)
+//  - text ~ button : 지원 inputType 객체 반환
+//  - drilldown / custom / abc : 해당 inputType 값을 갖는 객체 반환 (abc = 지원하지 않는 값)
+//  - none : 객체를 반환하지 않음, string : 객체가 아닌 문자열 'select' 반환 (잘못된 값)
+scwin.typeItems = [
+    { "label" : "text", "code" : "text" },
+    { "label" : "select", "code" : "select" },
+    { "label" : "checkbox", "code" : "checkbox" },
+    { "label" : "calendar", "code" : "calendar" },
+    { "label" : "button", "code" : "button" },
+    { "label" : "drilldown", "code" : "drilldown" },
+    { "label" : "custom", "code" : "custom" },
+    { "label" : "지원하지 않는 값(abc)", "code" : "abc" },
+    { "label" : "반환 안 함", "code" : "none" },
+    { "label" : "문자열 반환", "code" : "string" }
+];
+
+// 부서 아이템 (select 반환 시 itemSet)
+scwin.deptItems = [
+    { "label" : "회계팀", "code" : "D01" },
+    { "label" : "영업팀", "code" : "D02" },
+    { "label" : "개발팀", "code" : "D03" }
+];
+
+// Row 1 ~ 4 데이터 (Row 0 유형은 con 값)
+scwin.rowData = [
+    { "name" : "정하늘", "type" : "", "val" : "D01" },
+    { "name" : "김민수", "type" : "select", "val" : "D02" },
+    { "name" : "최유진", "type" : "checkbox", "val" : "1" },
+    { "name" : "이서연", "type" : "calendar", "val" : "20260320" },
+    { "name" : "박지훈", "type" : "text", "val" : "D03" }
+];
+
+// typeGetter 호출 기록 [realRowIndex] = { count : 호출 횟수, ret : 마지막 반환 inputType }
+scwin.tgCall = {};
+
+
+
+// typeGetter 사용자 정의 함수 : Row 의 유형 Column 값(표시 Row 기준 rowIndex 로 조회)에 따라 반환
+scwin.fn_typeGetter = function (info) {
+    let type = dlt_bind.getCellData(info.rowIndex, "type");
+    let rec = scwin.tgCall[info.realRowIndex] || (scwin.tgCall[info.realRowIndex] = { "count" : 0, "ret" : "" });
+    rec.count++;
+    rec.ret = type;
+    let id = "val_" + info.realRowIndex + "_" + info.colIndex + "_" + type;
+    switch (type) {
+        case "none":
+            return;
+        case "string":
+            return "select";
+        case "select":
+            return { "id" : id, "inputType" : "select", "options" : {}, "itemSet" : { "nodeset" : "data:dlt_dept", "label" : "label", "value" : "code" } };
+        default:
+            return { "id" : id, "inputType" : type, "options" : {} };
+    }
+}
+
+
+
+// comp 생성
+//  - 유형 Body Column : select (아이템 = 반환 유형), 값 Body Column : inputType="custom", typeGetter = con 값
+//  - GridView setCellInputTypeCustom = con 값, sortable="true" sortEvent="onclick" (이름 Header 클릭 정렬로 Body 다시 그리기)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_type !== 'undefined' && dlt_type) {
+        $p.data.remove("dlt_type");
+    }
+    if (typeof dlt_dept !== 'undefined' && dlt_dept) {
+        $p.data.remove("dlt_dept");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 값 Column 은 inputType=custom, typeGetter 는 Row 의 유형 Column 값에 해당하는 반환값을 돌려줌 (Row 0 유형은 조건 값)\n[절차] 조건 선택 -> Target 재생성 -> (Cell 상태 확인)\n유형 Cell 을 다른 값으로 편집 -> 이름 Header 클릭(정렬로 Body 다시 그리기) -> (Cell 상태 확인)\n(setCellInputType) 실행 -> (Cell 상태 확인)\n[확인] 반환 유형별 값 Cell 형태 / 호출 횟수, setCellInputType 전후 Cell 형태 (typeGetter 미설정 + setCellInputTypeCustom=true 는 대조)"', '', 'label1');
+
+    scwin.tgCall = {};
+    scwin.rowData[0].type = con_row0Type.getValue();
+
+    let cSetCellInputTypeCustom = con_setCellInputTypeCustom.getText();
+    let cTypeGetter = con_typeGetter.getValue();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 유형 / 부서 아이템 DataList
+    let arrItemDlt = [["dlt_type", scwin.typeItems], ["dlt_dept", scwin.deptItems]];
+    for (let i = 0; i < arrItemDlt.length; i++) {
+        let strCode = '';
+        strCode += '<w2:dataList ' + strNameSpace + ' id="' + arrItemDlt[i][0] + '" baseNode="list" repeatNode="map">';
+        strCode += '<w2:columnInfo>';
+        strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+        strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+        strCode += '</w2:columnInfo>';
+        strCode += '<w2:data use="true"></w2:data>';
+        strCode += '</w2:dataList>';
+        $p.data.create(strCode);
+    }
+    dlt_type.setJSON(scwin.typeItems, false);
+    dlt_dept.setJSON(scwin.deptItems, false);
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="이름" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="type" name="유형" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="값" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // GridView / 검증 대상 Body Column 속성 (미설정은 속성 자체를 넣지 않는다)
+    let gridCList = $c.gcm.createCList({ setCellInputTypeCustom : cSetCellInputTypeCustom });
+    let colCList = $c.gcm.createCList({ inputType : "custom", typeGetter : cTypeGetter });
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + gridCList + ' sortable="true" sortEvent="onclick" dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column_name" value="이름"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column_type" value="유형 (반환값)" sortable="false"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column_val" value="값 (custom)" sortable="false"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="select" id="type" value="">';
+    strTarget += '<w2:choices><w2:itemset nodeset="data:dlt_type"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    strTarget += '</w2:column>';
+    strTarget += '<w2:column width="180" style="" ' + colCList + ' id="val" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 값 Cell 의 표시 형태 (화면에 그려진 요소 기준)
+scwin.getCellForm = function (td) {
+    if (!td) {
+        return "-";
+    }
+    let input = td.querySelector("input");
+    if (input) {
+        return input.type + "(" + (input.checked ? "체크" : "해제") + ")";
+    }
+    if (td.querySelector("button")) {
+        return "button";
+    }
+    if (td.querySelector(".w2grid_select")) {
+        return "select";
+    }
+    if (td.querySelector(".w2grid_input")) {
+        return "text";
+    }
+    if (td.textContent === "") {
+        return "빈 Cell";
+    }
+    return "텍스트";
+}
+
+
+
+// validation 1 ~ 5 판정 출력 : 표시 Row 별 유형 / typeGetter 호출 횟수 / 값 Cell 형태 / 표시값 / Cell 값
+scwin.btn_checkCell_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        let realRow = target1.getRealRowIndex(i);
+        let rec = scwin.tgCall[realRow] || { "count" : 0 };
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + i + "_2']");
+        bottom.setReturnValue("Row " + i + " (" + target1.getCellData(i, "name") + ") 유형 '" + target1.getCellData(i, "type") + "' : typeGetter 호출 " + rec.count + "회 / 값 Cell " + scwin.getCellForm(td)
+            + " / 표시값 '" + target1.getCellDisplayData(i, "val") + "' / getCellData '" + target1.getCellData(i, "val") + "'");
+    }
+}
+
+
+
+// validation 5 판정 출력 : setCellInputType() 실행 전후 값 Cell 형태
+scwin.btn_setCellInputType_onclick = function (e) {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_2']");
+    let before = scwin.getCellForm(td);
+    target1.setCellInputType(rowIndex, "val", { "inputType" : "button" });
+    td = document.querySelector("[id='" + target1.id + "_cell_" + rowIndex + "_2']");
+    wf_body_bottom.getObj("scwin").setReturnValue("setCellInputType(" + rowIndex + ", 'val', { inputType : 'button' }) -> 값 Cell " + before + " -> " + scwin.getCellForm(td));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="Row 0 유형 (반환값)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_row0Type" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[text]]></xf:label><xf:value><![CDATA[text]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[drilldown]]></xf:label><xf:value><![CDATA[drilldown]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[custom]]></xf:label><xf:value><![CDATA[custom]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[지원하지 않는 값(abc)]]></xf:label><xf:value><![CDATA[abc]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[반환 안 함]]></xf:label><xf:value><![CDATA[none]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[문자열 반환]]></xf:label><xf:value><![CDATA[string]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="setCellInputTypeCustom (GridView)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_setCellInputTypeCustom" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="typeGetter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_typeGetter" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[scwin.fn_typeGetter]]></xf:label><xf:value><![CDATA[scwin.fn_typeGetter]]></xf:value></xf:item>
+											<xf:item><xf:label></xf:label><xf:value></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="rowIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="par_rowIndex" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[0]]></xf:label><xf:value><![CDATA[0]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[1]]></xf:label><xf:value><![CDATA[1]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[2]]></xf:label><xf:value><![CDATA[2]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[3]]></xf:label><xf:value><![CDATA[3]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[4]]></xf:label><xf:value><![CDATA[4]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell" label="Cell 상태 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellInputType_onclick" id="btn_setCellInputType" label="setCellInputType" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

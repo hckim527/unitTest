@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] typeGetter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<style type="text/css"><![CDATA[
+/* typeGetter 반환 options.class 로 Cell(td) 에 추가되는 클래스 */
+.tc_tg_mark { background-color: #ffe08a !important; }
+]]></style>
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위
+//  _1 : 사용자 정의 함수 실행 시점 / 파라미터 객체 (colID, colIndex, rowIndex, realRowIndex, value)
+//  _2 : 반환 객체 (지원 inputType 별 표시와 동작, id 중복, options readOnly / disabled / class, itemSet, value 저장) (본 샘플)
+//  _3 : 미지원 / 잘못된 반환 -> text, 다시 그릴 때 inputType 변경, setCellInputType() 불가
+//  - Body 전용 속성이므로 Body Column 에만 설정 (설정 영역 옵션 / "Body Column 에서만 동작" 항목 제외)
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > typeGetter]<br/>inputType='custom' 인 Column 에서 Cell 마다 적용할 inputType 과 속성을 동적으로 생성하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "사용자 정의 함수 설정 시, 사용자 정의 함수가 반환한 객체의 inputType 과 options 값에 따라 Cell 이 표시되고 동작합니다.",
+        "반환 객체의 id : Cell 을 구분하는 ID 를 설정합니다. id 가 같은 Cell 은 먼저 만들어진 Cell 의 설정을 함께 사용하므로 Cell 마다 유일값을 설정하여야 합니다.",
+        "반환 객체의 inputType : Cell 에 적용할 inputType 속성값을 설정합니다.",
+        "반환 객체의 options : Cell 에 적용할 Column 속성을 속성 이름을 키로 하는 객체로 설정합니다.",
+        "반환 객체의 options : readOnly 를 설정하면 해당 Cell 의 읽기전용(readonly) 상태가 설정됩니다.",
+        "반환 객체의 options : disabled 를 설정하면 해당 Cell 의 비활성화(disabled) 상태가 설정됩니다.",
+        "반환 객체의 options : class 를 설정하면 Cell('td') 요소에 클래스가 추가됩니다.",
+        "반환 객체의 itemSet : inputType 이 'select','checkcombobox','autoComplete' 인 경우 아이템으로 바인딩할 DataList 정보를 nodeset, label, value 키로 설정합니다.",
+        "반환 객체의 value : value 속성값을 설정하면 Cell 값으로 적용되고 바인딩 된 DataList 에 저장됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_inputType.setValue("select");
+    con_itemSet.setValue("set");
+    con_id.setValue("unique");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 부서 아이템 (itemSet 의 nodeset)
+scwin.deptItems = [
+    { "label" : "회계팀", "code" : "D01" },
+    { "label" : "영업팀", "code" : "D02" },
+    { "label" : "개발팀", "code" : "D03" },
+    { "label" : "마케팅팀", "code" : "D04" }
+];
+
+// inputType 별 Cell 초기값(Row 0 ~ 4) / 반환 value(Row 3)
+scwin.dataByType = {
+    "text"          : { "rows" : ["서울", "부산", "대구", "인천", "광주"], "value" : "제주" },
+    "select"        : { "rows" : ["D01", "D02", "D01", "D04", "D02"], "value" : "D03" },
+    "checkcombobox" : { "rows" : ["D01", "D02", "D01", "D04", "D02"], "value" : "D03" },
+    "autoComplete"  : { "rows" : ["D01", "D02", "D01", "D04", "D02"], "value" : "D03" },
+    "checkbox"      : { "rows" : ["1", "0", "1", "0", "1"], "value" : "1" },
+    "radio"         : { "rows" : ["0", "0", "0", "0", "0"], "value" : "1" },
+    "button"        : { "rows" : ["조회", "저장", "삭제", "출력", "닫기"], "value" : "확인" },
+    "calendar"      : { "rows" : ["20260105", "20260212", "20260320", "20260415", "20260518"], "value" : "20261225" },
+    "link"          : { "rows" : ["공지사항", "자료실", "게시판", "FAQ", "문의"], "value" : "이벤트" },
+    "image"         : { "rows" : ["/cm/images/base/ico_calendar.svg", "/cm/images/base/ico_calendar.svg", "/cm/images/base/ico_calendar.svg", "/cm/images/base/ico_calendar.svg", "/cm/images/base/ico_calendar.svg"], "value" : "/cm/images/base/ico_link.svg" },
+    "textImage"     : { "rows" : ["홈페이지", "블로그", "카페", "쇼핑몰", "고객센터"], "value" : "커뮤니티" },
+    "textarea"      : { "rows" : ["서울시 강남구", "부산시 해운대구", "대구시 수성구", "인천시 연수구", "광주시 서구"], "value" : "제주시 연동" },
+    "spinner"       : { "rows" : ["1", "2", "3", "4", "5"], "value" : "9" },
+    "secret"        : { "rows" : ["1234", "5678", "2468", "1357", "9999"], "value" : "0000" }
+};
+
+// Row 별 반환 구성 설명 (설정 Column 표시)
+scwin.rowDesc = ["options.class=tc_tg_mark", "options.readOnly=true", "options.disabled=true", "value 반환", "options.textAlign=right"];
+
+// typeGetter 반환 구성 (comp_init 에서 con 값으로 설정)
+scwin.gVar = { "inputType" : "select", "itemSet" : "set", "id" : "unique" };
+
+
+
+// typeGetter 사용자 정의 함수
+//  - 모든 Row 에 con 의 inputType 반환, itemSet 은 con 설정 시에만 반환
+//  - id : 유일값 = Row 마다 다름, 중복 = 모든 Row 가 같은 id
+//  - Row 0 class / Row 1 readOnly / Row 2 disabled / Row 3 value / Row 4 textAlign
+scwin.fn_typeGetter = function (info) {
+    let type = scwin.gVar["inputType"];
+    let result = {
+        "id" : (scwin.gVar["id"] === "dup") ? "cell_same" : ("cell_" + info.realRowIndex + "_" + info.colIndex),
+        "inputType" : type,
+        "options" : {}
+    };
+    switch (info.realRowIndex) {
+        case 0: result.options["class"] = "tc_tg_mark"; break;
+        case 1: result.options["readOnly"] = true; break;
+        case 2: result.options["disabled"] = true; break;
+        case 3: result.value = scwin.dataByType[type].value; break;
+        case 4: result.options["textAlign"] = "right"; break;
+    }
+    if (scwin.gVar["itemSet"] === "set") {
+        result.itemSet = { "nodeset" : "data:dlt_dept", "label" : "label", "value" : "code" };
+    }
+    return result;
+}
+
+
+
+// comp 생성
+//  - 값 Body Column : inputType="custom", typeGetter="scwin.fn_typeGetter"
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_dept !== 'undefined' && dlt_dept) {
+        $p.data.remove("dlt_dept");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 값 Column 은 inputType=custom, typeGetter 가 모든 Row 에 반환 inputType 을 반환 (설정 Column 의 options / value 를 Row 별로 추가)\n아이템 D01=회계팀, D02=영업팀, D03=개발팀, D04=마케팅팀 / 반환 id 가 중복이면 모든 Row 가 같은 id\n[절차] 조건 선택 -> Target 재생성 -> (Cell 상태 확인), 값 Cell 클릭 / 더블클릭으로 편집 또는 체크, 버튼 클릭\n[확인] Row 별 Cell 형태 / 읽기전용 / 비활성화 / 추가 클래스 / 정렬 / 표시값 / 저장값, 편집 시 입력 방식(리스트, 달력 등)"', '', 'label1');
+
+    // 조건 설정
+    scwin.gVar["inputType"] = con_inputType.getValue();
+    scwin.gVar["itemSet"] = con_itemSet.getValue();
+    scwin.gVar["id"] = con_id.getValue();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 아이템 DataList (itemSet 용)
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_dept" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_dept.setJSON(scwin.deptItems, false);
+
+    // 바인딩 DataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="desc" name="설정" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="값" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    let arrRows = [];
+    let arrVal = scwin.dataByType[scwin.gVar["inputType"]].rows;
+    for (let i = 0; i < arrVal.length; i++) {
+        arrRows.push({ "desc" : scwin.rowDesc[i], "val" : arrVal[i] });
+    }
+    dlt_bind.setJSON(arrRows, false);
+
+    // 검증 대상 Body Column 속성
+    let colCList = $c.gcm.createCList({ inputType : "custom", typeGetter : "scwin.fn_typeGetter" });
+    let eList = $c.gcm.createEList(["onafteredit", "onviewchange", "oncellclick"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:480px;height:240px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column_desc" value="설정 (반환 구성)"></w2:column>';
+    strTarget += '<w2:column width="260" style="" inputType="text" id="column_val" value="값 (custom)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="desc" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="260" style="" ' + colCList + ' id="val" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// 값 Cell 의 표시 형태 (화면에 그려진 요소 기준)
+scwin.getCellForm = function (td) {
+    let input = td.querySelector("input");
+    if (input) {
+        return input.type + "(" + (input.checked ? "체크" : "해제") + ")";
+    }
+    if (td.querySelector("button")) {
+        return "button";
+    }
+    if (td.querySelector("a")) {
+        return "link";
+    }
+    if (td.querySelector("img.w2grid_image")) {
+        return "image";
+    }
+    if (td.querySelector(".w2grid_textarea")) {
+        return "textarea";
+    }
+    if (td.querySelector(".w2grid_select")) {
+        return "select";
+    }
+    if (td.querySelector(".w2grid_input")) {
+        return "text";
+    }
+    return "텍스트";
+}
+
+
+
+// validation 1 ~ 9 판정 출력 : Row 별 Cell 형태 / 읽기전용 / 비활성화 / 추가 클래스 / 정렬 / 표시값 / Cell 값 / DataList 저장값
+scwin.btn_checkCell_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let i = 0; i < target1.getRowCount(); i++) {
+        let td = document.querySelector("[id='" + target1.id + "_cell_" + i + "_1']");
+        let hasMark = (" " + td.className + " ").indexOf(" tc_tg_mark ") > -1;
+        bottom.setReturnValue("Row " + i + " (" + scwin.rowDesc[i] + ") : " + scwin.getCellForm(td)
+            + " / readOnly=" + target1.getCellReadOnly(i, "val") + ", disabled=" + target1.getCellDisabled(i, "val")
+            + " / class tc_tg_mark " + (hasMark ? "있음" : "없음") + " / 정렬 " + window.getComputedStyle(td).textAlign
+            + " / 표시값 '" + target1.getCellDisplayData(i, "val") + "' / getCellData '" + target1.getCellData(i, "val") + "' / DataList '" + dlt_bind.getCellData(i, "val") + "'");
+    }
+}
+
+
+
+// validation 1, 3, 8, 9 판정 출력 : 편집 완료 후 DataList 저장값
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("편집 완료 : Row " + rowIndex + " -> 표시값 '" + target1.getCellDisplayData(rowIndex, colIndex) + "' / DataList '" + dlt_bind.getCellData(rowIndex, "val") + "'");
+}
+
+
+
+// validation 1, 3 판정 출력 : checkbox / radio 클릭 시 저장값
+scwin.target1_onviewchange = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("onviewchange : Row " + info.rowIndex + " '" + info.oldValue + "' -> '" + info.newValue + "' / DataList '" + dlt_bind.getCellData(info.rowIndex, "val") + "'");
+}
+
+
+
+// validation 1, 3, 6 판정 출력 : 값 Cell 클릭 (button 클릭, disabled Cell 클릭 확인)
+scwin.target1_oncellclick = function (rowIndex, colIndex, colId) {
+    if (colId === "val") {
+        wf_body_bottom.getObj("scwin").setReturnValue("oncellclick : Row " + rowIndex);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="반환 inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[text]]></xf:label><xf:value><![CDATA[text]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[select]]></xf:label><xf:value><![CDATA[select]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[checkcombobox]]></xf:label><xf:value><![CDATA[checkcombobox]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[autoComplete]]></xf:label><xf:value><![CDATA[autoComplete]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[checkbox]]></xf:label><xf:value><![CDATA[checkbox]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[radio]]></xf:label><xf:value><![CDATA[radio]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[button]]></xf:label><xf:value><![CDATA[button]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[calendar]]></xf:label><xf:value><![CDATA[calendar]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[link]]></xf:label><xf:value><![CDATA[link]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[image]]></xf:label><xf:value><![CDATA[image]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[textImage]]></xf:label><xf:value><![CDATA[textImage]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[textarea]]></xf:label><xf:value><![CDATA[textarea]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[spinner]]></xf:label><xf:value><![CDATA[spinner]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[secret]]></xf:label><xf:value><![CDATA[secret]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="반환 itemSet" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_itemSet" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[설정 (data:dlt_dept, label, code)]]></xf:label><xf:value><![CDATA[set]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[반환 안 함]]></xf:label><xf:value><![CDATA[none]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="반환 id" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_id" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label><![CDATA[Cell 마다 유일값]]></xf:label><xf:value><![CDATA[unique]]></xf:value></xf:item>
+											<xf:item><xf:label><![CDATA[모든 Cell 같은 id]]></xf:label><xf:value><![CDATA[dup]]></xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell" label="Cell 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] skipKeyMoveEditMode" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - GridView keyMoveEditMode / moveKeyEditMode / moveKeyEditModeAll 은 동작 전제 조건 옵션 (셋 다 미설정 = 전제 미충족 대조)
+scwin.tData = {
+    "description" : "[column > P > skipKeyMoveEditMode]<br/>키보드로 Cell 을 이동할 때 GridView 의 편집 모드 자동 전환 관련 속성을 미적용할지 설정합니다.",
+    "validation" : [
+        "GridView 의 keyMoveEditMode, moveKeyEditMode, moveKeyEditModeAll 속성 중 하나가 true 인 경우에 동작합니다.",
+        "true 설정 시, GridView 의 keyMoveEditMode, moveKeyEditMode, moveKeyEditModeAll 속성을 현재 Column 에 적용하지 않습니다.",
+        "true 설정 시, Tab, Enter, 화살표키로 Cell 이동 시 포커스만 이동하고 편집 모드로 변경되지 않습니다.",
+        "false 설정 시, GridView 의 keyMoveEditMode, moveKeyEditMode, moveKeyEditModeAll 속성을 현재 Column 에 적용합니다.",
+        "미설정 시, GridView 의 keyMoveEditMode, moveKeyEditMode, moveKeyEditModeAll 속성을 현재 Column 에 적용합니다.",
+        "false 설정 시, Tab, Enter, 화살표키로 Cell 이동 시 각 속성의 설정에 따라 이동한 Cell 이 편집 모드로 변경됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_skipKeyMoveEditMode.setValue("true");
+    con_keyMoveEditMode.setValue("true");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name, memo : 일반 Body Column (대조) / dept : 검증 대상 Body Column (skipKeyMoveEditMode)
+//  - 모두 inputType=text (moveKeyEditMode 동작 inputType 조건 충족)
+//  - editModeEvent=ondblclick : 클릭은 포커스만 이동하여 키 입력 전 편집 모드가 아닌 상태로 시작
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cSkip = con_skipKeyMoveEditMode.getValue();
+    let cKeyMove = con_keyMoveEditMode.getValue();
+    let cMoveKey = con_moveKeyEditMode.getValue();
+    let cMoveKeyAll = con_moveKeyEditModeAll.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] dept 만 skipKeyMoveEditMode 대상, name 과 memo 는 일반 Column (대조)\nGridView editModeEvent=ondblclick 고정 (클릭은 포커스만 이동)\n[절차] Cell 클릭 -> Tab, Shift+Tab, Enter, 화살표키로 이동\n[확인] 키 입력마다 포커스 Cell 과 편집 모드 여부가 자동 출력됨"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // GridView DataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dept" name="dept" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="memo" name="memo" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "김민수", "dept" : "영업팀", "memo" : "서울 본사" },
+        { "name" : "이서연", "dept" : "인사팀", "memo" : "재택 근무" },
+        { "name" : "박지훈", "dept" : "개발팀", "memo" : "판교 지사" },
+        { "name" : "최유진", "dept" : "재무팀", "memo" : "부산 지사" }
+    ], false);
+
+    // GridView 편집 모드 자동 전환 속성
+    let attrGrid = '';
+    attrGrid += (cKeyMove === '') ? '' : ' keyMoveEditMode="' + cKeyMove + '"';
+    attrGrid += (cMoveKey === '') ? '' : ' moveKeyEditMode="' + cMoveKey + '"';
+    attrGrid += (cMoveKeyAll === '') ? '' : ' moveKeyEditModeAll="' + cMoveKeyAll + '"';
+
+    // dept Column 속성
+    let attrDept = (cSkip === '') ? '' : ' skipKeyMoveEditMode="' + cSkip + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" editModeEvent="ondblclick"' + attrGrid + ' style="width:500px;height:180px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column2" value="dept (대상)"></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column3" value="memo"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="dept" value=""' + attrDept + '></w2:column>';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="memo" value=""></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 키 이동 결과 자동 출력
+    //  - 편집 모드에서는 키 이벤트가 편집 입력창으로 가고 엔진이 전파를 끊을 수 있으므로 document capture-phase keyup 으로 포착
+    //  - 결과 확인 버튼을 두지 않는 이유 : 버튼 클릭 시 그리드 포커스·편집 상태가 해제됨
+    if (typeof scwin.keyMoveHandler === 'function') {
+        document.removeEventListener('keyup', scwin.keyMoveHandler, true);
+    }
+    scwin.keyMoveHandler = function (ev) {
+        let key = ev.keyCode;
+        // Tab(9) / Enter(13) / 화살표키(37~40) 일 때만 출력
+        if (key !== 9 && key !== 13 && (key < 37 || key > 40)) {
+            return;
+        }
+        let gridEl = document.getElementById(target1.id);
+        if (!gridEl || !gridEl.contains(ev.target)) {
+            return;
+        }
+        let keyName = { 9 : "Tab", 13 : "Enter", 37 : "ArrowLeft", 38 : "ArrowUp", 39 : "ArrowRight", 40 : "ArrowDown" }[key];
+        if (ev.shiftKey) {
+            keyName = "Shift+" + keyName;
+        }
+        // validation 1 ~ 6 판정 출력 : 이동 후 포커스 Cell 위치 + 편집 모드 여부
+        wf_body_bottom.getObj("scwin").setReturnValue("[" + keyName + "] 포커스 Cell : row " + target1.getFocusedRowIndex() + ", " + target1.getFocusedColumnID() + " / 편집 모드 : " + target1.isEditing());
+    };
+    document.addEventListener('keyup', scwin.keyMoveHandler, true);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="skipKeyMoveEditMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_skipKeyMoveEditMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="keyMoveEditMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_keyMoveEditMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="moveKeyEditMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_moveKeyEditMode" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="moveKeyEditModeAll" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_moveKeyEditModeAll" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[false]]></xf:label>
+												<xf:value><![CDATA[false]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

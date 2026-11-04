@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] noDisabledOnReadOnly" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : noDisabledOnReadOnly 가이드 전 항목 (con_noDisabledOnReadOnly, con_embeddedInput 2개)
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+//  - con_embeddedInput 은 select / calendar Column 에만 적용 (적용 전제 충족/미충족 대조), checkbox / radio Column 은 embeddedInput 미설정 고정
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > noDisabledOnReadOnly]<br/>읽기전용(readonly) 상태인 Cell 의 입력 요소를 비활성화(disabled) 상태로 표시할지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='checkbox','radio' 이거나, embeddedInput='true' 이고 inputType='select','calendar' 인 경우에 동작합니다.",
+        "true 설정 시, 읽기전용(readonly) 상태인 Cell 의 입력 요소가 비활성화(disabled) 되지 않고 읽기전용(readonly) 상태로 표시됩니다.",
+        "true 설정 시, 입력 요소를 클릭할 수 있으며 oncellclick 이벤트가 발생하지만 Cell 값은 변경되지 않습니다.",
+        "false 설정 시, 읽기전용(readonly) 상태인 Cell 의 입력 요소가 비활성화(disabled) 상태로 표시됩니다.",
+        "미설정 시, 읽기전용(readonly) 상태인 Cell 의 입력 요소가 비활성화(disabled) 상태로 표시됩니다.",
+        "Cell 이 비활성화(disabled) 상태이면 noDisabledOnReadOnly 속성값과 관계없이 입력 요소가 비활성화(disabled) 상태로 표시됩니다.",
+        "noDisabledOnReadOnly='true' 일때 inputType='checkbox','radio' 인 경우 CheckBox/Radio 요소에 'w2grid_default_readonly_nodisabled' 클래스가 추가됩니다.",
+        "noDisabledOnReadOnly='true' 일때 inputType='select' 인 경우 Cell('td') 요소에 'w2grid_default_readonly_nodisabled' 클래스가 추가되며 선택 목록이 열리지 않습니다.",
+        "noDisabledOnReadOnly='true' 일때 inputType='calendar' 인 경우 입력창에 'w2inputCalendar_readOnly' 클래스가 추가되며 달력이 열리지 않습니다.",
+        "기본 CSS 에는 'w2grid_default_readonly_nodisabled' 클래스에 투명도(opacity:0.3)가 정의되어 있어 입력 요소가 흐리게 표시됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 대상 Column (Body Column id)
+    "cols" : ["chk", "rad", "sel", "cal"],
+    // Row 상태 설명
+    "rowDesc" : ["Row 0 (일반)", "Row 1 (readOnly)", "Row 2 (readOnly + disabled)"],
+    // 직전 Cell 값 (클릭 후 값 변경 여부 비교용)
+    "prev" : null,
+    // 마지막 내장 select mousedown 이벤트
+    "selMousedown" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (noDisabledOnReadOnly=true, embeddedInput=true)
+    con_noDisabledOnReadOnly.setValue("2");
+    con_embeddedInput.setValue("2");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name : Row 상태 설명 Column (readOnly)
+//  - chk(checkbox) / rad(radio) / sel(select) / cal(calendar) : 검증 대상 Body Column, noDisabledOnReadOnly = con_noDisabledOnReadOnly
+//  - sel / cal 에는 embeddedInput = con_embeddedInput (미설정이면 적용 전제 미충족)
+//  - Row 0 : 일반 / Row 1 : setRowReadOnly(1, true) / Row 2 : setRowReadOnly(2, true) + setRowDisabled(2, true)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_code !== 'undefined' && dlt_code) {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Row 1 은 readOnly, Row 2 는 readOnly + disabled (생성 후 setRowReadOnly / setRowDisabled 로 설정), Row 0 은 일반 대조 Row\n[절차] Row 1 의 CheckBox, Radio, select, calendar 입력 요소 (calendar 는 달력 버튼 포함) 를 클릭\n[확인] 클릭마다 결과창에 oncellclick 발생과 Cell 값, select 목록 열기 차단 / 달력 열림 여부 출력, (상태 확인) 버튼으로 Row 별 disabled 와 클래스, 투명도 출력"', '', 'label1');
+
+    // 조건 설정 (gdl_boolean -> getText, 미설정은 속성 자체를 넣지 않는다)
+    let cNoDis = con_noDisabledOnReadOnly.getText();
+    let cEmb = con_embeddedInput.getText();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // select 아이템 dataList
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_code" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_code.setJSON([
+        { "label" : "서울", "code" : "SEL" },
+        { "label" : "부산", "code" : "PUS" },
+        { "label" : "대구", "code" : "TAE" }
+    ], false);
+
+    // 바인딩 dataList (cal 은 dataType=date)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="chk" name="chk" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="rad" name="rad" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="sel" name="sel" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="date"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : scwin.gVar.rowDesc[0], "chk" : "1", "rad" : "0", "sel" : "SEL", "cal" : "20261001" },
+        { "name" : scwin.gVar.rowDesc[1], "chk" : "0", "rad" : "0", "sel" : "PUS", "cal" : "20261015" },
+        { "name" : scwin.gVar.rowDesc[2], "chk" : "0", "rad" : "1", "sel" : "TAE", "cal" : "20261020" }
+    ], false);
+
+    // 대상 Column 속성
+    let attrNoDis = (cNoDis === '') ? '' : ' noDisabledOnReadOnly="' + cNoDis + '"';
+    let attrEmb = (cEmb === '') ? '' : ' embeddedInput="' + cEmb + '"';
+    let itemset = '<w2:choices><w2:itemset nodeset="data:dlt_code"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+
+    // 이벤트 바인딩
+    let eList = $c.gcm.createEList(["oncellclick"]);
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + eList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:820px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="Row 상태"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column2" value="chk (checkbox)"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column3" value="rad (radio)"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column4" value="sel (select)"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column5" value="cal (calendar)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" dataType="text" id="name" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="checkbox" dataType="text" id="chk"' + attrNoDis + '></w2:column>';
+    strTarget += '<w2:column width="110" style="" inputType="radio" dataType="text" id="rad"' + attrNoDis + '></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="select" dataType="text" id="sel"' + attrNoDis + attrEmb + '>' + itemset + '</w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="calendar" dataType="date" calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd" id="cal"' + attrNoDis + attrEmb + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    if (scwin["target1"]) {
+        // Row 1 : readOnly / Row 2 : readOnly + disabled
+        target1.setRowReadOnly(1, true);
+        target1.setRowReadOnly(2, true);
+        target1.setRowDisabled(2, true);
+        // 내장 select 클릭의 mousedown 을 capture 단계에서 기록
+        target1.render.addEventListener("mousedown", scwin.target1_mousedownCapture, true);
+    }
+
+    scwin.gVar.prev = scwin.getCellValues();
+}
+
+
+
+// 대상 Column 의 Row 별 Cell 값
+scwin.getCellValues = function () {
+    let vals = [];
+    for (let r = 0; r < dlt_bind.getRowCount(); r++) {
+        let row = {};
+        for (let i = 0; i < scwin.gVar.cols.length; i++) {
+            row[scwin.gVar.cols[i]] = dlt_bind.getCellData(r, scwin.gVar.cols[i]);
+        }
+        vals.push(row);
+    }
+    return vals;
+}
+
+
+
+// Body Cell td
+scwin.getBodyTD = function (rowIndex, colId) {
+    return document.querySelector("td[id*='" + target1.id + "_cell_" + rowIndex + "_" + target1.getColumnIndex(colId) + "']");
+}
+
+
+
+// 달력 팝업 열림 여부 (화면에 보이는 팝업 달력 존재)
+scwin.isCalendarOpen = function () {
+    let list = document.querySelectorAll(".w2inputCalendar_calendar");
+    for (let i = 0; i < list.length; i++) {
+        let el = list[i];
+        let cs = window.getComputedStyle(el);
+        if (cs.display !== "none" && cs.visibility !== "hidden" && el.offsetWidth > 0 && el.offsetHeight > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+
+// 내장 select 의 mousedown 기록 (native select 목록은 브라우저가 그리므로 DOM 으로 관측할 수 없어, 목록을 여는 mousedown 기본 동작의 취소 여부로 판정)
+scwin.target1_mousedownCapture = function (e) {
+    if (e.target && e.target.tagName === "SELECT") {
+        scwin.gVar.selMousedown = e;
+    }
+}
+
+
+
+// validation 2, 3, 8, 9 판정 출력 : oncellclick 발생 + 클릭 후 Cell 값 (직전값 대비) + select 목록 열기 차단 / 달력 열림 여부
+scwin.target1_oncellclick = function (rowIndex, columnIndex, columnId) {
+    if (scwin.gVar.cols.indexOf(columnId) < 0) {
+        return;
+    }
+    setTimeout(function () {
+        let before = scwin.gVar.prev[rowIndex][columnId];
+        let after = dlt_bind.getCellData(rowIndex, columnId);
+        let str = "oncellclick : Row " + rowIndex + " " + columnId + " / Cell 값 : " + before + " -> " + after;
+        if (columnId === "sel") {
+            let md = scwin.gVar.selMousedown;
+            str += " / 선택 목록 열기 차단 : " + (md ? md.defaultPrevented : false);
+            scwin.gVar.selMousedown = null;
+        } else if (columnId === "cal") {
+            str += " / 달력 열림 : " + scwin.isCalendarOpen();
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue(str);
+        scwin.gVar.prev = scwin.getCellValues();
+    }, 300);
+}
+
+
+
+// validation 1, 2, 4 ~ 10 판정 출력 : Column 별 Row 1 (readOnly) / Row 2 (readOnly + disabled) 입력 요소의 disabled, 클래스, 투명도
+//  - checkbox / radio : input.disabled, input 의 nodisabled 클래스, input opacity
+//  - select : 내장 select 요소 disabled, td 의 nodisabled 클래스, td opacity
+//  - calendar : 입력창 disabled, 입력창의 w2inputCalendar_readOnly 클래스
+scwin.btn_checkState_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    bottom.btn_clear_onclick();
+    let ndCls = "w2grid_default_readonly_nodisabled";
+    for (let i = 0; i < scwin.gVar.cols.length; i++) {
+        let colId = scwin.gVar.cols[i];
+        let parts = [];
+        for (let r = 1; r <= 2; r++) {
+            let td = scwin.getBodyTD(r, colId);
+            let input = td ? td.querySelector(colId === "sel" ? "select" : "input") : null;
+            if (!input) {
+                parts.push("Row " + r + " 입력 요소 없음");
+                continue;
+            }
+            let s = "Row " + r + " disabled=" + input.disabled;
+            if (colId === "chk" || colId === "rad") {
+                let has = input.classList.contains(ndCls);
+                s += " nodisabled 클래스=" + has;
+                if (has) {
+                    s += " opacity=" + window.getComputedStyle(input).opacity;
+                }
+            } else if (colId === "sel") {
+                let has = td.classList.contains(ndCls);
+                s += " td nodisabled 클래스=" + has;
+                if (has) {
+                    s += " opacity=" + window.getComputedStyle(td).opacity;
+                }
+            } else {
+                s += " w2inputCalendar_readOnly 클래스=" + input.classList.contains("w2inputCalendar_readOnly");
+            }
+            parts.push(s);
+        }
+        bottom.setReturnValue(colId + " : " + parts.join(" / "));
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="noDisabledOnReadOnly" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_noDisabledOnReadOnly" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput (sel, cal)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkState_onclick" id="btn_checkState"
+							label="상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

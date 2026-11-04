@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] orderByColumn" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : orderByColumn 가이드 전 항목 (con_orderByColumn 1개)
+//  - Header 전용 속성이므로 병합 Header Column(column_sales) 에만 설정 (설정 영역 옵션 / "Header Column 에서만 동작" 항목 제외)
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > orderByColumn]<br/>병합된 Header Column 을 클릭하여 정렬할 때 기준이 될 Body Column 을 설정합니다.",
+    "validation" : [
+        "Body Column ID 설정 시, 정렬 기준으로 사용할 Body Column 의 ID 를 설정합니다.",
+        "속성값을 설정하지 않거나 존재하지 않는 Body Column 의 ID 를 설정하면 Header Column 과 매칭되는 Body Column 이 적용됩니다.",
+        "여러 Body Column 에 걸쳐 병합된 Header Column 을 클릭했을 때 정렬 기준이 되는 Body Column 을 지정하는 용도로 사용합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (q3)
+    con_orderByColumn.setValue("q3");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 지점별 분기 실적 (Column 마다 오름차순 정렬 결과가 모두 다르도록 구성)
+scwin.rowData = [
+    { "branch" : "서울", "q1" : "320", "q2" : "270", "q3" : "190" },
+    { "branch" : "부산", "q1" : "150", "q2" : "510", "q3" : "260" },
+    { "branch" : "대구", "q1" : "480", "q2" : "130", "q3" : "350" },
+    { "branch" : "인천", "q1" : "210", "q2" : "440", "q3" : "120" },
+    { "branch" : "광주", "q1" : "390", "q2" : "360", "q3" : "470" }
+];
+
+
+
+// comp 생성
+//  - Header 1행 : 지점(rowSpan=2) / 판매 실적(colSpan=3, 검증 대상 병합 Header Column, orderByColumn = con 값)
+//  - Header 2행 : 1분기 / 2분기 / 3분기
+//  - Body : branch / q1 / q2 / q3  (판매 실적 Header 와 매칭되는 Body Column = q1)
+//  - 단일 클릭 정렬을 위해 GridView sortable="true", sortEvent="onclick" 고정
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] sortable=true, sortEvent=onclick 고정 / orderByColumn 은 판매 실적 Header(1분기~3분기 병합) 에만 설정\n[절차] 판매 실적 Header 클릭 (클릭마다 오름차순 -> 내림차순 -> 해제) -> 정렬 상태 확인\n[확인] 정렬 기준 Column 과 지점 표시 순서"', '', 'label1');
+
+    // 조건 설정 (미설정은 속성 자체를 넣지 않는다)
+    let cOrderByColumn = con_orderByColumn.getValue();
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="branch" name="branch" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="q1" name="q1" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="q2" name="q2" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="q3" name="q3" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // 병합 Header Column 속성
+    let attrOrderBy = (cOrderByColumn === '') ? '' : ' orderByColumn="' + cOrderByColumn + '"';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" sortable="true" sortEvent="onclick" showSortableImage="true" style="width:500px;height:230px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="column_branch" value="지점" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column width="360" style="" inputType="text" id="column_sales" value="판매 실적" colSpan="3"' + attrOrderBy + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column_q1" value="1분기"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column_q2" value="2분기"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column_q3" value="3분기"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="110" style="" inputType="text" id="branch" value=""></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="q1" value="" dataType="number"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="q2" value="" dataType="number"></w2:column>';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="q3" value="" dataType="number"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1, 2, 3 판정 출력 : 현재 정렬 기준 Body Column / 정렬 방향 + 화면에 표시된 지점 순서
+scwin.btn_checkSort_onclick = function (e) {
+    let arrStatus = target1.getSortableStatus() || [];
+    let strSort = (arrStatus.length === 0) ? "없음" : arrStatus.map(function (o) {
+        return o.colID + " (" + (o.sortOrder == 1 ? "오름차순" : "내림차순") + ")";
+    }).join(", ");
+
+    let arrBranch = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arrBranch.push(target1.getCellDisplayData(i, "branch"));
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("정렬 기준 Column : " + strSort + " / 지점 표시 순서 : " + arrBranch.join(", "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="orderByColumn" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_orderByColumn" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[q1]]></xf:label>
+												<xf:value><![CDATA[q1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[q2]]></xf:label>
+												<xf:value><![CDATA[q2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[q3]]></xf:label>
+												<xf:value><![CDATA[q3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[q9 (존재하지 않는 ID)]]></xf:label>
+												<xf:value><![CDATA[q9]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSort_onclick" id="btn_checkSort" label="정렬 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

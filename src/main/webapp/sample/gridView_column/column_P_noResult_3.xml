@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] noResult" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261102" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위 : 데이터 로드 / 메소드 / 데이터 변경으로 목록에 없는 값이 설정된 경우와 valueNotInList 의 관계
+//  - noResult 값별 편집 완료 처리는 column_P_noResult_1.xml
+//  - emptyItem / selectFirstOnEndEdit / selectSingleOnEnter 관련 항목은 column_P_noResult_2.xml
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > noResult]<br/>inputType='autoComplete' 인 Column 에서 사용자의 입력값과 일치하는 아이템이 없을 때 편집 완료 처리 방식을 설정합니다.",
+    "validation" : [
+        "keepValue 설정 시, 데이터 로드 시 Cell 의 초기값이 아이템 목록에 없어도 valueNotInList 속성값에 관계없이 Cell 값에 반영됩니다.",
+        "noResult 속성은 사용자가 값을 입력한 경우에 적용되며 메소드나 데이터 변경으로 목록에 없는 값이 설정된 경우의 처리는 valueNotInList 속성을 따릅니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_noResult.setValue("keepValue");
+    con_valueNotInList.setValue("default");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name : 안내 Column (readOnly) / city : 검증 대상 autoComplete Column (noResult / valueNotInList = con 값)
+//  - 아이템 : 서울(S), 부산(B), 대구(D), 대전(J) / Row 0 = S, Row 1 = 제주(목록에 없는 초기값), Row 2 = D
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단, 미설정 옵션은 속성 자체를 넣지 않는다)
+    let cNoResult = con_noResult.getValue();
+    let cValueNotInList = con_valueNotInList.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 아이템 : 서울(S), 부산(B), 대구(D), 대전(J) / Row 1 초기값 = 제주(목록에 없는 값)\n[절차] Target 재생성 -> Cell 값 확인 (데이터 로드)\nsetCellData (DataList 메소드, Row 0) / setJSON (데이터 변경, Row 2) 클릭 -> 목록에 없는 값 광주 설정\nRow 2 city 셀 더블클릭 -> 광주 입력 -> Enter (사용자 입력)\n[확인] 출력되는 Cell 값과 표시값"', '', 'label1');
+
+    let attrCol = '';
+    if (cNoResult !== '') {
+        attrCol += ' noResult="' + cNoResult + '"';
+    }
+    if (cValueNotInList !== '') {
+        attrCol += ' valueNotInList="' + cValueNotInList + '"';
+    }
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="city" name="city" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "홍길동", "city" : "S" },
+        { "name" : "김철수", "city" : "제주" },
+        { "name" : "이영희", "city" : "D" }
+    ], false);
+
+    // 정적 아이템
+    let strItems = '';
+    strItems += '<w2:choices>';
+    strItems += '<w2:item><w2:label>서울</w2:label><w2:value>S</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>부산</w2:label><w2:value>B</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>대구</w2:label><w2:value>D</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>대전</w2:label><w2:value>J</w2:value></w2:item>';
+    strItems += '</w2:choices>';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:400px;height:250px;"'
+        + ' ev:onafteredit="scwin.target1_onafteredit">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="text" id="column2" value="city (autoComplete)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="150" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="230" style="" inputType="autoComplete" id="city" value=""' + attrCol + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// Row 의 Cell 값 / 표시값 문구
+scwin.getCellText = function (rowIndex) {
+    return "Row " + rowIndex + " -> Cell 값 : '" + target1.getCellData(rowIndex, "city") + "' (표시 : '" + target1.getCellDisplayData(rowIndex, "city") + "')";
+};
+
+
+
+// 사용자 입력으로 편집 완료 시 Cell 값 / 표시값 출력 (validation 2 : noResult 적용 대조)
+scwin.target1_onafteredit = function (rowIndex, colIndex, value) {
+    wf_body_bottom.getObj("scwin").setReturnValue("사용자 입력 " + scwin.getCellText(rowIndex));
+};
+
+
+
+// 데이터 로드 후 전체 Row 의 Cell 값 / 표시값 출력 (validation 1 : Row 1 초기값 제주)
+scwin.btn_getCellValue_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        bottom.setReturnValue(scwin.getCellText(i));
+    }
+};
+
+
+
+// 메소드로 목록에 없는 값 설정 (validation 2 : Row 0 = 광주)
+scwin.btn_setCellData_onclick = function () {
+    dlt_bind.setCellData(0, "city", "광주");
+    wf_body_bottom.getObj("scwin").setReturnValue("setCellData " + scwin.getCellText(0));
+};
+
+
+
+// 데이터 변경으로 목록에 없는 값 설정 (validation 2 : Row 2 = 광주 로 데이터 교체)
+scwin.btn_setJSON_onclick = function () {
+    dlt_bind.setJSON([
+        { "name" : "홍길동", "city" : "S" },
+        { "name" : "김철수", "city" : "제주" },
+        { "name" : "이영희", "city" : "광주" }
+    ], false);
+    wf_body_bottom.getObj("scwin").setReturnValue("setJSON " + scwin.getCellText(2));
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="noResult" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_noResult" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>previous</xf:label>
+												<xf:value>previous</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>clear</xf:label>
+												<xf:value>clear</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>noEnd</xf:label>
+												<xf:value>noEnd</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>useData</xf:label>
+												<xf:value>useData</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>keepValue</xf:label>
+												<xf:value>keepValue</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>first</xf:label>
+												<xf:value>first</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="valueNotInList" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_valueNotInList" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>default</xf:label>
+												<xf:value>default</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>keepValue</xf:label>
+												<xf:value>keepValue</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>addItem</xf:label>
+												<xf:value>addItem</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getCellValue_onclick" id="btn_getCellValue" label="Cell 값 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellData_onclick" id="btn_setCellData" label="setCellData" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setJSON_onclick" id="btn_setJSON" label="setJSON" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

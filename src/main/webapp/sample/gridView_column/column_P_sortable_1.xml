@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] sortable" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 담당 범위
+//  _1 : 기본 동작 - GridView sortable(미설정/true/false) x Column sortable(미설정/true/false) x sortEvent(onclick/ondblclick)
+//  _2 : 정렬 제외 조건 - drilldown / expression / GroupBy / RowNum, RowStatus
+//  _3 : MultiLine
+//  - Header 전용 속성이므로 Header Column 에만 설정 (설정 영역 옵션 / "Header Column 에서만 동작" 항목 제외)
+// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > sortable]<br/>Header Column 을 클릭 또는 더블 클릭하여 데이터를 정렬할지 설정합니다.",
+    "validation" : [
+        "GridView 의 sortEvent 속성으로 데이터 정렬을 실행할 이벤트(클릭 또는 더블클릭)를 설정합니다.",
+        "미설정 시, GridView 의 sortable 속성값이 적용됩니다.",
+        "true 설정 시, Header Column 을 클릭 또는 더블 클릭 시 Body Column 의 데이터가 정렬됩니다.",
+        "true 설정 시, 정렬 가능한 Header Column 에 'w2grid_head_sortable' 클래스가 추가됩니다.",
+        "false 설정 시, Header Column 을 클릭 또는 더블 클릭해도 Body Column 의 데이터가 정렬되지 않습니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    //  - Column sortable = true (gdl_boolean 코드 "2"), GridView sortable = 미설정 ("1"), sortEvent = onclick
+    con_sortable.setValue("2");
+    con_gridSortable.setValue("1");
+    con_sortEvent.setValue("onclick");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 상품별 가격/재고 (Column 마다 오름차순 정렬 결과가 모두 다르도록 구성)
+//  - 상품명 오름차순 : 마우스, 모니터, 웹캠, 키보드, 헤드셋
+//  - 가격 오름차순   : 마우스, 웹캠, 키보드, 헤드셋, 모니터
+//  - 재고 오름차순   : 모니터, 웹캠, 키보드, 헤드셋, 마우스
+scwin.rowData = [
+    { "name" : "키보드", "price" : "45000", "stock" : "12" },
+    { "name" : "마우스", "price" : "18000", "stock" : "30" },
+    { "name" : "모니터", "price" : "210000", "stock" : "5" },
+    { "name" : "헤드셋", "price" : "67000", "stock" : "21" },
+    { "name" : "웹캠", "price" : "39000", "stock" : "8" }
+];
+
+// Header Column ID / 표시명 (판정 출력용)
+scwin.headerList = [
+    { "id" : "column_name", "label" : "상품명" },
+    { "id" : "column_price", "label" : "가격" },
+    { "id" : "column_stock", "label" : "재고" }
+];
+
+
+
+// comp 생성
+//  - Column sortable 은 가격 Header Column(column_price) 에만 con 값으로 설정
+//  - 상품명 / 재고 Header Column 은 Column sortable 미설정 (GridView sortable 을 따르는 대조 Column)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] Column sortable 은 가격 Header 에만 설정, 상품명/재고 Header 는 Column sortable 미설정 (GridView sortable 을 따름)\n[절차] 조건 선택 -> Target 재생성 -> 각 Header 를 sortEvent 에 맞게 클릭 또는 더블 클릭 -> 정렬 상태 확인\n[확인] Header 별 w2grid_head_sortable 클래스, 정렬 상태, 상품명 표시 순서"', '', 'label1');
+
+    // 조건 설정 (gdl_boolean 은 라벨로 분기, 미설정은 속성 자체를 넣지 않는다)
+    let cSortable = con_sortable.getText();
+    let cGridSortable = con_gridSortable.getText();
+    let cSortEvent = con_sortEvent.getValue();
+
+    let gridProps = { sortEvent : cSortEvent };
+    if (cGridSortable !== "") {
+        gridProps.sortable = cGridSortable;
+    }
+    let gridCList = $c.gcm.createCList(gridProps);
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let grp_comp = $c.gcm.getTestGroup();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="price" name="price" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="stock" name="stock" dataType="number"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON(scwin.rowData, false);
+
+    // 검증 대상 Header Column 속성
+    let attrSortable = (cSortable === '') ? '' : ' sortable="' + cSortable + '"';
+
+    // target 생성
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' ' + gridCList + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:420px;height:200px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column_name" value="상품명"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column_price" value="가격"' + attrSortable + '></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="column_stock" value="재고"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="name" value=""></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="price" value="" dataType="number" displayFormat="#,###"></w2:column>';
+    strTarget += '<w2:column width="140" style="" inputType="text" id="stock" value="" dataType="number"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1 ~ 5 판정 출력 : Header 별 w2grid_head_sortable 클래스 유무 + 정렬 상태 + 상품명 표시 순서
+scwin.btn_checkSort_onclick = function (e) {
+    let arrClass = scwin.headerList.map(function (h) {
+        let th = document.querySelector("th[id='" + target1.id + "_" + h.id + "']");
+        let hasClass = (th && th.classList.contains("w2grid_head_sortable")) ? "있음" : "없음";
+        return h.label + " " + hasClass;
+    });
+
+    let arrStatus = target1.getSortableStatus() || [];
+    let strSort = (arrStatus.length === 0) ? "없음" : arrStatus.map(function (o) {
+        return o.colID + " (" + (o.sortOrder == 1 ? "오름차순" : "내림차순") + ")";
+    }).join(", ");
+
+    let arrName = [];
+    for (let i = 0; i < dlt_bind.getRowCount(); i++) {
+        arrName.push(target1.getCellDisplayData(i, "name"));
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue("w2grid_head_sortable 클래스 : " + arrClass.join(", ") + " / 정렬 상태 : " + strSort + " / 상품명 표시 순서 : " + arrName.join(", "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="sortable" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_sortable" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="GridView sortable" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_gridSortable" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="GridView sortEvent" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_sortEvent" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[onclick]]></xf:label>
+												<xf:value><![CDATA[onclick]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[ondblclick]]></xf:label>
+												<xf:value><![CDATA[ondblclick]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkSort_onclick" id="btn_checkSort" label="정렬 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

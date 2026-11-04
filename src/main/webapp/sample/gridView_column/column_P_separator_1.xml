@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] separator" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261103" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 속성값(구분자 / 미설정) 별 Cell 값 저장·표시 + DataList 초기값의 구분자 처리
+//  - _2 : displayMode + delimiter 조합, checkcomboboxRangeSeparator 축약 표시
+//  - _3 : checkcomboboxUseEdit 직접 입력
+//  - "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외 (column 샘플 관례, 설정 영역 con 옵션 미생성, Body Column 에만 설정)
+scwin.tData = {
+    "description" : "[column > P > separator]<br/>inputType='checkcombobox' 인 Column 에서 여러 아이템이 선택되었을때 아이템을 구분할 구분자를 설정합니다.",
+    "validation" : [
+        "구분자 설정 시, 선택된 아이템을 구분할 구분자를 텍스트로 설정합니다.",
+        "구분자 설정 시, 선택된 아이템의 Value 값은 구분자로 이어져 Cell 값으로 저장되고, Label 값은 구분자로 이어져 Cell 에 표시됩니다.",
+        "속성값을 설정하지 않으면 ' '(Space)가 적용됩니다.",
+        "Cell 값은 separator 속성값으로 나뉘어 각 Value 값과 일치하는 아이템이 선택된 것으로 표시됩니다.",
+        "따라서 DataList 에 데이터를 설정할때도 separator 속성값으로 Value 값을 구분하여야 합니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_separator.setValue(",");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - name : 안내 Column (readOnly) / city : 검증 대상 Body Column (inputType=checkcombobox)
+//  - 아이템(Label / Value) : 서울 / SEL, 부산 / BSN, 대구 / DGU, 인천 / ICN
+//  - DataList 초기값 : Row 0 = 선택 없음, Row 1 = SEL, DGU 를 separator 로 연결, Row 2 = SEL, DGU 를 다른 구분자로 연결
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cSeparator = con_separator.getValue();
+
+    // DataList 초기값 구분자 : separator(미설정 시 공백) / 다른 구분자
+    let dataSeparator = (cSeparator === '') ? ' ' : cSeparator;
+    let otherSeparator = (dataSeparator === ',') ? '|' : ',';
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 아이템 : 서울(SEL), 부산(BSN), 대구(DGU), 인천(ICN)\nDataList 초기값 : Row 1 = SEL, DGU 를 separator 로 연결 (' + dataSeparator + '), Row 2 = SEL, DGU 를 다른 구분자로 연결 (' + otherSeparator + ')\n[절차] Row 0 city 셀 더블클릭 -> 아이템 2개 이상 체크 -> 셀 밖 클릭으로 리스트창 닫기\n[확인] Cell 값 확인 버튼 출력, Row 1, Row 2 셀 더블클릭 시 리스트창 체크 상태"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // GridView DataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="city" name="city" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "name" : "선택 없음", "city" : "" },
+        { "name" : "separator 로 연결", "city" : ["SEL", "DGU"].join(dataSeparator) },
+        { "name" : "다른 구분자로 연결", "city" : ["SEL", "DGU"].join(otherSeparator) }
+    ], false);
+
+    // city Column 속성
+    let attrCity = ' inputType="checkcombobox"';
+    attrCity += (cSeparator === '') ? '' : ' separator="' + cSeparator + '"';
+
+    // 정적 아이템
+    let strItems = '<w2:choices>';
+    strItems += '<w2:item><w2:label>서울</w2:label><w2:value>SEL</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>부산</w2:label><w2:value>BSN</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>대구</w2:label><w2:value>DGU</w2:value></w2:item>';
+    strItems += '<w2:item><w2:label>인천</w2:label><w2:value>ICN</w2:value></w2:item>';
+    strItems += '</w2:choices>';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:500px;height:180px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="300" style="" inputType="text" id="column2" value="city (checkcombobox)"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="300" style="text-align:left;" id="city" value=""' + attrCity + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+}
+
+
+
+// Row 별 Cell 값(getCellData) / 표시값(getCellDisplayData) / DataList 값 출력
+//  - validation 1 ~ 3 : Row 0 (아이템 선택 후) / validation 4, 5 : Row 1, Row 2 (DataList 초기값)
+scwin.btn_checkCell_onclick = function (e) {
+    let rowCnt = dlt_bind.getRowCount();
+    for (let i = 0; i < rowCnt; i++) {
+        wf_body_bottom.getObj("scwin").setReturnValue("Row " + i + " : Cell 값 '" + target1.getCellData(i, "city") + "' / 표시값 '" + target1.getCellDisplayData(i, "city") + "' / DataList '" + dlt_bind.getCellData(i, "city") + "'");
+    }
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="separator" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_separator" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[,]]></xf:label>
+												<xf:value><![CDATA[,]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[|]]></xf:label>
+												<xf:value><![CDATA[|]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[//]]></xf:label>
+												<xf:value><![CDATA[//]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="Cell 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
