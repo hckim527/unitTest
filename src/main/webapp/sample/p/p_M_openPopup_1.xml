@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "Url(필수) 파라미터로 팝업에 표시할 페이지의 URL 경로를 설정합니다.",
+        "options(필수) 파라미터로 팝업의 옵션을 JSON 객체로 설정합니다.",
+        "options.id(선택) 파라미터로 팝업의 ID 를 설정합니다.",
+        "options.id(선택) 파라미터 생략 시, 기본값 'ppo1' 로 동작합니다.",
+        "options.type(선택) 파라미터를 'browserPopup' 으로 설정하면, window.open() 을 사용하여 프로세스가 분리된 독립창(Window)으로 팝업을 생성하며 부모 화면에 종속되지 않고 팝업 위치를 자유롭게 움직일 수 있습니다.",
+        "options.type(선택) 파라미터를 'iframePopup' 으로 설정하면, 팝업을 호출한 화면에 iFrame 방식의 내부 팝업을 생성하며 부모 화면에 종속됩니다.",
+        "options.type(선택) 파라미터를 'wframePopup' 으로 설정하면, 팝업을 호출한 화면에 wFrame 방식의 내부 팝업을 생성하며 부모 화면에 종속됩니다.",
+        "options.type(선택) 파라미터를 'pageFramePopup' 으로 설정하면, 팝업을 호출한 화면에 pageFrame 방식의 내부 팝업을 생성하며 부모 화면에 종속됩니다.",
+        "options.type(선택) 파라미터 생략 시, 기본값 'browserPopup' 으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback, delay) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) setTimeout(callback, delay || 1500);
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+scwin.btn_openPopup_onclick = function () {
+    let id = par_id.getValue();
+    let type = par_type.getValue();
+
+    let options = { width: "500px", height: "300px", popupName: "openPopup 팝업" };
+    if (id !== "") options.id = id;
+    if (type !== "") options.type = type;
+
+    scwin.runOpenPopup([options], scwin.printResult);
+};
+
+
+
+// 팝업 안 페이지의 닫기 버튼 조회 (페이지 로드 확인용)
+scwin.closeBtnOf = function (pw) {
+    try {
+        if (pw.options.type === "browser") return pw.popupWin.document.getElementById("mf_btn_close");
+        let el = pw.popupWin.render;
+        let ifr = el.querySelector("iframe");
+        if (ifr) return ifr.contentDocument.getElementById("mf_btn_close");
+        return el.querySelector(".w2window_content [id$='_btn_close']");
+    } catch (e) {
+        return null;
+    }
+};
+
+
+
+scwin.isShown = function (el) {
+    return !!el && el.offsetWidth > 0 && el.offsetHeight > 0;
+};
+
+
+
+// 팝업 안 페이지 로드(닫기 버튼 표시)를 최대 5초 기다린 뒤 판정 출력
+scwin.printResult = function () {
+    let list = $p.getAllPopupList();
+    let pw = list[list.length - 1];
+    if (!pw || !pw.popupWin) {
+        scwin.out("팝업 생성 : false");
+        return;
+    }
+    let count = 0;
+    let wait = function () {
+        if (scwin.isShown(scwin.closeBtnOf(pw)) || count++ >= 50) {
+            scwin.printPopup(pw);
+        } else {
+            setTimeout(wait, 100);
+        }
+    };
+    wait();
+};
+
+
+
+// validation 1~9 판정 출력 (팝업 ID / 생성 방식 / 표시 페이지 / 부모 화면 종속 여부 / 타이틀·크기 / 페이지 로드)
+scwin.printPopup = function (pw) {
+    let popupId = pw.options.id;
+    let closeShown = scwin.isShown(scwin.closeBtnOf(pw));
+    if (pw.options.type === "browser") {
+        let url = "";
+        let title = "";
+        try {
+            url = pw.popupWin.location.pathname + pw.popupWin.location.search;
+            title = pw.popupWin.document.title;
+        } catch (e) {}
+        let innerCount = document.querySelectorAll(".w2popup_window").length;
+        scwin.out("팝업 ID : " + popupId + " / 생성 방식 : window.open() 독립창 / 주소 : " + url
+            + " / 부모 화면 내부 팝업 수 : " + innerCount + " / 창 제목 : " + title + " / 닫기 버튼 표시 : " + closeShown);
+    } else {
+        let el = pw.popupWin.render;
+        let frameEl = el ? el.querySelector(".w2window_content > *") : null;
+        let frameKind = frameEl ? frameEl.className.split(" ")[0] : "없음";
+        let titleEl = el ? document.getElementById(el.id + "_header_title") : null;
+        let r = el.getBoundingClientRect();
+        scwin.out("팝업 ID : " + popupId + " / 팝업 DOM id : " + el.id + " / 생성 방식 : 부모 화면 내부 " + frameKind + " / 표시 페이지 : " + pw.popupWin.options.src
+            + " / 부모 body 소속 : " + document.body.contains(el) + " / 타이틀 : " + (titleEl ? titleEl.textContent : "")
+            + " / 크기 : " + Math.round(r.width) + " x " + Math.round(r.height) + " / 닫기 버튼 표시 : " + closeShown);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.id" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_id" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[popup_1]]></xf:label><xf:value><![CDATA[popup_1]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[팝업_1]]></xf:label><xf:value><![CDATA[팝업_1]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[1popup]]></xf:label><xf:value><![CDATA[1popup]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[pop-up]]></xf:label><xf:value><![CDATA[pop-up]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[pop.up]]></xf:label><xf:value><![CDATA[pop.up]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[pop up]]></xf:label><xf:value><![CDATA[pop up]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.type" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[browserPopup]]></xf:label><xf:value><![CDATA[browserPopup]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[iframePopup]]></xf:label><xf:value><![CDATA[iframePopup]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[wframePopup]]></xf:label><xf:value><![CDATA[wframePopup]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[pageFramePopup]]></xf:label><xf:value><![CDATA[pageFramePopup]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

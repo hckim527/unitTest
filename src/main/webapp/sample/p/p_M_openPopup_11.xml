@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "options.windowMoveType(선택) 파라미터를 'restrict' 로 설정하면, 팝업을 드래그할때 팝업이 표시 영역 밖으로 나갈 때 영역 밖으로 나가지 않도록 영역 안쪽으로 이동합니다.",
+        "options.windowMoveType(선택) 파라미터를 'overflow' 로 설정하면, 팝업을 드래그할때 팝업이 표시 영역 밖으로 나갈 때 마우스 포인터 영역 밖으로 나간 시점의 위치에 고정합니다.",
+        "options.windowMoveType(선택) 파라미터 생략 시, 기본값 'restrict' 로 동작합니다.",
+        "options.minVisibleWindowPixel(선택) 파라미터로 options.windowMoveType 속성값이 'overflow' 일때 팝업이 표시 영역에서 보여질 최소한의 크기를 설정합니다.",
+        "options.minVisibleWindowPixel(선택) 파라미터 생략 시, 기본값 0 으로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    $c.gcm.createLabel('label="[전제] windowDragMove=true 고정 (팝업 전체가 드래그를 따라 이동)\n[절차] 팝업 타이틀바를 잡고 브라우저 오른쪽 끝까지 드래그한 뒤 놓습니다.\n[확인] 드롭하면 멈춘 위치(left, top, 오른쪽 경계까지 너비)와 표시 영역 안에 보이는 크기가 출력됩니다. 팝업 상태 확인 버튼으로 다시 확인할 수 있습니다."', '', 'label1');
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    window.addEventListener("mousedown", scwin.onDragStart, true);
+    window.addEventListener("mouseup", scwin.onDragEnd, true);
+};
+
+
+
+// 팝업 타이틀바(헤더)에서 마우스를 눌렀는지 기록
+scwin.dragging = false;
+scwin.onDragStart = function (e) {
+    let header = document.querySelector(".w2popup_window[id$='popup_1'] [id$='popup_1_header']");
+    scwin.dragging = !!(header && header.contains(e.target));
+};
+
+
+
+// 드롭 시 멈춘 위치 출력 (엔진의 드롭 처리 후 위치를 읽도록 지연)
+scwin.onDragEnd = function () {
+    if (!scwin.dragging) return;
+    scwin.dragging = false;
+    setTimeout(scwin.btn_status_onclick, 100);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback, delay) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) setTimeout(callback, delay || 1500);
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+// options.id 로 팝업 정보 조회 (Page Scope 적용 시 실행 ID 는 'mf_' 접두사가 붙음)
+scwin.findPopup = function (id) {
+    let list = $p.getAllPopupList();
+    for (let i = list.length - 1; i >= 0; i--) {
+        if ((list[i].options.org_id === id || list[i].options.id === id) && list[i].popupWin) return list[i];
+    }
+    return null;
+};
+
+
+
+// options.id 로 팝업 최상위 div 조회
+scwin.popupEl = function (id) {
+    return document.querySelector(".w2popup_window[id$='" + id + "']");
+};
+
+
+
+// 팝업 내부 요소(타이틀바 버튼 등) 조회
+scwin.popupPart = function (id, suffix) {
+    let el = scwin.popupEl(id);
+    return el ? document.getElementById(el.id + "_" + suffix) : null;
+};
+
+
+
+scwin.btn_openPopup_onclick = function () {
+    let windowMoveType = par_windowMoveType.getValue();
+    let minVisibleWindowPixel = par_minVisibleWindowPixel.getValue();
+
+    let options = { id: "popup_1", type: "wframePopup", left: "200px", top: "150px", width: "400px", height: "280px", popupName: "openPopup 팝업", windowDragMove: true };
+    if (windowMoveType !== "") options.windowMoveType = windowMoveType;
+    if (minVisibleWindowPixel !== "") options.minVisibleWindowPixel = Number(minVisibleWindowPixel);
+
+    scwin.runOpenPopup([options], scwin.printOpened, 500);
+};
+
+
+
+// 드래그 전 열린 위치 출력
+scwin.printOpened = function () {
+    let el = scwin.popupEl("popup_1");
+    if (!el) {
+        scwin.out("팝업 존재 : false");
+        return;
+    }
+    let r = el.getBoundingClientRect();
+    scwin.out("열린 위치 : left " + Math.round(r.left) + ", top " + Math.round(r.top));
+};
+
+
+
+// validation 1~5 판정 출력 (팝업 위치 / 표시 영역 안에 보이는 크기)
+// 멈춘 위치(left, top)와 함께, viewport 너비에 따라 달라지는 가로 위치를 비교할 수 있도록 화면 너비와 오른쪽 경계까지의 너비(viewport 너비 - 팝업 left)도 출력
+scwin.btn_status_onclick = function () {
+    let el = scwin.popupEl("popup_1");
+    if (!el) {
+        scwin.out("팝업 존재 : false");
+        return;
+    }
+    let r = el.getBoundingClientRect();
+    let vw = document.documentElement.clientWidth;
+    let vh = document.documentElement.clientHeight;
+    let visibleW = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0));
+    let visibleH = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
+    scwin.out("멈춘 위치 : left " + Math.round(r.left) + ", top " + Math.round(r.top) + " (화면 너비 " + vw + ") / 오른쪽 경계까지 너비 " + Math.round(vw - r.left) + " / 표시 영역 안 보이는 크기 : " + Math.round(visibleW) + " x " + Math.round(visibleH));
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.windowMoveType" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_windowMoveType" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[restrict]]></xf:label><xf:value><![CDATA[restrict]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[overflow]]></xf:label><xf:value><![CDATA[overflow]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.minVisibleWindowPixel" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_minVisibleWindowPixel" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[100]]></xf:label><xf:value><![CDATA[100]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_status_onclick" id="btn_status"
+							label="팝업 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

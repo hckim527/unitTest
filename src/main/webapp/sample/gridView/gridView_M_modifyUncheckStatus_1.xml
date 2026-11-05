@@ -60,7 +60,7 @@ scwin.comp_init = async function () {
 
     // 컬럼 구성 안내 라벨 (target 생성 전 가장 먼저 생성)
     // 숨김 컬럼(인덱스1 birth) 을 포함하여 인덱스가 매겨지므로 checkbox 대상 chk 는 인덱스 2
-    $c.gcm.createLabel('label="[전제] 컬럼 0:name(text) / 1:birth(text·숨김) / 2:chk(checkbox) / 3:rdo(radio) / 4:cst(custom). 숨김 컬럼(1) 도 포함해 인덱스 부여 -> chk 는 인덱스 2.\n체크 상태(바인딩 데이터 1/0): chk 체크=Row0,2,4 (미체크=Row1,3) / rdo(단일)=Row1 (미체크=Row0,2,3,4) / cst 체크셀=Row0,2 (Row1 text·Row3 radio·Row4 checkbox 는 미체크).\n[절차] columnInfo(인덱스) 와 status 선택 후 실행 -> 매 실행 전 전체 Row 를 U(갱신) 로 초기화한 뒤 미체크 Row 만 지정 status 로 일괄 변경.\n[확인] 각 Row 의 rowStatus 출력에서 미체크 Row 만 status 로 바뀌고 체크 Row 는 U 로 유지됨을 확인."', '', 'label1');
+    $c.gcm.createLabel('label="[전제] 컬럼 0:name(text) / 1:birth(text·숨김) / 2:chk(checkbox) / 3:rdo(radio) / 4:cst(custom). 숨김 컬럼(1) 도 포함해 인덱스 부여 -> chk 는 인덱스 2.\n체크 상태(바인딩 데이터 1/0): chk 체크=Row0,2,4 (미체크=Row1,3) / rdo(단일)=Row1 (미체크=Row0,2,3,4) / cst 체크셀=Row0,2 (Row1 text·Row3 radio·Row4 checkbox 는 미체크).\n[절차] columnInfo(인덱스) 와 status 선택 후 실행 -> 실행 전 초기화=U 이면 전체 Row 를 U(갱신) 로 초기화한 뒤 미체크 Row 만 지정 status 로 일괄 변경. 초기화 안 함 이면 현재 rowStatus(페이지 로딩 직후 R) 에서 실행.\n[확인] 각 Row 의 rowStatus 출력에서 미체크 Row 만 status 로 바뀌고 체크 Row 는 실행 전 상태로 유지됨을 확인."', '', 'label1');
 
     // GridView 와 바인딩할 DataList 동적 생성
     // - name  : text
@@ -158,17 +158,28 @@ scwin.comp_init = async function () {
 
 // modifyUncheckStatus 실행 : par_columnInfo(컬럼 인덱스) / par_status 로 호출
 //  - columnInfo 는 컬럼 인덱스(Number, 숨김 컬럼 포함) 로 전달
-//  - 매 실행 전 전체 Row 를 U 로 초기화 -> 미체크 Row 만 지정 status 로 바뀌고 체크 Row 는 U 유지됨을 확인
+//  - par_init=U(기본) : 매 실행 전 전체 Row 를 U 로 초기화 -> 미체크 Row 만 지정 status 로 바뀌고 체크 Row 는 U 유지됨을 확인
+//  - par_init=N : 초기화 없이 현재 rowStatus 에서 실행 -> 실행 전/후 rowStatus 출력 (status U 로의 변경 확인)
 //  - status 가 R/U/C/D/V 5개 값이 아니면(예: X) 메소드 미실행 -> 전체 U 유지
 scwin.btn_modifyUncheckStatus_onclick = function () {
     // columnInfo 는 컬럼 인덱스(Number) 로 전달
     let colIndex = Number(par_columnInfo.getValue());
     let status = par_status.getValue();
+    // 실행 전 초기화 : U(기본, 전체 Row 를 U 로 초기화) / N(초기화 안 함 -> status U 로 바뀌는 것 확인용)
+    let init = par_init.getValue();
 
-    // 매 실행 전 전체 Row 를 U(갱신) 상태로 초기화
     let len = dlt_bind.getRowCount();
-    for (let i = 0; i < len; i++) {
-        dlt_bind.modifyRowStatus(i, "U");
+    let before = [];
+    if (init === "U") {
+        // 매 실행 전 전체 Row 를 U(갱신) 상태로 초기화
+        for (let i = 0; i < len; i++) {
+            dlt_bind.modifyRowStatus(i, "U");
+        }
+    } else {
+        // 초기화 안 함 : 실행 전 rowStatus 를 함께 출력 (체크 Row 유지 대조)
+        for (let i = 0; i < len; i++) {
+            before.push(i + "=" + dlt_bind.getRowStatus(i));
+        }
     }
 
     // 체크되지 않은 Row 인덱스 (바인딩 데이터 1/0 값이 체크 상태 사전조건)
@@ -183,7 +194,13 @@ scwin.btn_modifyUncheckStatus_onclick = function () {
         after.push(i + "=" + dlt_bind.getRowStatus(i));
     }
 
-    let out = "modifyUncheckStatus(" + colIndex + ", " + status + ") -> 미체크 Row [" + uncheckedRows.join(", ") + "] / rowStatus(전체 U 초기화 후): " + after.join(" ");
+    let out = "modifyUncheckStatus(" + colIndex + ", " + status + ") -> 미체크 Row [" + uncheckedRows.join(", ") + "] / ";
+    if (init === "U") {
+        out += "rowStatus(전체 U 초기화 후): " + after.join(" ");
+    } else {
+        // validation 6 등 : 초기화 없이 실행 전 -> 실행 후 rowStatus 대조
+        out += "실행 전 rowStatus: " + before.join(" ") + " / 실행 후 rowStatus: " + after.join(" ");
+    }
     wf_body_bottom.getObj("scwin").setReturnValue(out);
 }
 
@@ -242,6 +259,21 @@ scwin.btn_modifyUncheckStatus_onclick = function () {
 										</xf:choices>
 									</xf:select1>
 								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="실행 전 초기화" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="par_init" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item><xf:label>전체 Row U 초기화</xf:label><xf:value>U</xf:value></xf:item>
+											<xf:item><xf:label>초기화 안 함</xf:label><xf:value>N</xf:value></xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th"></xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
 							</xf:group>
 						</xf:group>
 					</xf:group>

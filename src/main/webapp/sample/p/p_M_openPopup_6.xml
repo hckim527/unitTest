@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<style type="text/css"><![CDATA[
+/* options.className 확인용 클래스 */
+.w2popup_window.popup_custom { border: 1px solid #ff0000; }
+]]></style>
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "options.style(선택) 파라미터로 팝업의 CSS 스타일을 설정합니다.",
+        "options.style(선택) 파라미터를 설정하면 options.left, options.top, options.width, options.height 속성은 적용되지 않습니다.",
+        "options.style(선택) 파라미터 생략 시, 기본값 '' 로 동작합니다.",
+        "options.className(선택) 파라미터로 options.type 속성값이 'browserPopup' 이 아닐때 팝업의 최상위 'div' 요소의 'class' 속성에 적용될 클래스 이름을 설정합니다.",
+        "options.className(선택) 파라미터 생략 시, 기본값 '' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    $c.gcm.createLabel('label="[전제] options.left 50px, top 50px, width 500px, height 400px 를 항상 함께 설정합니다."', '', 'label1');
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback, delay) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) setTimeout(callback, delay || 1500);
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+// options.id 로 팝업 정보 조회 (Page Scope 적용 시 실행 ID 는 'mf_' 접두사가 붙음)
+scwin.findPopup = function (id) {
+    let list = $p.getAllPopupList();
+    for (let i = list.length - 1; i >= 0; i--) {
+        if ((list[i].options.org_id === id || list[i].options.id === id) && list[i].popupWin) return list[i];
+    }
+    return null;
+};
+
+
+
+// options.id 로 팝업 최상위 div 조회
+scwin.popupEl = function (id) {
+    return document.querySelector(".w2popup_window[id$='" + id + "']");
+};
+
+
+
+// 팝업 내부 요소(타이틀바 버튼 등) 조회
+scwin.popupPart = function (id, suffix) {
+    let el = scwin.popupEl(id);
+    return el ? document.getElementById(el.id + "_" + suffix) : null;
+};
+
+
+
+scwin.rectStr = function (el) {
+    let r = el.getBoundingClientRect();
+    return "left " + Math.round(r.left + window.scrollX) + ", top " + Math.round(r.top + window.scrollY) + " / 크기 : " + Math.round(r.width) + " x " + Math.round(r.height);
+};
+
+scwin.btn_openPopup_onclick = function () {
+    let type = par_type.getValue();
+    let style = par_style.getValue();
+    let className = par_className.getValue();
+
+    let options = { id: "popup_1", type: type, left: "50px", top: "50px", width: "500px", height: "400px", popupName: "openPopup 팝업" };
+    if (style !== "") options.style = style;
+    if (className !== "") options.className = className;
+
+    scwin.runOpenPopup([options], scwin.printResult);
+};
+
+
+
+// validation 1~5 판정 출력
+scwin.printResult = function () {
+    let pw = scwin.findPopup("popup_1");
+    if (!pw) {
+        scwin.out("팝업 생성 : false");
+        return;
+    }
+    if (pw.options.type === "browser") {
+        let w = pw.popupWin;
+        scwin.out("모니터 기준 위치 : screenX " + w.screenX + ", screenY " + w.screenY + " / 크기 : " + w.innerWidth + " x " + w.innerHeight + " / 부모 화면 팝업 div : " + !!scwin.popupEl("popup_1"));
+    } else {
+        let el = scwin.popupEl("popup_1");
+        scwin.out("위치 : " + scwin.rectStr(el) + " / border : " + window.getComputedStyle(el).borderTop + " / class : " + el.className);
+    }
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.type" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[wframePopup]]></xf:label><xf:value><![CDATA[wframePopup]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[browserPopup]]></xf:label><xf:value><![CDATA[browserPopup]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.style" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_style" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[left:600px; top:100px; width:700px; height:200px;]]></xf:label><xf:value><![CDATA[left:600px; top:100px; width:700px; height:200px;]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[width:300px; height:150px;]]></xf:label><xf:value><![CDATA[width:300px; height:150px;]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.className" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_className" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[popup_custom]]></xf:label><xf:value><![CDATA[popup_custom]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

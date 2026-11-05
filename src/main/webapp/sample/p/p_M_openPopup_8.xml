@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "options.resizable(선택) 파라미터를 true 로 설정하면, options.type 속성값이 'browserPopup' 이 아닐때 팝업의 크기 조절이 가능합니다.",
+        "options.resizable(선택) 파라미터를 false 로 설정하면, options.type 속성값이 'browserPopup' 이 아닐때 팝업의 크기 조절이 불가능합니다.",
+        "options.resizable(선택) 파라미터 생략 시, 기본값 false 로 동작합니다.",
+        "options.useMaximize(선택) 파라미터를 true 로 설정하면, 팝업의 상단 타이틀바 영역을 더블 클릭했을때 팝업을 최대화합니다.",
+        "options.useMaximize(선택) 파라미터를 false 로 설정하면, 팝업의 상단 타이틀바 영역을 더블 클릭했을때 팝업을 최대화하지 않습니다.",
+        "options.useMaximize(선택) 파라미터 생략 시, 기본값 true 로 동작합니다.",
+        "options.useMaximize(선택) 파라미터는 options.type 속성값이 'browserPopup' 이 아닐때 적용됩니다.",
+        "options.disableCloseButton(선택) 파라미터를 true 로 설정하면, options.type 속성값이 'browserPopup' 이 아닐때 닫기 버튼을 비활성화합니다.",
+        "options.disableCloseButton(선택) 파라미터를 false 로 설정하면, options.type 속성값이 'browserPopup' 이 아닐때 닫기 버튼을 비활성화하지 않습니다.",
+        "options.disableCloseButton(선택) 파라미터 생략 시, 기본값 false 로 동작합니다.",
+        "options.closeAction(선택) 파라미터로 팝업이 닫히기 전 호출할 사용자 정의 함수 이름을 설정합니다.",
+        "options.closeAction(선택) 파라미터는 options.type 속성값이 'browserPopup' 이 아닐때 적용되며 사용자 정의 함수에서 true 를 반환하는 경우에 팝업이 닫힙니다.",
+        "options.closeAction(선택) 파라미터의 사용자 정의 함수에 매개변수로 '팝업의 렌더링 ID', '팝업의 부가정보 JSON 객체', '닫기 버튼 클릭여부' 등의 정보가 전달됩니다.",
+        "options.closeAction(선택) 파라미터 생략 시, 기본값 '' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    $c.gcm.createLabel('label="[절차] 팝업 오른쪽 아래 모서리 드래그(크기 조절), 타이틀바 더블 클릭(최대화), 타이틀바 닫기 버튼 클릭 또는 팝업 안 닫기 버튼 클릭\n[확인] 팝업을 열면 닫기 버튼 비활성화·크기 조절 핸들 표시 여부, 최대화되면 최대화 여부·화면 크기 일치를 출력합니다. 각 조작 후 팝업 상태 확인 버튼으로 크기·최대화 상태·팝업 존재 여부를 확인합니다. (최대화되어 버튼이 가려지면 타이틀바를 다시 더블 클릭해 복원)"', '', 'label1');
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback, delay) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) setTimeout(callback, delay || 1500);
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+// options.id 로 팝업 정보 조회 (Page Scope 적용 시 실행 ID 는 'mf_' 접두사가 붙음)
+scwin.findPopup = function (id) {
+    let list = $p.getAllPopupList();
+    for (let i = list.length - 1; i >= 0; i--) {
+        if ((list[i].options.org_id === id || list[i].options.id === id) && list[i].popupWin) return list[i];
+    }
+    return null;
+};
+
+
+
+// options.id 로 팝업 최상위 div 조회
+scwin.popupEl = function (id) {
+    return document.querySelector(".w2popup_window[id$='" + id + "']");
+};
+
+
+
+// 팝업 내부 요소(타이틀바 버튼 등) 조회
+scwin.popupPart = function (id, suffix) {
+    let el = scwin.popupEl(id);
+    return el ? document.getElementById(el.id + "_" + suffix) : null;
+};
+
+
+
+scwin.rectStr = function (el) {
+    let r = el.getBoundingClientRect();
+    return "left " + Math.round(r.left + window.scrollX) + ", top " + Math.round(r.top + window.scrollY) + " / 크기 : " + Math.round(r.width) + " x " + Math.round(r.height);
+};
+
+// closeAction : true 반환 (팝업 닫음)
+scwin.popup_closeAction = function (argRuntimeID, argJsnInfo) {
+    scwin.out("closeAction 호출 : argRuntimeID = " + argRuntimeID + " / isCloseButtonClick = " + argJsnInfo.isCloseButtonClick + " / 반환값 : true");
+    return true;
+};
+
+
+
+// closeAction : false 반환 (팝업 유지)
+scwin.popup_closeAction_false = function (argRuntimeID, argJsnInfo) {
+    scwin.out("closeAction 호출 : argRuntimeID = " + argRuntimeID + " / isCloseButtonClick = " + argJsnInfo.isCloseButtonClick + " / 반환값 : false");
+    return false;
+};
+
+
+
+scwin.btn_openPopup_onclick = function () {
+    let resizable = par_resizable.getValue();
+    let useMaximize = par_useMaximize.getValue();
+    let disableCloseButton = par_disableCloseButton.getValue();
+    let closeAction = par_closeAction.getValue();
+
+    let options = { id: "popup_1", type: "wframePopup", left: "100px", top: "100px", width: "450px", height: "300px", popupName: "openPopup 팝업" };
+    if (resizable !== "") options.resizable = (resizable === "true");
+    if (useMaximize !== "") options.useMaximize = (useMaximize === "true");
+    if (disableCloseButton !== "") options.disableCloseButton = (disableCloseButton === "true");
+    if (closeAction !== "") options.closeAction = closeAction;
+
+    scwin.runOpenPopup([options], scwin.printResult);
+};
+
+
+
+// validation 8~10 판정 출력 (닫기 버튼 비활성화 클래스) / validation 1~3 판정 출력 (크기 조절 핸들 표시 여부)
+scwin.printResult = function () {
+    let el = scwin.popupEl("popup_1");
+    let closeBtn = scwin.popupPart("popup_1", "close");
+    let handles = el ? el.querySelectorAll("[id^='" + el.id + "_resize']") : [];
+    let hasHandle = false;
+    for (let i = 0; i < handles.length; i++) {
+        if (handles[i].offsetWidth > 0 && handles[i].offsetHeight > 0) hasHandle = true;
+    }
+    scwin.out("닫기 버튼 비활성화 : " + (!!closeBtn && closeBtn.className.indexOf("w2window_close_disabled") > -1) + " / 크기 조절 핸들 : " + hasHandle);
+    scwin.watchMaximize(el);
+};
+
+
+
+// validation 4~7 판정 출력 (최대화 시 팝업이 화면을 덮어 부모 버튼을 누를 수 없으므로 class 변화 시점에 출력)
+scwin.watchMaximize = function (el) {
+    if (scwin.maxObserver) scwin.maxObserver.disconnect();
+    scwin.maxObserver = null;
+    if (!el) return;
+    let maximized = el.className.indexOf("w2window_maximized") > -1;
+    scwin.maxObserver = new MutationObserver(function () {
+        let now = el.className.indexOf("w2window_maximized") > -1;
+        if (now && !maximized) {
+            scwin.out("최대화 : true / 팝업 크기 = 화면 크기 : " + (el.offsetWidth === window.innerWidth && el.offsetHeight === window.innerHeight));
+        }
+        maximized = now;
+    });
+    scwin.maxObserver.observe(el, { attributes: true, attributeFilter: ["class"] });
+};
+
+
+
+// validation 1~3, 5, 8~14 판정 출력 (팝업 존재 / 크기 / 최대화 상태)
+scwin.btn_status_onclick = function () {
+    let el = scwin.popupEl("popup_1");
+    if (!el) {
+        scwin.out("팝업 존재 : false");
+        return;
+    }
+    scwin.out("팝업 존재 : true / 크기 : " + Math.round(el.offsetWidth) + " x " + Math.round(el.offsetHeight) + " / 최대화 상태 : " + (el.className.indexOf("w2window_maximized") > -1));
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.resizable" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_resizable" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.useMaximize" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_useMaximize" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.disableCloseButton" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_disableCloseButton" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.closeAction" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_closeAction" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[scwin.popup_closeAction (true 반환)]]></xf:label><xf:value><![CDATA[scwin.popup_closeAction]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[scwin.popup_closeAction_false (false 반환)]]></xf:label><xf:value><![CDATA[scwin.popup_closeAction_false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_status_onclick" id="btn_status"
+							label="팝업 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

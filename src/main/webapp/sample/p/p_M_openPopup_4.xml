@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "options.frameModal(선택) 파라미터로 팝업을 표시할 Frame 영역을 설정합니다.",
+        "options.frameModal(선택) 파라미터를 '' 로 설정하면, frameModal='true' 인 제일 가까운 상위 Frame 을 기준으로 팝업이 표시됩니다.",
+        "options.frameModal(선택) 파라미터를 'top' 으로 설정하면, 최상위 Frame 을 기준으로 팝업이 표시됩니다.",
+        "options.frameModal(선택) 파라미터를 'parent' 로 설정하면, 상위 Frame 의 부모 Frame 을 기준으로 팝업이 표시됩니다.",
+        "options.frameModal(선택) 파라미터를 'frame' 으로 설정하면, 상위 Frame 을 기준으로 팝업이 표시됩니다.",
+        "options.frameModal(선택) 파라미터를 Frame ID 로 설정하면, 특정 Frame 을 기준으로 팝업이 표시됩니다. (wFrame, TabControl 와 같이 Frame 구조인 컴포넌트를 설정)",
+        "options.frameModal(선택) 파라미터 생략 시, 기본값 '' 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    $c.gcm.createLabel('label="[전제] Frame 구성 : 메인 > wf_outer (frameModal=true) > wf_mid > wf_inner. 팝업은 wf_inner 화면에서 호출합니다. (modal=true, left 20px, top 20px 고정)\n[확인] 팝업 좌상단이 어느 Frame 의 좌상단 기준 20px 위치인지, modal 회색 차단 영역이 어느 Frame 인지 확인합니다."', '', 'label1');
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback, delay) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) setTimeout(callback, delay || 1500);
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+// options.id 로 팝업 정보 조회 (Page Scope 적용 시 실행 ID 는 'mf_' 접두사가 붙음)
+scwin.findPopup = function (id) {
+    let list = $p.getAllPopupList();
+    for (let i = list.length - 1; i >= 0; i--) {
+        if ((list[i].options.org_id === id || list[i].options.id === id) && list[i].popupWin) return list[i];
+    }
+    return null;
+};
+
+
+
+// options.id 로 팝업 최상위 div 조회
+scwin.popupEl = function (id) {
+    return document.querySelector(".w2popup_window[id$='" + id + "']");
+};
+
+
+
+// 팝업 내부 요소(타이틀바 버튼 등) 조회
+scwin.popupPart = function (id, suffix) {
+    let el = scwin.popupEl(id);
+    return el ? document.getElementById(el.id + "_" + suffix) : null;
+};
+
+
+
+scwin.rectStr = function (el) {
+    let r = el.getBoundingClientRect();
+    return "left " + Math.round(r.left + window.scrollX) + ", top " + Math.round(r.top + window.scrollY) + " / 크기 : " + Math.round(r.width) + " x " + Math.round(r.height);
+};
+
+scwin.btn_openPopup_onclick = function () {
+    let frameModal = par_frameModal.getValue();
+
+    let options = { id: "popup_1", type: "wframePopup", width: "300px", height: "150px", left: "20px", top: "20px", popupName: "frameModal 팝업", modal: true };
+    if (frameModal === "blank") {
+        options.frameModal = "";
+    } else if (frameModal !== "") {
+        options.frameModal = frameModal;
+    }
+
+    scwin.closeAllPopup();
+    setTimeout(function () {
+        // wf_inner 화면의 scwin.openPopup 이 $p.openPopup 실행
+        wf_outer.getWindow().wf_mid.getWindow().wf_inner.getWindow().scwin.openPopup(options);
+        setTimeout(scwin.printResult, 1500);
+    }, 300);
+};
+
+
+
+// validation 1~7 판정 출력 (팝업이 붙은 Frame / 그 Frame 좌상단 대비 팝업 좌상단 좌표 / modal 차단 영역)
+scwin.printResult = function () {
+    let el = document.querySelector(".w2popup_window[id$='popup_1']");
+    if (!el) {
+        scwin.out("팝업 생성 : false");
+        return;
+    }
+    let r = el.getBoundingClientRect();
+    let owner = el.parentElement;
+    let ownerName, baseLeft, baseTop;
+    if (owner === document.body) {
+        // 최상위 : 문서(화면) 좌상단 기준 문서 좌표
+        ownerName = "최상위(body)";
+        baseLeft = -window.scrollX;
+        baseTop = -window.scrollY;
+    } else {
+        let fr = owner.getBoundingClientRect();
+        ownerName = owner.id;
+        baseLeft = fr.left;
+        baseTop = fr.top;
+    }
+    let pos = "left " + Math.round(r.left - baseLeft) + ", top " + Math.round(r.top - baseTop);
+    let modalArea = "없음";
+    let frameModalEl = Array.prototype.filter.call(document.querySelectorAll(".w2_wframe_modal"), function (m) { return m.offsetWidth > 0; })[0];
+    let bodyModalEl = document.getElementById("_modal");
+    if (frameModalEl) {
+        let modalOwner = frameModalEl.closest(".w2wframe");
+        modalArea = modalOwner ? modalOwner.id.replace(/^.*(wf_[a-z]+)$/, "$1") : "없음";
+    } else if (bodyModalEl && window.getComputedStyle(bodyModalEl).display !== "none") {
+        modalArea = "최상위(브라우저)";
+    }
+    scwin.out("팝업 소속 Frame : " + ownerName + " / 기준 Frame 대비 위치 : " + pos + " / modal 차단 영역 : " + modalArea);
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<xf:group style="" id="grp_sample">
+					<w2:textbox style="" id="" label="■ 테스트 샘플" class="tc_tbx_label_1" escape="false"></w2:textbox>
+					<xf:group style="" id="grp_comp" class="tc_group_basic">
+						<w2:wframe id="wf_outer" frameModal="true" src="/sample/common_link/p_openPopup_frame_outer.xml" style="width:900px; height:360px; border:2px solid #3366cc;"></w2:wframe>
+					</xf:group>
+				</xf:group>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.frameModal" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_frameModal" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA['' (빈 문자열)]]></xf:label><xf:value><![CDATA[blank]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[top]]></xf:label><xf:value><![CDATA[top]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[parent]]></xf:label><xf:value><![CDATA[parent]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[frame]]></xf:label><xf:value><![CDATA[frame]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[wf_mid (Frame ID)]]></xf:label><xf:value><![CDATA[wf_mid]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[mf_wf_outer_wf_mid (실행 시점 Frame ID)]]></xf:label><xf:value><![CDATA[mf_wf_outer_wf_mid]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

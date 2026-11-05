@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "options.fixPosition(선택) 파라미터를 true 로 설정하면, options.type 속성값이 'browserPopup' 이 아닐때 팝업의 위치를 고정하여 드래그가 되지 않게 합니다.",
+        "options.fixPosition(선택) 파라미터를 false 로 설정하면, options.type 속성값이 'browserPopup' 이 아닐때 팝업의 위치를 고정하지 않아 드래그가 됩니다.",
+        "options.fixPosition(선택) 파라미터 생략 시, 기본값 false 로 동작합니다.",
+        "options.windowDragMove(선택) 파라미터를 true 로 설정하면, 팝업 전체가 마우스 드래그를 따라 움직입니다.",
+        "options.windowDragMove(선택) 파라미터를 false 로 설정하면, 팝업의 테두리만 드래그를 따라 움직이다 드롭 시 팝업이 이동합니다.",
+        "options.windowDragMove(선택) 파라미터 생략 시, 기본값 false 로 동작합니다.",
+        "options.windowDragMove(선택) 파라미터는 options.type 속성값이 'browserPopup' 이 아닐때 적용됩니다.",
+        "options.alwaysOnTop(선택) 파라미터를 true 로 설정하면, 여러개의 팝업이 겹쳐져 있을때 팝업을 클릭하면 클릭한 팝업을 상위에 표시합니다.",
+        "options.alwaysOnTop(선택) 파라미터를 false 로 설정하면, 여러개의 팝업이 겹쳐져 있을때 팝업을 클릭해도 클릭한 팝업을 상위에 표시하지 않습니다.",
+        "options.alwaysOnTop(선택) 파라미터 생략 시, 기본값 true 로 동작합니다.",
+        "options.alwaysOnTop(선택) 파라미터는 options.type 속성값이 'browserPopup' 이 아닐때 적용됩니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    $c.gcm.createLabel('label="[전제] openPopup 클릭 시 겹쳐진 wframePopup 2개(popup_1, popup_2)를 열고 두 팝업 위치를 출력합니다.\n[절차] 팝업 타이틀바를 드래그해 이동, 뒤쪽 popup_1 본문 클릭\n[확인] 드롭 시 드래그 중 위치·테두리 위치와 드롭 후 위치가 출력되고, 팝업 상태 확인 버튼으로 위치와 위에 표시된 팝업을 확인합니다."', '', 'label1');
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 타이틀바 드래그 추적: window capture 단계의 mouseup 은 엔진의 드롭 처리 전에 실행되므로 드래그 중 상태를 읽을 수 있다
+    window.addEventListener("mousedown", scwin.onDragStart, true);
+    window.addEventListener("mouseup", scwin.onDragEnd, true);
+};
+
+
+
+scwin.dragId = null;
+
+
+
+// 팝업 타이틀바(헤더)에서 마우스를 누르면 드래그 대상 팝업 id 기록
+scwin.onDragStart = function (e) {
+    scwin.dragId = null;
+    let win = e.target.closest ? e.target.closest(".w2popup_window") : null;
+    if (!win) return;
+    let header = document.getElementById(win.id + "_header");
+    if (header && header.contains(e.target)) scwin.dragId = win.id.replace(/^mf_/, "");
+};
+
+
+
+// validation 1~7 판정 출력 (드래그 중 팝업·테두리 위치 / 드롭 후 위치)
+scwin.onDragEnd = function () {
+    let id = scwin.dragId;
+    if (!id) return;
+    scwin.dragId = null;
+    let el = scwin.popupEl(id);
+    if (!el) return;
+    // windowDragMove=true 이면 테두리 요소가 크기 0 으로만 생성되어 화면에 보이지 않는다
+    let border = scwin.popupPart(id, "drag");
+    let borderStr = (border && border.offsetWidth > 0) ? "left " + parseInt(border.style.left, 10) + ", top " + parseInt(border.style.top, 10) : "표시 안 됨";
+    let during = "드래그 중 " + id + " : " + scwin.posStr(el) + " / 테두리 : " + borderStr;
+    setTimeout(function () {
+        scwin.out(during + " / 드롭 후 " + id + " : " + scwin.posStr(el));
+    }, 100);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback, delay) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) setTimeout(callback, delay || 1500);
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+// options.id 로 팝업 정보 조회 (Page Scope 적용 시 실행 ID 는 'mf_' 접두사가 붙음)
+scwin.findPopup = function (id) {
+    let list = $p.getAllPopupList();
+    for (let i = list.length - 1; i >= 0; i--) {
+        if ((list[i].options.org_id === id || list[i].options.id === id) && list[i].popupWin) return list[i];
+    }
+    return null;
+};
+
+
+
+// options.id 로 팝업 최상위 div 조회
+scwin.popupEl = function (id) {
+    return document.querySelector(".w2popup_window[id$='" + id + "']");
+};
+
+
+
+// 팝업 내부 요소(타이틀바 버튼 등) 조회
+scwin.popupPart = function (id, suffix) {
+    let el = scwin.popupEl(id);
+    return el ? document.getElementById(el.id + "_" + suffix) : null;
+};
+
+
+
+scwin.posStr = function (el) {
+    return "left " + parseInt(el.style.left, 10) + ", top " + parseInt(el.style.top, 10);
+};
+
+scwin.btn_openPopup_onclick = function () {
+    let fixPosition = par_fixPosition.getValue();
+    let windowDragMove = par_windowDragMove.getValue();
+    let alwaysOnTop = par_alwaysOnTop.getValue();
+
+    let optionList = [];
+    let pos = [["popup_1", "100px", "100px"], ["popup_2", "300px", "180px"]];
+    for (let i = 0; i < pos.length; i++) {
+        let options = { id: pos[i][0], type: "wframePopup", left: pos[i][1], top: pos[i][2], width: "400px", height: "280px", popupName: pos[i][0] };
+        if (fixPosition !== "") options.fixPosition = (fixPosition === "true");
+        if (windowDragMove !== "") options.windowDragMove = (windowDragMove === "true");
+        if (alwaysOnTop !== "") options.alwaysOnTop = (alwaysOnTop === "true");
+        optionList.push(options);
+    }
+
+    // 열린 직후 두 팝업 위치·겹침 상태 출력 (드래그·클릭 전 기준값)
+    scwin.runOpenPopup(optionList, scwin.btn_status_onclick, 500);
+};
+
+
+
+scwin.popupStatus = function (id) {
+    let el = scwin.popupEl(id);
+    if (!el) return id + " : 없음";
+    return id + " : " + scwin.posStr(el);
+};
+
+
+
+// 두 팝업이 겹친 영역의 가운데 지점에 실제로 보이는 팝업 id (z-index 절대값은 열기·클릭마다 누적 증가하므로 결과만 출력)
+scwin.topPopup = function () {
+    let el1 = scwin.popupEl("popup_1");
+    let el2 = scwin.popupEl("popup_2");
+    if (!el1 || !el2) return "없음";
+    let r1 = el1.getBoundingClientRect();
+    let r2 = el2.getBoundingClientRect();
+    let x = (Math.max(r1.left, r2.left) + Math.min(r1.right, r2.right)) / 2;
+    let y = (Math.max(r1.top, r2.top) + Math.min(r1.bottom, r2.bottom)) / 2;
+    let hit = document.elementFromPoint(x, y);
+    let win = hit && hit.closest ? hit.closest(".w2popup_window") : null;
+    return win ? win.id.replace(/^mf_/, "") : "없음";
+};
+
+
+
+// validation 1~3, 8~11 판정 출력 (두 팝업 위치 / 겹친 영역에서 위에 표시된 팝업)
+scwin.btn_status_onclick = function () {
+    scwin.out(scwin.popupStatus("popup_1") + " / " + scwin.popupStatus("popup_2") + " / 위에 표시된 팝업 : " + scwin.topPopup());
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.fixPosition" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_fixPosition" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.windowDragMove" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_windowDragMove" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.alwaysOnTop" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_alwaysOnTop" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[true]]></xf:label><xf:value><![CDATA[true]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[false]]></xf:label><xf:value><![CDATA[false]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_status_onclick" id="btn_status"
+							label="팝업 상태 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

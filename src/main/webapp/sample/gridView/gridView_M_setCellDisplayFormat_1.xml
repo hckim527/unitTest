@@ -98,7 +98,7 @@ scwin.comp_init = async function () {
         target1.remove();
     }
 
-    $c.gcm.createLabel('label="[전제] Body 컬럼은 inputType=custom + typeGetter(con_inputType 값) 이며 dataType 을 미리 부여(col0=text / col1=number(숨김) / col2=date / col3=time).\n[절차] (필요시) con_inputType 선택 -> Target 재생성 -> columnInfo / displayFormat 선택 -> setCellDisplayFormat 실행.\n[확인] 리턴창에 Cell inputType / 변경 전·후 표시값 / 동작 여부 출력."', '', 'label1');
+    $c.gcm.createLabel('label="[전제] Body 컬럼은 inputType=custom + typeGetter(con_inputType 값) 이며 dataType 을 미리 부여(col0=text / col1=number(숨김) / col2=date / col3=time).\n[절차] (필요시) con_inputType 선택 -> Target 재생성 -> columnInfo / displayFormat 선택 -> setCellDisplayFormat 실행.\n[확인] 리턴창에 Cell inputType / 변경 전·후 표시값 / 동작 여부 출력. Cell 단위 적용 범위 확인 버튼은 같은 Column 전체 Row 표시값, setCellDisplayFormatter 버튼은 사용자 함수 설정 후 표시값 출력."', '', 'label1');
 
     // dataList 생성 + 초기값 바인딩 (displayFormat 마스크가 가공할 원본 데이터)
     //  ※ createBasicDataList 는 col1~col4 (4컬럼) 스키마만 생성하므로 5컬럼 이상은 데이터가 유실됨([createDynamicDataList 4col limit]).
@@ -229,6 +229,52 @@ scwin.btn_overrideByCustom_onclick = function () {
         "setCellDisplayFormat 적용 표시값 : " + afterFormat
         + " -> setCellCustomFormatter 적용 후 표시값 : " + afterCustom
         + " | customFormatter 로 덮어써짐 : " + (afterFormat !== afterCustom));
+}
+
+
+// validation 13 판정 출력 : setCellDisplayFormat 은 'custom' Column 의 특정 Cell 에만 적용되는지
+//  같은 Column 의 전체 Row 표시값을 실행 전/후로 출력하여 지정 Row 만 바뀌는지 확인한다.
+scwin.getColumnDisp = function (columnIndex) {
+    let arr = [];
+    for (let i = 0; i < scwin.target1.getTotalRow(); i++) {
+        arr.push(scwin.getCellDisp(i, columnIndex));
+    }
+    return arr.join(" / ");
+};
+scwin.btn_cellScope_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let columnInfo = Number(par_columnInfo.getValue());
+    let displayFormat = par_displayFormat.getValue();
+
+    let before = scwin.getColumnDisp(columnInfo);
+    scwin.target1.setCellDisplayFormat(rowIndex, columnInfo, displayFormat);
+    let after = scwin.getColumnDisp(columnInfo);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCellDisplayFormat(" + rowIndex + ", " + columnInfo + ", '" + displayFormat + "')"
+        + " | Column 전체 Row 표시값 : " + before + " -> " + after);
+}
+
+
+
+// validation 3 판정 출력 : 특정 Cell 에 setCellDisplayFormatter() 로 사용자 함수가 설정된 경우 setCellDisplayFormat 이 적용되지 않는지
+scwin.myDisplayFormatter = function (data) {
+    return "[formatter] " + data;
+};
+scwin.btn_withDisplayFormatter_onclick = function () {
+    let rowIndex = Number(par_rowIndex.getValue());
+    let columnInfo = Number(par_columnInfo.getValue());
+    let displayFormat = par_displayFormat.getValue();
+
+    scwin.target1.setCellDisplayFormatter(rowIndex, columnInfo, "scwin.myDisplayFormatter");
+    let afterFormatter = scwin.getCellDisp(rowIndex, columnInfo);
+
+    scwin.target1.setCellDisplayFormat(rowIndex, columnInfo, displayFormat);
+    let afterFormat = scwin.getCellDisp(rowIndex, columnInfo);
+
+    wf_body_bottom.getObj("scwin").setReturnValue(
+        "setCellDisplayFormatter 적용 표시값 : " + afterFormatter
+        + " -> setCellDisplayFormat(" + rowIndex + ", " + columnInfo + ", '" + displayFormat + "') 실행 후 표시값 : " + afterFormat);
 }
 ]]></script>
 	</head>
@@ -403,6 +449,12 @@ scwin.btn_overrideByCustom_onclick = function () {
 						</w2:button>
 						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_overrideByCustom_onclick" id="btn_overrideByCustom"
 							label="setCellCustomFormatter 로 덮어쓰기 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_cellScope_onclick" id="btn_cellScope"
+							label="Cell 단위 적용 범위 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_withDisplayFormatter_onclick" id="btn_withDisplayFormatter"
+							label="setCellDisplayFormatter 설정 후 적용 확인" style="">
 						</w2:button>
 					</xf:group>
 				</xf:group>

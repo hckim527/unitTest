@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[p] openPopup" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261105" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[p > M > openPopup]<br/>지정한 옵션에 맞게 팝업을 생성하여 엽니다.",
+    "validation" : [
+        "options.dataObject(선택) 파라미터로 팝업에 전달할 데이터의 정보를 JSON 객체로 설정합니다.",
+        "options.dataObject(선택) 파라미터 생략 시, 기본값 undefined 로 동작합니다.",
+        "options.dataObject.type(선택) 파라미터로 팝업에 전달할 데이터의 종류를 'xml' 로 설정합니다.",
+        "options.dataObject.type(선택) 파라미터로 팝업에 전달할 데이터의 종류를 'string' 으로 설정합니다.",
+        "options.dataObject.type(선택) 파라미터로 팝업에 전달할 데이터의 종류를 'json' 으로 설정합니다.",
+        "options.dataObject.type(선택) 파라미터로 팝업에 전달할 데이터의 종류를 'array' 로 설정합니다.",
+        "options.dataObject.type(선택) 파라미터 생략 시, 기본값 undefined 로 동작합니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    $c.gcm.createCommonDatalist();
+
+    $c.gcm.createLabel('label="[전제] 팝업 화면은 $p.getParameter 에 이름 paramData 를 넘겨 받은 값을 표시합니다.\n[고정] dataObject.data 는 type 에 맞는 데이터, dataObject.name 은 paramData 로 설정\n[참고] 전달 데이터 : xml = employee XML 문서, string = 홍길동, json = name/dept 객체, array = 이름 3건 (dataObject.type 생략 시 json 데이터)"', '', 'label1');
+
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+scwin.popupUrl = "/sample/common_link/p_openPopup_popup.xml";
+
+
+
+scwin.out = function (str) {
+    wf_body_bottom.getObj("scwin").setReturnValue(str);
+};
+
+
+
+// 이전 테스트 팝업 정리 (내부 팝업을 정리했으면 true 반환)
+scwin.closeAllPopup = function () {
+    let list = $p.getAllPopupList().slice();
+    let closedInner = false;
+    for (let i = 0; i < list.length; i++) {
+        let pw = list[i].popupWin;
+        try {
+            if (pw && typeof pw.forceClose === "function") {
+                pw.forceClose();
+                closedInner = true;
+            } else if (pw && typeof pw.close === "function") {
+                pw.close();
+            }
+        } catch (e) {}
+    }
+    return closedInner;
+};
+
+
+
+// 이전 팝업 정리 후 openPopup 실행
+// (내부 팝업 정리는 비동기로 끝나므로 300ms 후 연다. 클릭 직후 5초 이내라 browserPopup 도 사용자 동작으로 처리됨)
+scwin.runOpenPopup = function (optionList, callback) {
+    let fn = function () {
+        for (let i = 0; i < optionList.length; i++) {
+            $p.openPopup(scwin.popupUrl, optionList[i]);
+        }
+        if (callback) callback();
+    };
+    if (scwin.closeAllPopup()) {
+        setTimeout(fn, 300);
+    } else {
+        fn();
+    }
+};
+
+
+
+// options.id 로 팝업 정보 조회 (Page Scope 적용 시 실행 ID 는 'mf_' 접두사가 붙음)
+scwin.findPopup = function (id) {
+    let list = $p.getAllPopupList();
+    for (let i = list.length - 1; i >= 0; i--) {
+        if ((list[i].options.org_id === id || list[i].options.id === id) && list[i].popupWin) return list[i];
+    }
+    return null;
+};
+
+
+
+// options.id 로 팝업 최상위 div 조회
+scwin.popupEl = function (id) {
+    return document.querySelector(".w2popup_window[id$='" + id + "']");
+};
+
+
+
+// 팝업 내부 요소(타이틀바 버튼 등) 조회
+scwin.popupPart = function (id, suffix) {
+    let el = scwin.popupEl(id);
+    return el ? document.getElementById(el.id + "_" + suffix) : null;
+};
+
+
+
+scwin.rectStr = function (el) {
+    let r = el.getBoundingClientRect();
+    return "left " + Math.round(r.left + window.scrollX) + ", top " + Math.round(r.top + window.scrollY) + " / 크기 : " + Math.round(r.width) + " x " + Math.round(r.height);
+};
+
+scwin.btn_openPopup_onclick = function () {
+    let type = par_type.getValue();
+    let dataType = par_dataType.getValue();
+    let options = { id: "popup_1", type: type, width: "560px", height: "320px", popupName: "dataObject 팝업" };
+    if (dataType !== "none") {
+        let dataObject = {};
+        if (dataType !== "") dataObject.type = dataType;
+        if (dataType === "xml") {
+            dataObject.data = WebSquare.xml.parse("<employee><name>홍길동</name><dept>개발팀</dept></employee>");
+        } else if (dataType === "string") {
+            dataObject.data = "홍길동";
+        } else if (dataType === "array") {
+            dataObject.data = ["홍길동", "김철수", "이영희"];
+        } else {
+            dataObject.data = { name: "홍길동", dept: "개발팀" };
+        }
+        dataObject.name = "paramData";
+        options.dataObject = dataObject;
+    }
+
+    scwin.runOpenPopup([options], scwin.printResult);
+};
+
+
+
+// validation 1~7 판정 출력 (팝업 화면이 $p.getParameter('paramData') 로 받은 값)
+// 팝업 화면이 값을 표시하면 바로 출력하고, 5초가 지나도 표시가 없으면 그 시점 상태를 출력
+scwin.printResult = function () {
+    let start = Date.now();
+    let check = function () {
+        let pw = scwin.findPopup("popup_1");
+        let txt = "";
+        if (pw) {
+            try {
+                let doc = (pw.options.type === "browser") ? pw.popupWin.document : document;
+                let el = doc.querySelector("[id$='tbx_param']");
+                txt = el ? el.textContent : "";
+            } catch (e) {}
+        }
+        if (txt === "" && Date.now() - start < 5000) {
+            setTimeout(check, 100);
+            return;
+        }
+        scwin.out(pw ? "팝업 수신 " + txt : "팝업 생성 : false");
+    };
+    check();
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+						<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+							meta_snippetName="5_02 2단테이블" style="">
+							<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+								<w2:attributes>
+									<w2:summary></w2:summary>
+								</w2:attributes>
+								<xf:group tagname="colgroup">
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+									<xf:group style="width:150px;" tagname="col"></xf:group>
+									<xf:group style="" tagname="col"></xf:group>
+								</xf:group>
+								<xf:group style="" tagname="tr">
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.type" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_type" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[wframePopup]]></xf:label><xf:value><![CDATA[wframePopup]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[browserPopup]]></xf:label><xf:value><![CDATA[browserPopup]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+									<xf:group class="w2tb_th" style="" tagname="th">
+										<w2:textbox class="" id="" label="options.dataObject.type" ref="" style="" userData2=""></w2:textbox>
+									</xf:group>
+									<xf:group class="w2tb_td" style="" tagname="td">
+										<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+												disabledClass="w2selectbox_disabled" id="par_dataType" ref="" style="" submenuSize="auto">
+											<xf:choices>
+												<xf:item><xf:label><![CDATA[dataObject 생략]]></xf:label><xf:value><![CDATA[none]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[]]></xf:label><xf:value><![CDATA[]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[xml]]></xf:label><xf:value><![CDATA[xml]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[string]]></xf:label><xf:value><![CDATA[string]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[json]]></xf:label><xf:value><![CDATA[json]]></xf:value></xf:item>
+												<xf:item><xf:label><![CDATA[array]]></xf:label><xf:value><![CDATA[array]]></xf:value></xf:item>
+											</xf:choices>
+										</xf:select1>
+									</xf:group>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_openPopup_onclick" id="btn_openPopup"
+							label="openPopup" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
