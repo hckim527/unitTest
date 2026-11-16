@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] width" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261116" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 본 샘플(_2) : 병합 Header(MultiLine) 의 width 결정 축 (같은 위치의 병합되지 않은 Header Column / Body Column)
+//  - 단일 Header 의 width 설정/미설정, 다른 영역 width 무시, autoFit, setColumnWidth 항목은 column_P_width_1 소유
+scwin.tData = {
+    "description" : "[column > P > width]<br/>Column 의 너비(Width)를 설정합니다.",
+    "validation" : [
+        "Header Column 이 병합 된 경우 병합된 Header Column 의 width 는 적용되지 않으며, 같은 위치의 병합되지 않은 Header Column 의 width 가 적용됩니다.",
+        "같은 위치에 병합되지 않은 Header Column 이 없으면 Body Column 의 width 가 적용됩니다."
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_mergedWidth.setValue("600");
+    con_bodyWidth.setValue("160");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성 (con 변경은 Target 재생성 버튼으로 반영)
+//  - Header 1행 : no(rowSpan 2) / product(colSpan 2 = code + name) / qty(rowSpan 2) / spec(colSpan 2, rowSpan 2 = color + size)
+//  - Header 2행 : code(120) / name(180) -> product 위치는 병합되지 않은 Header Column 이 있음 (validation 1)
+//  - spec 위치(color, size)는 병합되지 않은 Header Column 이 없음 -> Body Column width 적용 (validation 2)
+//  - con_mergedWidth : 병합된 Header Column(product, spec) 의 width ('' / 600) -> 적용되지 않음 확인
+//  - con_bodyWidth   : no 를 제외한 Body Column 의 width (80 / 160) -> spec 위치(color, size)에만 적용 확인
+//  - 첫번째 Column(no) 은 너비 출력 대상 아님 : 첫번째 Column 은 화면 너비가 설정값보다 1px 작게 그려지므로 검증 Column 을 두번째부터 둠
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cMergedWidth = con_mergedWidth.getValue();
+    let cBodyWidth = con_bodyWidth.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 병합된 Header : product(code + name 병합), spec(color + size 병합, 2행 병합)\n[전제] 병합되지 않은 Header width : code 120 / name 180 / qty 100(2행 병합만) / spec 아래에는 없음\n[확인] Column 너비 확인 버튼으로 각 Column 의 화면 너비 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 바인딩 dataList
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="no" name="no" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="qty" name="qty" dataType="number"></w2:column>';
+    strDlt += '<w2:column id="color" name="color" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="size" name="size" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "no" : "1", "code" : "T-2001", "name" : "면 라운드 티셔츠", "qty" : 24, "color" : "화이트", "size" : "M" },
+        { "no" : "2", "code" : "T-2002", "name" : "린넨 셔츠", "qty" : 15, "color" : "베이지", "size" : "L" },
+        { "no" : "3", "code" : "T-2003", "name" : "울 니트 가디건", "qty" : 8, "color" : "네이비", "size" : "XL" }
+    ], false);
+
+    // 병합된 Header Column 의 width / Body Column 의 width
+    let attrMerged = (cMergedWidth === '') ? '' : ' width="' + cMergedWidth + '"';
+    let attrBody = ' width="' + cBodyWidth + '"';
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" id="" style="width:800px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="60" style="" inputType="text" id="column0" value="no" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="column1" value="product" colSpan="2"' + attrMerged + '></w2:column>';
+    strTarget += '<w2:column width="100" style="" inputType="text" id="column2" value="qty" rowSpan="2"></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="column3" value="spec" colSpan="2" rowSpan="2"' + attrMerged + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="120" style="" inputType="text" id="column4" value="code"></w2:column>';
+    strTarget += '<w2:column width="180" style="" inputType="text" id="column5" value="name"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row3">';
+    strTarget += '<w2:column width="60" style="" inputType="text" id="no" value=""></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="code" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="name" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="qty" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="color" value=""' + attrBody + '></w2:column>';
+    strTarget += '<w2:column style="" inputType="text" id="size" value=""' + attrBody + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// validation 1, 2 판정 출력 : 각 Column 의 화면 너비(Body 첫 Row Cell 기준, px)
+scwin.btn_checkColumnWidth_onclick = function () {
+    let arrName = ["code", "name", "qty", "color", "size"];
+    let arr = [];
+    for (let i = 0; i < arrName.length; i++) {
+        let td = document.querySelector("[id='" + target1.id + "_cell_0_" + (i + 1) + "']");
+        arr.push(arrName[i] + " : " + (td ? td.offsetWidth : "-"));
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("Column 너비 : " + arr.join(" / "));
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="width (병합 Header)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_mergedWidth" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[600]]></xf:label>
+												<xf:value><![CDATA[600]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="width (Body)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_bodyWidth" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[80]]></xf:label>
+												<xf:value><![CDATA[80]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[160]]></xf:label>
+												<xf:value><![CDATA[160]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkColumnWidth_onclick" id="btn_checkColumnWidth"
+							label="Column 너비 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
