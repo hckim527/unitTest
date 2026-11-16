@@ -42,6 +42,9 @@ scwin.onpageload = function () {
     // Global DataList 생성 호출
     $c.gcm.createCommonDatalist();
 
+    // con_dragStartFunction : target1 dragStartFunction 정의 여부·반환값 (none=미정의(기본) / true=true 반환 / false=false 반환)
+    con_dragStartFunction.setValue("none");
+
     // comp 초기 생성
     scwin.comp_init();
 
@@ -61,6 +64,9 @@ scwin.onpageload = function () {
 //    -> depth 를 화면 바인딩 컬럼으로 노출 → DrillDown 자동이동 시 계층(depth)이 정상 복원되도록 구성
 //       (data-only depth 컬럼 누락 결함 우회).
 scwin.comp_init = async function () {
+    // con 현재값 반영 (Target 재생성 버튼이 comp_init 재호출)
+    let vStartFunc = con_dragStartFunction.getValue();   // "none" / "true" / "false"
+
     // 기존 target / dataList 있으면 삭제
     if (typeof dlt_bind1 !== 'undefined') { $p.data.remove("dlt_bind1"); }
     if (typeof target1 !== 'undefined') { target1.remove(); }
@@ -70,7 +76,7 @@ scwin.comp_init = async function () {
     }
 
     // 안내 라벨 (가장 먼저 생성)
-    $c.gcm.createLabel('label="[전제] 하나의 DrillDown GridView(target1). dataDragDrop=true + setDrillDownDragDrop(true).\n[절차] 한 부모 행(예: 개발본부)을 같은 그리드의 다른 부모 행(예: 영업본부) 위로 드래그하면 target1 의 dragEndFunction 이 (targetRowIndex, rowXml, info) 로 호출됩니다.\n[확인] info 의 from/to 인덱스/GridViewId, inserted/removed 데이터/인덱스, rowJSON 을 결과창에서 확인합니다."', '', 'label1');
+    $c.gcm.createLabel('label="[전제] 하나의 DrillDown GridView(target1). dataDragDrop=true + setDrillDownDragDrop(true).\n[절차] 한 부모 행(예: 개발본부)을 같은 그리드의 다른 부모 행(예: 영업본부) 위로 드래그하면 target1 의 dragEndFunction 이 (targetRowIndex, rowXml, info) 로 호출됩니다.\n[확인] info 의 from/to 인덱스/GridViewId, inserted/removed 데이터/인덱스, rowJSON 을 결과창에서 확인합니다.\n[조건] dragStartFunction=true 이면 dragStartFunction 출력 뒤에 dragEndFunction 출력이 이어지고(ondatadrop 미발생), false 이면 Drop 이 취소되어 dragEndFunction 이 호출되지 않습니다."', '', 'label1');
 
     let strNameSpace = $c.gcm.getNameSpace();
 
@@ -87,8 +93,12 @@ scwin.comp_init = async function () {
     $p.getComponentById("dlt_bind1").setJSON(scwin._getDrillJSON(), false);
 
     // target1 : DrillDown + dataDragDrop=true + dragEndFunction 정의 (정의 위치가 곧 Drop 대상)
+    //  - con_dragStartFunction 이 none 이 아니면 dragStartFunction 정의 (true 반환해야 dragEndFunction 호출 validation)
+    //  - ondatadrop 도 부착하여 dragEndFunction 실행 시 ondatadrop 미발생을 확인
+    let extraAttr = ' dragEndFunction="scwin.target1_dragEndFunc" ev:ondatadrop="scwin.target1_ondatadrop"';
+    if (vStartFunc !== "none") { extraAttr += ' dragStartFunction="scwin.target1_dragStartFunc"'; }
     scwin.target1 = await scwin._createDrillGrid("target1", "dlt_bind1", "DrillDown GridView (동일 그리드 내 Drag and Drop)",
-        ' dragEndFunction="scwin.target1_dragEndFunc"', strNameSpace, scwin.gridWrap);
+        extraAttr, strNameSpace, scwin.gridWrap);
 
     // DrillDown 그리드는 기본 Drag&Drop 미동작 → setDrillDownDragDrop(true) 로 활성화
     target1.setDrillDownDragDrop(true);
@@ -156,6 +166,24 @@ scwin._createDrillGrid = async function (gid, dltId, captionText, extraAttr, str
 
 
 
+// dragStartFunction : Drag 가 시작된 GridView(target1)에 정의 (con_dragStartFunction=true/false 일 때만)
+//  - DrillDown + setDrillDownDragDrop(true) 상태에서는 명시적으로 true 를 반환해야 dragEndFunction 이 호출된다(false 면 Drop 취소).
+//  - 실행 즉시 한 줄 출력 -> 뒤이어 dragEndFunction 출력이 이어지면 실행 순서(dragStartFunction > dragEndFunction) 확인
+scwin.target1_dragStartFunc = function (info) {
+    var rv = (con_dragStartFunction.getValue() === "true");
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ dragStartFunction 호출 (" + rv + " 반환)");
+    return rv;
+};
+
+
+
+// ondatadrop : target1 에 부착 -> dragEndFunction 이 실행되면 발생하지 않아야 한다.
+scwin.target1_ondatadrop = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ondatadrop 발생");
+};
+
+
+
 // dragEndFunction : DrillDown 이 적용된 '동일' GridView(target1) 에 정의된 사용자 정의 함수 (검증 대상)
 //  - DrillDown 동일 GridView @spec : (targetRowIndex, rowXml, info) 전달
 //      targetRowIndex      : Drop 위치 Row 인덱스
@@ -170,7 +198,7 @@ scwin._createDrillGrid = async function (gid, dltId, captionText, extraAttr, str
 //  - 동일 그리드 시나리오에서는 사용자 함수의 '반환값은 사용되지 않음'(true/false 무시).
 scwin.target1_dragEndFunc = function (targetRowIndex, rowXml, info) {
     var bottom = wf_body_bottom.getObj("scwin");
-    bottom.btn_clear_onclick();
+    // 결과창을 비우지 않는다 : 앞서 실행된 dragStartFunction 출력 뒤에 이어서 출력해 실행 순서를 확인 (Drag 전 clear 버튼으로 비움)
 
     // rowXml 의 XML 객체 여부 및 name 값 추출 (전체 데이터 XML 객체 확인용)
     var isXmlObj = !!(rowXml && rowXml.nodeType && rowXml.nodeName);
@@ -206,6 +234,49 @@ scwin.target1_dragEndFunc = function (targetRowIndex, rowXml, info) {
 			<xf:group class="tc_body_right" id="body_right" style="">
 				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
 				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="dragStartFunction 반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dragStartFunction" label="label" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>true</xf:label>
+												<xf:value>true</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>false</xf:label>
+												<xf:value>false</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
 				</xf:group>
 				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
 				<xf:group id="grp_parameter">

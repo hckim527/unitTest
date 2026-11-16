@@ -49,6 +49,8 @@ scwin.onpageload = function () {
     // con selectbox 기본값 명시 (bound gdl_boolean 은 초기 selectedIndex 미적용 → setValue)
     con_targetDrillDown.setValue("true");
     con_targetDragAllow.setValue("true");
+    // con_dragStartFunction : 소스 target1 dragStartFunction 정의 여부 (none=미정의(기본) / define=정의, true 반환)
+    con_dragStartFunction.setValue("none");
 
     // comp 초기 생성
     scwin.comp_init();
@@ -70,6 +72,7 @@ scwin.comp_init = async function () {
     // con 현재값 반영 (Target 재생성 버튼이 comp_init 재호출)
     scwin.gVar.cTargetDrillDown = con_targetDrillDown.getValue();   // "true" / "false"
     scwin.gVar.cTargetDragAllow = con_targetDragAllow.getValue();   // "true" / "false"
+    let useStartFunc = (con_dragStartFunction.getValue() === "define");
 
     // 기존 target / dataList 있으면 삭제 (2개 그리드 + 2개 dataList)
     if (typeof dlt_bind1 !== 'undefined') { $p.data.remove("dlt_bind1"); }
@@ -82,7 +85,7 @@ scwin.comp_init = async function () {
     }
 
     // 안내 라벨 (가장 먼저 생성)
-    $c.gcm.createLabel('label="[전제] 왼쪽 target1=Drag 소스(DrillDown+Drag 허용), 오른쪽 target2=Drop 대상.\n[절차] target1 의 부모/행을 target2 로 드래그하면 target2 의 dragEndFunction 이 (targetRowIndex, rowXml, info) 로 호출됩니다.\n[조건] target2 도 DrillDown 적용 + Drag 허용이어야 호출됩니다(con 토글로 미적용/미허용 시 미호출)."', '', 'label1');
+    $c.gcm.createLabel('label="[전제] 왼쪽 target1=Drag 소스(DrillDown+Drag 허용), 오른쪽 target2=Drop 대상.\n[절차] target1 의 부모/행을 target2 로 드래그하면 target2 의 dragEndFunction 이 (targetRowIndex, rowXml, info) 로 호출됩니다.\n[조건] target2 도 DrillDown 적용 + Drag 허용이어야 호출됩니다(con 토글로 미적용/미허용 시 미호출).\n[순서] dragStartFunction=define 이면 dragStartFunction(true 반환) 출력 뒤에 dragEndFunction 출력이 이어지고 ondatadrop 은 발생하지 않습니다."', '', 'label1');
 
     let strNameSpace = $c.gcm.getNameSpace();
 
@@ -104,11 +107,14 @@ scwin.comp_init = async function () {
     $p.getComponentById("dlt_bind2").setJSON(scwin._getDrillJSONRight(), false);
 
     // target1(좌, Drag 소스) : DrillDown 적용 + dataDragDrop=true
-    scwin.target1 = await scwin._createDrillGrid("target1", "dlt_bind1", "좌(Drag 소스)", true, '', strNameSpace, cellLeft);
+    //  - con_dragStartFunction=define 이면 dragStartFunction 정의 (dragEndFunction 보다 먼저 실행 validation)
+    let extraAttr1 = useStartFunc ? ' dragStartFunction="scwin.target1_dragStartFunc"' : '';
+    scwin.target1 = await scwin._createDrillGrid("target1", "dlt_bind1", "좌(Drag 소스)", true, extraAttr1, strNameSpace, cellLeft);
 
     // target2(우, Drop 대상) : DrillDown 은 con 토글 / dataDragDrop=true / dragEndFunction 정의
     let useDrillTarget2 = (scwin.gVar.cTargetDrillDown === "true");
-    let extraAttr2 = ' dragEndFunction="scwin.target2_dragEndFunc"';
+    //  - ondatadrop 도 부착하여 dragEndFunction 실행 시 ondatadrop 미발생을 확인
+    let extraAttr2 = ' dragEndFunction="scwin.target2_dragEndFunc" ev:ondatadrop="scwin.target2_ondatadrop"';
     scwin.target2 = await scwin._createDrillGrid("target2", "dlt_bind2", "우(Drop 대상)", useDrillTarget2, extraAttr2, strNameSpace, cellRight);
 
     // DrillDown Drag&Drop 활성화
@@ -197,6 +203,23 @@ scwin._createDrillGrid = async function (gid, dltId, captionText, useDrill, extr
 
 
 
+// dragStartFunction : Drag 가 시작된 GridView(target1=소스)에 정의 (con_dragStartFunction=define 일 때만)
+//  - DrillDown + setDrillDownDragDrop(true) 상태에서는 명시적으로 true 를 반환해야 dragEndFunction 이 호출된다.
+//  - 실행 즉시 한 줄 출력 -> 뒤이어 dragEndFunction 출력이 이어지면 실행 순서(dragStartFunction > dragEndFunction) 확인
+scwin.target1_dragStartFunc = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ dragStartFunction 호출 (true 반환)");
+    return true;
+};
+
+
+
+// ondatadrop : Drop 된 GridView(target2)에 부착 -> dragEndFunction 이 실행되면 발생하지 않아야 한다.
+scwin.target2_ondatadrop = function () {
+    wf_body_bottom.getObj("scwin").setReturnValue("▶ ondatadrop 발생");
+};
+
+
+
 // dragEndFunction : 데이터가 Drop 된 GridView(target2=우)에 정의된 사용자 정의 함수 (검증 대상)
 //  - DrillDown 서로 다른 GridView @spec : (targetRowIndex, rowXml, info) 전달
 //      targetRowIndex : Drop 위치 Row 인덱스
@@ -210,7 +233,7 @@ scwin._createDrillGrid = async function (gid, dltId, captionText, useDrill, extr
 //  - 대상(target2) 삽입은 엔진이 수행하지 않으므로 본 핸들러에서 info.rowJSON 으로 직접 복원(depth 포함).
 scwin.target2_dragEndFunc = function (targetRowIndex, rowXml, info) {
     var bottom = wf_body_bottom.getObj("scwin");
-    bottom.btn_clear_onclick();
+    // 결과창을 비우지 않는다 : 앞서 실행된 dragStartFunction 출력 뒤에 이어서 출력해 실행 순서를 확인 (Drag 전 clear 버튼으로 비움)
 
     // rowXml 의 XML 객체 여부 및 name 값 추출 (전체 데이터 XML 객체 확인용)
     var isXmlObj = !!(rowXml && rowXml.nodeType && rowXml.nodeName);
@@ -322,6 +345,31 @@ scwin.target2_dragEndFunc = function (targetRowIndex, rowXml, info) {
 											</xf:item>
 										</xf:choices>
 									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="target1 dragStartFunction" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dragStartFunction" label="label" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>none</xf:label>
+												<xf:value>none</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>define</xf:label>
+												<xf:value>define</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
 								</xf:group>
 							</xf:group>
 						</xf:group>
