@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] validateOnInput" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261116" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : 입력 시점 / 다국어 / 적용 조건 축 (editFormat / useEditFormat / autoDecimalPoint 예외 축은 _2)
+scwin.tData = {
+    "description" : "[column > P > validateOnInput]<br/>Column 의 편집 모드에서 입력되는 문자를 검증하는 시점을 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text','calendar' 인 경우에 동작합니다.",
+        "true 설정 시, 입력값으로 키가 눌린 시점에 검증하여 허용되지 않는 문자는 입력되지 않습니다.",
+        "true 설정 시, 한글 등 다국어 문자도 입력 즉시 제한됩니다.",
+        "false 설정 시, 입력값으로 눌린 키가 떼어졌을 때 검증하여 허용되지 않는 문자는 입력되지 않습니다.",
+        "미설정 시, 입력값으로 눌린 키가 떼어졌을 때 검증하여 허용되지 않는 문자는 입력되지 않습니다.",
+        "false 설정 시, 한글 등 다국어 문자는 입력창에 표시되었다가 편집이 완료되면 제거됩니다.",
+        "Column 의 allowChar, ignoreChar, maxLength, dataType 등의 속성에 허용 또는 미허용 조건을 설정한 경우에 동작합니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Row 별 편집 중 키 입력 후 입력창 값 (셀 더블클릭 시 해당 Row 초기화)
+    "editValue" : {},
+    // 현재 편집 중인 Row
+    "editRow" : -1,
+    // 입력 제한 조건 옵션값 -> Column 속성 문자열
+    "restrictAttr" : {
+        "allowChar" : ' allowChar="0-9"',
+        "ignoreChar" : ' ignoreChar="ㄱ-ㅎㅏ-ㅣ가-힣"',
+        "maxLength" : ' maxLength="3"',
+        "number" : ' dataType="number"'
+    }
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_validateOnInput.setValue("2");
+    con_inputType.setValue("text");
+    con_restrict.setValue("allowChar");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - guide : 입력 방법 안내 Column (readOnly)
+//  - val   : 검증 대상 Column (validateOnInput / inputType / 입력 제한 조건을 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = {};
+    scwin.gVar.editRow = -1;
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cValidateOnInput = con_validateOnInput.getText();
+    let cInputType = con_inputType.getValue();
+    let cRestrict = con_restrict.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] inputType=calendar 는 날짜 입력으로 숫자만 허용되므로 입력 제한 조건 옵션을 적용하지 않음\n[절차] 결과창 clear -> val 셀 더블클릭 -> 같은 Row 의 입력 방법대로 한 자씩 입력 (한글은 한글 입력기로 입력) -> 셀 밖 클릭으로 편집 완료 -> 셀 값 확인\n[확인] Row 별 키 입력 후 입력창 값과 편집 완료 후 셀 값"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="guide" name="guide" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "guide" : "1 -> 2 -> a -> 3", "val" : "" },
+        { "guide" : "1 -> 2 -> 한 -> 3", "val" : "" }
+    ], false);
+
+    // val Column 속성 (calendar 는 입력 제한 조건 미적용)
+    let attrVal = ' inputType="' + cInputType + '"';
+    if (cInputType !== "calendar" && cRestrict !== '') {
+        attrVal += scwin.gVar.restrictAttr[cRestrict];
+    }
+    if (cValidateOnInput !== '') {
+        attrVal += ' validateOnInput="' + cValidateOnInput + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column1" value="입력 방법"></w2:column>';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="column2" value="val"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="240" style="" inputType="text" id="guide" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="240" style="" id="val" value=""' + attrVal + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록
+    //  - 셀 더블클릭(편집 진입) 시 해당 Row 의 기록 초기화
+    //  - GridView 영역의 keyup 으로 키 입력 후 입력창 값을 기록
+    target1.render.addEventListener("dblclick", scwin.startEditRecord, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+}
+
+
+
+// 셀 더블클릭 시 편집 Row 를 기억하고 그 Row 의 기록을 초기화
+scwin.startEditRecord = function (e) {
+    let td = e.target.closest ? e.target.closest("td[id*='_cell_']") : null;
+    if (!td) {
+        return;
+    }
+    let match = td.id.match(/_cell_(\d+)_/);
+    if (!match) {
+        return;
+    }
+    scwin.gVar.editRow = parseInt(match[1], 10);
+    scwin.gVar.editValue[scwin.gVar.editRow] = [];
+}
+
+
+
+// 키를 뗄 때마다 입력창 값을 기록 (입력창의 처리가 끝난 뒤의 값을 읽고, 값이 바뀐 경우만 기록)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    let row = scwin.gVar.editRow;
+    if (!elem || (elem.tagName !== "INPUT" && elem.tagName !== "TEXTAREA") || row < 0) {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue[row];
+        if (elem.value !== '' && (arr.length === 0 || arr[arr.length - 1] !== elem.value)) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// 설정 조건과 편집한 Row 의 키 입력 후 입력창 값 / 편집 완료 후 셀 값 출력
+//  - validation 1 : inputType(text / calendar / textarea) 별 한글 입력 Row 결과 비교
+//  - validation 2, 5, 4 : true / 미설정 / false 별 영문 입력 Row 결과 (허용되지 않는 문자 미입력)
+//  - validation 3 : true 설정 시 한글 입력 Row 의 입력창 값에 한글 미표시
+//  - validation 6 : false 설정 시 한글 입력 Row 의 입력창 값에 한글 표시 -> 셀 값에서 제거
+//  - validation 7 : 입력 제한 조건(allowChar / ignoreChar / maxLength / dataType / 미설정) 별 결과 비교
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cValidateOnInput = con_validateOnInput.getText();
+    let cInputType = con_inputType.getValue();
+    let cRestrict = con_inputType.getValue() === "calendar" ? '' : con_restrict.getText();
+
+    bottom.setReturnValue("validateOnInput : " + (cValidateOnInput === '' ? "(미설정)" : cValidateOnInput)
+        + " / inputType : " + cInputType + " / 입력 제한 조건 : " + (cRestrict === '' ? "(미설정)" : cRestrict));
+
+    for (let i = 0; i < 2; i++) {
+        // 편집하지 않은 Row 는 출력하지 않는다
+        if (!scwin.gVar.editValue.hasOwnProperty(i)) {
+            continue;
+        }
+        let td = document.querySelector("td[id*='target1_cell_" + i + "_1']");
+        let cellText = td ? td.textContent : "";
+        bottom.setReturnValue("Row " + i + " (" + dlt_bind.getCellData(i, "guide") + ") 키 입력 후 입력창 값 : "
+            + scwin.gVar.editValue[i].join(" > ") + " -> 편집 완료 후 셀 값 : " + cellText);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="validateOnInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_validateOnInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>calendar</xf:label>
+												<xf:value>calendar</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textarea</xf:label>
+												<xf:value>textarea</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="입력 제한 조건" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_restrict" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>allowChar=0-9</xf:label>
+												<xf:value>allowChar</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>ignoreChar=ㄱ-ㅎㅏ-ㅣ가-힣</xf:label>
+												<xf:value>ignoreChar</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>maxLength=3</xf:label>
+												<xf:value>maxLength</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>dataType=number</xf:label>
+												<xf:value>number</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

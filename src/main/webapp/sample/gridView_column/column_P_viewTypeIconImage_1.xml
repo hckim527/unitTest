@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] viewTypeIconImage" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261116" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 설정 영역 con 옵션은 만들지 않는다 (column 샘플 관례). Body Column 에만 설정하며
+//    "Body Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다." 는 validation 에서 제외
+//  - 대상 Column 고정 설정 : viewType=icon, editModeEvent=onclick, editModeEventIcon=ondblclick
+//    (두 이벤트를 다르게 두어 어떤 속성이 적용됐는지 실제 클릭/더블 클릭으로 구분)
+//  - inputType=select 는 viewType=icon 아이콘이 표시되는 전제 미충족 대조군
+scwin.tData = {
+    "description" : "[column > P > viewTypeIconImage]<br/>viewType='icon' 인 Column 에서 아이콘 클릭으로 편집 모드로 변경될때 팝업창이 바로 표시될지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='calendar','autoComplete' 인 경우에 동작합니다.",
+        "true 설정 시, 아이콘 클릭으로 편집 모드로 변경되면 팝업 달력 또는 아이템 목록이 바로 표시됩니다.",
+        "true 설정 시, 아이콘이 아닌 영역을 클릭하여 편집 모드로 변경되면 입력창에 포커스가 이동합니다.",
+        "false 설정 시, 아이콘을 포함한 Cell 영역 클릭 시 편집 모드로 변경되고 입력창에 포커스가 이동합니다.",
+        "미설정 시, 아이콘을 포함한 Cell 영역 클릭 시 편집 모드로 변경되고 입력창에 포커스가 이동합니다.",
+        "false 설정 시, Cell 이 편집 모드일때 오른쪽 버튼 영역을 클릭하면 팝업 달력 또는 아이템 목록이 표시됩니다.",
+        "viewTypeIconImage='true' 이면 Body Cell 을 편집 모드로 변경하는 마우스 이벤트로 editModeEventIcon 속성 대신 editModeEvent 속성이 적용됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 현재 적용 설정값
+    "iconImage" : "",
+    "inputType" : "",
+    // 직전 mousedown 시점 정보 (클릭 횟수 / 아이콘 클릭 여부)
+    "detail" : 0,
+    "onIcon" : false
+}
+
+// 고정 설정값
+scwin.EDIT_EVENT = "onclick";
+scwin.EDIT_EVENT_ICON = "ondblclick";
+// 팝업 표시·포커스 판정 대기 시간 (ms)
+scwin.WAIT = 300;
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_viewTypeIconImage.setValue("2");
+    con_inputType.setValue("calendar");
+
+    // 편집 중 오른쪽 버튼 클릭 감시 (편집 위젯은 Cell 밖에 표시될 수 있으므로 document 기준)
+    document.addEventListener("click", scwin.document_clickCapture, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - col_name : 일반 text Column
+//  - col_target : 검증 대상 Column (inputType(con) + viewTypeIconImage(con) + viewType / editModeEvent / editModeEventIcon 고정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_code !== 'undefined' && dlt_code) {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cIconImage = con_viewTypeIconImage.getText();
+    let cInputType = con_inputType.getValue();
+    scwin.gVar.iconImage = cIconImage;
+    scwin.gVar.inputType = cInputType;
+    scwin.gVar.detail = 0;
+    scwin.gVar.onIcon = false;
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 대상 Column 고정 설정 : viewType=icon, editModeEvent=onclick, editModeEventIcon=ondblclick\n[절차] 포커스가 없는 대상 Column 셀의 아이콘 또는 텍스트 영역을 클릭(편집 진입이 없으면 더블 클릭). 편집 중이면 입력창 오른쪽 버튼 클릭\n[확인] 편집 모드 진입, 오른쪽 버튼 클릭 시 결과창에 조작, 적용 이벤트, 팝업 표시 여부, 포커스 위치가 자동 출력됨\n다음 조작 전 Esc 또는 다른 셀 클릭으로 편집 종료"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 코드/라벨 DataList (select / autoComplete itemset)
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_code" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_code.setJSON([
+        { "code" : "A", "label" : "서울" },
+        { "code" : "B", "label" : "부산" },
+        { "code" : "C", "label" : "대구" }
+    ], false);
+
+    let isCalendar = (cInputType === "calendar");
+    let targetData = isCalendar ? ["20260115", "20260220", "20260312"] : ["A", "B", "C"];
+
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col_name" name="col_name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_target" name="col_target" dataType="' + (isCalendar ? "date" : "text") + '"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col_name" : "김철수", "col_target" : targetData[0] },
+        { "col_name" : "이영희", "col_target" : targetData[1] },
+        { "col_name" : "박민준", "col_target" : targetData[2] }
+    ], false);
+
+    // 대상 Column 속성 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let bodyAttr = ' inputType="' + cInputType + '" viewType="icon"';
+    bodyAttr += ' editModeEvent="' + scwin.EDIT_EVENT + '" editModeEventIcon="' + scwin.EDIT_EVENT_ICON + '"';
+    if (cIconImage !== '') {
+        bodyAttr += ' viewTypeIconImage="' + cIconImage + '"';
+    }
+    let bodyChild = '';
+    if (isCalendar) {
+        bodyAttr += ' calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd"';
+    } else {
+        bodyChild = '<w2:choices><w2:itemset nodeset="data:dlt_code"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:180px;"';
+    strTarget += ' ev:onbeforeedit="scwin.target1_onbeforeedit">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" inputType="text" id="hcol_name" value="고객명"></w2:column>';
+    strTarget += '<w2:column width="250" inputType="text" id="hcol_target" value="대상 Column"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="150" inputType="text" dataType="text" id="col_name"></w2:column>';
+    strTarget += '<w2:column width="250" dataType="' + (isCalendar ? "date" : "text") + '" id="col_target"' + bodyAttr + '>' + bodyChild + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 조작 감시 (capture 단계 : 엔진 처리 전 클릭 횟수와 아이콘 클릭 여부 기록)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("mousedown", scwin.target1_mousedownCapture, true);
+    }
+}
+
+
+
+// 화면에 표시되는 요소인지
+scwin.isShown = function (el) {
+    if (!el) {
+        return false;
+    }
+    let rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== "hidden" && window.getComputedStyle(el).display !== "none";
+}
+
+
+
+// 클릭 지점이 Body Cell 의 아이콘인지
+//  - viewTypeIconImage=true : Cell 안에 별도 아이콘 요소(class 가 _img 로 끝나는 td / _div_img div)가 생성됨
+//  - 그 외 : Cell 배경 아이콘 (Cell 오른쪽, 배경 이미지 너비 영역)
+scwin.isIconPoint = function (e) {
+    let el = e.target;
+    if (el.closest && el.closest("[class$='_img'], [class$='_div_img']")) {
+        return true;
+    }
+    let td = el.closest ? el.closest("td[id*='_cell_']") : null;
+    if (!td) {
+        return false;
+    }
+    let cs = window.getComputedStyle(td);
+    if (!cs.backgroundImage || cs.backgroundImage === "none") {
+        return false;
+    }
+    let rect = td.getBoundingClientRect();
+    return e.clientX >= rect.right - scwin.getBgIconWidth(td);
+}
+
+
+
+// Cell 배경 아이콘이 차지하는 오른쪽 너비 (background-position 오른쪽 여백 + 이미지 너비)
+scwin.getBgIconWidth = function (td) {
+    let cs = window.getComputedStyle(td);
+    let size = parseInt(cs.backgroundSize, 10);
+    if (isNaN(size)) {
+        size = 16;
+    }
+    let posX = cs.backgroundPositionX.split(",")[0].trim();
+    let m = posX.match(/calc\(100% - (\d+)px\)/);
+    let gap = m ? parseInt(m[1], 10) : 4;
+    return size + gap + 2;
+}
+
+
+
+// 팝업 달력 / 아이템 목록 표시 여부
+scwin.getPopupText = function () {
+    let prefix = "G_" + target1.id + "_";
+    if (scwin.gVar.inputType === "calendar") {
+        let calendar = scwin.findShown("[id*='" + prefix + "'].w2inputCalendar_calendar");
+        return "팝업 달력 = " + (calendar ? "표시" : "미표시");
+    }
+    // 아이템 목록은 표시된 항목 수를 함께 출력 (현재 값으로 걸러진 목록과 전체 목록 구분)
+    let list = scwin.findShown("[id^='" + prefix + "'][id$='_itemTable_main']");
+    if (!list) {
+        return "아이템 목록 = 미표시";
+    }
+    let count = 0;
+    let cols = list.querySelectorAll("td[id*='_itemTable_']");
+    for (let i = 0; i < cols.length; i++) {
+        if (scwin.isShown(cols[i])) {
+            count++;
+        }
+    }
+    return "아이템 목록 = 표시 (" + count + "건)";
+}
+
+
+
+// 선택자에 해당하는 요소 중 화면에 표시된 첫 요소
+scwin.findShown = function (selector) {
+    let list = document.querySelectorAll(selector);
+    for (let i = 0; i < list.length; i++) {
+        if (scwin.isShown(list[i])) {
+            return list[i];
+        }
+    }
+    return null;
+}
+
+
+
+// 현재 포커스 위치
+scwin.getFocusText = function () {
+    let el = document.activeElement;
+    let isInput = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.type !== "hidden";
+    return "포커스 = " + (isInput ? "입력창" : (el ? el.tagName : "없음"));
+}
+
+
+
+// 조작 전 상태 기록
+scwin.target1_mousedownCapture = function (e) {
+    scwin.gVar.detail = e.detail;
+    scwin.gVar.onIcon = scwin.isIconPoint(e);
+}
+
+
+
+// validation 1 ~ 5, 7 판정 출력 : 편집 모드 진입 시 진입 조작, 적용 이벤트, 팝업 표시 여부, 포커스 위치
+//  onbeforeedit 는 편집 모드로 바뀌지 않는 경우에도 발생할 수 있으므로 처리 후 isEditing() 이 true 인 경우에만 출력한다.
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    let colId = target1.getColumnID(columnIndex);
+    if (colId !== "col_target") {
+        return;
+    }
+    let area = scwin.gVar.onIcon ? "아이콘" : "아이콘 아닌 영역";
+    let action = (scwin.gVar.detail >= 2) ? "더블 클릭" : "클릭";
+    let td = target1.render.querySelector("td[id$='_cell_" + rowIndex + "_" + columnIndex + "']");
+    let evt = td ? (td.getAttribute("data-editModeEvent") || "") : "";
+    let src = (evt === scwin.EDIT_EVENT) ? " (editModeEvent)" : ((evt === scwin.EDIT_EVENT_ICON) ? " (editModeEventIcon)" : "");
+    setTimeout(function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            "편집 모드 진입 : Row " + rowIndex + " " + area + " " + action + " | 적용 이벤트 = " + evt + src + " | " + scwin.getPopupText() + " | " + scwin.getFocusText());
+    }, scwin.WAIT);
+}
+
+
+
+// validation 6 판정 출력 : 편집 중 입력창 오른쪽 버튼 클릭 시 팝업 표시 여부
+scwin.document_clickCapture = function (e) {
+    if (typeof target1 === 'undefined' || !target1 || !target1.isEditing()) {
+        return;
+    }
+    let btn = scwin.getEditorButton(e.target);
+    if (!btn) {
+        return;
+    }
+    setTimeout(function () {
+        wf_body_bottom.getObj("scwin").setReturnValue("편집 중 오른쪽 버튼 클릭 | " + scwin.getPopupText());
+    }, scwin.WAIT);
+}
+
+
+
+// 편집 위젯(입력창 + 오른쪽 버튼) 의 오른쪽 버튼 요소인지
+scwin.getEditorButton = function (el) {
+    if (!el || !el.closest) {
+        return null;
+    }
+    let btn = el.closest(".w2inputCalendar_button, .w2inputCalendar_div_img, .w2autoComplete_col_button, .w2selectbox_col_button");
+    if (!btn || btn.id.indexOf("G_" + target1.id + "_") !== 0) {
+        return null;
+    }
+    return btn;
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="viewTypeIconImage" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_viewTypeIconImage" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[calendar]]></xf:label>
+												<xf:value><![CDATA[calendar]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[autoComplete]]></xf:label>
+												<xf:value><![CDATA[autoComplete]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[select]]></xf:label>
+												<xf:value><![CDATA[select]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

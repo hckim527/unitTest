@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] validateOnInput" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261116" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 담당 범위 : editFormat / useEditFormat / autoDecimalPoint 예외 축 (입력 시점 / 다국어 / 적용 조건 축은 _1)
+scwin.tData = {
+    "description" : "[column > P > validateOnInput]<br/>Column 의 편집 모드에서 입력되는 문자를 검증하는 시점을 설정합니다.",
+    "validation" : [
+        "Column 의 editFormat 속성이 설정된 경우 validateOnInput 속성은 무시됩니다.",
+        "Column 의 inputType='calendar' 이고 useEditFormat 이 설정된 경우 validateOnInput 속성은 무시됩니다.",
+        "autoDecimalPoint 속성을 사용하려면 validateOnInput='true' 로 설정하여야 합니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // Column 별 편집 중 키 입력 후 입력창 값 (셀 더블클릭 시 해당 Column 초기화)
+    "editValue" : {},
+    // 현재 편집 중인 Column id
+    "editCol" : "",
+    // 출력 순서와 Column 별 입력 방법
+    "colList" : ["fmt", "cal", "dec"],
+    "guide" : {
+        "fmt" : "1 -> 2 -> 한 -> 3 -> 4",
+        "cal" : "2 -> 0 -> 한 -> 2 -> 6",
+        "dec" : "1 -> 2 -> 3 -> 4 -> 5"
+    }
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (gdl_boolean 코드 "2" = true)
+    con_validateOnInput.setValue("2");
+    con_editFormat.setValue("###-####");
+    con_useEditFormat.setValue("2");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - fmt : inputType=text, allowChar=0-9 고정 + editFormat 옵션값
+//  - cal : inputType=calendar 고정 + useEditFormat 옵션값
+//  - dec : inputType=text, dataType=float, maxLength=3.2, applyFormat=all, autoDecimalPoint=true 고정
+//  - 세 Column 모두 validateOnInput 옵션값 적용
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+    scwin.gVar.editValue = {};
+    scwin.gVar.editCol = "";
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다, gdl_boolean 은 getText() 로 '' / 'true' / 'false' 판단)
+    let cValidateOnInput = con_validateOnInput.getText();
+    let cEditFormat = con_editFormat.getValue();
+    let cUseEditFormat = con_useEditFormat.getText();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] fmt 는 allowChar=0-9, dec 는 dataType=float, maxLength=3.2, applyFormat=all, autoDecimalPoint=true 고정\n[절차] 결과창 clear -> 각 셀 더블클릭 -> 헤더의 입력 방법대로 한 자씩 입력 (한글은 한글 입력기로 입력) -> 셀 밖 클릭으로 편집 완료 -> 셀 값 확인\n[확인] validateOnInput 값만 바꿔 재생성했을 때 Column 별 키 입력 후 입력창 값과 편집 완료 후 셀 값이 달라지는지 비교"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="fmt" name="fmt" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="cal" name="cal" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="dec" name="dec" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_bind.setJSON([
+        { "fmt" : "", "cal" : "", "dec" : "" }
+    ], false);
+
+    // Column 속성 (미설정이면 속성 자체를 넣지 않는다)
+    let attrVOI = (cValidateOnInput !== '') ? ' validateOnInput="' + cValidateOnInput + '"' : '';
+    let attrFmt = ' inputType="text" allowChar="0-9"' + attrVOI;
+    if (cEditFormat !== '') {
+        attrFmt += ' editFormat="' + cEditFormat + '"';
+    }
+    let attrCal = ' inputType="calendar" dataType="date"' + attrVOI;
+    if (cUseEditFormat !== '') {
+        attrCal += ' useEditFormat="' + cUseEditFormat + '"';
+    }
+    let attrDec = ' inputType="text" dataType="float" maxLength="3.2" applyFormat="all" autoDecimalPoint="true"' + attrVOI;
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:620px;height:120px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="fmt : ' + scwin.gVar.guide.fmt + '"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column2" value="cal : ' + scwin.gVar.guide.cal + '"></w2:column>';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column3" value="dec : ' + scwin.gVar.guide.dec + '"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" id="fmt" value=""' + attrFmt + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" id="cal" value=""' + attrCal + '></w2:column>';
+    strTarget += '<w2:column width="200" style="" id="dec" value=""' + attrDec + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+
+    // 편집 입력창 값 기록
+    //  - 셀 더블클릭(편집 진입) 시 해당 Column 의 기록 초기화
+    //  - GridView 영역의 keyup 으로 키 입력 후 입력창 값을 기록
+    target1.render.addEventListener("dblclick", scwin.startEditRecord, true);
+    target1.render.addEventListener("keyup", scwin.recordEditValue, true);
+}
+
+
+
+// 셀 더블클릭 시 편집 Column 을 기억하고 그 Column 의 기록을 초기화
+scwin.startEditRecord = function (e) {
+    let td = e.target.closest ? e.target.closest("td[id*='_cell_']") : null;
+    if (!td) {
+        return;
+    }
+    let match = td.id.match(/_cell_\d+_(\d+)/);
+    if (!match) {
+        return;
+    }
+    scwin.gVar.editCol = scwin.gVar.colList[parseInt(match[1], 10)] || "";
+    if (scwin.gVar.editCol !== "") {
+        scwin.gVar.editValue[scwin.gVar.editCol] = [];
+    }
+}
+
+
+
+// 키를 뗄 때마다 입력창 값을 기록 (입력창의 처리가 끝난 뒤의 값을 읽고, 값이 바뀐 경우만 기록)
+scwin.recordEditValue = function (e) {
+    let elem = e.target;
+    let col = scwin.gVar.editCol;
+    if (!elem || elem.tagName !== "INPUT" || col === "") {
+        return;
+    }
+    setTimeout(function () {
+        let arr = scwin.gVar.editValue[col];
+        if (elem.value !== '' && (arr.length === 0 || arr[arr.length - 1] !== elem.value)) {
+            arr.push(elem.value);
+        }
+    }, 0);
+}
+
+
+
+// 설정 조건과 편집한 Column 의 키 입력 후 입력창 값 / 편집 완료 후 셀 값 출력
+//  - validation 1 : fmt Column 의 editFormat 설정 / 미설정 별로 validateOnInput 값에 따른 결과 비교
+//  - validation 2 : cal Column 의 useEditFormat 설정 / 미설정 별로 validateOnInput 값에 따른 결과 비교
+//  - validation 3 : dec Column 의 validateOnInput 값에 따른 소수점 자동 추가 결과 비교
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let cValidateOnInput = con_validateOnInput.getText();
+    let cEditFormat = con_editFormat.getValue();
+    let cUseEditFormat = con_useEditFormat.getText();
+
+    bottom.setReturnValue("validateOnInput : " + (cValidateOnInput === '' ? "(미설정)" : cValidateOnInput)
+        + " / editFormat : " + (cEditFormat === '' ? "(미설정)" : cEditFormat)
+        + " / useEditFormat : " + (cUseEditFormat === '' ? "(미설정)" : cUseEditFormat));
+
+    for (let i = 0; i < scwin.gVar.colList.length; i++) {
+        let col = scwin.gVar.colList[i];
+        // 편집하지 않은 Column 은 출력하지 않는다
+        if (!scwin.gVar.editValue.hasOwnProperty(col)) {
+            continue;
+        }
+        let td = document.querySelector("td[id*='target1_cell_0_" + i + "']");
+        let cellText = td ? td.textContent : "";
+        bottom.setReturnValue(col + " (" + scwin.gVar.guide[col] + ") 키 입력 후 입력창 값 : "
+            + scwin.gVar.editValue[col].join(" > ") + " -> 편집 완료 후 셀 값 : " + cellText);
+    }
+}]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="validateOnInput" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_validateOnInput" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editFormat (fmt)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_editFormat" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>###-####</xf:label>
+												<xf:value>###-####</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="useEditFormat (cal)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_useEditFormat" label="label" nodeSet="data:gdl_boolean" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

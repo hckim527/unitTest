@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] validator" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261116" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[column > P > validator]<br/>Cell 에서 편집을 완료했을때 입력값 검증 또는 변환을 처리할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='text','secret','textImage','drilldown','calendar' 인 경우에 동작합니다.",
+        "입력값 검증을 처리할 사용자 정의 함수의 이름을 설정합니다.",
+        "사용자 정의 함수의 파라미터로 Cell 의 입력값과 Cell 의 렌더링 ID 가 전달됩니다.",
+        "사용자 정의 함수의 반환값이 새로운 입력값으로 Cell 에 적용되며 DataList 에 저장됩니다.",
+        "Cell 에서 편집을 완료한 후 사용자 정의 함수가 실행됩니다.",
+        "사용자 정의 함수에서 값을 반환하지 않으면 입력값이 Cell 에 적용되지 않습니다. 따라서 입력값을 바꾸지 않는 경우에도 전달받은 입력값을 그대로 반환하여야 합니다.",
+        "메소드로 Cell 값을 변경하는 경우에는 validator 속성이 동작하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList(gdl_boolean 등) 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_inputType.setValue("text");
+    con_validator.setValue("scwin.fn_upper");
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// 사용자 정의 함수 : 앞뒤 공백을 제거하고 대문자로 변환하여 반환
+// validation 2, 3, 4, 5 판정 출력 (호출 여부 / 입력값 / 렌더링 ID / 반환값)
+scwin.fn_upper = function (val, id) {
+    let rtn = String(val).trim().toUpperCase();
+    wf_body_bottom.getObj("scwin").setReturnValue("scwin.fn_upper 호출 : 입력값 = [" + val + "] / 렌더링 ID = " + id + " -> 반환값 = [" + rtn + "]");
+    return rtn;
+};
+
+
+
+// 사용자 정의 함수 : 전달받은 입력값을 그대로 반환
+// validation 6 판정 출력 (그대로 반환하면 입력값 적용)
+scwin.fn_same = function (val, id) {
+    wf_body_bottom.getObj("scwin").setReturnValue("scwin.fn_same 호출 : 입력값 = [" + val + "] / 렌더링 ID = " + id + " -> 반환값 = [" + val + "]");
+    return val;
+};
+
+
+
+// 사용자 정의 함수 : 값을 반환하지 않음
+// validation 6 판정 출력 (반환하지 않으면 입력값 미적용)
+scwin.fn_none = function (val, id) {
+    wf_body_bottom.getObj("scwin").setReturnValue("scwin.fn_none 호출 : 입력값 = [" + val + "] / 렌더링 ID = " + id + " -> 반환값 없음");
+};
+
+
+
+// comp 생성
+//  - name : 항목명 Column (readOnly)
+//  - val  : 검증 대상 Column (inputType / validator 를 옵션값으로 설정)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    // 조건 설정 (미설정 옵션은 속성 자체를 넣지 않는다)
+    let cInputType = con_inputType.getValue();
+    let cValidator = con_validator.getValue();
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[절차] 결과창 clear -> Row 0 의 val 셀 더블클릭 -> 기존 값 지우고 앞뒤 공백을 넣어 소문자 입력 (예: 공백 kiwi 공백, calendar 는 20261231, select 는 다른 항목 선택) -> 셀 밖 클릭으로 편집 완료 -> 셀 값 확인\n[확인] 입력 중에는 함수 호출 줄이 없고 편집 완료 시 출력되는지, 편집 완료 후 셀 표시값과 DataList 값\n[메소드] setCellData 버튼은 DataList setCellData 로 Row 1 의 val 값을 메소드로 변경하며 함수 호출 줄이 출력되지 않는지 확인"', '', 'label1');
+
+    // dataList 생성 (body column id 와 동일한 컬럼 id 사용)
+    let strNameSpace = $c.gcm.getNameSpace();
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="name" name="name" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="val" name="val" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="depth" name="depth" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '<w2:data use="true"></w2:data>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    if (cInputType === "calendar") {
+        dlt_bind.setJSON([
+            { "name" : "편집 대상", "val" : "20260101", "depth" : "1" },
+            { "name" : "메소드 대상", "val" : "20260102", "depth" : "1" }
+        ], false);
+    } else {
+        dlt_bind.setJSON([
+            { "name" : "편집 대상", "val" : "apple", "depth" : "1" },
+            { "name" : "메소드 대상", "val" : "banana", "depth" : "1" }
+        ], false);
+    }
+
+    // val Column 속성
+    let attrVal = ' inputType="' + cInputType + '"';
+    if (cValidator !== '') {
+        attrVal += ' validator="' + cValidator + '"';
+    }
+    if (cInputType === "drilldown") {
+        attrVal += ' depthColumn="depth" style="text-align:left;"';
+    } else {
+        attrVal += ' style=""';
+    }
+    if (cInputType === "calendar") {
+        attrVal += ' dataType="date" displayFormat="yyyy-MM-dd"';
+    }
+    let strItems = '';
+    if (cInputType === "select") {
+        strItems += '<w2:choices>';
+        strItems += '<w2:item><w2:label>apple</w2:label><w2:value>apple</w2:value></w2:item>';
+        strItems += '<w2:item><w2:label>banana</w2:label><w2:value>banana</w2:value></w2:item>';
+        strItems += '<w2:item><w2:label>kiwi</w2:label><w2:value>kiwi</w2:value></w2:item>';
+        strItems += '</w2:choices>';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:150px;">';
+    strTarget += '<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="row1">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="column1" value="name"></w2:column>';
+    strTarget += '<w2:column width="280" style="" inputType="text" id="column2" value="val"></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="row2">';
+    strTarget += '<w2:column width="200" style="" inputType="text" id="name" value="" readOnly="true"></w2:column>';
+    strTarget += '<w2:column width="280" id="val" value=""' + attrVal + '>' + strItems + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate(
+        "target1",
+        "gridView",
+        strTarget,
+        grp_comp
+    );
+}
+
+
+
+// Row 별 셀 표시값과 DataList 값 출력
+// validation 4, 6 판정 출력 (반환값 적용 / 미반환 시 미적용)
+scwin.btn_checkCell_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    for (let i = 0; i < 2; i++) {
+        let td = document.querySelector("td[id*='" + target1.id + "_cell_" + i + "_1']");
+        let cellText = td ? td.textContent : "";
+        bottom.setReturnValue("Row " + i + " 셀 표시값 : [" + cellText + "] / DataList 값 : [" + dlt_bind.getCellData(i, "val") + "]");
+    }
+};
+
+
+
+// 메소드(DataList setCellData)로 Row 1 의 val 값 변경 후 셀 표시값과 DataList 값 출력
+// validation 7 판정 출력 (함수 호출 줄 미출력, 설정값 그대로 적용)
+scwin.btn_setCellData_onclick = function () {
+    // calendar 는 날짜값, select 는 목록에 있는 값, 그 외는 앞뒤 공백이 있는 소문자 값
+    let cInputType = con_inputType.getValue();
+    let value = cInputType === "calendar" ? "20261231" : (cInputType === "select" ? "kiwi" : "  melon  ");
+    dlt_bind.setCellData(1, "val", value);
+    let td = document.querySelector("td[id*='" + target1.id + "_cell_1_1']");
+    let cellText = td ? td.textContent : "";
+    wf_body_bottom.getObj("scwin").setReturnValue("setCellData 값 : [" + value + "] -> 셀 표시값 : [" + cellText + "] / DataList 값 : [" + dlt_bind.getCellData(1, "val") + "]");
+};]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>text</xf:label>
+												<xf:value>text</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>secret</xf:label>
+												<xf:value>secret</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textImage</xf:label>
+												<xf:value>textImage</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>drilldown</xf:label>
+												<xf:value>drilldown</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>calendar</xf:label>
+												<xf:value>calendar</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>select</xf:label>
+												<xf:value>select</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>textarea</xf:label>
+												<xf:value>textarea</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="validator" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_validator" label="label" ref="" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.fn_upper (공백 제거 + 대문자 반환)</xf:label>
+												<xf:value>scwin.fn_upper</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.fn_same (입력값 그대로 반환)</xf:label>
+												<xf:value>scwin.fn_same</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.fn_none (반환 없음)</xf:label>
+												<xf:value>scwin.fn_none</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkCell_onclick" id="btn_checkCell"
+							label="셀 값 확인" style="">
+						</w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_setCellData_onclick" id="btn_setCellData"
+							label="setCellData" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

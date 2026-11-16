@@ -1,0 +1,463 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[column] viewType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261116" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map"></w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - 설정 영역 con 옵션은 만들지 않는다 (column 샘플 관례).
+//    validation 2 는 대상 Column 의 Header 를 inputType=textImage 로 고정하고 Body 와 같은 viewType 을 설정해,
+//    viewType 에 따라 Header 이미지 표시가 바뀌는지로 확인한다 (Footer/SubTotal 등 다른 영역은 구성하지 않음).
+//  - editModeEvent=onclick / editModeEventIcon=ondblclick, imageSrc / imageAlign=left 고정
+scwin.tData = {
+    "description" : "[column > P > viewType]<br/>Column 이 편집 상태가 아닐때 inputType 에 해당하는 아이콘이나 이미지를 항상 표시할지 설정합니다.",
+    "validation" : [
+        "Column 의 inputType='select','calendar','textImage','checkcombobox','autoComplete','spinner' 인 경우에 동작합니다.",
+        "Body Column 과 inputType='textImage' 인 Header Column 에서만 동작하며 다른 영역의 Column 에 설정 시 무시됩니다.",
+        "'default' 설정 시, Cell 값만 표시하고 아이콘이나 이미지를 표시하지 않습니다.",
+        "미설정 시, Cell 값만 표시하고 아이콘이나 이미지를 표시하지 않습니다.",
+        "'default' 설정 시, Body Cell 은 editModeEvent 속성에 설정한 마우스 이벤트로 편집 모드로 변경됩니다.",
+        "'icon' 설정 시, Cell 값과 함께 inputType 에 해당하는 아이콘이나 이미지를 표시합니다.",
+        "'icon' 설정 시, inputType='select','checkcombobox','autoComplete' : Cell 의 오른쪽에 드롭다운 화살표 아이콘을 표시합니다.",
+        "'icon' 설정 시, inputType='calendar' : Cell 의 오른쪽에 달력 아이콘을 표시합니다.",
+        "'icon' 설정 시, inputType='textImage' : imageSrc 속성에 설정한 이미지를 imageAlign 속성에 설정한 위치에 표시합니다.",
+        "'icon' 설정 시, inputType='spinner' : Cell 의 오른쪽에 Spinner 아이콘을 표시합니다.",
+        "'icon' 설정 시, Body Cell 은 editModeEventIcon 속성에 설정한 마우스 이벤트로 편집 모드로 변경됩니다.",
+        "embeddedInput='true' 인 Column 은 입력 컴포넌트가 내장되어 표시되므로 아이콘이나 이미지가 항상 표시됩니다."
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 현재 적용 설정값
+    "viewType" : "",
+    "inputType" : "",
+    "embeddedInput" : "",
+    // 직전 mousedown 시점 정보 (클릭 횟수 / 조작 전 포커스 셀)
+    "detail" : 0,
+    "prevFocus" : ""
+}
+
+// 고정 설정값
+scwin.IMAGE_SRC = "/cm/images/contents/btn_folder.png";
+scwin.IMAGE_ALIGN = "left";
+scwin.EDIT_EVENT = "onclick";
+scwin.EDIT_EVENT_ICON = "ondblclick";
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_viewType.setValue("icon");
+    con_inputType.setValue("select");
+    con_embeddedInput.setSelectedIndex(0);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// comp 생성
+//  - col_name : 일반 text Column (비교용)
+//  - col_target : 검증 대상 Column
+//      Header : inputType=textImage 고정 + viewType(con) + imageSrc / imageAlign 고정
+//      Body   : inputType(con) + viewType(con) + embeddedInput(con) + editModeEvent / editModeEventIcon 고정
+//      (미설정 옵션은 속성 자체를 넣지 않는다)
+scwin.comp_init = async function () {
+    // 기존 target / dataList / label 삭제
+    if (typeof target1 !== 'undefined' && target1) {
+        target1.remove();
+    }
+    if (typeof dlt_bind !== 'undefined' && dlt_bind) {
+        $p.data.remove("dlt_bind");
+    }
+    if (typeof dlt_code !== 'undefined' && dlt_code) {
+        $p.data.remove("dlt_code");
+    }
+    if (typeof label1 !== 'undefined' && label1) {
+        label1.remove();
+    }
+
+    let cViewType = con_viewType.getValue();
+    let cInputType = con_inputType.getValue();
+    let cEmbeddedInput = con_embeddedInput.getValue();
+    scwin.gVar.viewType = cViewType;
+    scwin.gVar.inputType = cInputType;
+    scwin.gVar.embeddedInput = cEmbeddedInput;
+    scwin.gVar.detail = 0;
+    scwin.gVar.prevFocus = "";
+
+    // 테스트 정보 라벨 (target 생성 전 가장 먼저 생성)
+    $c.gcm.createLabel('label="[전제] 대상 Column 고정 설정 : Body editModeEvent=onclick, editModeEventIcon=ondblclick / Header 는 inputType=textImage 고정 / textImage 는 imageSrc=btn_folder.png, imageAlign=left\n[절차] 아이콘 표시 확인 버튼 클릭 -> 포커스가 없는 대상 Column 셀의 텍스트 영역을 한 번 클릭, 다른 셀을 더블 클릭\n[확인] 편집 모드로 진입한 순간 결과창에 진입 조작과 적용 이벤트가 자동 출력됨"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+
+    // 코드/라벨 DataList (select / autoComplete / checkcombobox itemset)
+    let strCode = '';
+    strCode += '<w2:dataList ' + strNameSpace + ' id="dlt_code" baseNode="list" repeatNode="map">';
+    strCode += '<w2:columnInfo>';
+    strCode += '<w2:column id="code" name="code" dataType="text"></w2:column>';
+    strCode += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strCode += '</w2:columnInfo>';
+    strCode += '<w2:data use="true"></w2:data>';
+    strCode += '</w2:dataList>';
+    $p.data.create(strCode);
+    dlt_code.setJSON([
+        { "code" : "A", "label" : "서울" },
+        { "code" : "B", "label" : "부산" },
+        { "code" : "C", "label" : "대구" }
+    ], false);
+
+    // inputType 별 바인딩 데이터
+    let targetData = {
+        "select"        : ["A", "B", "C"],
+        "autoComplete"  : ["A", "B", "C"],
+        "checkcombobox" : ["A B", "B C", "A C"],
+        "calendar"      : ["20260115", "20260220", "20260312"],
+        "spinner"       : ["5", "10", "15"],
+        "textImage"     : ["견적서.pdf", "계약서.docx", "회의록.hwp"],
+        "text"          : ["견적서.pdf", "계약서.docx", "회의록.hwp"]
+    }[cInputType];
+
+    let strDl = '';
+    strDl += '<w2:dataList ' + strNameSpace + ' id="dlt_bind" baseNode="list" repeatNode="map">';
+    strDl += '<w2:columnInfo>';
+    strDl += '<w2:column id="col_name" name="col_name" dataType="text"></w2:column>';
+    strDl += '<w2:column id="col_target" name="col_target" dataType="' + (cInputType === "calendar" ? "date" : "text") + '"></w2:column>';
+    strDl += '</w2:columnInfo>';
+    strDl += '<w2:data use="true"></w2:data>';
+    strDl += '</w2:dataList>';
+    $p.data.create(strDl);
+    dlt_bind.setJSON([
+        { "col_name" : "김철수", "col_target" : targetData[0] },
+        { "col_name" : "이영희", "col_target" : targetData[1] },
+        { "col_name" : "박민준", "col_target" : targetData[2] }
+    ], false);
+
+    // 대상 Column 속성
+    let viewTypeAttr = (cViewType === '' ? '' : ' viewType="' + cViewType + '"');
+    let headAttr = ' inputType="textImage"' + viewTypeAttr + ' imageSrc="' + scwin.IMAGE_SRC + '" imageAlign="' + scwin.IMAGE_ALIGN + '"';
+    let bodyAttr = ' inputType="' + cInputType + '"' + viewTypeAttr;
+    bodyAttr += ' editModeEvent="' + scwin.EDIT_EVENT + '" editModeEventIcon="' + scwin.EDIT_EVENT_ICON + '"';
+    if (cEmbeddedInput !== '') {
+        bodyAttr += ' embeddedInput="' + cEmbeddedInput + '"';
+    }
+    let bodyChild = '';
+    if (cInputType === "select" || cInputType === "autoComplete" || cInputType === "checkcombobox") {
+        bodyChild = '<w2:choices><w2:itemset nodeset="data:dlt_code"><w2:label ref="label"></w2:label><w2:value ref="code"></w2:value></w2:itemset></w2:choices>';
+    } else if (cInputType === "calendar") {
+        bodyAttr += ' calendarValueType="yearMonthDate" displayFormat="yyyy-MM-dd"';
+    } else if (cInputType === "textImage") {
+        bodyAttr += ' imageSrc="' + scwin.IMAGE_SRC + '" imageAlign="' + scwin.IMAGE_ALIGN + '"';
+    }
+
+    // target 생성
+    let grp_comp = $c.gcm.getTestGroup();
+    let strTarget = '';
+    strTarget += '<w2:gridView ' + strNameSpace + ' dataList="data:dlt_bind" checkAllType="false" id="" style="width:500px;height:180px;"';
+    strTarget += ' ev:onbeforeedit="scwin.target1_onbeforeedit">';
+    strTarget += '<w2:header style="" id="header1">';
+    strTarget += '<w2:row style="" id="hrow1">';
+    strTarget += '<w2:column width="150" inputType="text" id="hcol_name" value="고객명"></w2:column>';
+    strTarget += '<w2:column width="250" id="hcol_target" value="대상 Column"' + headAttr + '></w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:header>';
+    strTarget += '<w2:gBody style="" id="gBody1">';
+    strTarget += '<w2:row style="" id="brow1">';
+    strTarget += '<w2:column width="150" inputType="text" dataType="text" id="col_name"></w2:column>';
+    strTarget += '<w2:column width="250" dataType="' + (cInputType === "calendar" ? "date" : "text") + '" id="col_target"' + bodyAttr + '>' + bodyChild + '</w2:column>';
+    strTarget += '</w2:row>';
+    strTarget += '</w2:gBody>';
+    strTarget += '</w2:gridView>';
+
+    scwin["target1"] = await $p.dynamicCreate("target1", "gridView", strTarget, grp_comp);
+
+    // 조작 감시 (capture 단계 : 엔진 처리 전 클릭 횟수와 조작 전 포커스 셀 기록)
+    if (scwin["target1"]) {
+        target1.render.addEventListener("mousedown", scwin.target1_mousedownCapture, true);
+    }
+}
+
+
+
+// 화면에 표시되는 요소인지
+scwin.isShown = function (el) {
+    if (!el) {
+        return false;
+    }
+    let rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== "hidden";
+}
+
+
+
+// 경로에서 파일명만 추출
+scwin.getFileName = function (url) {
+    let s = url.replace(/^url\(["']?/, "").replace(/["']?\)$/, "");
+    return s.substring(s.lastIndexOf("/") + 1);
+}
+
+
+
+// 영역 안 텍스트(이미지 제외)의 왼쪽 x 좌표 (텍스트가 input 값이면 input 의 x 좌표)
+scwin.getTextLeft = function (area, imgEl) {
+    let input = area.querySelector("input:not([type='hidden'])");
+    if (scwin.isShown(input)) {
+        return input.getBoundingClientRect().left;
+    }
+    let walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT);
+    let left = null;
+    while (walker.nextNode()) {
+        let node = walker.currentNode;
+        if (node.nodeValue.trim() === "" || (imgEl && imgEl.contains(node))) {
+            continue;
+        }
+        let range = document.createRange();
+        range.selectNodeContents(node);
+        let rect = range.getBoundingClientRect();
+        if (rect.width > 0 && (left === null || rect.left < left)) {
+            left = rect.left;
+        }
+    }
+    return left;
+}
+
+
+
+// 셀(td/th) 안 아이콘·이미지 표시 상태 문자열
+//  - 이미지 요소(img/button) : 파일명 + 텍스트 기준 위치
+//  - Spinner 증감 버튼 : 표시 여부
+//  - CSS 배경 아이콘 : 파일명 + Cell 기준 위치
+//  - 내장 입력 컴포넌트 : 표시 여부
+scwin.getIconText = function (cell) {
+    if (!cell) {
+        return "Cell 없음";
+    }
+    let parts = [];
+    let input = cell.querySelector("input:not([type='hidden']), select, textarea");
+    if (scwin.isShown(input)) {
+        parts.push("내장 입력 컴포넌트 표시");
+    }
+    let img = cell.querySelector("img, button");
+    if (scwin.isShown(img)) {
+        let src = img.getAttribute("src") || window.getComputedStyle(img).backgroundImage;
+        let textLeft = scwin.getTextLeft(cell, img);
+        let pos = (textLeft === null) ? "텍스트 없음" : ((img.getBoundingClientRect().left < textLeft) ? "텍스트의 왼쪽" : "텍스트의 오른쪽");
+        parts.push("이미지 = " + scwin.getFileName(src) + " (" + pos + ")");
+    }
+    let up = cell.querySelector(".w2spinner_up");
+    let down = cell.querySelector(".w2spinner_down");
+    if (scwin.isShown(up) && scwin.isShown(down)) {
+        parts.push("Spinner 증감 버튼 표시");
+    }
+    let cs = window.getComputedStyle(cell);
+    if (cs.backgroundImage && cs.backgroundImage !== "none") {
+        let files = cs.backgroundImage.split(/,\s*(?=url\()/).map(scwin.getFileName);
+        let posX = cs.backgroundPositionX.split(",")[0].trim();
+        let side = (posX.indexOf("calc(100%") === 0 || posX === "100%" || posX === "right") ? "Cell 오른쪽" : "Cell 왼쪽";
+        parts.push("아이콘 = " + files.join(", ") + " (" + side + ")");
+    }
+    return parts.length === 0 ? "아이콘/이미지 없음" : parts.join(" / ");
+}
+
+
+
+// Cell 표시 텍스트 (내장 입력 컴포넌트면 입력값)
+scwin.getCellText = function (cell) {
+    let input = cell.querySelector("input:not([type='hidden'])");
+    if (scwin.isShown(input)) {
+        return input.value;
+    }
+    return cell.textContent.trim();
+}
+
+
+
+// validation 1, 2, 3, 4, 6 ~ 10, 12 판정 출력 : Header / Row 0 Body Cell 의 표시값과 아이콘·이미지 표시 상태
+scwin.btn_checkIcon_onclick = function () {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let th = document.querySelector("[id='" + target1.id + "_hcol_target']");
+    let td = target1.render.querySelector("td[id$='_cell_0_1']");
+    let vt = (scwin.gVar.viewType === "" ? "미설정" : scwin.gVar.viewType);
+    let emb = (scwin.gVar.embeddedInput === "" ? "" : ", embeddedInput=" + scwin.gVar.embeddedInput);
+    bottom.setReturnValue("Header (textImage, viewType=" + vt + ") : " + (th ? scwin.getCellText(th) : "") + " / " + scwin.getIconText(th));
+    bottom.setReturnValue("Body Row 0 (" + scwin.gVar.inputType + ", viewType=" + vt + emb + ") : " + scwin.getCellText(td) + " / " + scwin.getIconText(td));
+}
+
+
+
+// 조작 전 상태 기록
+scwin.target1_mousedownCapture = function (e) {
+    scwin.gVar.detail = e.detail;
+    scwin.gVar.prevFocus = target1.getFocusedRowIndex() + ":" + target1.getFocusedColumnID();
+}
+
+
+
+// validation 5, 11 판정 출력 : 편집 모드 진입 시 진입 조작과 적용 이벤트
+//  onbeforeedit 는 편집 모드로 바뀌지 않는 경우에도 발생할 수 있으므로 처리 후 isEditing() 이 true 인 경우에만 출력한다.
+scwin.target1_onbeforeedit = function (rowIndex, columnIndex, value) {
+    let colId = target1.getColumnID(columnIndex);
+    if (colId !== "col_target") {
+        return;
+    }
+    let detail = scwin.gVar.detail;
+    let again = (scwin.gVar.prevFocus === rowIndex + ":" + colId);
+    setTimeout(function () {
+        if (!target1.isEditing()) {
+            return;
+        }
+        let action = "클릭";
+        if (detail >= 2) {
+            action = "더블 클릭";
+        } else if (again) {
+            action = "포커스된 셀 다시 클릭";
+        }
+        let td = target1.render.querySelector("td[id$='_cell_" + rowIndex + "_" + columnIndex + "']");
+        let evt = td ? (td.getAttribute("data-editModeEvent") || "") : "";
+        let src = (evt === scwin.EDIT_EVENT) ? " (editModeEvent)" : ((evt === scwin.EDIT_EVENT_ICON) ? " (editModeEventIcon)" : "");
+        wf_body_bottom.getObj("scwin").setReturnValue(
+            "편집 모드 진입 : Row " + rowIndex + " (" + action + ") | 적용 이벤트 = " + evt + src);
+    }, 0);
+}
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="viewType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_viewType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[default]]></xf:label>
+												<xf:value><![CDATA[default]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[icon]]></xf:label>
+												<xf:value><![CDATA[icon]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="inputType (Body)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_inputType" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[select]]></xf:label>
+												<xf:value><![CDATA[select]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[calendar]]></xf:label>
+												<xf:value><![CDATA[calendar]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[textImage]]></xf:label>
+												<xf:value><![CDATA[textImage]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[checkcombobox]]></xf:label>
+												<xf:value><![CDATA[checkcombobox]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[autoComplete]]></xf:label>
+												<xf:value><![CDATA[autoComplete]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[spinner]]></xf:label>
+												<xf:value><![CDATA[spinner]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[text]]></xf:label>
+												<xf:value><![CDATA[text]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="embeddedInput (Body)" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_embeddedInput" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[true]]></xf:label>
+												<xf:value><![CDATA[true]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_checkIcon_onclick" id="btn_checkIcon" label="아이콘 표시 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
