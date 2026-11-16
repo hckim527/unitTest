@@ -75,7 +75,7 @@ scwin.comp_init = async function () {
     }
 
     // 안내 라벨 (가장 먼저 생성)
-    $c.gcm.createLabel('label="[전제] DrillDown 환경. 왼쪽 target1=Drag 소스, 오른쪽 target2=Drop 대상.\n[절차] target1 의 부모/행을 target2 로 드래그하면 dragStartFunction 이 호출되고 행이 실제 이동(계층 유지)됩니다.\n[참고] 반환값 선택에 따라 Drop 이 진행/취소됩니다."', '', 'label1');
+    $c.gcm.createLabel('label="[전제] DrillDown 환경. 왼쪽 target1=Drag 소스, 오른쪽 target2=Drop 대상.\n[절차] target1 의 부모/행을 target2 로 드래그하면 dragStartFunction 이 호출되고 행이 실제 이동(계층 유지)됩니다.\n[참고] 반환값 선택에 따라 Drop 이 진행/취소됩니다.\n[조건] target2 dragEndFunction 정의 여부와 target2 상태(DrillDown/Drag 허용)를 바꾸면 dragEndFunction 호출 여부가 달라집니다."', '', 'label1');
 
     let strNameSpace = $c.gcm.getNameSpace();
 
@@ -104,13 +104,32 @@ scwin.comp_init = async function () {
         '', strNameSpace, cellLeft);
 
     // target2(우, Drop 대상) : DrillDown + dataDragDrop=true (dragEndFunction 미정의 → 엔진 자동 이동)
-    scwin.target2 = await scwin._createDrillGrid("target2", "dlt_bind2", "우(Drop 대상)", '',
-        '', strNameSpace, cellRight);
+    //  - con_dragEndFunction : target2 dragEndFunction 정의 여부 (기본 미정의)
+    //  - con_target2Mode : target2 DrillDown/Drag 허용 상태 (기본 DrillDown+Drag 허용)
+    let cDragEndFunc = con_dragEndFunction.getValue();
+    let cTarget2Mode = con_target2Mode.getValue();
+    let extraAttr2 = (cDragEndFunc !== "") ? ' dragEndFunction="' + cDragEndFunc + '"' : '';
+    scwin.target2 = await scwin._createDrillGrid("target2", "dlt_bind2", "우(Drop 대상)", extraAttr2,
+        '', strNameSpace, cellRight, (cTarget2Mode === "noDrill"));
 
     // DrillDown 그리드는 기본적으로 Drag&Drop 미동작 -> setDrillDownDragDrop(true) 로 활성화
     //  - target1(소스) : Drag 허용 / target2(Drop 대상) : DrillDown Drop 자동 이동을 위해 DrillDown+Drag 허용
     target1.setDrillDownDragDrop(true);
-    target2.setDrillDownDragDrop(true);
+    //  - con_target2Mode="noDrag" 이면 target2 Drag 불허(setDrillDownDragDrop 미호출)
+    if (cTarget2Mode !== "noDrag") {
+        target2.setDrillDownDragDrop(true);
+    }
+};
+
+
+
+// dragEndFunction : Drop 대상 그리드(target2)에 정의되는 사용자 정의 함수 (con 으로 정의 시에만)
+//  - 호출 여부 확인용. Drop 데이터 처리는 직접 구현해야 하므로 처리하지 않고 false 반환
+scwin.target2_dragEndFunc = function (toRowIndex, rowXml, info) {
+    var bottom = wf_body_bottom.getObj("scwin");
+    bottom.setReturnValue("▶ dragEndFunction 호출 (정의 위치 GridView : " + info.toGridViewId + ")");
+    bottom.setReturnValue("toRowIndex : " + toRowIndex + ", fromGridViewId : " + info.fromGridViewId);
+    return false;
 };
 
 
@@ -150,7 +169,8 @@ scwin._getDrillJSONRight = function () {
 
 
 // 계층(DrillDown) GridView 생성 헬퍼 (name 컬럼 inputType="drilldown")
-scwin._createDrillGrid = async function (gid, dltId, captionText, extraAttr, evAttr, strNameSpace, cParent) {
+//  - noDrill=true 이면 name 컬럼을 일반 text 로 생성(DrillDown 미적용)
+scwin._createDrillGrid = async function (gid, dltId, captionText, extraAttr, evAttr, strNameSpace, cParent, noDrill) {
     let properties = { dataList: "data:" + dltId, dataDragDrop: "true" };
     let cList = $c.gcm.createCList(properties);
 
@@ -166,7 +186,11 @@ scwin._createDrillGrid = async function (gid, dltId, captionText, extraAttr, evA
     strTarget += '</w2:header>';
     strTarget += '<w2:gBody style="" id="">';
     strTarget += '<w2:row style="" id="">';
-    strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    if (noDrill === true) {
+        strTarget += '<w2:column width="200" style="" inputType="text" id="name" dataList="name"></w2:column>';
+    } else {
+        strTarget += '<w2:column width="200" style="" inputType="drilldown" depthColumn="depth" showDepth="1" depthStartIndex="1" id="name" dataList="name"></w2:column>';
+    }
     strTarget += '<w2:column width="*" style="" inputType="text" id="dept" dataList="dept"></w2:column>';
     // depth 를 화면 바인딩 컬럼으로 노출 -> 엔진 DrillDown 자동이동(eventController.js:1644)의 _getDrillDownRowData(this.dataList)
     //  가 depth 컬럼을 포함하게 되어 appendNode 가 계층(depth)을 올바르게 복원함(미바인딩 시 depth 누락→값 뒤섞임 결함 우회).
@@ -269,6 +293,48 @@ scwin.target1_dragStartFunc = function (info) {
 											<xf:item>
 												<xf:label></xf:label>
 												<xf:value></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="target2 dragEndFunction" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_dragEndFunction" label="label" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>scwin.target2_dragEndFunc</xf:label>
+												<xf:value>scwin.target2_dragEndFunc</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="target2 상태" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_target2Mode" label="label" style="" submenuSize="auto" value="value">
+										<xf:choices>
+											<xf:item>
+												<xf:label>DrillDown + Drag 허용</xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>Drag 불허</xf:label>
+												<xf:value>noDrag</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>DrillDown 미적용</xf:label>
+												<xf:value>noDrill</xf:value>
 											</xf:item>
 										</xf:choices>
 									</xf:select1>
