@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] accessibility" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261117" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[autoComplete > P > accessibility]<br/>AutoComplete 컴포넌트에 웹접근성 지원 기능을 일괄적으로 적용할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, renderType 속성값에 관계없이 입력창이 항상 표시되는 구조로 렌더링되며 선택된 아이템이 입력창에 표시됩니다.",
+        "true 설정 시, 컴포넌트의 최상위 요소에 'w2autoComplete' 클래스 대신 'w2autoComplete_acc' 클래스가 설정됩니다.",
+        "true 설정 시, 화살표 버튼이 'button' 요소로 렌더링되며 tabindex='-1' 이 설정되어 Tab 키에 의한 포커스 이동에서 제외됩니다.",
+        "true 설정 시, 아이템 리스트창이 'ul', 'li' 요소로 렌더링되며 'ul' 요소에 role='listbox', 'li' 요소에 role='option' 속성이 추가됩니다.",
+        "true 설정 시, 아이템 리스트창이 닫힌 상태에서 입력창에 아래 화살표키를 입력하면 전체 아이템이 표시된 아이템 리스트창이 열립니다.",
+        "true 설정 시, 모바일 환경에서는 아이템 리스트창이 컴포넌트 내부에 렌더링되며 컴포넌트의 최상위 요소에 tabIndex 속성이 설정되지 않습니다.",
+        "false 설정 시, AutoComplete 컴포넌트에 웹접근성 지원 기능을 적용하지 않습니다.",
+        "미설정 시, AutoComplete 컴포넌트에 웹접근성 지원 기능을 적용하지 않습니다.",
+    ]
+}
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // con_accessibility 기본값 true
+    con_accessibility.setValue("2");
+
+    // 리스트창 확인 버튼 클릭 시 목록이 먼저 닫히므로 mousedown capture 단계에서 열림 상태를 기록
+    btn_getItemTableInfo.render.addEventListener("mousedown", scwin.captureItemTableState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[절차]\n1. 화살표 버튼으로 목록을 열어 아이템 선택 -> 렌더링 구조 확인\n2. 입력창 클릭 -> 아래 화살표키 -> 목록이 열린 상태에서 리스트창 확인"', '', 'label1');
+
+    let properties = {
+        accessibility : con_accessibility.getText(),
+        renderType : con_renderType.getValue(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    $c.gcm.createBasicAutoComplete(cList);
+}
+
+
+
+// 컴포넌트 최상위 요소, 입력창, 화살표 버튼 구조 출력 (validation 1, 2, 3, 6(tabIndex), 7, 8)
+scwin.btn_getRenderInfo_onclick = function (e) {
+    let render = target1.render;
+    let compClass = render.className.split(" ").filter(function (c) { return c === "w2autoComplete" || c === "w2autoComplete_acc"; }).join(" ");
+    let tabIndexAttr = render.hasAttribute("tabIndex") ? render.getAttribute("tabIndex") : "없음";
+    wf_body_bottom.getObj("scwin").setReturnValue("최상위 요소 class : " + compClass + " / tabIndex : " + tabIndexAttr);
+
+    let inputElem = document.querySelector("input[id='" + target1.id + "_input']");
+    let inputShown = !!inputElem && getComputedStyle(inputElem).display !== "none";
+    let inputInfo = "입력창 표시 : " + inputShown + (inputShown ? " / 입력창 값 : " + inputElem.value : "");
+    wf_body_bottom.getObj("scwin").setReturnValue(inputInfo);
+
+    let arrowElem = document.querySelector("[id='" + target1.id + "_arrow'], [id='" + target1.id + "_button']");
+    if (arrowElem) {
+        let arrowTabIndex = arrowElem.hasAttribute("tabindex") ? arrowElem.getAttribute("tabindex") : "없음";
+        wf_body_bottom.getObj("scwin").setReturnValue("화살표 버튼 : " + arrowElem.tagName + " (tabindex : " + arrowTabIndex + ")");
+    }
+};
+
+
+
+// 버튼 mousedown 시점(목록이 닫히기 전)의 리스트창 열림 상태·표시 아이템 수 기록
+scwin.captureItemTableState = function (e) {
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    scwin.itemTableState = null;
+    if (!itemTableElem) {
+        return;
+    }
+    let isOpen = getComputedStyle(itemTableElem).display !== "none" && getComputedStyle(itemTableElem).visibility !== "hidden";
+    let itemElems = itemTableElem.querySelectorAll("li, tr");
+    let shownCount = Array.prototype.filter.call(itemElems, function (item) { return item.offsetParent !== null; }).length;
+    scwin.itemTableState = { isOpen : isOpen, shownCount : shownCount };
+};
+
+
+
+// 아이템 리스트창 구조/위치/표시 아이템 수 출력 (validation 4, 5, 6(위치), 7, 8)
+scwin.btn_getItemTableInfo_onclick = function (e) {
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (!itemTableElem) {
+        wf_body_bottom.getObj("scwin").setReturnValue("아이템 리스트창 생성 : false");
+        return;
+    }
+
+    let listElem = itemTableElem.querySelector("ul, table");
+    let itemElems = listElem ? listElem.querySelectorAll(listElem.tagName === "UL" ? "li" : "tr") : [];
+    let itemElem = itemElems.length > 0 ? itemElems[0] : null;
+    wf_body_bottom.getObj("scwin").setReturnValue("리스트창 : " + (listElem ? listElem.tagName : "") + " (role : " + (listElem ? listElem.getAttribute("role") : "") + ") / 아이템 : " + (itemElem ? itemElem.tagName : "") + " (role : " + (itemElem ? itemElem.getAttribute("role") : "") + ")");
+
+    let position = target1.render.contains(itemTableElem) ? "컴포넌트 내부" : itemTableElem.parentNode.tagName;
+    let state = scwin.itemTableState || { isOpen : false, shownCount : 0 };
+    wf_body_bottom.getObj("scwin").setReturnValue("리스트창 위치 : " + position + " / 열림 : " + state.isOpen + " / 표시 아이템 수 : " + state.shownCount + " (전체 " + gdl_autocomplete.getRowCount() + ")");
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="accessibility" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_accessibility" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="renderType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_renderType" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[component]]></xf:label>
+												<xf:value><![CDATA[component]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[native]]></xf:label>
+												<xf:value><![CDATA[native]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRenderInfo_onclick" id="btn_getRenderInfo" label="렌더링 구조 확인"
+							style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getItemTableInfo_onclick" id="btn_getItemTableInfo" label="리스트창 확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
