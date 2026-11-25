@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] autoFocus" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261125" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 이 샘플(_1) 은 적용 전제와 설정값(true/false/미설정), 검색 건수 축을 담당한다. 비교 조건(searchTarget, caseSensitive) 축은 _2 샘플에서 다룬다.
+scwin.tData = {
+    "description" : "[autoComplete > P > autoFocus]<br/>입력값이 아이템과 정확하게 일치하면 포커스를 nextTabID 속성의 컴포넌트로 이동시킵니다.",
+    "validation" : [
+        "nextTabID 속성값이 설정되어 있고 interactionMode='false' 인 경우에 동작합니다.",
+        "true 설정 시, 사용자의 입력값으로 검색된 아이템이 1 건이고, 입력값과 일치하면 nextTabID 속성에 설정한 컴포넌트로 포커스를 이동합니다.",
+        "false 설정 시, 사용자의 입력값과 일치하는 아이템이 있어도 포커스를 이동하지 않습니다.",
+        "미설정 시, 사용자의 입력값과 일치하는 아이템이 있어도 포커스를 이동하지 않습니다.",
+        "사용자의 입력값과 정확하게 일치하는 아이템이 있어도 검색된 아이템이 2 건 이상이면 포커스가 이동하지 않습니다.",
+    ]
+}
+
+// 아이템 (Busan 은 Busanjin 의 앞부분과 같아 Busan 입력 시 2 건이 검색된다)
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Seongnam", "value" : "SNM" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Busanjin", "value" : "BSJ" },
+    { "label" : "Jeju", "value" : "CJU" }
+];
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 아이템 DataList 생성
+    scwin.createCityDataList("dlt_city");
+    dlt_city.setJSON(scwin.arrCity);
+
+    // con 기본값 : autoFocus=true, nextTabID=input2
+    con_autoFocus.setValue("2");
+    con_nextTabID.setSelectedIndex(1);
+
+    // 포커스 확인 버튼 클릭 시 포커스가 버튼으로 옮겨가고 목록이 닫히므로 mousedown capture 단계에서 상태를 기록
+    btn_getFocusInfo.render.addEventListener("mousedown", scwin.captureFocusState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+scwin.createCityDataList = function (dltID) {
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="' + dltID + '">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제 (remove 로는 지워지지 않는 이전 nextTabID 연결 정보도 함께 정리)
+    if (typeof target1 !== 'undefined') {
+        delete WebSquare.tabOrder[target1.id];
+        target1.remove();
+    }
+
+    if (typeof input2 !== 'undefined') {
+        delete WebSquare.tabOrder[input2.id];
+        input2.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제]\n- 아이템(Label / Value) : Seoul / SEL, Seongnam / SNM, Busan / PUS, Busanjin / BSJ, Jeju / CJU\n- 위쪽 입력창이 input2, 아래쪽이 대상 AutoComplete\n- interactionMode=true 이면 submissionFunc 가 입력값으로 시작하는 아이템을 조회하여 목록을 표시\n[절차] 결과창 clear -> 대상 클릭 -> Seoul (1 건 검색) 또는 Busan (2 건 검색) 입력 -> 포커스 확인"', '', 'label1');
+
+    scwin.typedValue = "";
+
+    let properties = {
+        autoFocus : con_autoFocus.getText(),
+        nextTabID : con_nextTabID.getValue(),
+        interactionMode : con_interactionMode.getText(),
+        submissionFunc : "scwin.searchItem",
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    // nextTabID 대상(input2)을 target1 보다 먼저 생성
+    await $c.gcm.createEmptyInput('style="width:200px; height:30px;"', '', 'input2');
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+
+    // 포커스 이동 후에는 입력창의 표시값이 바뀔 수 있어 사용자가 입력한 값을 따로 기록
+    document.querySelector("input[id='" + target1.id + "_input']").addEventListener("input", function (e) {
+        scwin.typedValue = e.target.value;
+    });
+}
+
+
+
+// interactionMode=true 일때 입력값으로 시작하는 아이템을 조회하여 목록을 표시
+scwin.searchItem = function (searchStr, keyCode) {
+    if (searchStr === "") {
+        return;
+    }
+    target1.removeAll();
+    scwin.arrCity.forEach(function (item) {
+        if (item.label.indexOf(searchStr) === 0) {
+            target1.addItem(item.label, item.value);
+        }
+    });
+    target1.openTable();
+};
+
+
+
+// 버튼 mousedown 시점(포커스가 버튼으로 옮겨가기 전)의 포커스 위치와 리스트창 표시 아이템 기록
+scwin.captureFocusState = function (e) {
+    let activeElem = document.activeElement;
+    if (target1.render.contains(activeElem)) {
+        scwin.focusState = "target1";
+    } else if (input2.render.contains(activeElem)) {
+        scwin.focusState = "input2";
+    } else {
+        scwin.focusState = activeElem.id || activeElem.tagName;
+    }
+
+    scwin.listState = null;
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (!itemTableElem || getComputedStyle(itemTableElem).display === "none" || getComputedStyle(itemTableElem).visibility === "hidden") {
+        return;
+    }
+    let rowElems = itemTableElem.querySelectorAll("[id='" + target1.id + "_itemTable_main'] tr, li");
+    scwin.listState = Array.prototype.filter.call(rowElems, function (row) {
+        return row.offsetParent !== null;
+    }).map(function (row) {
+        return row.textContent;
+    });
+};
+
+
+
+// 입력값, 검색된 아이템(리스트창이 열려 있는 경우), 포커스 위치 출력 (validation 1 ~ 5)
+scwin.btn_getFocusInfo_onclick = function (e) {
+    let strResult = "입력값 : " + scwin.typedValue;
+    if (scwin.listState) {
+        strResult += " -> 검색된 아이템 : " + scwin.listState.join(" / ");
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue(strResult + " -> 포커스 : " + scwin.focusState);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="autoFocus" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_autoFocus" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="nextTabID" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_nextTabID" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[input2]]></xf:label>
+												<xf:value><![CDATA[input2]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="interactionMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_interactionMode" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getFocusInfo_onclick" id="btn_getFocusInfo" label="포커스 확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

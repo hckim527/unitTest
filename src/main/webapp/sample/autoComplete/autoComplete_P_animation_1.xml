@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] animation" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261120" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 아이템 정의 방식 / 애니메이션 종류별 효과
+//  - _2 : 아이템 리스트창이 위쪽으로 열리는 경우의 slideDown
+scwin.tData = {
+    "description" : "[autoComplete > P > animation]<br/>AutoComplete 컴포넌트의 아이템 리스트창이 열릴때 적용될 애니메이션 효과를 설정합니다.",
+    "validation" : [
+        "아이템이 GridViewItemset 으로 정의된 경우 동작하지 않습니다.",
+        "미설정 시 애니메이션 효과를 적용하지 않습니다.",
+        "show 설정 시 좌상단에서 우하단으로 아이템 리스트창이 대각선으로 펼쳐지는 애니메이션 효과를 적용합니다.",
+        "fadeIn 설정 시 아이템 리스트창의 투명도가 점점 선명해지는 애니메이션 효과를 적용합니다.",
+        "slideDown 설정 시 아이템 리스트창이 하단으로 펼쳐지는 애니메이션 효과를 적용합니다.",
+    ]
+}
+
+
+
+// 리스트창이 열리는 과정의 기록 (애니메이션 효과 관측용)
+scwin.gVar = { "record" : null };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON([
+        { "label" : "Seoul", "value" : "1" },
+        { "label" : "Busan", "value" : "2" },
+        { "label" : "Incheon", "value" : "3" },
+        { "label" : "Sejong", "value" : "4" }
+    ]);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_animation.setValue("show");
+    con_itemset.setValue("itemset");
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    scwin.gVar.record = null;
+
+    $c.gcm.createLabel('label="[절차] 화살표 버튼 클릭 또는 입력창에 S 입력으로 리스트창 열기 -> 펼쳐지는 동안 기다린 뒤 확인 버튼"', '', 'label1');
+
+    let properties = {
+        animation : con_animation.getValue(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    if (con_itemset.getValue() === "gridViewItemset") {
+        strTarget += '<w2:gridViewItemset nodeset="data:dlt_city" label="label" value="value">';
+        strTarget += '<w2:item ref="label" header="label"></w2:item>';
+        strTarget += '<w2:item ref="value" header="value"></w2:item>';
+        strTarget += '</w2:gridViewItemset>';
+    } else {
+        strTarget += '<w2:itemset nodeset="data:dlt_city">';
+        strTarget += '<w2:label ref="label"></w2:label>';
+        strTarget += '<w2:value ref="value"></w2:value>';
+        strTarget += '</w2:itemset>';
+    }
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+
+    // 리스트창을 여는 조작(화살표 버튼 클릭 / 키 입력) 시점부터 펼쳐지는 과정을 기록
+    if (typeof target1 !== 'undefined') {
+        target1.render.addEventListener("mousedown", scwin.startRecord, true);
+        target1.render.addEventListener("keydown", scwin.startRecord, true);
+    }
+};
+
+
+
+// 아이템 리스트창 요소 (itemset : _itemTable / GridViewItemset : _gridViewItemTable)
+scwin.getListElem = function () {
+    return document.querySelector("[id='" + target1.id + "_itemTable'], [id='" + target1.id + "_gridViewItemTable']");
+};
+
+
+
+scwin.isVisible = function (elem) {
+    if (!elem) {
+        return false;
+    }
+    let objStyle = getComputedStyle(elem);
+    return objStyle.display !== "none" && objStyle.visibility !== "hidden";
+};
+
+
+
+// 닫혀 있던 리스트창이 열리는 동안 크기 배율 / 투명도 / 높이를 짧은 간격으로 기록한다.
+//  · 최종 상태만 보면 효과 유무가 같으므로 펼쳐지는 도중의 중간값으로 판단한다.
+//  · show : 크기와 투명도, fadeIn : 투명도, slideDown : 높이가 변한다.
+scwin.startRecord = function (e) {
+    if (scwin.isVisible(scwin.getListElem())) {
+        return;
+    }
+    let rec = { "opened" : false, "scaleMin" : 1, "opacityMin" : 1, "heightMin" : -1, "heightMax" : 0, "className" : "" };
+    scwin.gVar.record = rec;
+
+    let nStart = Date.now();
+    let nId = setInterval(function () {
+        let elem = scwin.getListElem();
+        if (scwin.isVisible(elem)) {
+            let objStyle = getComputedStyle(elem);
+            let nScale = 1;
+            if (objStyle.transform && objStyle.transform !== "none") {
+                let arrMatrix = objStyle.transform.replace(/^matrix\(|\)$/g, "").split(",");
+                nScale = parseFloat(arrMatrix[0]);
+            }
+            let nOpacity = parseFloat(objStyle.opacity);
+            let nHeight = elem.offsetHeight;
+            rec.opened = true;
+            rec.className = elem.className;
+            if (nScale < rec.scaleMin) { rec.scaleMin = nScale; }
+            if (nOpacity < rec.opacityMin) { rec.opacityMin = nOpacity; }
+            if (rec.heightMin < 0 || nHeight < rec.heightMin) { rec.heightMin = nHeight; }
+            if (nHeight > rec.heightMax) { rec.heightMax = nHeight; }
+        }
+        if (Date.now() - nStart > 2500 || scwin.gVar.record !== rec) {
+            clearInterval(nId);
+        }
+    }, 15);
+};
+
+
+
+// 리스트창이 열릴 때 기록한 애니메이션 클래스와 효과 출력 (validation 1 ~ 5)
+scwin.btn_getAnimation_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let rec = scwin.gVar.record;
+    if (!rec || !rec.opened) {
+        bottom.setReturnValue("리스트창 열림 : false");
+        return;
+    }
+
+    let arrAnimClass = rec.className.split(/\s+/).filter(function (cls) {
+        return cls === "w2show" || cls === "w2fadeIn" || cls === "w2slideDown";
+    });
+    let strAnim = con_animation.getValue() === "" ? "미설정" : con_animation.getValue();
+    bottom.setReturnValue("아이템 정의 : " + con_itemset.getValue() + " / animation : " + strAnim + " -> 리스트창 애니메이션 클래스 : " + (arrAnimClass.length > 0 ? arrAnimClass.join(" ") : "없음"));
+
+    // 펼쳐지는 도중에 크기·투명도·높이가 최종값보다 작았으면 그 효과가 있었던 것이다
+    let bScale = rec.scaleMin < 0.9;
+    let bOpacity = rec.opacityMin < 0.9;
+    let bHeight = rec.heightMax > 0 && rec.heightMin < rec.heightMax * 0.9;
+    bottom.setReturnValue("대각선 펼침 : " + (bScale ? "O" : "X") + " / 투명도 변화 : " + (bOpacity ? "O" : "X") + " / 하단 펼침 : " + (bHeight ? "O" : "X"));
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="animation" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_animation" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[show]]></xf:label>
+												<xf:value><![CDATA[show]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[fadeIn]]></xf:label>
+												<xf:value><![CDATA[fadeIn]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[slideDown]]></xf:label>
+												<xf:value><![CDATA[slideDown]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="아이템 정의" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_itemset" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[itemset]]></xf:label>
+												<xf:value><![CDATA[itemset]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[gridViewItemset]]></xf:label>
+												<xf:value><![CDATA[gridViewItemset]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getAnimation_onclick" id="btn_getAnimation" label="animation 값 확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

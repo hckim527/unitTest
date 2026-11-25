@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] displayFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261125" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 담당 범위(2개 분할 중 _1) : 사용자 정의 함수 전달값(escape 별) / 반환값 표시 / 반환값의 태그 처리 / Label, Value, DataCollection 미반영 / getText / 편집 상태 입력창, 리스트창 미적용
+//  - 선택 안내, 전체 선택 아이템 미적용은 _2 에서 다룬다.
+scwin.tData = {
+    "description" : "[autoComplete > P > displayFormatter]<br/>컴포넌트가 편집 상태가 아닐때 입력창에 표시되는 값의 포맷을 변환하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "함수 이름 설정 시, 사용자 정의 함수의 파라미터로 입력창에 표시된 값이 전달되며, escape='true' 이면 이스케이프 처리된 값이 전달됩니다.",
+        "함수 이름 설정 시, 사용자 정의 함수의 반환값이 컴포넌트의 입력창에 표시됩니다.",
+        "함수 이름 설정 시, 반환값은 이스케이프 처리되지 않으므로 반환값에 포함된 태그는 HTML 로 처리되어 화면에 표시됩니다.",
+        "사용자 정의 함수의 반환값은 화면 표시에만 사용되며 아이템의 Label, Value 와 바인딩된 DataCollection 에는 반영되지 않습니다.",
+        "getText() 메소드는 사용자 정의 함수가 적용되기 전의 Label 을 반환합니다.",
+        "편집 상태의 입력창과 아이템 리스트창의 아이템에는 적용되지 않습니다.",
+    ]
+}
+
+// 아이템 (세번째 아이템의 Label 에 이스케이프 대상 문자 &, <, > 포함)
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Seoul & Busan <-> Jeju", "value" : "SBJ" }
+];
+
+// fmtArgs : Target 재생성 이후 사용자 정의 함수에 전달된 값 (중복 제외)
+// stateInfo : 편집 상태 확인 버튼을 누르는 시점의 편집 모드 여부, 입력창 값, 리스트창 아이템
+scwin.gVar = { "fmtArgs" : [], "stateInfo" : "" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON(scwin.arrCity);
+
+    // target1 의 Value 가 반영될 DataMap 생성 (ref 바인딩 대상)
+    let strDm = '';
+    strDm += '<w2:dataMap ' + $c.gcm.getNameSpace() + ' baseNode="map" id="dm_ref">';
+    strDm += '<w2:keyInfo>';
+    strDm += '<w2:key id="city" name="city" dataType="text"></w2:key>';
+    strDm += '</w2:keyInfo>';
+    strDm += '</w2:dataMap>';
+    $p.data.create(strDm);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (displayFormatter=scwin.fn_suffix, escape 미설정)
+    con_displayFormatter.setSelectedIndex(1);
+    con_escape.setValue("1");
+
+    // 편집 상태 확인 버튼 클릭 시 포커스가 버튼으로 옮겨가 편집 모드가 풀리고 리스트창이 닫히므로 mousedown capture 단계에서 상태를 기록
+    btn_getEditInfo.render.addEventListener("mousedown", scwin.captureState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// 사용자 정의 함수에 전달된 값 기록
+scwin.recordArg = function (label) {
+    if (scwin.gVar.fmtArgs.indexOf(label) < 0) {
+        scwin.gVar.fmtArgs.push(label);
+    }
+};
+
+// displayFormatter 사용자 정의 함수 1 : Label 뒤에 글자를 붙여 반환
+scwin.fn_suffix = function (label) {
+    scwin.recordArg(label);
+    return label + " (선택됨)";
+};
+
+// displayFormatter 사용자 정의 함수 2 : Label 을 b 태그로 감싸 반환
+scwin.fn_bold = function (label) {
+    scwin.recordArg(label);
+    return "<b>" + label + "</b>";
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제]\n- 아이템(Label / Value) : Seoul / SEL, Busan / PUS, Seoul & Busan <-> Jeju / SBJ\n- scwin.fn_suffix 는 Label 뒤에 (선택됨) 을 붙여 반환, scwin.fn_bold 는 Label 을 b 태그로 감싸 반환\n- Target 은 DataMap(dm_ref) 의 city 에 바인딩\n- 사용자 정의 함수 전달값은 Target 재생성 이후 전달된 값을 중복 없이 누적\n[절차]\n1. displayFormatter, escape 선택 -> Target 재생성\n2. 화살표 버튼으로 목록을 열어 아이템 선택 -> 표시값 확인\n3. 값 표시 영역 클릭 -> 편집 상태 확인 (리스트창에는 입력창 값으로 검색된 아이템만 표시)\n4. 화살표 버튼으로 목록을 연 상태에서 편집 상태 확인 (리스트창에 전체 아이템 표시)"', '', 'label1');
+
+    // DataMap 값과 사용자 정의 함수 전달값 기록 초기화
+    dm_ref.set("city", "");
+    scwin.gVar.fmtArgs = [];
+
+    // 미설정 옵션은 속성 자체를 넣지 않는다 (createCList 가 빈값 키 제외)
+    let properties = {
+        ref : "data:dm_ref.city",
+        displayFormatter : con_displayFormatter.getValue(),
+        escape : con_escape.getText(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:250px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+};
+
+
+
+// 편집 상태가 아닐 때의 표시값 출력
+scwin.btn_getDisplayInfo_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let labelElem = document.querySelector("[id='" + target1.id + "_label']");
+
+    // validation 1 : escape 별 사용자 정의 함수 전달값
+    bottom.setReturnValue("사용자 정의 함수 전달값 : " + (scwin.gVar.fmtArgs.length === 0 ? "(호출 없음)" : scwin.gVar.fmtArgs.join(" | ")));
+
+    // validation 2, 3 : 입력창에 표시된 글자와 HTML (반환값의 태그가 HTML 로 처리되면 표시 HTML 에 태그가 그대로 남는다)
+    bottom.setReturnValue("입력창 표시 텍스트 : " + labelElem.textContent + " / 표시 HTML : " + labelElem.innerHTML);
+
+    // validation 5 : getText 반환값
+    bottom.setReturnValue("getText() : " + target1.getText());
+
+    // validation 4 : 선택 아이템의 Label (Value), 바인딩된 DataMap 값, 아이템 DataList
+    let item = target1.getItem(target1.getSelectedIndex());
+    let arrData = dlt_city.getAllJSON().map(function (row) {
+        return row.label + " (" + row.value + ")";
+    });
+    bottom.setReturnValue("선택 아이템 : " + (item ? item.label + " (" + item.value + ")" : "") + " / DataMap(dm_ref) city 값 : " + dm_ref.get("city") + " / DataList(dlt_city) : " + arrData.join(", "));
+};
+
+
+
+// 버튼 mousedown 시점(포커스가 버튼으로 옮겨가기 전)의 상태 기록
+//  - 편집 모드 : 값 표시 영역이 숨겨지고 입력창이 표시된 상태
+scwin.captureState = function (e) {
+    let inputElem = document.querySelector("[id='" + target1.id + "_input']");
+    let labelElem = document.querySelector("[id='" + target1.id + "_label']");
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+
+    let bEditMode = inputElem.offsetWidth > 0 && labelElem.offsetWidth === 0;
+    let bListOpen = !!itemTableElem && getComputedStyle(itemTableElem).display !== "none" && getComputedStyle(itemTableElem).visibility !== "hidden";
+
+    let strResult = "편집 모드 : " + bEditMode;
+    if (bEditMode) {
+        strResult += " / 입력창 값 : " + inputElem.value;
+    }
+    if (bListOpen) {
+        let rowElems = itemTableElem.querySelectorAll("[id='" + target1.id + "_itemTable_main'] tr");
+        let arrItem = Array.prototype.filter.call(rowElems, function (row) {
+            return row.offsetParent !== null;
+        }).map(function (row) {
+            return row.textContent;
+        });
+        strResult += " / 리스트창 아이템 : " + arrItem.join(", ");
+    }
+
+    scwin.gVar.stateInfo = strResult;
+};
+
+
+
+// 편집 상태의 입력창 값과 리스트창 아이템 출력 (validation 6)
+scwin.btn_getEditInfo_onclick = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue(scwin.gVar.stateInfo);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="displayFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_displayFormatter" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.fn_suffix]]></xf:label>
+												<xf:value><![CDATA[scwin.fn_suffix]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.fn_bold]]></xf:label>
+												<xf:value><![CDATA[scwin.fn_bold]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="escape" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_escape" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDisplayInfo_onclick" id="btn_getDisplayInfo" label="표시값 확인"
+							style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getEditInfo_onclick" id="btn_getEditInfo" label="편집 상태 확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

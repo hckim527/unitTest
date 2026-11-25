@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] allowChar" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261120" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 입력 제한 계열 (키 입력 / 아이템 선택 / 다국어·붙여넣기)
+//  - _2 : 유효성 체크 계열 (validate / validateObject)
+scwin.tData = {
+    "description" : "[autoComplete > P > allowChar]<br/>AutoComplete 컴포넌트에 입력이 가능한 문자의 집합을 정규식의 문자클래스 형식으로 설정합니다.",
+    "validation" : [
+        "문자열 설정 시, 정규식의 문자클래스 형식으로 입력이 가능한 문자 집합을 설정합니다.",
+        "문자열 설정 시, 정규식의 문자클래스에서 특수문자로 처리되는 ']', '-', '\\' 등의 문자는 이스케이프 처리하여 설정해야 합니다.",
+        "문자열 설정 시, 설정값은 정규식의 문자클래스('[...]')에 반영되어 입력이 가능한 문자를 찾는데 사용됩니다.",
+        "키보드로 입력하는 문자에 적용되며, 설정되지 않은 문자의 키를 누르면 입력창에 입력되지 않습니다.",
+        "아이템 리스트창에서 아이템을 선택하여 설정되는 값에는 적용되지 않습니다.",
+        "한글과 같은 다국어 문자와 붙여넣기로 입력된 값에는 적용되지 않습니다.",
+    ]
+}
+
+
+
+scwin.gVar = {
+    // 확인 버튼 mousedown 시점(포커스 해제 전)의 입력창 값
+    "inputValue" : null
+}
+
+
+
+scwin.onpageload = async function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 아이템 DataList 생성 (Label 에 대문자 / 공백 / 한글 / 하이픈 포함)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON([
+        { "label" : "Seoul 서울", "value" : "SEL-01" },
+        { "label" : "Busan 부산", "value" : "PUS-02" },
+        { "label" : "Incheon 인천", "value" : "ICN-03" }
+    ]);
+
+    // 역슬래시가 포함된 옵션은 XML 에서 역슬래시가 늘어나므로 라벨을 문자 코드로 조립해 추가 (value 는 토큰)
+    let bs = String.fromCharCode(92);
+    con_allowChar.addItem("sampleAll", scwin.getAllowCharByToken("sampleAll"), 3);
+    con_allowChar.addItem("escHyphen", "a-z" + bs + "- (- 이스케이프)", 4);
+    con_allowChar.addItem("escBracket", "a-z" + bs + "] (] 이스케이프)", 5);
+    con_allowChar.addItem("escBackslash", "a-z" + bs + bs + " (역슬래시 이스케이프)", 6);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_allowChar.setValue("0-9");
+
+    // 붙여넣기 원본 값
+    par_copyValue.setValue("Seoul-01 서울!");
+
+    // 확인 버튼 클릭 시 입력창 포커스가 먼저 해제되므로 mousedown capture 단계에서 입력창 값을 기록
+    btn_getInputValue.render.addEventListener("mousedown", scwin.captureInputValue, true);
+
+    // comp 초기 생성
+    await scwin.comp_init();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+};
+
+
+
+// con_allowChar 값을 실제 allowChar 문자열로 변환
+//  - 역슬래시가 포함된 값은 XML 에서 역슬래시가 늘어나므로 토큰으로 두고 String.fromCharCode(92) 로 조립한다.
+scwin.getAllowCharByToken = function (token) {
+    let bs = String.fromCharCode(92);
+    if (token === "sampleAll") {
+        // 가이드 예시 : 숫자, 소문자, 대문자, 특수문자만 입력 가능
+        return "0-9a-zA-Z~!@#$%^&*()_+|" + bs + "-=" + bs + bs + "{}" + bs + "[" + bs + "]:" + '"' + ";'<>?,./";
+    } else if (token === "escHyphen") {
+        return "a-z" + bs + "-";
+    } else if (token === "escBracket") {
+        return "a-z" + bs + "]";
+    } else if (token === "escBackslash") {
+        return "a-z" + bs + bs;
+    }
+    return token;
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    scwin.gVar.inputValue = null;
+
+    $c.gcm.createLabel('label="[전제] 아이템 Label : Seoul 서울 / Busan 부산 / Incheon 인천\n[절차]\n1. 입력창 클릭 -> 키보드로 aZ9-]!~ 와 역슬래시 키 입력 -> 입력값 확인\n2. Target 재생성 -> 화살표 버튼으로 목록을 열어 Busan 부산 선택 -> 입력값 확인\n3. Target 재생성 -> 입력창에 한글 입력 또는 복사할 값을 Ctrl+C -> 입력창에 Ctrl+V -> 입력값 확인"', '', 'label1');
+
+    let strNameSpace = $c.gcm.getNameSpace();
+    let cAllowChar = scwin.getAllowCharByToken(con_allowChar.getValue());
+
+    // 미설정이면 allowChar 속성을 넣지 않는다 (가이드 예시 값의 &, ", <, > 는 XML 속성값으로 넘기기 위해 엔티티로 변환)
+    let strAllowChar = '';
+    if (cAllowChar !== '') {
+        strAllowChar = ' allowChar="' + cAllowChar.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '"';
+    }
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + strNameSpace + strAllowChar + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+};
+
+
+
+// 버튼 mousedown 시점(포커스 해제 전)의 입력창 값 기록
+scwin.captureInputValue = function (e) {
+    let inputElem = document.querySelector("input[id='" + target1.id + "_input']");
+    scwin.gVar.inputValue = inputElem ? inputElem.value : null;
+};
+
+
+
+// 적용된 allowChar 와 포커스 해제 전 입력창 값 출력 (validation 1 ~ 6)
+scwin.btn_getInputValue_onclick = function (e) {
+    let strAllowChar = target1.options.allowChar ? target1.options.allowChar : "(미설정)";
+    wf_body_bottom.getObj("scwin").setReturnValue("allowChar : " + strAllowChar + " -> 입력창 값 : " + scwin.gVar.inputValue);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="allowChar" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_allowChar" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>0-9</xf:label>
+												<xf:value>0-9</xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label>a-z</xf:label>
+												<xf:value>a-z</xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="복사할 값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:input id="par_copyValue" style=""></xf:input>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td"></xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getInputValue_onclick" id="btn_getInputValue"
+							label="입력값 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

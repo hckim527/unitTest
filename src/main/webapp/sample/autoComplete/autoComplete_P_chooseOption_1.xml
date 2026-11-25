@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] chooseOption" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261125" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[autoComplete > P > chooseOption]<br/>AutoComplete 컴포넌트에 '선택 안내'를 의미하는 아이템을 추가할지 설정합니다.",
+    "validation" : [
+        "true 설정 시, '선택 안내'를 의미하는 아이템을 첫번째 아이템으로 자동으로 추가합니다.",
+        "true 설정 시, 아이템의 Label 값은 '-선택-', 아이템의 Value 값은 ''(Empty String)으로 설정됩니다.",
+        "false 설정 시, '선택 안내' 아이템을 추가하지 않습니다.",
+        "미설정 시, '선택 안내' 아이템을 추가하지 않습니다.",
+        "'선택 안내' 아이템을 선택하면 컴포넌트의 Value 값은 '선택 안내' 아이템의 Value 값으로 설정됩니다.",
+        "'선택 안내' 아이템이 추가되면 나머지 일반 아이템의 인덱스는 1 씩 증가합니다.",
+        "allOption='true' 이면 '선택 안내' 아이템이 0 번 인덱스, '전체 선택' 아이템이 1 번 인덱스로 추가됩니다.",
+        "sortOption 속성으로 아이템을 정렬해도 '선택 안내' 아이템은 정렬되지 않고 일반 아이템보다 앞에 표시됩니다.",
+        "입력창에 검색어를 입력하면 '선택 안내' 아이템은 검색 결과에 표시되지 않습니다.",
+    ]
+}
+
+// 리스트창 확인 버튼을 누르는 시점의 입력창 값과 리스트창 아이템
+scwin.gVar = { "inputValue" : "", "arrItem" : [] };
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 아이템 DataList 생성 (정렬 전 순서 : Incheon, Seoul, Busan, Sejong)
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON([
+        { "label" : "Incheon", "value" : "3" },
+        { "label" : "Seoul", "value" : "1" },
+        { "label" : "Busan", "value" : "4" },
+        { "label" : "Sejong", "value" : "2" }
+    ]);
+
+    // con_chooseOption 기본값 true
+    con_chooseOption.setValue("2");
+
+    // 리스트창 확인 버튼 클릭 시 목록이 먼저 닫히므로 mousedown capture 단계에서 표시 아이템을 기록
+    btn_getListInfo.render.addEventListener("mousedown", scwin.captureListState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] 아이템(DataList 순서) : Incheon(3) / Seoul(1) / Busan(4) / Sejong(2)\n[절차]\n1. 화살표 버튼으로 목록을 열어 Seoul 선택 후 다시 -선택- 선택 -> 아이템 확인\n2. 화살표 버튼으로 목록을 연 상태에서 리스트창 확인\n3. 입력창에 Se 입력 -> 목록이 열린 상태에서 리스트창 확인"', '', 'label1');
+
+    // gdl_boolean 은 getText 로 읽는다 (미설정은 createCList 가 속성에서 제외)
+    let properties = {
+        chooseOption : con_chooseOption.getText(),
+        allOption : con_allOption.getText(),
+        sortOption : con_sortOption.getValue(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+}
+
+
+
+// 아이템 인덱스별 Label (Value) 와 선택 상태 출력 (validation 1 ~ 8)
+scwin.btn_getItemInfo_onclick = function (e) {
+    let arrItem = [];
+    for (let i = 0; i < target1.getItemCount(); i++) {
+        let item = target1.getItem(i);
+        arrItem.push("[" + i + "] " + item.label + " (" + item.value + ")");
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("아이템 : " + arrItem.join(" / "));
+    wf_body_bottom.getObj("scwin").setReturnValue("선택 인덱스 : " + target1.getSelectedIndex() + " / Label : " + target1.getText() + " / Value : " + target1.getValue());
+};
+
+
+
+// 버튼 mousedown 시점(목록이 닫히기 전)의 입력창 값과 리스트창 표시 아이템 기록
+scwin.captureListState = function (e) {
+    scwin.gVar.inputValue = document.querySelector("input[id='" + target1.id + "_input']").value;
+    scwin.gVar.arrItem = [];
+
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (!itemTableElem) {
+        return;
+    }
+    let objStyle = getComputedStyle(itemTableElem);
+    if (objStyle.display === "none" || objStyle.visibility === "hidden") {
+        return;
+    }
+
+    // 숨겨진 Row 는 제외하고 화면에 보이는 아이템만 수집
+    let rowList = itemTableElem.querySelectorAll("[id='" + target1.id + "_itemTable_main'] tr");
+    for (let i = 0; i < rowList.length; i++) {
+        if (rowList[i].offsetHeight > 0) {
+            scwin.gVar.arrItem.push(rowList[i].textContent.trim());
+        }
+    }
+};
+
+
+
+// 열린 리스트창의 표시 아이템 출력 (validation 9)
+scwin.btn_getListInfo_onclick = function (e) {
+    let strItem = scwin.gVar.arrItem.length > 0 ? scwin.gVar.arrItem.join(" / ") : "없음";
+    wf_body_bottom.getObj("scwin").setReturnValue("입력값 : " + scwin.gVar.inputValue + " -> 리스트창 아이템 : " + strItem);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="chooseOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_chooseOption" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="allOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_allOption" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="sortOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_sortOption" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[label]]></xf:label>
+												<xf:value><![CDATA[label]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[value]]></xf:label>
+												<xf:value><![CDATA[value]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getItemInfo_onclick" id="btn_getItemInfo" label="아이템 확인"
+							style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getListInfo_onclick" id="btn_getListInfo" label="리스트창 확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

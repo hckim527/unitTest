@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] direction" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261125" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 표시 방향과 컴포넌트 주변 공간 (auto / 미설정 / down / up)
+//  - _2 : up 일 때의 slideDown 애니메이션
+//  - _3 : fit 과 아이템 정의 방식
+scwin.tData = {
+    "description" : "[autoComplete > P > direction]<br/>AutoComplete 컴포넌트의 아이템 리스트창이 표시되는 방향을 설정합니다.",
+    "validation" : [
+        "auto 설정 시, 컴포넌트 하단에 아이템 리스트창이 표시될 공간이 있으면 'down' 으로 적용되고, 그렇지 않으면 'up' 으로 적용됩니다.",
+        "미설정 시, 컴포넌트 하단에 아이템 리스트창이 표시될 공간이 있으면 'down' 으로 적용되고, 그렇지 않으면 'up' 으로 적용됩니다.",
+        "down 설정 시, 아이템 리스트창이 항상 컴포넌트 하단에 표시됩니다.",
+        "down 설정 시, 컴포넌트 하단에 아이템 리스트창이 표시될 공간이 없으면 웹브라우저에 스크롤이 표시될 수 있습니다.",
+        "up 설정 시, 아이템 리스트창이 항상 컴포넌트 상단에 표시됩니다.",
+        "up 설정 시, 컴포넌트 상단에 아이템 리스트창이 표시될 공간이 없으면 가려져서 표시됩니다.",
+    ]
+}
+
+
+
+// 리스트창 위치 관측 상태
+//  - scrollBefore : 리스트창을 열기 전 브라우저 세로 스크롤 여부
+//  - snap : 확인 버튼을 누르는 순간의 리스트창 상태 (버튼 클릭으로 리스트창이 닫히기 전에 기록)
+scwin.gVar = { "scrollBefore" : "", "snap" : null };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON([
+        { "label" : "Seoul", "value" : "1" },
+        { "label" : "Busan", "value" : "2" },
+        { "label" : "Incheon", "value" : "3" },
+        { "label" : "Sejong", "value" : "4" }
+    ]);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정
+    con_direction.setValue("auto");
+    con_position.setValue("default");
+
+    // 확인 버튼 클릭 시 리스트창이 닫히므로, 닫히기 전(mousedown)에 리스트창 상태를 기록
+    btn_getListPosition.render.addEventListener("mousedown", scwin.captureListState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+    scwin.gVar.snap = null;
+
+    $c.gcm.createLabel('label="[전제] 컴포넌트 위치\n- 화면 하단 : 컴포넌트를 화면 아래쪽 끝에 고정 (하단에 리스트창이 표시될 공간 없음)\n- 화면 상단 : 컴포넌트를 화면 위쪽 끝에 고정 (상단에 리스트창이 표시될 공간 없음)\n[절차] 화살표 버튼 클릭으로 리스트창 열기 -> 리스트창이 열린 상태에서 확인 버튼"', '', 'label1');
+
+    // 미설정 옵션은 속성 자체를 넣지 않는다 (createCList 가 빈값 키 제외)
+    let properties = {
+        direction : con_direction.getValue(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    // 컴포넌트 위치 : 화면 크기와 무관하게 화면 아래쪽 / 위쪽 끝 기준으로 고정
+    let strStyle = "width:200px; height:30px;";
+    if (con_position.getValue() === "bottom") {
+        strStyle += " position:fixed; bottom:5px;";
+    } else if (con_position.getValue() === "top") {
+        strStyle += " position:fixed; top:5px;";
+    }
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="' + strStyle + '">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+
+    // 리스트창을 여는 조작(화살표 버튼 클릭 / 키 입력) 직전의 브라우저 세로 스크롤 여부를 기록
+    scwin.gVar.scrollBefore = scwin.getBrowserScroll();
+    if (typeof target1 !== 'undefined') {
+        target1.render.addEventListener("mousedown", scwin.recordScrollBefore, true);
+        target1.render.addEventListener("keydown", scwin.recordScrollBefore, true);
+    }
+};
+
+
+
+// 아이템 리스트창 요소
+scwin.getListElem = function () {
+    return document.querySelector("[id='" + target1.id + "_itemTable']");
+};
+
+
+
+scwin.isVisible = function (elem) {
+    if (!elem) {
+        return false;
+    }
+    let objStyle = getComputedStyle(elem);
+    return objStyle.display !== "none" && objStyle.visibility !== "hidden";
+};
+
+
+
+// 브라우저 세로 스크롤 여부 (문서 높이가 화면 높이보다 크면 스크롤이 표시된다)
+scwin.getBrowserScroll = function () {
+    return (document.documentElement.scrollHeight > document.documentElement.clientHeight) ? "있음" : "없음";
+};
+
+
+
+// 리스트창이 닫혀 있을 때만 열기 전 상태로 기록
+scwin.recordScrollBefore = function (e) {
+    if (!scwin.isVisible(scwin.getListElem())) {
+        scwin.gVar.scrollBefore = scwin.getBrowserScroll();
+    }
+};
+
+
+
+// 확인 버튼을 누르는 순간의 리스트창 상태 기록
+scwin.captureListState = function (e) {
+    let listElem = scwin.getListElem();
+    if (typeof target1 === 'undefined' || !scwin.isVisible(listElem)) {
+        scwin.gVar.snap = null;
+        return;
+    }
+
+    let nScreenHeight = document.documentElement.clientHeight;
+    let rectList = listElem.getBoundingClientRect();
+    let rectComp = target1.render.getBoundingClientRect();
+
+    scwin.gVar.snap = {
+        "downSpace" : (nScreenHeight - rectComp.bottom >= rectList.height) ? "있음" : "없음",
+        "upSpace" : (rectComp.top >= rectList.height) ? "있음" : "없음",
+        "direction" : (rectList.top < rectComp.top) ? "컴포넌트 상단" : "컴포넌트 하단",
+        "outside" : (rectList.top < 0) ? "위쪽" : ((rectList.bottom > nScreenHeight) ? "아래쪽" : "없음"),
+        "scrollAfter" : scwin.getBrowserScroll()
+    };
+};
+
+
+
+// 리스트창 표시 방향 / 화면 밖으로 나간 부분 / 브라우저 스크롤 출력 (validation 1 ~ 6)
+scwin.btn_getListPosition_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let snap = scwin.gVar.snap;
+    if (!snap) {
+        bottom.setReturnValue("리스트창 열림 : false");
+        return;
+    }
+
+    let strDirection = con_direction.getValue() === "" ? "미설정" : con_direction.getValue();
+
+    // validation 1, 2, 3, 5 : 컴포넌트 주변 공간과 표시 방향
+    bottom.setReturnValue("direction : " + strDirection + " / 하단 공간 : " + snap.downSpace + " / 상단 공간 : " + snap.upSpace + " -> 리스트창 표시 방향 : " + snap.direction);
+
+    // validation 4, 6 : 화면 밖으로 나가 가려진 부분과 브라우저 스크롤
+    bottom.setReturnValue("리스트창이 화면 밖으로 나간 부분 : " + snap.outside + " / 브라우저 세로 스크롤 : 열기 전 " + scwin.gVar.scrollBefore + " -> 연 뒤 " + snap.scrollAfter);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="direction" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_direction" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[auto]]></xf:label>
+												<xf:value><![CDATA[auto]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[down]]></xf:label>
+												<xf:value><![CDATA[down]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[up]]></xf:label>
+												<xf:value><![CDATA[up]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="컴포넌트 위치" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_position" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[기본 위치]]></xf:label>
+												<xf:value><![CDATA[default]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[화면 하단]]></xf:label>
+												<xf:value><![CDATA[bottom]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[화면 상단]]></xf:label>
+												<xf:value><![CDATA[top]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getListPosition_onclick" id="btn_getListPosition"
+							label="리스트창 위치 확인" style="">
+						</w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

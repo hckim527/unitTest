@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] closeonmouseleave" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261125" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[autoComplete > P > closeonmouseleave]<br/>마우스가 AutoComplete 컴포넌트 영역을 벗어날때 표시된 아이템 리스트창을 닫을지 설정합니다.",
+    "validation" : [
+        "true 설정 시, 마우스가 컴포넌트 영역(아이템 리스트창 포함)을 벗어나면 표시된 아이템 리스트창이 자동으로 닫힙니다.",
+        "false 설정 시, 마우스가 컴포넌트 영역을 벗어나도 표시된 아이템 리스트창을 유지합니다.",
+        "미설정 시, 마우스가 컴포넌트 영역을 벗어나도 표시된 아이템 리스트창을 유지합니다.",
+        "마우스가 컴포넌트에서 아이템 리스트창으로 이동하거나 아이템 리스트창에서 컴포넌트로 이동하는 경우에는 아이템 리스트창이 닫히지 않습니다.",
+    ]
+}
+
+
+
+// 마우스 이동 감시 상태
+//  - zone : 마우스가 현재 있는 영역 (컴포넌트 / 리스트창 / 영역 밖)
+//  - pending : 리스트창이 열린 상태에서 컴포넌트 또는 리스트창을 벗어난 시점의 출발 영역
+//  - timer : 이동이 끝난 뒤 결과를 출력하는 타이머
+scwin.gVar = { "zone" : "영역 밖", "pending" : "", "timer" : null };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON([
+        { "label" : "Seoul", "value" : "1" },
+        { "label" : "Busan", "value" : "2" },
+        { "label" : "Incheon", "value" : "3" },
+        { "label" : "Sejong", "value" : "4" }
+    ]);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (true)
+    con_closeonmouseleave.setValue("2");
+
+    // 마우스 이동 감시 (확인 버튼 클릭은 마우스가 영역을 벗어나야 하고 리스트창도 닫으므로, 이동 시점에 자동 출력)
+    document.addEventListener("mouseover", scwin.watchMouseover, true);
+    document.addEventListener("mouseout", scwin.watchMouseout, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// 페이지 이탈 시 마우스 이동 감시 정리
+scwin.onpageunload = function () {
+    document.removeEventListener("mouseover", scwin.watchMouseover, true);
+    document.removeEventListener("mouseout", scwin.watchMouseout, true);
+    scwin.resetWatch();
+};
+
+
+
+// 마우스 이동 감시 상태 초기화
+scwin.resetWatch = function () {
+    if (scwin.gVar.timer) {
+        clearTimeout(scwin.gVar.timer);
+    }
+    scwin.gVar.timer = null;
+    scwin.gVar.pending = "";
+    scwin.gVar.zone = "영역 밖";
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    scwin.resetWatch();
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[절차]\n1. 화살표 버튼 클릭 -> 리스트창 열림\n2. 클릭 없이 마우스만 이동 (컴포넌트 -> 리스트창 -> 컴포넌트 -> 컴포넌트 왼쪽 / 오른쪽 / 위쪽 바깥, 리스트창 -> 리스트창 왼쪽 / 오른쪽 / 아래쪽 바깥)\n[확인] 리스트창이 열린 상태에서 마우스가 컴포넌트 또는 리스트창을 벗어나 다른 영역으로 옮겨가면 이동 경로와 리스트창 열림 여부가 결과창에 자동 출력"', '', 'label1');
+
+    // 미설정 옵션은 속성 자체를 넣지 않는다 (createCList 가 빈값 키 제외)
+    let properties = {
+        closeonmouseleave : con_closeonmouseleave.getText(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+};
+
+
+
+// 아이템 리스트창 열림 여부
+scwin.isListOpen = function () {
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (!itemTableElem) {
+        return false;
+    }
+    let objStyle = getComputedStyle(itemTableElem);
+    return objStyle.display !== "none" && objStyle.visibility !== "hidden";
+};
+
+
+
+// 요소가 속한 영역 (컴포넌트 / 리스트창 / 영역 밖)
+scwin.getZone = function (elem) {
+    if (!elem || typeof target1 === 'undefined' || !target1) {
+        return "영역 밖";
+    }
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (itemTableElem && itemTableElem.contains(elem)) {
+        return "리스트창";
+    }
+    if (target1.render.contains(elem)) {
+        return "컴포넌트";
+    }
+    return "영역 밖";
+};
+
+
+
+// 마우스가 현재 있는 영역 갱신
+scwin.watchMouseover = function (e) {
+    scwin.gVar.zone = scwin.getZone(e.target);
+};
+
+
+
+// 리스트창이 열린 상태에서 마우스가 컴포넌트 또는 리스트창을 벗어나면 출발 영역을 기록하고, 이동이 끝난 뒤 결과 출력
+//  - mouseout capture 단계는 엔진의 mouseleave 처리보다 먼저 실행되므로 이동 직전 열림 여부를 읽을 수 있다
+scwin.watchMouseout = function (e) {
+    let fromZone = scwin.getZone(e.target);
+    if (fromZone === "영역 밖" || fromZone === scwin.getZone(e.relatedTarget)) {
+        return;
+    }
+    if (scwin.gVar.pending !== "" || !scwin.isListOpen()) {
+        return;
+    }
+    scwin.gVar.pending = fromZone;
+    scwin.gVar.timer = setTimeout(scwin.printMoveResult, 200);
+};
+
+
+
+// validation 1 ~ 4 판정 출력 : 이동 경로 (출발 영역 -> 도착 영역) 와 이동 후 리스트창 열림 여부
+//  - 영역 밖으로 이동 : validation 1 (true), 2 (false), 3 (미설정)
+//  - 컴포넌트 <-> 리스트창 이동 : validation 4
+scwin.printMoveResult = function () {
+    let fromZone = scwin.gVar.pending;
+    let toZone = scwin.gVar.zone;
+    scwin.gVar.pending = "";
+    scwin.gVar.timer = null;
+    if (fromZone === toZone) {
+        return;
+    }
+    wf_body_bottom.getObj("scwin").setReturnValue("마우스 이동 : " + fromZone + " -> " + toZone + " / 리스트창 열림 : " + scwin.isListOpen());
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:200px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="closeonmouseleave" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" direction="auto" disabled="false"
+										disabledClass="w2selectbox_disabled" id="con_closeonmouseleave" ref="" style="" submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

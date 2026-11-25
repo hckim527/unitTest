@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] displayFormatter" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261125" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 담당 범위(2개 분할 중 _2) : 선택 안내, 전체 선택 아이템 미적용
+//  - 전달값 / 반환값 표시 / 태그 처리 / Label, Value, DataCollection 미반영 / getText / 편집 상태 입력창, 리스트창 미적용은 _1 에서 다룬다.
+scwin.tData = {
+    "description" : "[autoComplete > P > displayFormatter]<br/>컴포넌트가 편집 상태가 아닐때 입력창에 표시되는 값의 포맷을 변환하는 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "chooseOption='true', allOption='true' 로 추가된 '선택 안내', '전체 선택' 아이템이 선택된 경우에는 적용되지 않습니다.",
+    ]
+}
+
+// fmtArgs : Target 재생성 이후 사용자 정의 함수에 전달된 값 (중복 제외)
+scwin.gVar = { "fmtArgs" : [] };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="dlt_city">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+    dlt_city.setJSON([
+        { "label" : "Seoul", "value" : "SEL" },
+        { "label" : "Busan", "value" : "PUS" },
+        { "label" : "Jeju", "value" : "CJU" }
+    ]);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (displayFormatter=scwin.fn_suffix, chooseOption=true, allOption=true)
+    con_displayFormatter.setSelectedIndex(1);
+    con_chooseOption.setValue("2");
+    con_allOption.setValue("2");
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// displayFormatter 사용자 정의 함수 : 전달값을 기록하고 Label 뒤에 글자를 붙여 반환
+scwin.fn_suffix = function (label) {
+    if (scwin.gVar.fmtArgs.indexOf(label) < 0) {
+        scwin.gVar.fmtArgs.push(label);
+    }
+    return label + " (선택됨)";
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제]\n- 아이템(Label / Value) : Seoul / SEL, Busan / PUS, Jeju / CJU\n- scwin.fn_suffix 는 Label 뒤에 (선택됨) 을 붙여 반환\n- 사용자 정의 함수 전달값은 Target 재생성 이후 전달된 값을 중복 없이 누적\n[절차]\n1. displayFormatter, chooseOption, allOption 선택 -> Target 재생성\n2. 화살표 버튼으로 목록을 열어 -선택- 또는 -전체- 선택 -> 표시값 확인\n3. 목록에서 Seoul 선택 -> 표시값 확인"', '', 'label1');
+
+    // 사용자 정의 함수 전달값 기록 초기화
+    scwin.gVar.fmtArgs = [];
+
+    // gdl_boolean 은 getText 로 읽는다 (미설정은 createCList 가 속성에서 제외)
+    let properties = {
+        displayFormatter : con_displayFormatter.getValue(),
+        chooseOption : con_chooseOption.getText(),
+        allOption : con_allOption.getText(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+};
+
+
+
+// 사용자 정의 함수 전달값과 선택 아이템의 화면 표시값 출력 (validation 1)
+scwin.btn_getDisplayInfo_onclick = function (e) {
+    let bottom = wf_body_bottom.getObj("scwin");
+    let labelElem = document.querySelector("[id='" + target1.id + "_label']");
+
+    bottom.setReturnValue("사용자 정의 함수 전달값 : " + (scwin.gVar.fmtArgs.length === 0 ? "(호출 없음)" : scwin.gVar.fmtArgs.join(" | ")));
+    bottom.setReturnValue("선택 아이템 : " + target1.getText() + " (" + target1.getValue() + ") -> 입력창 표시 텍스트 : " + labelElem.textContent);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="displayFormatter" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_displayFormatter" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.fn_suffix]]></xf:label>
+												<xf:value><![CDATA[scwin.fn_suffix]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="chooseOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_chooseOption" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="allOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_allOption" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getDisplayInfo_onclick" id="btn_getDisplayInfo" label="표시값 확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
