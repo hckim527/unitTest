@@ -13,9 +13,9 @@
 - **컴포넌트/폴더명**: 샘플이 저장될 폴더 (예: `json`, `util`, `gridView`)
 - **API 유형**: P (Property), M (Method), E (Event)
 - **출력 경로**: `unitTest/src/main/webapp/sample/{폴더명}/`
-- **참조 샘플 경로**: 메인이 `UT_01_생성.md` §0 순서(공통 샘플 → 같은 API 타 컴포넌트 판 → 같은/유사 컴포넌트 판)로 골라 직접 적어준다. 해당 판이 없으면 "없음"으로 명시한다.
+- **참조 샘플 경로**: 메인이 `UT_01_테스트샘플_생성.md` §0 순서(공통 샘플 → 같은 API 타 컴포넌트 판 → 같은/유사 컴포넌트 판)로 골라 직접 적어준다. 해당 판이 없으면 "없음"으로 명시한다.
 - **엔진 소스 경로** (선택): `C:\ai_engine_bak\websquare` 내 관련 파일
-- **도구**: 스펙 조회는 엔진 소스 API 주석, XML 검증은 XML 파싱 + 페이지 정상 로드(websquare-mcp 는 사용 보류), 런타임 검증은 Playwright(MCP 세션 또는 scratchpad Node Playwright — `UT_02_검증.md` §1-4)
+- **도구**: 스펙 조회는 엔진 소스 API 주석, XML 검증은 XML 파싱 + 페이지 정상 로드(websquare-mcp 는 사용 보류), 런타임 검증은 Playwright(MCP 세션 또는 scratchpad Node Playwright — `UT_02_테스트샘플_검증.md` §1-4)
 
 ---
 
@@ -23,14 +23,14 @@
 
 ### Step 1: 규칙 파일 읽기
 에이전트는 작업 시작 시 다음 파일들을 읽는다:
-- `unitTest/UT_01_생성.md` — 생성 규칙
-- `unitTest/UT_02_검증.md` — 검증 규칙
-- `unitTest/UT_03_보강.md` — 보강 규칙
+- `unitTest/UT_01_테스트샘플_생성.md` — 생성 규칙
+- `unitTest/UT_02_테스트샘플_검증.md` — 검증 규칙
+- `unitTest/UT_03_테스트샘플_보강.md` — 보강 규칙
 
-### Step 2: 생성 (`UT_01_생성.md` 규칙 적용)
+### Step 2: 생성 (`UT_01_테스트샘플_생성.md` 규칙 적용)
 1. API 가이드 문서를 분석하여 validation 항목을 도출한다.
 2. 참조 샘플이 있으면 읽어 UI 구조, 핸들러 패턴, 관측 방식을 파악한다. (validation 문구는 복사하지 않는다)
-3. `UT_01_생성.md`의 규칙에 따라 샘플 XML을 작성한다:
+3. `UT_01_테스트샘플_생성.md`의 규칙에 따라 샘플 XML을 작성한다:
    - validation 생성 규칙 (필수/선택 표시, enum 분리, param 개별 생성 등)
    - ID/명명 규칙 (`con_`, `par_` 접두어)
    - UI 구성 규칙 (selectbox, 버튼, 테이블 구조)
@@ -38,17 +38,17 @@
 4. 핸들러에서 호출하는 컴포넌트 메서드는 엔진 소스 주석(`@name`)으로 실존 여부를 확인한다.
 5. 출력 경로에 샘플 파일을 저장한다.
 
-### Step 3: 검증 (`UT_02_검증.md` 규칙 적용)
+### Step 3: 검증 (`UT_02_테스트샘플_검증.md` 규칙 적용)
 1. XML 구조가 정상인지 확인한다 (네임스페이스, head/body, validation 정의).
 2. 스크립트 로직이 정상인지 확인한다 (API 호출, 파라미터 전달, return 출력).
 3. UI 구성 규칙 준수 여부를 확인한다 (selectbox 옵션, 버튼 라벨 등).
 4. 기존 동일 패턴 샘플과 구조가 일관되는지 확인한다.
-5. 런타임 검증을 수행한다 (`UT_02_검증.md` §1-4, 필수).
+5. 런타임 검증을 수행한다 (`UT_02_테스트샘플_검증.md` §1-4, 필수).
 
-### Step 4: 보강 (`UT_03_보강.md` 규칙 적용)
+### Step 4: 보강 (`UT_03_테스트샘플_보강.md` 규칙 적용)
 1. API 가이드 문서의 `@description`, `@propval`, `@param`, `@spec` 내용과 validation을 1:1 대조한다.
 2. 누락된 항목이 있으면 validation과 관련 로직을 추가한다.
-3. `UT_03_보강.md`의 **보강 체크리스트**를 자가 점검한다.
+3. `UT_03_테스트샘플_보강.md`의 **보강 체크리스트**를 자가 점검한다.
 
 ### Step 5: w-pack (수동 변환 없음)
 w-pack 변환은 수동으로 하지 않는다. Studio 가 실행 중이면 XML 저장 시(신규 파일·신규 폴더 포함) 수 초 내 자동 빌드된다. 화면에 수정이 반영되지 않으면 Studio 실행 여부를 먼저 확인한다.
@@ -62,7 +62,7 @@ w-pack 변환은 수동으로 하지 않는다. Studio 가 실행 중이면 XML 
 - **런타임 검증 결과** (PASS / 발견 이슈, 대체 수단을 썼으면 그 사실)
 - FAIL 시: 실패 사유 및 현재까지 진행 상태
 
-unitTest 샘플 생성(생성→검증→보강)이 끝나면 결과를 보고하고 멈춘다. TSQA 스크립트 생성은 사용자의 명시 지시가 있을 때만 시작한다.
+unitTest 샘플 생성(생성→검증→보강)이 끝나면 결과를 보고하고, 별도 지시 없이 그 샘플의 TSQA 스크립트 생성(TSQA/TS_AGENT_RULES.md)을 이어서 시작한다(2026-11-25 사용자 지시).
 
 ---
 
@@ -166,7 +166,7 @@ unitTest 배치 생성 시 **최대 3개 에이전트를 병렬로 실행**하�
 - 참조 샘플 경로 (§1) — 선례 실물 파일이 프롬프트 서술보다 우선임을 함께 적는다
 - 사용할 MCP 세션명
 - validation 후보 수 ("정확히 이 N건만" — 가이드에 대응하는 항목만, 임의 추가 금지)
-- "작업 시작 시 `unitTest/UT_01_생성.md`, `unitTest/UT_02_검증.md`, `unitTest/UT_03_보강.md`를 읽고 규칙을 따를 것"이라는 지시
+- "작업 시작 시 `unitTest/UT_01_테스트샘플_생성.md`, `unitTest/UT_02_테스트샘플_검증.md`, `unitTest/UT_03_테스트샘플_보강.md`를 읽고 규칙을 따를 것"이라는 지시
 - 아래 **작업 범위·금지 문구** (항상)
 
 ```
@@ -194,7 +194,7 @@ unitTest 배치 생성 시 **최대 3개 에이전트를 병렬로 실행**하�
 - `@name` → API명 (예: `parseInt`)
 - `@type` 또는 `@param` 유무 → API 유형 판별 (P/M/E)
 - 출력 경로: `unitTest/src/main/webapp/sample/{폴더명}/{폴더명}_{타입}_{API명}_1.xml`
-- 참조 샘플: `UT_01_생성.md` §0 순서로 선택 (`@related` 참고)
+- 참조 샘플: `UT_01_테스트샘플_생성.md` §0 순서로 선택 (`@related` 참고)
 
 **프롬프트 예시:**
 ```
@@ -215,9 +215,9 @@ unitTest 샘플을 생성하세요.
 
 ## 규칙
 작업 시작 시 다음 파일들을 읽고 규칙을 따르세요:
-- unitTest/UT_01_생성.md — 생성 규칙
-- unitTest/UT_02_검증.md — 검증 규칙
-- unitTest/UT_03_보강.md — 보강 규칙
+- unitTest/UT_01_테스트샘플_생성.md — 생성 규칙
+- unitTest/UT_02_테스트샘플_검증.md — 검증 규칙
+- unitTest/UT_03_테스트샘플_보강.md — 보강 규칙
 
 ## 작업 범위 (엄수)
 (위 작업 범위·금지 문구 그대로)
@@ -231,9 +231,9 @@ unitTest 샘플을 생성하세요.
 공통 메소드 계열(같은 API 세트를 다른 컴포넌트로 옮길 때)은 스크립트 일괄 변환 후 직렬 실측으로 값을 확정한다. 그 외 일반 샘플은 위 기본 원칙(1 에이전트 = 1 샘플)을 따른다.
 - 대상: `{컴포넌트}_M_{공통메소드}_1.xml` 처럼 공통 샘플(`common_M`/`common_P`)을 wrap 하는 얇은 샘플 30여 개를 새 컴포넌트로 확산하는 작업.
 - 절차: 형제 컴포넌트 판 복사 → 컴포넌트명·`createBasic*`·플러그인명·마크업 치환 → 원본 잔재 grep 0건 확인 → 한 세션에서 전 샘플을 순회하며 직렬 실측(컴포넌트 생성·validation 렌더·console error).
-- 주의: `$p.dynamicCreate` 를 직접 쓰는 샘플(getID/getOriginalID/getPosition/setPosition/getGenerator)과 `scwin.gVar` 를 쓰는 샘플(focus/getUserData/setUserData/trigger 등)은 개별 확인한다(gVar 블록을 지우면 동작하지 않는다). helper 컴포넌트 타입 유지 등은 `UT_01_생성.md` §8 을 따른다.
+- 주의: `$p.dynamicCreate` 를 직접 쓰는 샘플(getID/getOriginalID/getPosition/setPosition/getGenerator)과 `scwin.gVar` 를 쓰는 샘플(focus/getUserData/setUserData/trigger 등)은 개별 확인한다(gVar 블록을 지우면 동작하지 않는다). helper 컴포넌트 타입 유지 등은 `UT_01_테스트샘플_생성.md` §8 을 따른다.
 - 원본 판의 Jira 링크 주석이 딸려오지 않았는지 변환 후 `grep atlassian` 으로 확인한다.
-- 실측이 공통 샘플·가이드와 어긋나면 억지로 맞추지 말고 보고한다. 결함 후보로 올리는 것은 `UT_03_보강.md` §2-3 판단 순서로 결함에 해당하고 §2-4 보고 기준을 충족한 것만이고, 나머지는 "관찰(미확인)" 으로 짧게 적는다.
+- 실측이 공통 샘플·가이드와 어긋나면 억지로 맞추지 말고 보고한다. 결함 후보로 올리는 것은 `UT_03_테스트샘플_보강.md` §2-3 판단 순서로 결함에 해당하고 §2-4 보고 기준을 충족한 것만이고, 나머지는 "관찰(미확인)" 으로 짧게 적는다.
 
 ---
 
@@ -242,7 +242,7 @@ unitTest 샘플을 생성하세요.
 - API 가이드 문서 없음 → 즉시 FAIL 반환
 - 참조 샘플 파일 없음 → 경고 후 기본 구조로 생성 진행
 - 화면에 수정이 반영되지 않음 → 수동 w-pack 하지 말고 Studio 실행 여부부터 확인, 실행 중이 아니면 그 사실을 보고
-- MCP Playwright 미연결 → `UT_02_검증.md` §1-4 의 대체 수단(scratchpad Node Playwright)으로 검증하고 보고에 명시
+- MCP Playwright 미연결 → `UT_02_테스트샘플_검증.md` §1-4 의 대체 수단(scratchpad Node Playwright)으로 검증하고 보고에 명시
 
 ---
 
