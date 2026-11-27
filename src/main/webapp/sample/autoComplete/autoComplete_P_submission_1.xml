@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] submission" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261126" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="_2(실행 결과 반영 setItemSet·openTable) validation 병합, 결과 수신 시 setItemSet 전후 아이템 개수 출력, 라벨 간소화" meta_date="20261126" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<xf:instance>
+				<data xmlns="">
+					<req>
+						<search></search>
+					</req>
+				</data>
+			</xf:instance>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+			<xf:submission id="sbm_search" ref="req/search" action="/data/p_createSubmission_userList.json" method="post"
+				mediatype="application/xml" mode="asynchronous" processMsg="$blank" ev:submit="scwin.sbm_search_submit"
+				ev:submitdone="scwin.sbm_search_submitdone">
+			</xf:submission>
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[autoComplete > P > submission]<br/>interactionMode='true' 일때 서버에 아이템을 동적으로 요청할 Submission 의 ID 를 설정합니다.",
+    "validation" : [
+        "interactionMode='true' 일때 설정한 ID 의 Submission 으로 서버에 아이템을 동적으로 요청합니다.",
+        "submissionFunc 속성 설정 시 submission 속성은 무시됩니다.",
+        "interactionEnterKey 속성값에 따라 다음의 경우에 submission 이 실행됩니다. interactionEnterKey='false' : 사용자가 값을 입력하거나 아이템 리스트창이 닫힌 상태에서 아래 화살표키를 누르면 실행됩니다.",
+        "interactionEnterKey 속성값에 따라 다음의 경우에 submission 이 실행됩니다. interactionEnterKey='true' : Enter 키를 누르면 실행됩니다.(사용자가 값을 입력하는 경우엔 실행되지 않습니다.)",
+        "submission 실행 전에 사용자의 입력값이 keyInputRef 속성에 설정한 경로 하위의 key 노드에 설정됩니다.",
+        "사용자의 입력값이 직전에 실행한 검색어와 같으면 submission 이 다시 실행되지 않습니다.",
+        "submission 의 실행 결과는 컴포넌트의 아이템에 자동으로 반영되지 않습니다. submission 완료 후 setItemSet() 메소드로 아이템을 설정하고 openTable() 메소드로 아이템 리스트창을 열어야 합니다.",
+        "submission, submissionFunc 속성을 모두 설정하지 않으면 interactionMode='false' 로 동작합니다."
+    ]
+}
+
+// 컴포넌트에 설정된 아이템 겸 검색 대상 데이터
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Seongnam", "value" : "SNM" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Jeju", "value" : "CJU" }
+];
+
+scwin.gVar = {
+    "arrRequest" : [],   // 아이템 데이터 요청 기록 (확인 버튼 클릭 시 출력 후 비움)
+    "arrItem" : [],      // 확인 버튼 mousedown 시점의 리스트창 표시 아이템
+    "isOpen" : false,    // 확인 버튼 mousedown 시점의 리스트창 표시 여부
+    "itemCount" : 0,     // 확인 버튼 mousedown 시점의 아이템 개수
+    "strResultCount" : "" // 마지막 결과 수신 시 setItemSet 전후 아이템 개수 (확인 버튼 클릭 시 출력 후 비움)
+};
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 컴포넌트 아이템 DataList / 검색 결과 DataList 생성
+    let arrDltId = ["dlt_city", "dlt_result"];
+    arrDltId.forEach(function (dltId) {
+        let strDlt = '';
+        strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="' + dltId + '">';
+        strDlt += '<w2:columnInfo>';
+        strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+        strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+        strDlt += '</w2:columnInfo>';
+        strDlt += '</w2:dataList>';
+        $p.data.create(strDlt);
+    });
+    dlt_city.setJSON(scwin.arrCity);
+
+    // con 기본값 : interactionMode=true, interactionEnterKey=true, submission=sbm_search(Scope 적용 ID), submissionFunc 미설정
+    con_interactionMode.setValue("2");
+    con_interactionEnterKey.setValue("2");
+    con_submission.setSelectedIndex(2);
+    con_submissionFunc.setSelectedIndex(0);
+
+    // 확인 버튼을 누르면 편집 모드가 해제되어 리스트창이 먼저 닫히므로 mousedown capture 단계에서 리스트창 상태를 기록
+    btn_getRequest.render.addEventListener("mousedown", scwin.captureListState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') target1.remove();
+
+    // sbm_search 는 정적 파일을 요청하고, 결과 수신 시 응답 대신 key 노드값을 포함하는 아이템으로 setItemSet + openTable 호출
+    // 정의 ID(sbm_search) 옵션은 화면 Scope 에서 Submission 을 찾지 못해 알림창이 뜸(결함 후보 대기 목록 기재) -> 판정은 Scope 적용 ID 옵션
+    // 확인 클릭은 편집 모드를 해제하므로 절차 마지막에만 클릭
+    $c.gcm.createLabel('label="[전제]\n- 고정 설정 : keyInputRef=req/search\n- 컴포넌트 아이템 : Seoul, Seongnam, Busan, Jeju\n- 결과 수신 시 검색어를 포함하는 아이템으로 setItemSet 후 openTable 호출\n- submission 판정은 Scope 적용 ID 옵션으로 (정의 ID 는 알림창 발생)\n- 절차마다 Target 재생성 후 시작\n[절차]\n1. 입력창 클릭 -> Se 입력 -> 확인\n2. interactionEnterKey=true : 입력창 클릭 -> Se 입력 -> Enter -> Enter -> 확인\n3. interactionEnterKey=false : 입력창 클릭 -> Se 입력 -> 목록에서 Seoul 클릭 -> 입력창 클릭 -> 아래 화살표키 -> 확인\n[확인]\n- 요청 기록 (submission 실행 직전 key 노드값, submissionFunc 호출 검색어)\n- 결과 수신 시 아이템 개수 -> setItemSet 후 아이템 개수, 확인 직전 리스트창 아이템"', '', 'label1');
+
+    scwin.gVar.arrRequest = [];
+    scwin.gVar.arrItem = [];
+    scwin.gVar.isOpen = false;
+    scwin.gVar.itemCount = 0;
+    scwin.gVar.strResultCount = "";
+    dlt_result.removeAll();
+
+    let properties = {
+        interactionMode : con_interactionMode.getText(),
+        interactionEnterKey : con_interactionEnterKey.getText(),
+        keyInputRef : "req/search",
+        // submission 속성의 정의 ID(sbm_search)는 화면 Scope 에서 찾지 못하므로(결함 후보 대기 목록 기재) Scope 적용 ID 옵션은 실제 ID 로 설정
+        submission : (con_submission.getValue() === "scope" ? $p.getSubmission("sbm_search").id : con_submission.getValue()),
+        submissionFunc : con_submissionFunc.getValue(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+}
+
+
+
+// 검색어를 포함하는 아이템을 결과 DataList 에 담고 setItemSet 으로 아이템 설정 후 openTable 로 리스트창 표시
+// 결과 수신 직후(setItemSet 전) 아이템 개수와 setItemSet 후 아이템 개수 기록 (validation 7 : 자동 반영되지 않음 판정)
+scwin.applyResult = function (searchStr) {
+    let beforeCount = target1.getItemCount();
+    let arrResult = scwin.arrCity.filter(function (item) {
+        return item.label.indexOf(searchStr) > -1;
+    });
+    dlt_result.setJSON(arrResult);
+    target1.setItemSet("data:dlt_result", "label", "value");
+    scwin.gVar.strResultCount = "결과 수신 시 아이템 : " + beforeCount + " -> setItemSet 후 : " + target1.getItemCount();
+    target1.openTable();
+};
+
+
+
+// submissionFunc 방식 : 호출 기록 후 결과 반영 (submissionFunc 설정 시 submission 무시 확인용)
+scwin.searchItem = function (searchStr, keyCode) {
+    scwin.gVar.arrRequest.push("submissionFunc 호출(" + searchStr + ")");
+    scwin.applyResult(searchStr);
+};
+
+
+
+// submission 방식 : 실행 직전 keyInputRef 경로 하위 key 노드값 기록
+scwin.sbm_search_submit = function (e) {
+    scwin.gVar.arrRequest.push("submission 실행(req/search/key = " + WebSquare.ModelUtil.getInstanceValue("req/search/key") + ")");
+};
+
+
+
+// submission 완료 : key 노드값으로 결과 반영 (응답 파일 내용은 사용하지 않음)
+scwin.sbm_search_submitdone = function (e) {
+    scwin.applyResult(WebSquare.ModelUtil.getInstanceValue("req/search/key"));
+};
+
+
+
+// 확인 버튼 mousedown 시점(리스트창이 닫히기 전)의 아이템 개수, 리스트창 표시 여부와 표시 아이템 기록
+scwin.captureListState = function (e) {
+    scwin.gVar.arrItem = [];
+    scwin.gVar.isOpen = false;
+    scwin.gVar.itemCount = target1.getItemCount();
+
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (!itemTableElem) {
+        return;
+    }
+    let objStyle = getComputedStyle(itemTableElem);
+    if (objStyle.display === "none" || objStyle.visibility === "hidden") {
+        return;
+    }
+    scwin.gVar.isOpen = true;
+
+    // 숨겨진 Row 는 제외하고 화면에 보이는 아이템만 수집
+    let rowList = itemTableElem.querySelectorAll("[id='" + target1.id + "_itemTable_main'] tr");
+    for (let i = 0; i < rowList.length; i++) {
+        if (rowList[i].offsetHeight > 0) {
+            scwin.gVar.arrItem.push(rowList[i].textContent.trim());
+        }
+    }
+};
+
+
+
+// 직전 확인 이후의 요청 기록, 아이템 개수(결과 수신 시 setItemSet 전후 / 수신 없으면 확인 직전), 리스트창 아이템 출력 후 기록 비움 (validation 1 ~ 8)
+scwin.btn_getRequest_onclick = function (e) {
+    let strResult = "요청 : " + (scwin.gVar.arrRequest.length > 0 ? scwin.gVar.arrRequest.join(" / ") : "없음");
+    strResult += " / " + (scwin.gVar.strResultCount !== "" ? scwin.gVar.strResultCount : "아이템 개수 : " + scwin.gVar.itemCount);
+    strResult += " / 리스트창 : " + (scwin.gVar.isOpen ? scwin.gVar.arrItem.join(", ") : "닫힘");
+    wf_body_bottom.getObj("scwin").setReturnValue(strResult);
+    scwin.gVar.arrRequest = [];
+    scwin.gVar.strResultCount = "";
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="interactionMode" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_interactionMode" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="interactionEnterKey" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_interactionEnterKey" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="submission" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_submission" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sbm_search]]></xf:label>
+												<xf:value><![CDATA[sbm_search]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[sbm_search (Scope 적용 ID)]]></xf:label>
+												<xf:value><![CDATA[scope]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="submissionFunc" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="con_submissionFunc" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label></xf:label>
+												<xf:value></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[scwin.searchItem]]></xf:label>
+												<xf:value><![CDATA[scwin.searchItem]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRequest_onclick" id="btn_getRequest" label="확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

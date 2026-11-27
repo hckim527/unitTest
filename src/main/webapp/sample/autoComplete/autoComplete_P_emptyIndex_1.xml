@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] emptyIndex" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261127" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 인덱스 선택 축 (emptyIndex / chooseOption / allOption / emptyItem)
+//  - _2 : 바인딩·갱신·이벤트 축 (ref / 아이템 갱신 / onchange)
+scwin.tData = {
+    "description" : "[autoComplete > P > emptyIndex]<br/>컴포넌트가 처음 렌더링될 때 선택된 아이템이 없으면 선택할 아이템의 인덱스를 설정합니다.",
+    "validation" : [
+        "속성값 설정 시, 컴포넌트가 처음 렌더링될 때 선택된 아이템이 없으면 선택할 아이템의 인덱스를 설정합니다.",
+        "0 부터 시작하며 chooseOption, allOption 속성으로 추가된 아이템도 인덱스에 포함됩니다.",
+        "속성값을 설정하지 않으면 0 으로 적용되며 첫번째 아이템이 선택됩니다.",
+        "emptyItem='true' 일때 '-1' 로 설정하면 아이템이 선택되지 않은 상태로 처리되어 빈 값이 표시되며 Value 는 emptyValue 속성값을 갖습니다.",
+    ]
+}
+
+// 아이템
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Incheon", "value" : "ICN" },
+    { "label" : "Jeju", "value" : "CJU" }
+];
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    scwin.createCityDataList("dlt_city");
+    dlt_city.setJSON(scwin.arrCity);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (emptyIndex=3, 나머지 미설정)
+    con_emptyIndex.setValue("3");
+    con_chooseOption.setValue("1");
+    con_allOption.setValue("1");
+    con_emptyItem.setValue("1");
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+scwin.createCityDataList = function (dltID) {
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="' + dltID + '">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 컴포넌트 있으면 삭제
+    if (typeof label1 !== 'undefined') {
+        label1.remove();
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제] emptyValue=NONE 고정\n[절차] 조건 선택 -> Target 재생성 -> 상태 확인\n[확인] 아이템 목록의 인덱스와 선택된 아이템의 표시 텍스트 / Value / selectedIndex"', '', 'label1');
+
+    // 미설정 옵션은 속성 자체를 넣지 않는다 (createCList 가 빈값 키 제외, gdl_boolean 은 getText)
+    let properties = {
+        emptyIndex : con_emptyIndex.getValue(),
+        chooseOption : con_chooseOption.getText(),
+        allOption : con_allOption.getText(),
+        emptyItem : con_emptyItem.getText(),
+        emptyValue : "NONE",
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+};
+
+
+
+// 아이템 목록(인덱스별 Label) 과 처음 렌더링 후 선택 상태 출력 (validation 1 ~ 4)
+//  - 표시 텍스트 : 값 표시 영역의 글자 (선택된 아이템이 없으면 빈 값)
+scwin.btn_getState_onclick = function (e) {
+    let arrItem = [];
+    for (let i = 0; i < target1.getItemCount(); i++) {
+        arrItem.push("[" + i + "] " + target1.getItem(i).label);
+    }
+
+    let labelElem = document.querySelector("[id='" + target1.id + "_label']");
+
+    wf_body_bottom.getObj("scwin").setReturnValue("아이템 : " + arrItem.join(" / "));
+    wf_body_bottom.getObj("scwin").setReturnValue("표시 텍스트 : " + labelElem.textContent + " / Value : " + target1.getValue() + " / selectedIndex : " + target1.getSelectedIndex());
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="emptyIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_emptyIndex" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[1]]></xf:label>
+												<xf:value><![CDATA[1]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[-1]]></xf:label>
+												<xf:value><![CDATA[-1]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="emptyItem" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_emptyItem" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="chooseOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_chooseOption" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="allOption" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_allOption" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getState_onclick" id="btn_getState" label="상태 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

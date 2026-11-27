@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] submissionFunc" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261126" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="02" meta_desc="결과 반영 옵션 삭제(결과 수신 시 항상 setItemSet + openTable 호출), 라벨 전제 간소화" meta_date="20261126" meta_user="InswaveSystems"></w2:history>
+			<w2:history meta_no="03" meta_desc="함수 실행 시(setItemSet 호출 전) 아이템 개수 기록 후 setItemSet 후와 함께 출력, 반환값 옵션을 setItemSet 데이터와 다른 Busan 아이템 배열로 변경" meta_date="20261126" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+// 사용자 정의 함수의 반환값 미사용 / 실행 결과 반영(setItemSet·openTable) 검증 담당
+// (_1 은 동작 조건·submission 무시·함수 파라미터·interactionEnterKey 별 실행 시점·직전 검색어·미설정 시 false 동작 담당)
+scwin.tData = {
+    "description" : "[autoComplete > P > submissionFunc]<br/>interactionMode='true' 일때 아이템을 동적으로 생성할 사용자 정의 함수를 설정합니다.",
+    "validation" : [
+        "사용자 정의 함수의 반환값은 사용되지 않습니다.",
+        "사용자 정의 함수의 실행 결과는 아이템에 자동으로 반영되지 않습니다. 조회가 완료된 후 setItemSet() 메소드로 아이템을 설정하고 openTable() 메소드로 아이템 리스트창을 열어야 합니다."
+    ]
+}
+
+// 컴포넌트에 설정된 아이템 겸 검색 대상 데이터
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Seongnam", "value" : "SNM" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Jeju", "value" : "CJU" }
+];
+
+scwin.gVar = {
+    "arrRequest" : [],   // 사용자 정의 함수 실행 기록(입력값·keyCode·반환값) (확인 버튼 클릭 시 출력 후 비움)
+    "arrItem" : [],      // 확인 버튼 mousedown 시점의 리스트창 표시 아이템
+    "isOpen" : false,    // 확인 버튼 mousedown 시점의 리스트창 표시 여부
+    "itemCount" : 0,     // 확인 버튼 mousedown 시점의 아이템 개수 (setItemSet 후)
+    "receiveCount" : null // 함수 실행 시 setItemSet 호출 전 아이템 개수 (실행 전 null)
+};
+
+
+
+scwin.onpageload = function () {
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 컴포넌트 아이템 DataList / 검색 결과 DataList 생성
+    let arrDltId = ["dlt_city", "dlt_result"];
+    arrDltId.forEach(function (dltId) {
+        let strDlt = '';
+        strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="' + dltId + '">';
+        strDlt += '<w2:columnInfo>';
+        strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+        strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+        strDlt += '</w2:columnInfo>';
+        strDlt += '</w2:dataList>';
+        $p.data.create(strDlt);
+    });
+    dlt_city.setJSON(scwin.arrCity);
+
+    // 옵션 기본값 : 반환값=반환 안 함
+    sel_returnValue.setSelectedIndex(0);
+
+    // 확인 버튼을 누르면 편집 모드가 해제되어 리스트창이 먼저 닫히므로 mousedown capture 단계에서 리스트창 상태를 기록
+    btn_getRequest.render.addEventListener("mousedown", scwin.captureListState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 target 있으면 삭제
+    if (typeof target1 !== 'undefined') target1.remove();
+
+    // 직전 검색어와 같으면 다시 실행되지 않으므로 절차마다 Target 재생성 필요
+    $c.gcm.createLabel('label="[전제]\n- 고정 설정 : interactionMode=true, interactionEnterKey=true, submissionFunc=scwin.searchItem\n- 컴포넌트 아이템 : Seoul, Seongnam, Busan, Jeju\n- 절차마다 Target 재생성 후 시작\n[절차] 입력창 클릭 -> Se 입력 -> Enter -> 확인\n[확인] 함수 반환값, 결과 수신 시 -> setItemSet 후 아이템 개수, 리스트창 아이템"', '', 'label1');
+
+    scwin.gVar.arrRequest = [];
+    scwin.gVar.arrItem = [];
+    scwin.gVar.isOpen = false;
+    scwin.gVar.itemCount = 0;
+    scwin.gVar.receiveCount = null;
+    dlt_result.removeAll();
+
+    let properties = {
+        interactionMode : "true",
+        interactionEnterKey : "true",
+        submissionFunc : "scwin.searchItem",
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+}
+
+
+
+// submissionFunc : 검색어를 포함하는 아이템을 결과 DataList 에 담고 setItemSet 으로 아이템 설정 후 openTable 로 리스트창 표시
+// 결과가 자동 반영되지 않음을 판정하기 위해 setItemSet 호출 전 아이템 개수를 먼저 기록
+// 반환값 옵션이 Busan 이면 setItemSet 데이터(검색 결과)와 다른 Busan 아이템 배열을 반환 -> 엔진이 반환값을 쓰면 아이템이 Busan 으로 달라짐
+scwin.searchItem = function (searchStr, keyCode) {
+    scwin.gVar.receiveCount = target1.getItemCount();
+
+    let arrResult = scwin.arrCity.filter(function (item) {
+        return item.label.indexOf(searchStr) > -1;
+    });
+    dlt_result.setJSON(arrResult);
+
+    target1.setItemSet("data:dlt_result", "label", "value");
+    target1.openTable();
+
+    if (sel_returnValue.getValue() === "array") {
+        let arrReturn = [{ "label" : "Busan", "value" : "PUS" }];
+        scwin.gVar.arrRequest.push("반환값 : [" + arrReturn.map(function (item) { return item.label; }).join(", ") + "]");
+        return arrReturn;
+    }
+    scwin.gVar.arrRequest.push("반환값 : 없음");
+};
+
+
+
+// 확인 버튼 mousedown 시점(리스트창이 닫히기 전)의 아이템 개수, 리스트창 표시 여부와 표시 아이템 기록
+scwin.captureListState = function (e) {
+    scwin.gVar.arrItem = [];
+    scwin.gVar.isOpen = false;
+    scwin.gVar.itemCount = target1.getItemCount();
+
+    let itemTableElem = document.querySelector("[id='" + target1.id + "_itemTable']");
+    if (!itemTableElem) {
+        return;
+    }
+    let objStyle = getComputedStyle(itemTableElem);
+    if (objStyle.display === "none" || objStyle.visibility === "hidden") {
+        return;
+    }
+    scwin.gVar.isOpen = true;
+
+    // 숨겨진 Row 는 제외하고 화면에 보이는 아이템만 수집
+    let rowList = itemTableElem.querySelectorAll("[id='" + target1.id + "_itemTable_main'] tr");
+    for (let i = 0; i < rowList.length; i++) {
+        if (rowList[i].offsetHeight > 0) {
+            scwin.gVar.arrItem.push(rowList[i].textContent.trim());
+        }
+    }
+};
+
+
+
+// 직전 확인 이후의 함수 반환값과 아이템 개수·리스트창 아이템 출력 후 기록 비움 (validation 1, 2)
+// 함수가 실행됐으면 실행 시(setItemSet 호출 전) -> setItemSet 후 아이템 개수 출력 (validation 2)
+scwin.btn_getRequest_onclick = function (e) {
+    let strResult = "함수 실행 : " + (scwin.gVar.arrRequest.length > 0 ? scwin.gVar.arrRequest.join(" / ") : "없음");
+    if (scwin.gVar.receiveCount !== null) {
+        strResult += " / 결과 수신 시 아이템 : " + scwin.gVar.receiveCount + " -> setItemSet 후 : " + scwin.gVar.itemCount;
+    } else {
+        strResult += " / 아이템 개수 : " + scwin.gVar.itemCount;
+    }
+    strResult += " / 리스트창 : " + (scwin.gVar.isOpen ? scwin.gVar.arrItem.join(", ") : "닫힘");
+    wf_body_bottom.getObj("scwin").setReturnValue(strResult);
+    scwin.gVar.arrRequest = [];
+    scwin.gVar.receiveCount = null;
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group tagname="tr" style="">
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="반환값" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+									<xf:select1 id="sel_returnValue" chooseOption="" style="" submenuSize="auto" allOption=""
+										appearance="minimal" ref="">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[반환 안 함]]></xf:label>
+												<xf:value><![CDATA[none]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[Busan 아이템 배열 ([{ label : Busan, value : PUS }])]]></xf:label>
+												<xf:value><![CDATA[array]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group tagname="th" class="w2tb_th" style="">
+									<w2:textbox class="" id="" label="" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group tagname="td" class="w2tb_td" style="">
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getRequest_onclick" id="btn_getRequest" label="확인"
+							style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

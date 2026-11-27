@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] editType" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261127" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+scwin.tData = {
+    "description" : "[autoComplete > P > editType]<br/>컴포넌트의 입력창이 편집 모드로 전환될 때 포커스 되는 방식을 설정합니다.",
+    "validation" : [
+        "select 설정 시, 입력값 전체가 선택되며 포커스됩니다.",
+        "미설정 시, 입력값 전체가 선택되며 포커스됩니다.",
+        "focus 설정 시, 마지막 편집 모드의 Caret 위치 또는 입력값 마지막 위치에 Caret 이 표시되며 포커스됩니다.",
+        "disableEdit='true' 이면 편집 모드로 전환되지 않으므로 editType 속성은 무시됩니다.",
+        "편집 모드로 전환되는 시점에만 적용되며, 편집 모드 상태에서 입력창을 다시 클릭하면 클릭한 위치에 Caret 이 표시됩니다.",
+    ]
+}
+
+// 아이템
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Incheon", "value" : "ICN" },
+    { "label" : "Jeju", "value" : "CJU" }
+];
+
+// stateInfo : 상태 확인 버튼을 누르는 시점의 편집 모드 여부, 입력값, 선택 영역(Caret) 위치
+scwin.gVar = { "stateInfo" : "" };
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    scwin.createCityDataList("dlt_city");
+    dlt_city.setJSON(scwin.arrCity);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (editType=select, disableEdit 미설정)
+    con_editType.setSelectedIndex(1);
+    con_disableEdit.setValue("1");
+
+    // 상태 확인 버튼 클릭 시 포커스가 버튼으로 옮겨가 편집 모드가 풀리므로 mousedown capture 단계에서 상태를 기록
+    btn_getState.render.addEventListener("mousedown", scwin.captureState, true);
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+scwin.createCityDataList = function (dltID) {
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="' + dltID + '">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 컴포넌트 있으면 삭제
+    if (typeof label1 !== 'undefined') {
+        label1.remove();
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제]\n- target1 의 초기 값은 Incheon (ICN)\n- 상태 확인을 누르면 포커스가 버튼으로 옮겨가 편집 모드가 종료됨\n[절차]\n1. editType, disableEdit 선택 -> Target 재생성\n2. target1 의 입력창 영역 클릭 -> 상태 확인\n3. target1 의 입력창 영역 클릭 -> 왼쪽 화살표키 3회 -> 상태 확인 -> target1 의 입력창 영역 다시 클릭 -> 상태 확인\n4. target1 의 입력창 영역 클릭 -> 입력창의 첫 글자 부근 다시 클릭 -> 상태 확인\n[확인] 상태 확인의 편집 모드 / selectionStart / selectionEnd"', '', 'label1');
+
+    // 미설정 옵션은 속성 자체를 넣지 않는다 (createCList 가 빈값 키 제외)
+    let properties = {
+        editType : con_editType.getValue(),
+        disableEdit : con_disableEdit.getText(),
+    }
+
+    let cList = $c.gcm.createCList(properties);
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    let objTarget = await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+
+    // Caret 위치를 구분할 수 있도록 초기 값 설정
+    objTarget && target1.setValue("ICN");
+};
+
+
+
+// 버튼 mousedown 시점(포커스가 버튼으로 옮겨가기 전)의 상태 기록
+//  - 편집 모드 : 값 표시 영역이 숨겨지고 입력창이 표시된 상태
+//  - 편집 모드일 때만 입력값과 selectionStart / selectionEnd 를 기록
+scwin.captureState = function (e) {
+    let inputElem = document.querySelector("[id='" + target1.id + "_input']");
+    let labelElem = document.querySelector("[id='" + target1.id + "_label']");
+
+    let bEditMode = inputElem.offsetWidth > 0 && labelElem.offsetWidth === 0;
+
+    let strResult = "편집 모드 : " + bEditMode;
+    if (bEditMode) {
+        strResult += " / 입력값 : " + inputElem.value + " / selectionStart : " + inputElem.selectionStart + " / selectionEnd : " + inputElem.selectionEnd;
+    }
+
+    scwin.gVar.stateInfo = strResult;
+};
+
+
+
+// 편집 모드 진입 / Caret 이동 후 재진입 / 편집 모드 중 재클릭 후 상태 출력 (validation 1 ~ 5)
+scwin.btn_getState_onclick = function (e) {
+    wf_body_bottom.getObj("scwin").setReturnValue(scwin.gVar.stateInfo);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="editType" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_editType" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[select]]></xf:label>
+												<xf:value><![CDATA[select]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[focus]]></xf:label>
+												<xf:value><![CDATA[focus]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="disableEdit" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_disableEdit" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:itemset nodeset="data:gdl_boolean">
+												<xf:label ref="label"></xf:label>
+												<xf:value ref="value"></xf:value>
+											</xf:itemset>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getState_onclick" id="btn_getState" label="상태 확인" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>

@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+	xmlns:xf="http://www.w3.org/2002/xforms">
+	<head meta_screenName="[autoComplete] emptyIndex" meta_author="InswaveSystems" meta_type="메인">
+		<w2:historyInfo>
+			<w2:history meta_no="01" meta_desc="최초작성" meta_date="20261127" meta_user="InswaveSystems"></w2:history>
+		</w2:historyInfo>
+		<w2:type>COMPONENT</w2:type>
+		<w2:buildDate />
+		<w2:MSA />
+		<xf:model>
+			<w2:dataCollection baseNode="map">
+			</w2:dataCollection>
+			<w2:workflowCollection />
+		</xf:model>
+		<w2:layoutInfo />
+		<w2:publicInfo method="" />
+		<script lazy="false" type="text/javascript"><![CDATA[// 테스트 설명, 유효성 값 설정
+//  - _1 : 인덱스 선택 축 (emptyIndex / chooseOption / allOption / emptyItem)
+//  - _2 : 바인딩·갱신·이벤트 축 (ref / 아이템 갱신 / onchange). validation 1 은 "선택된 아이템이 없으면" 조건(ref 초기값) 판정용으로 함께 둔다
+scwin.tData = {
+    "description" : "[autoComplete > P > emptyIndex]<br/>컴포넌트가 처음 렌더링될 때 선택된 아이템이 없으면 선택할 아이템의 인덱스를 설정합니다.",
+    "validation" : [
+        "속성값 설정 시, 컴포넌트가 처음 렌더링될 때 선택된 아이템이 없으면 선택할 아이템의 인덱스를 설정합니다.",
+        "처음 렌더링될 때만 적용되며 아이템이 갱신되는 경우에는 적용되지 않습니다.",
+        "ref 속성으로 바인딩된 경우 emptyIndex 속성에 따라 선택된 아이템의 Value 가 바인딩된 DataCollection 에 반영됩니다.",
+        "emptyIndex 속성에 의해 아이템이 선택될 때는 onchange 이벤트가 발생하지 않습니다.",
+    ]
+}
+
+// 아이템
+scwin.arrCity = [
+    { "label" : "Seoul", "value" : "SEL" },
+    { "label" : "Busan", "value" : "PUS" },
+    { "label" : "Incheon", "value" : "ICN" },
+    { "label" : "Jeju", "value" : "CJU" }
+];
+
+// 아이템 갱신 버튼으로 교체할 아이템 (기존 아이템과 Value 가 겹치지 않음)
+scwin.arrCityNew = [
+    { "label" : "Daegu", "value" : "TAE" },
+    { "label" : "Gwangju", "value" : "KWJ" },
+    { "label" : "Ulsan", "value" : "USN" },
+    { "label" : "Pohang", "value" : "KPO" }
+];
+
+
+
+scwin.onpageload = function () {
+    // Global DataList 생성 호출
+    $c.gcm.createCommonDatalist();
+
+    // 테스트 설명, 유효성 생성
+    wf_body_left.getObj("scwin").createValidation(scwin.tData);
+
+    // 아이템 DataList 생성
+    scwin.createCityDataList("dlt_city");
+
+    // target1 의 Value 가 반영될 DataMap 생성 (ref 바인딩 대상)
+    let strDm = '';
+    strDm += '<w2:dataMap ' + $c.gcm.getNameSpace() + ' baseNode="map" id="dm_ref">';
+    strDm += '<w2:keyInfo>';
+    strDm += '<w2:key id="city" name="city" dataType="text"></w2:key>';
+    strDm += '</w2:keyInfo>';
+    strDm += '</w2:dataMap>';
+    $p.data.create(strDm);
+
+    // 정적 select1 은 초기 selectedIndex 가 적용되지 않으므로 기본값 명시 설정 (emptyIndex=2, ref 바인딩 초기값 빈 값)
+    con_emptyIndex.setValue("2");
+    con_ref.setValue("empty");
+
+    // comp 초기 생성
+    scwin.comp_init();
+};
+
+
+
+scwin.createCityDataList = function (dltID) {
+    let strDlt = '';
+    strDlt += '<w2:dataList ' + $c.gcm.getNameSpace() + ' baseNode="list" repeatNode="map" id="' + dltID + '">';
+    strDlt += '<w2:columnInfo>';
+    strDlt += '<w2:column id="label" name="label" dataType="text"></w2:column>';
+    strDlt += '<w2:column id="value" name="value" dataType="text"></w2:column>';
+    strDlt += '</w2:columnInfo>';
+    strDlt += '</w2:dataList>';
+    $p.data.create(strDlt);
+};
+
+
+
+// comp 생성
+scwin.comp_init = async function () {
+    // 기존 컴포넌트 있으면 삭제
+    if (typeof label1 !== 'undefined') {
+        label1.remove();
+    }
+
+    if (typeof target1 !== 'undefined') {
+        target1.remove();
+    }
+
+    $c.gcm.createLabel('label="[전제]\n- 아이템(Label / Value) : Seoul / SEL, Busan / PUS, Incheon / ICN, Jeju / CJU\n- Target 재생성 시 아이템을 위 목록으로, DataMap(dm_ref) 의 city 를 ref 의 초기값으로 되돌림\n[절차]\n1. 조건 선택 -> Target 재생성 -> 상태 확인\n2. 아이템 갱신 (아이템을 Daegu / TAE, Gwangju / KWJ, Ulsan / USN, Pohang / KPO 로 교체)\n3. 화살표 버튼으로 목록을 열어 다른 아이템 선택\n[확인] Target 재생성·아이템 갱신·아이템 선택 시 결과창의 onchange 출력 여부와 상태 확인의 표시 텍스트 / Value / city 값"', '', 'label1');
+
+    // 재생성할 때마다 같은 아이템·바인딩 값에서 시작
+    dlt_city.setJSON(scwin.arrCity);
+
+    let cRef = con_ref.getValue();
+    dm_ref.set("city", cRef === "PUS" ? "PUS" : "");
+
+    // 미설정 옵션은 속성 자체를 넣지 않는다 (createCList 가 빈값 키 제외)
+    let properties = {
+        emptyIndex : con_emptyIndex.getValue(),
+        ref : cRef === "" ? "" : "data:dm_ref.city",
+    }
+
+    let cList = $c.gcm.createCList(properties);
+    let eList = $c.gcm.createEList(["onchange"], "target1");
+
+    let strTarget = '';
+    strTarget += '<w2:autoComplete ' + $c.gcm.getNameSpace() + ' ' + cList + ' ' + eList + ' style="width:200px; height:30px;">';
+    strTarget += '<w2:choices>';
+    strTarget += '<w2:itemset nodeset="data:dlt_city">';
+    strTarget += '<w2:label ref="label"></w2:label>';
+    strTarget += '<w2:value ref="value"></w2:value>';
+    strTarget += '</w2:itemset>';
+    strTarget += '</w2:choices>';
+    strTarget += '</w2:autoComplete>';
+
+    await $p.dynamicCreate("target1", "autoComplete", strTarget, $c.gcm.getTestGroup());
+};
+
+
+
+// 선택 상태 출력 (validation 1, 2, 3)
+//  - city 값 : ref 바인딩된 경우에만 출력
+scwin.btn_getState_onclick = function (e) {
+    let labelElem = document.querySelector("[id='" + target1.id + "_label']");
+
+    let strResult = "표시 텍스트 : " + labelElem.textContent + " / Value : " + target1.getValue();
+    if (con_ref.getValue() !== "") {
+        strResult += " / DataMap(dm_ref) city 값 : " + dm_ref.get("city");
+    }
+
+    wf_body_bottom.getObj("scwin").setReturnValue(strResult);
+};
+
+
+
+// 아이템 갱신 후 선택 상태 출력 (validation 2)
+scwin.btn_refreshItem_onclick = function (e) {
+    dlt_city.setJSON(scwin.arrCityNew);
+    scwin.btn_getState_onclick();
+};
+
+
+
+// onchange 발생 여부 출력 (validation 4)
+scwin.target1_onchange = function (info) {
+    wf_body_bottom.getObj("scwin").setReturnValue("onchange 발생 : oldValue " + info.oldValue + " / newValue " + info.newValue);
+};
+]]></script>
+	</head>
+	<body ev:onpageload="scwin.onpageload">
+		<xf:group class="tc_body_main" id="" style="display: flex;">
+			<xf:group style="" id="body_left" class="tc_body_left">
+				<w2:wframe id="wf_body_left" src="/frame/page/body_left.xml" style=""></w2:wframe>
+			</xf:group>
+			<xf:group class="tc_body_right" id="body_right" style="">
+				<w2:wframe id="wf_body_top" src="/frame/page/body_top.xml" style=""></w2:wframe>
+				<xf:group id="grp_condition">
+					<xf:group class="tblbox" id="" meta_snippetCategory="05_입출력테이블" meta_snippetKeyComponent="true"
+						meta_snippetName="5_02 2단테이블" style="">
+						<xf:group adaptive="layout" adaptiveThreshold="600" class="w2tb tbl" id="" style="" tagname="table">
+							<w2:attributes>
+								<w2:summary></w2:summary>
+							</w2:attributes>
+							<xf:group tagname="colgroup">
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+								<xf:group style="width:150px;" tagname="col"></xf:group>
+								<xf:group style="" tagname="col"></xf:group>
+							</xf:group>
+							<xf:group style="" tagname="tr">
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="emptyIndex" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_emptyIndex" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[0]]></xf:label>
+												<xf:value><![CDATA[0]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[2]]></xf:label>
+												<xf:value><![CDATA[2]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[3]]></xf:label>
+												<xf:value><![CDATA[3]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+								<xf:group class="w2tb_th" style="" tagname="th">
+									<w2:textbox class="" id="" label="ref" ref="" style="" userData2=""></w2:textbox>
+								</xf:group>
+								<xf:group class="w2tb_td" style="" tagname="td">
+									<xf:select1 allOption="" appearance="minimal" chooseOption="" id="con_ref" ref="" style=""
+										submenuSize="auto">
+										<xf:choices>
+											<xf:item>
+												<xf:label><![CDATA[]]></xf:label>
+												<xf:value><![CDATA[]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[data:dm_ref.city (초기값 빈 값)]]></xf:label>
+												<xf:value><![CDATA[empty]]></xf:value>
+											</xf:item>
+											<xf:item>
+												<xf:label><![CDATA[data:dm_ref.city (초기값 PUS)]]></xf:label>
+												<xf:value><![CDATA[PUS]]></xf:value>
+											</xf:item>
+										</xf:choices>
+									</xf:select1>
+								</xf:group>
+							</xf:group>
+						</xf:group>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_sample" src="/frame/page/body_sample.xml" style=""></w2:wframe>
+				<xf:group id="grp_parameter">
+					<xf:group style="" id="grp_etc">
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_getState_onclick" id="btn_getState" label="상태 확인" style=""></w2:button>
+						<w2:button class="tc_btn_basic" ev:onclick="scwin.btn_refreshItem_onclick" id="btn_refreshItem" label="아이템 갱신" style=""></w2:button>
+					</xf:group>
+				</xf:group>
+				<w2:wframe id="wf_body_bottom" src="/frame/page/body_bottom.xml" style=""></w2:wframe>
+			</xf:group>
+		</xf:group>
+	</body>
+</html>
